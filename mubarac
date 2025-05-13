@@ -559,7 +559,6 @@ function library:Window(title, version, info, preset, closebind)
             local Button = Instance.new("TextButton")
             local ButtonCorner = Instance.new("UICorner")
             local ButtonTitle = Instance.new("TextLabel")
-
             Button.Name = "Button"
             Button.Parent = Tab
             Button.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
@@ -569,11 +568,9 @@ function library:Window(title, version, info, preset, closebind)
             Button.Text = ""
             Button.TextColor3 = Color3.fromRGB(0, 0, 0)
             Button.TextSize = 14.000
-
             ButtonCorner.CornerRadius = UDim.new(0, 5)
             ButtonCorner.Name = "ButtonCorner"
             ButtonCorner.Parent = Button
-
             ButtonTitle.Name = "ButtonTitle"
             ButtonTitle.Parent = Button
             ButtonTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -585,7 +582,6 @@ function library:Window(title, version, info, preset, closebind)
             ButtonTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
             ButtonTitle.TextSize = 18
             ButtonTitle.TextXAlignment = Enum.TextXAlignment.Left
-
             library.Conn[#library.Conn + 1] = Button.MouseButton1Click:Connect(function()
                 local suc, res = pcall(callback)
                 if library.debug then
@@ -597,8 +593,9 @@ function library:Window(title, version, info, preset, closebind)
         end
 
         function tabcontent:Toggle(text, default, callback, flag)
-            local toggled = default or false
             local flag = flag or text
+            local toggled = false
+            
             local Toggle = Instance.new("TextButton")
             local ToggleCorner = Instance.new("UICorner")
             local ToggleTitle = Instance.new("TextLabel")
@@ -730,7 +727,13 @@ function library:Window(title, version, info, preset, closebind)
                 end
                 toggled = state
                 toggle.value = state
-                pcall(callback, toggled)
+                
+                if callback then
+                    local success, err = pcall(callback, toggled)
+                    if not success and library.debug then
+                        warn("Toggle Callback Error:", err)
+                    end
+                end
             end
 
             if not library.flags then library.flags = {} end
