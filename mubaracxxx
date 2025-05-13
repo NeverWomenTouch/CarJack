@@ -592,172 +592,188 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
         end
 
-        function tabcontent:Toggle(text, default, callback, flag)
-            local flag = flag or text
-            local toggled = default or false
-            
-            local Toggle = Instance.new("TextButton")
-            local ToggleCorner = Instance.new("UICorner")
-            local ToggleTitle = Instance.new("TextLabel")
-            local FrameToggle1 = Instance.new("Frame")
-            local FrameToggle1Corner = Instance.new("UICorner")
-            local FrameToggle2 = Instance.new("Frame")
-            local FrameToggle2Corner = Instance.new("UICorner")
-            local FrameToggle3 = Instance.new("Frame")
-            local FrameToggle3Corner = Instance.new("UICorner")
-            local FrameToggleCircle = Instance.new("Frame")
-            local FrameToggleCircleCorner = Instance.new("UICorner")
-
-            local toggle = {
-                value = toggled,
-                set = function(self, state)
-                    ToggleState(state)
-                    return self
-                end,
-                toggle = function(self)
-                    ToggleState(not toggled)
-                    return self
-                end,
-                enable = function(self)
-                    if not toggled then
-                        ToggleState(true)
-                    end
-                    return self
-                end,
-                disable = function(self)
-                    if toggled then
-                        ToggleState(false)
-                    end
-                    return self
-                end,
-                getState = function(self)
-                    return toggled
-                end,
-                onStateChanged = function(self, newCallback)
-                    callback = newCallback
-                    return self
-                end
-            }
-
-            Toggle.Name = "Toggle"
-            Toggle.Parent = Tab
-            Toggle.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-            Toggle.Position = UDim2.new(0.215625003, 0, 0.446271926, 0)
-            Toggle.Size = UDim2.new(0, 363, 0, 42)
-            Toggle.AutoButtonColor = false
-            Toggle.Font = Enum.Font.SourceSans
-            Toggle.Text = ""
-            Toggle.TextColor3 = Color3.fromRGB(0, 0, 0)
-            Toggle.TextSize = 14
-
-            ToggleCorner.CornerRadius = UDim.new(0, 5)
-            ToggleCorner.Name = "ToggleCorner"
-            ToggleCorner.Parent = Toggle
-
-            ToggleTitle.Name = "ToggleTitle"
-            ToggleTitle.Parent = Toggle
-            ToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            ToggleTitle.BackgroundTransparency = 1.000
-            ToggleTitle.Position = UDim2.new(0.05, 0, 0, 0)
-            ToggleTitle.Size = UDim2.new(0.95, 0, 0, 40)
-            ToggleTitle.Font = Enum.Font.SourceSans
-            ToggleTitle.Text = text
-            ToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-            ToggleTitle.TextSize = 18
-            ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-            FrameToggle1.Name = "FrameToggle1"
-            FrameToggle1.Parent = Toggle
-            FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            FrameToggle1.Position = UDim2.new(0.859504104, 0, 0.285714298, 0)
-            FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
-
-            FrameToggle1Corner.Name = "FrameToggle1Corner"
-            FrameToggle1Corner.Parent = FrameToggle1
-
-            FrameToggle2.Name = "FrameToggle2"
-            FrameToggle2.Parent = FrameToggle1
-            FrameToggle2.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-            FrameToggle2.Position = UDim2.new(0.0489999987, 0, 0.0930000022, 0)
-            FrameToggle2.Size = UDim2.new(0, 33, 0, 14)
-
-            FrameToggle2Corner.Name = "FrameToggle2Corner"
-            FrameToggle2Corner.Parent = FrameToggle2
-
-            FrameToggle3.Name = "FrameToggle3"
-            FrameToggle3.Parent = FrameToggle1
-            FrameToggle3.BackgroundColor3 = PresetColor
-            FrameToggle3.BackgroundTransparency = 1.000
-            FrameToggle3.Size = UDim2.new(0, 37, 0, 18)
-
-            FrameToggle3Corner.Name = "FrameToggle3Corner"
-            FrameToggle3Corner.Parent = FrameToggle3
-
-            FrameToggleCircle.Name = "FrameToggleCircle"
-            FrameToggleCircle.Parent = FrameToggle1
-            FrameToggleCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            FrameToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
-            FrameToggleCircle.Size = UDim2.new(0, 10, 0, 10)
-
-            FrameToggleCircleCorner.Name = "FrameToggleCircleCorner"
-            FrameToggleCircleCorner.Parent = FrameToggleCircle
-            
-            coroutine.wrap(function()
-                while altloaded do
-                    FrameToggle3.BackgroundColor3 = PresetColor
-                    task.wait()
-                end
-            end)()
-            
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = toggle
-            
-            function ToggleState(state)
-                if state then
-                    tweensv:Create(Toggle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
-                    tweensv:Create(FrameToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                    tweensv:Create(FrameToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                    tweensv:Create(FrameToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                    tweensv:Create(FrameToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-                    FrameToggleCircle.Position = UDim2.new(0.587, 0, 0.222000003, 0)
-                else
-                    tweensv:Create(Toggle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(34, 34, 34)}):Play()
-                    tweensv:Create(FrameToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                    tweensv:Create(FrameToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                    tweensv:Create(FrameToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                    tweensv:Create(FrameToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
-                    FrameToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
-                end
-                toggled = state
-                toggle.value = state
-                
-                if callback then
-                    local success, err = pcall(callback, toggled)
-                    if not success and library.debug then
-                        warn("Toggle Callback Error:", err)
-                    end
-                end
+function tabcontent:Toggle(text, default, callback, flag)
+    local flag = flag or text
+    local toggled = default or false
+    
+    -- First create all the UI elements
+    local Toggle = Instance.new("TextButton")
+    local ToggleCorner = Instance.new("UICorner")
+    local ToggleTitle = Instance.new("TextLabel")
+    local FrameToggle1 = Instance.new("Frame")
+    local FrameToggle1Corner = Instance.new("UICorner")
+    local FrameToggle2 = Instance.new("Frame")
+    local FrameToggle2Corner = Instance.new("UICorner")
+    local FrameToggle3 = Instance.new("Frame")
+    local FrameToggle3Corner = Instance.new("UICorner")
+    local FrameToggleCircle = Instance.new("Frame")
+    local FrameToggleCircleCorner = Instance.new("UICorner")
+    
+    -- Create toggle object before defining ToggleState
+    local toggle = {
+        value = toggled,
+        set = function(self, state)
+            if ToggleState then
+                ToggleState(state)
             end
-
-            library.Conn[#library.Conn + 1] = Toggle.MouseButton1Click:Connect(function()
+            return self
+        end,
+        toggle = function(self)
+            if ToggleState then
                 ToggleState(not toggled)
-            end)
-            
-            library.Conn[#library.Conn + 1] = Toggle.MouseEnter:Connect(function()
-                tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(38, 38, 38)}):Play()
-            end)
-            
-            library.Conn[#library.Conn + 1] = Toggle.MouseLeave:Connect(function()
-                tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = toggled and Color3.fromRGB(37, 37, 37) or Color3.fromRGB(34, 34, 34)}):Play()
-            end)
-            
-            if default then
+            end
+            return self
+        end,
+        enable = function(self)
+            if not toggled and ToggleState then
                 ToggleState(true)
             end
-            
-            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-            return toggle
+            return self
+        end,
+        disable = function(self)
+            if toggled and ToggleState then
+                ToggleState(false)
+            end
+            return self
+        end,
+        getState = function(self)
+            return toggled
+        end,
+        onStateChanged = function(self, newCallback)
+            callback = newCallback
+            return self
         end
+    }
+    
+    -- Register in library.flags BEFORE ToggleState is defined
+    if not library.flags then library.flags = {} end
+    library.flags[flag] = toggle
+    
+    -- Setup UI elements
+    Toggle.Name = "Toggle"
+    Toggle.Parent = Tab
+    Toggle.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+    Toggle.Position = UDim2.new(0.215625003, 0, 0.446271926, 0)
+    Toggle.Size = UDim2.new(0, 363, 0, 42)
+    Toggle.AutoButtonColor = false
+    Toggle.Font = Enum.Font.SourceSans
+    Toggle.Text = ""
+    Toggle.TextColor3 = Color3.fromRGB(0, 0, 0)
+    Toggle.TextSize = 14
+
+    ToggleCorner.CornerRadius = UDim.new(0, 5)
+    ToggleCorner.Name = "ToggleCorner"
+    ToggleCorner.Parent = Toggle
+
+    ToggleTitle.Name = "ToggleTitle"
+    ToggleTitle.Parent = Toggle
+    ToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleTitle.BackgroundTransparency = 1.000
+    ToggleTitle.Position = UDim2.new(0.05, 0, 0, 0)
+    ToggleTitle.Size = UDim2.new(0.95, 0, 0, 40)
+    ToggleTitle.Font = Enum.Font.SourceSans
+    ToggleTitle.Text = text
+    ToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleTitle.TextSize = 18
+    ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+    FrameToggle1.Name = "FrameToggle1"
+    FrameToggle1.Parent = Toggle
+    FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    FrameToggle1.Position = UDim2.new(0.859504104, 0, 0.285714298, 0)
+    FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
+
+    FrameToggle1Corner.Name = "FrameToggle1Corner"
+    FrameToggle1Corner.Parent = FrameToggle1
+
+    FrameToggle2.Name = "FrameToggle2"
+    FrameToggle2.Parent = FrameToggle1
+    FrameToggle2.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+    FrameToggle2.Position = UDim2.new(0.0489999987, 0, 0.0930000022, 0)
+    FrameToggle2.Size = UDim2.new(0, 33, 0, 14)
+
+    FrameToggle2Corner.Name = "FrameToggle2Corner"
+    FrameToggle2Corner.Parent = FrameToggle2
+
+    FrameToggle3.Name = "FrameToggle3"
+    FrameToggle3.Parent = FrameToggle1
+    FrameToggle3.BackgroundColor3 = PresetColor
+    FrameToggle3.BackgroundTransparency = 1.000
+    FrameToggle3.Size = UDim2.new(0, 37, 0, 18)
+
+    FrameToggle3Corner.Name = "FrameToggle3Corner"
+    FrameToggle3Corner.Parent = FrameToggle3
+
+    FrameToggleCircle.Name = "FrameToggleCircle"
+    FrameToggleCircle.Parent = FrameToggle1
+    FrameToggleCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    FrameToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
+    FrameToggleCircle.Size = UDim2.new(0, 10, 0, 10)
+
+    FrameToggleCircleCorner.Name = "FrameToggleCircleCorner"
+    FrameToggleCircleCorner.Parent = FrameToggleCircle
+    
+    coroutine.wrap(function()
+        while altloaded do
+            FrameToggle3.BackgroundColor3 = PresetColor
+            task.wait()
+        end
+    end)()
+    
+    -- Now define ToggleState function AFTER toggle object creation
+    local function ToggleState(state)
+        if state then
+            tweensv:Create(Toggle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
+            tweensv:Create(FrameToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+            tweensv:Create(FrameToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+            tweensv:Create(FrameToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+            tweensv:Create(FrameToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+            FrameToggleCircle.Position = UDim2.new(0.587, 0, 0.222000003, 0)
+        else
+            tweensv:Create(Toggle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(34, 34, 34)}):Play()
+            tweensv:Create(FrameToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+            tweensv:Create(FrameToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+            tweensv:Create(FrameToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+            tweensv:Create(FrameToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+            FrameToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
+        end
+        toggled = state
+        toggle.value = state
+        
+        -- Fix callback call with proper error trapping
+        if callback then
+            task.spawn(function()
+                local success, err = pcall(callback, toggled)
+                if not success and library.debug then
+                    warn("Toggle Callback Error:", err)
+                end
+            end)
+        end
+    end
+    
+    -- Assign the ToggleState function reference to allow methods to call it
+    toggle.toggleState = ToggleState
+
+    library.Conn[#library.Conn + 1] = Toggle.MouseButton1Click:Connect(function()
+        ToggleState(not toggled)
+    end)
+    
+    library.Conn[#library.Conn + 1] = Toggle.MouseEnter:Connect(function()
+        tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(38, 38, 38)}):Play()
+    end)
+    
+    library.Conn[#library.Conn + 1] = Toggle.MouseLeave:Connect(function()
+        tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = toggled and Color3.fromRGB(37, 37, 37) or Color3.fromRGB(34, 34, 34)}):Play()
+    end)
+    
+    -- Apply default state after everything is set up
+    if default then
+        ToggleState(true)
+    end
+    
+    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+    return toggle
+end
         
         function tabcontent:KeybindT(text, default, keybind, callback, flag)
             local toggled = default or false
