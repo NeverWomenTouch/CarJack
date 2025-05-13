@@ -2165,28 +2165,34 @@ function library:Window(title, version, info, preset, closebind)
         end
 
 function tabcontent:Textbox(text, disappear, default, callback, flag, placeholderText)
+    if type(default) == "function" and callback == nil then
+        callback = default
+        default = ""
+    end
+    
     local flag = flag or text
     local default = default or ""
     
+    -- Create all UI elements first
     local Textbox = Instance.new("Frame")
     local TextboxCorner = Instance.new("UICorner")
     local TextboxTitle = Instance.new("TextLabel")
     local TextboxFrame = Instance.new("Frame")
     local TextboxFrameCorner = Instance.new("UICorner")
-    local TextBox = Instance.new("TextBox")
-
+    local TextBox = Instance.new("TextBox")  -- Make sure this is created early
+    
+    -- Set up UI elements hierarchy
     Textbox.Name = "Textbox"
     Textbox.Parent = Tab
     Textbox.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
     Textbox.ClipsDescendants = true
     Textbox.Size = UDim2.new(0, 363, 0, 42)
     Textbox.ZIndex = 50
-
+    
     TextboxCorner.CornerRadius = UDim.new(0, 5)
     TextboxCorner.Name = "TextboxCorner"
     TextboxCorner.Parent = Textbox
-    -- Removed ZIndex property from UICorner
-
+    
     TextboxTitle.Name = "TextboxTitle"
     TextboxTitle.Parent = Textbox
     TextboxTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -2199,33 +2205,35 @@ function tabcontent:Textbox(text, disappear, default, callback, flag, placeholde
     TextboxTitle.TextSize = 18
     TextboxTitle.TextXAlignment = Enum.TextXAlignment.Left
     TextboxTitle.ZIndex = 51
-
+    
     TextboxFrame.Name = "TextboxFrame"
     TextboxFrame.Parent = Textbox
     TextboxFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
     TextboxFrame.Position = UDim2.new(0.7, 0, 0.214285716, 0)
     TextboxFrame.Size = UDim2.new(0, 100, 0, 23)
     TextboxFrame.ZIndex = 52
-
+    
     TextboxFrameCorner.CornerRadius = UDim.new(0, 5)
     TextboxFrameCorner.Name = "TextboxFrameCorner"
     TextboxFrameCorner.Parent = TextboxFrame
-    -- Removed ZIndex property from UICorner
-
+    
+    -- Set up TextBox properties
+    TextBox.Name = "TextBox"
     TextBox.Parent = TextboxFrame
     TextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     TextBox.BackgroundTransparency = 1.000
     TextBox.Size = UDim2.new(1, 0, 1, 0)
     TextBox.Font = Enum.Font.Gotham
-    TextBox.Text = tostring(default or "")
     TextBox.PlaceholderText = placeholderText or "Enter text..."
     TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     TextBox.TextSize = 14.000
     TextBox.ClearTextOnFocus = false
     TextBox.ZIndex = 53
+    TextBox.Text = tostring(default)  -- Set text after creation
     
+    -- Create textbox object
     local textbox = {
-        value = default or "",
+        value = default,
         set = function(self, value)
             self.value = value or ""
             TextBox.Text = tostring(self.value)
@@ -2237,9 +2245,11 @@ function tabcontent:Textbox(text, disappear, default, callback, flag, placeholde
         end
     }
     
+    -- Register with flags
     if not library.flags then library.flags = {} end
     library.flags[flag] = textbox
-
+    
+    -- Connect events after everything is created
     library.Conn[#library.Conn + 1] = TextBox.Focused:Connect(function()
         tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(46, 46, 46)}):Play()
     end)
@@ -2248,33 +2258,33 @@ function tabcontent:Textbox(text, disappear, default, callback, flag, placeholde
         tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
         
         textbox.value = TextBox.Text
-        pcall(callback, TextBox.Text)
+        if callback then pcall(callback, TextBox.Text) end
         
         if disappear and enterPressed then
             TextBox.Text = ""
             textbox.value = ""
         end
     end)
-
+    
     library.Conn[#library.Conn + 1] = TextboxFrame.MouseEnter:Connect(function()
         if not TextBox:IsFocused() then
             tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(42, 42, 42)}):Play()
         end
     end)
-
+    
     library.Conn[#library.Conn + 1] = TextboxFrame.MouseLeave:Connect(function()
         if not TextBox:IsFocused() then
             tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
         end
     end)
-
+    
     -- Make the whole TextboxFrame clickable to focus the TextBox
     library.Conn[#library.Conn + 1] = TextboxFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             TextBox:CaptureFocus()
         end
     end)
-
+    
     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
     return textbox
 end
