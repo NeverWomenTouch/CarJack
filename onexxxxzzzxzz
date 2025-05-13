@@ -595,11 +595,11 @@ function library:Window(title, version, info, preset, closebind)
         function tabcontent:Toggle(text, default, callback, flag)
             local flag = flag or text
             local toggled = default or false
-
-            local Toggle = Instance.new("Frame") -- Changed from TextButton to Frame
+            
+            local Toggle = Instance.new("TextButton")
             local ToggleCorner = Instance.new("UICorner")
             local ToggleTitle = Instance.new("TextLabel")
-            local FrameToggle1 = Instance.new("TextButton") -- This is now the clickable toggle switch
+            local FrameToggle1 = Instance.new("Frame")
             local FrameToggle1Corner = Instance.new("UICorner")
             local FrameToggle2 = Instance.new("Frame")
             local FrameToggle2Corner = Instance.new("UICorner")
@@ -607,7 +607,7 @@ function library:Window(title, version, info, preset, closebind)
             local FrameToggle3Corner = Instance.new("UICorner")
             local FrameToggleCircle = Instance.new("Frame")
             local FrameToggleCircleCorner = Instance.new("UICorner")
-
+            
             local toggle = {
                 value = toggled,
                 set = function(self, state)
@@ -645,13 +645,17 @@ function library:Window(title, version, info, preset, closebind)
 
             if not library.flags then library.flags = {} end
             library.flags[flag] = toggle
-
+            
             Toggle.Name = "Toggle"
             Toggle.Parent = Tab
             Toggle.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
             Toggle.Position = UDim2.new(0.215625003, 0, 0.446271926, 0)
             Toggle.Size = UDim2.new(0, 363, 0, 42)
-            Toggle.BackgroundTransparency = 0 -- Frame, not button
+            Toggle.AutoButtonColor = false
+            Toggle.Font = Enum.Font.SourceSans
+            Toggle.Text = ""
+            Toggle.TextColor3 = Color3.fromRGB(0, 0, 0)
+            Toggle.TextSize = 14
 
             ToggleCorner.CornerRadius = UDim.new(0, 5)
             ToggleCorner.Name = "ToggleCorner"
@@ -674,9 +678,6 @@ function library:Window(title, version, info, preset, closebind)
             FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
             FrameToggle1.Position = UDim2.new(0.859504104, 0, 0.285714298, 0)
             FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
-            FrameToggle1.AutoButtonColor = false
-            FrameToggle1.Text = ""
-            FrameToggle1.BackgroundTransparency = 0
 
             FrameToggle1Corner.Name = "FrameToggle1Corner"
             FrameToggle1Corner.Parent = FrameToggle1
@@ -707,14 +708,14 @@ function library:Window(title, version, info, preset, closebind)
 
             FrameToggleCircleCorner.Name = "FrameToggleCircleCorner"
             FrameToggleCircleCorner.Parent = FrameToggleCircle
-
+            
             coroutine.wrap(function()
                 while altloaded do
                     FrameToggle3.BackgroundColor3 = PresetColor
                     task.wait()
                 end
             end)()
-
+            
             local function ToggleState(state)
                 if state then
                     tweensv:Create(Toggle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
@@ -733,7 +734,7 @@ function library:Window(title, version, info, preset, closebind)
                 end
                 toggled = state
                 toggle.value = state
-
+                
                 if callback then
                     task.spawn(function()
                         local success, err = pcall(callback, toggled)
@@ -743,26 +744,25 @@ function library:Window(title, version, info, preset, closebind)
                     end)
                 end
             end
-
+            
             toggle.toggleState = ToggleState
 
-            -- Only the toggle switch is clickable
-            library.Conn[#library.Conn + 1] = FrameToggle1.MouseButton1Click:Connect(function()
+            library.Conn[#library.Conn + 1] = Toggle.MouseButton1Click:Connect(function()
                 ToggleState(not toggled)
             end)
-
-            library.Conn[#library.Conn + 1] = FrameToggle1.MouseEnter:Connect(function()
+            
+            library.Conn[#library.Conn + 1] = Toggle.MouseEnter:Connect(function()
                 tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(38, 38, 38)}):Play()
             end)
-
-            library.Conn[#library.Conn + 1] = FrameToggle1.MouseLeave:Connect(function()
+            
+            library.Conn[#library.Conn + 1] = Toggle.MouseLeave:Connect(function()
                 tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = toggled and Color3.fromRGB(37, 37, 37) or Color3.fromRGB(34, 34, 34)}):Play()
             end)
-
+            
             if default then
                 ToggleState(true)
             end
-
+            
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             return toggle
         end
@@ -2168,7 +2168,7 @@ function library:Window(title, version, info, preset, closebind)
         function tabcontent:Textbox(text, disappear, default, callback, flag, placeholderText)
             local flag = flag or text
             local default = default or ""
-            
+
             local Textbox = Instance.new("Frame")
             local TextboxCorner = Instance.new("UICorner")
             local TextboxTitle = Instance.new("TextLabel")
@@ -2180,7 +2180,6 @@ function library:Window(title, version, info, preset, closebind)
             Textbox.Parent = Tab
             Textbox.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
             Textbox.ClipsDescendants = true
-            Textbox.Position = UDim2.new(-0.541071415, 0, -0.532915354, 0)
             Textbox.Size = UDim2.new(0, 363, 0, 42)
 
             TextboxCorner.CornerRadius = UDim.new(0, 5)
@@ -2191,7 +2190,7 @@ function library:Window(title, version, info, preset, closebind)
             TextboxTitle.Parent = Textbox
             TextboxTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             TextboxTitle.BackgroundTransparency = 1.000
-            TextboxTitle.Position = UDim2.new(0.0358126722, 0, 0, 0)
+            TextboxTitle.Position = UDim2.new(0.0358, 0, 0, 0)
             TextboxTitle.Size = UDim2.new(0, 187, 0, 42)
             TextboxTitle.Font = Enum.Font.SourceSans
             TextboxTitle.Text = text
@@ -2202,7 +2201,7 @@ function library:Window(title, version, info, preset, closebind)
             TextboxFrame.Name = "TextboxFrame"
             TextboxFrame.Parent = TextboxTitle
             TextboxFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
-            TextboxFrame.Position = UDim2.new(1.28877008, 0, 0.214285716, 0)
+            TextboxFrame.Position = UDim2.new(1.288, 0, 0.214, 0)
             TextboxFrame.Size = UDim2.new(0, 100, 0, 23)
 
             TextboxFrameCorner.CornerRadius = UDim.new(0, 5)
@@ -2219,7 +2218,10 @@ function library:Window(title, version, info, preset, closebind)
             TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
             TextBox.TextSize = 14.000
             TextBox.ClearTextOnFocus = false
-
+            Textbox.ZIndex = 10
+            TextboxTitle.ZIndex = 11
+            TextboxFrame.ZIndex = 12
+            TextBox.ZIndex = 13
             local textbox = {
                 value = default,
                 set = function(self, value)
