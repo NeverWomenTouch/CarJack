@@ -2165,39 +2165,50 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
         end
 
-        function tabcontent:Textbox(text, disapper, callback)
-            local Textbox = Instance.new("Frame")
+        function Container:MakeTextbox(Idx, Info)
+
+            assert(Info.Text, 'AddInput: Missing `Text` string.')
+
+            local Textbox = {
+                Value = Info.Default or '';
+                Default = Info.Default;
+                Type = 'Input';
+                Callback = Info.Callback or function(Value) end;
+            };
+
+            local MainTextbox = Instance.new("Frame")
             local TextboxCorner = Instance.new("UICorner")
             local TextboxTitle = Instance.new("TextLabel")
             local TextboxFrame = Instance.new("Frame")
             local TextboxFrameCorner = Instance.new("UICorner")
             local TextBox = Instance.new("TextBox")
 
-            Textbox.Name = "Textbox"
-            Textbox.Parent = Tab
-            Textbox.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-            Textbox.ClipsDescendants = true
-            Textbox.Position = UDim2.new(-0.541071415, 0, -0.532915354, 0)
-            Textbox.Size = UDim2.new(0, 363, 0, 42)
+            MainTextbox.Name = "MainTextbox"
+            MainTextbox.Parent = Tab
+            MainTextbox.BackgroundTransparency = 0.5
+            MainTextbox.ClipsDescendants = true
+            MainTextbox.Position = UDim2.new(-0.541071415, 0, -0.532915354, 0)
+            MainTextbox.Size = UDim2.new(0, 363, 0, 42)
 
             TextboxCorner.CornerRadius = UDim.new(0, 5)
             TextboxCorner.Name = "TextboxCorner"
-            TextboxCorner.Parent = Textbox
+            TextboxCorner.Parent = MainTextbox
 
             TextboxTitle.Name = "TextboxTitle"
-            TextboxTitle.Parent = Textbox
+            TextboxTitle.Parent = MainTextbox
             TextboxTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             TextboxTitle.BackgroundTransparency = 1.000
             TextboxTitle.Position = UDim2.new(0.0358126722, 0, 0, 0)
             TextboxTitle.Size = UDim2.new(0, 187, 0, 42)
-            TextboxTitle.Font = Enum.Font.SourceSans
-            TextboxTitle.Text = text
+            TextboxTitle.Font = Enum.Font.GothamBlack
+            TextboxTitle.Text = Info.Text or "Text Example"
             TextboxTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-            TextboxTitle.TextSize = 18
+            TextboxTitle.TextSize = 14
             TextboxTitle.TextXAlignment = Enum.TextXAlignment.Left
 
             TextboxFrame.Name = "TextboxFrame"
             TextboxFrame.Parent = TextboxTitle
+            TextboxFrame.BackgroundTransparency = 1
             TextboxFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
             TextboxFrame.Position = UDim2.new(1.28877008, 0, 0.214285716, 0)
             TextboxFrame.Size = UDim2.new(0, 100, 0, 23)
@@ -2208,25 +2219,63 @@ function library:Window(title, version, info, preset, closebind)
 
             TextBox.Parent = TextboxFrame
             TextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            TextBox.BackgroundTransparency = 1.000
+            TextBox.BackgroundTransparency = 1
             TextBox.Size = UDim2.new(0, 100, 0, 23)
             TextBox.Font = Enum.Font.Gotham
-            TextBox.Text = ""
+            TextBox.Text = Info.Default or "Enter Text"
             TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-            TextBox.TextSize = 14.000
+            TextBox.TextSize = 14
 
-            library.Conn[#library.Conn + 1] = TextBox.FocusLost:Connect(function(ep)
-                if ep then
-                    if #TextBox.Text > 0 then
-                        pcall(callback, TextBox.Text)
-                        if disapper then
-                            TextBox.Text = ""
-                        end
-                    end
+            task.spawn(function()
+                while getgenv().IsLoaded do
+                    MainTextbox.BackgroundColor3 = ThemeColor
+                    task.wait()
                 end
             end)
+
+            function Textbox:SetValue(Text)
+                if Info.MaxLength and #Text > Info.MaxLength then
+                    Text = Text:sub(1, Info.MaxLength);
+                end;
+    
+                if Textbox.Numeric then
+                    if (not tonumber(Text)) and Text:len() > 0 then
+                        Text = Textbox.Value
+                    end
+                end
+    
+                Textbox.Value = Text;
+                TextBox.Text = Text;
+    
+                Library:SafeCallback(Textbox.Callback, Textbox.Value);
+                Library:SafeCallback(Textbox.Changed, Textbox.Value);
+            end;
+
+            if Textbox.Finished then
+                TextBox.FocusLost:Connect(function(enter)
+                    if not enter then return end
+    
+                    Textbox:SetValue(TextBox.Text);
+                    Library:AttemptSave();
+                end)
+            else
+                TextBox:GetPropertyChangedSignal('Text'):Connect(function()
+                    Textbox:SetValue(TextBox.Text);
+                    Textbox.LastText = TextBox.Text
+                    Library:AttemptSave();
+                end);
+            end
+
+            function Textbox:OnChanged(Func)
+                Textbox.Changed = Func;
+                Func(Textbox.Value);
+            end;
+
+            Options[Idx] = Textbox
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+            return Textbox
         end
+
 
         function tabcontent:Bind(text, keypreset, callback, flag)
             local flag = flag or text
