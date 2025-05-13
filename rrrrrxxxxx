@@ -1044,11 +1044,11 @@ function library:Window(title, version, info, preset, closebind)
             local RealValue = defvalue
             local value = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue))
             
-            -- Create the slider object first
+            -- Create the slider object
             local slider = {
                 value = precise and tonumber(value) or math.floor(RealValue),
                 set = function(self, val)
-                    UpdateSlider(val) -- Now this will work since UpdateSlider is defined
+                    UpdateSlider(val)
                     return self
                 end
             }
@@ -1056,13 +1056,18 @@ function library:Window(title, version, info, preset, closebind)
             if not library.flags then library.flags = {} end
             library.flags[flag] = slider
             
-            -- Define UpdateSlider function after slider is created
-            function UpdateSlider(val)
+            -- Define UpdateSlider within the proper scope
+            local function UpdateSlider(val, mouseX)
                 local percent
                 
                 if val then
+                    -- Exact value was provided
                     percent = (val - min) / (max - min)
+                elseif mouseX then
+                    -- Mouse position was provided
+                    percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
                 else
+                    -- Use current mouse position from ms global
                     percent = math.clamp((ms.X - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
                 end
 
@@ -1080,36 +1085,54 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end
 
-            -- Now it's safe to call this
+            -- Initialize the slider
             UpdateSlider(defvalue)
 
-            local function move(Pressed)
+            -- Create an InputChanged connection specific to this slider
+            local inputChangedConnection
+            
+            local function move(input)
                 if not Dragging then return end
                 IsSliding = true
-                UpdateSlider()
+                UpdateSlider(nil, input.Position.X)
             end
 
-            library.Conn[#library.Conn + 1] = Slider.InputBegan:Connect(function(Pressed)
-                if Pressed.UserInputType == Enum.UserInputType.MouseButton1 or Pressed.UserInputType == Enum.UserInputType.Touch then
+            library.Conn[#library.Conn + 1] = Slider.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     Dragging = true
                     IsSliding = false
-                    move(Pressed)
+                    
+                    -- Disconnect any existing connection to avoid multiple updates
+                    if inputChangedConnection then
+                        inputChangedConnection:Disconnect()
+                    end
+                    
+                    -- Create a new connection specifically for this slider
+                    inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
+                        if Dragging and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                            move(changedInput)
+                        end
+                    end)
+                    
+                    -- Initial move
+                    move(input)
                 end
             end)
 
-            library.Conn[#library.Conn + 1] = Slider.InputEnded:Connect(function(Pressed)
-                if Pressed.UserInputType == Enum.UserInputType.MouseButton1 or Pressed.UserInputType == Enum.UserInputType.Touch then
+            library.Conn[#library.Conn + 1] = Slider.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     Dragging = false
                     IsSliding = false
+                    
+                    -- Disconnect the input changed connection when done dragging
+                    if inputChangedConnection then
+                        inputChangedConnection:Disconnect()
+                        inputChangedConnection = nil
+                    end
                 end
             end)
 
-            library.Conn[#library.Conn + 1] = uis.InputChanged:Connect(function(Pressed)
-                if Dragging and (Pressed.UserInputType == Enum.UserInputType.MouseMovement or Pressed.UserInputType == Enum.UserInputType.Touch) then
-                    move(Pressed)
-                end
-            end)
-
+            -- Mouse hover effects
             library.Conn[#library.Conn + 1] = Slider.MouseEnter:Connect(function()
                 HideColor:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
             end)
@@ -1117,6 +1140,14 @@ function library:Window(title, version, info, preset, closebind)
             library.Conn[#library.Conn + 1] = Slider.MouseLeave:Connect(function()
                 if not Dragging then
                     HideColor:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
+                end
+            end)
+
+            -- Clean up connection on destroy
+            library.Conn[#library.Conn + 1] = Slider.AncestryChanged:Connect(function(_, parent)
+                if parent == nil and inputChangedConnection then
+                    inputChangedConnection:Disconnect()
+                    inputChangedConnection = nil
                 end
             end)
 
@@ -2198,18 +2229,15 @@ function library:Window(title, version, info, preset, closebind)
             local TextboxFrame = Instance.new("Frame")
             local TextboxFrameCorner = Instance.new("UICorner")
             local TextBox = Instance.new("TextBox")
-
             Textbox.Name = "Textbox"
             Textbox.Parent = Tab
             Textbox.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
             Textbox.ClipsDescendants = true
             Textbox.Position = UDim2.new(0, 0, 0, 0)
             Textbox.Size = UDim2.new(0, 363, 0, 42)
-
             TextboxCorner.CornerRadius = UDim.new(0, 5)
             TextboxCorner.Name = "TextboxCorner"
             TextboxCorner.Parent = Textbox
-
             TextboxTitle.Name = "TextboxTitle"
             TextboxTitle.Parent = Textbox
             TextboxTitle.BackgroundTransparency = 1
@@ -2220,18 +2248,15 @@ function library:Window(title, version, info, preset, closebind)
             TextboxTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
             TextboxTitle.TextSize = 18
             TextboxTitle.TextXAlignment = Enum.TextXAlignment.Left
-
             TextboxFrame.Name = "TextboxFrame"
             TextboxFrame.Parent = Textbox
             TextboxFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
-            TextboxFrame.Position = UDim2.new(0.65, 0, 0.214285716, 0)
+            TextboxFrame.Position = UDim2.new(0.859504104, 0, 0.214285716, 0)
             TextboxFrame.Size = UDim2.new(0, 100, 0, 23)
             TextboxFrame.ZIndex = 2
-
             TextboxFrameCorner.CornerRadius = UDim.new(0, 5)
             TextboxFrameCorner.Name = "TextboxFrameCorner"
             TextboxFrameCorner.Parent = TextboxFrame
-
             TextBox.Name = "TextBox"
             TextBox.Parent = TextboxFrame
             TextBox.BackgroundTransparency = 1
@@ -2243,7 +2268,6 @@ function library:Window(title, version, info, preset, closebind)
             TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
             TextBox.TextSize = 14
             TextBox.ClearTextOnFocus = false
-            
             local textbox = {
                 value = "",
                 set = function(self, value)
@@ -2263,7 +2287,6 @@ function library:Window(title, version, info, preset, closebind)
                     return self
                 end
             }
-            
             if not library.flags then library.flags = {} end
             library.flags[flag] = textbox
 
