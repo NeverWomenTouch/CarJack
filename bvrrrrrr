@@ -2716,79 +2716,67 @@ function library:ConfigSystem(tab, name)
             return out
         end
     end
-     local function diff(old, new)
-            local add, del, changed, same = 0, 0, 0, 0
-            local omap = {}
-            local nmap = {}
-            for flag, val in pairs(old or {}) do
-                if not flag:match("_rainbow$") then
-                    omap[flag] = val
-                end
+    function diff(old, new)
+        local add, del, changed, same = 0, 0, 0, 0
+        local omap = {}
+        local nmap = {}
+        for flag, val in pairs(old or {}) do
+            if not flag:match("_rainbow$") then
+                omap[flag] = val
             end
-            for flag, val in pairs(new or {}) do
-                if not flag:match("_rainbow$") then
-                    nmap[flag] = val
-                    if omap[flag] then
-                        local oldVal = httpsv:JSONEncode(omap[flag])
-                        local newVal = httpsv:JSONEncode(val)
-                        if oldVal ~= newVal then
-                            changed = changed + 1
-                        else
-                            same = same + 1
-                        end
-                    else
-                        add = add + 1
-                    end
-                end
-            end
-            
-            for flag, _ in pairs(omap) do
-                if not nmap[flag] then
-                    del = del + 1
-                end
-            end
-            
-            return add, del, changed, same
         end
-        sync()
+        for flag, val in pairs(new or {}) do
+            if not flag:match("_rainbow$") then
+                nmap[flag] = val
+                if omap[flag] then
+                    local oldVal = httpsv:JSONEncode(omap[flag])
+                    local newVal = httpsv:JSONEncode(val)
+                    if oldVal ~= newVal then
+                        changed = changed + 1
+                    else
+                        same = same + 1
+                    end
+                else
+                    add = add + 1
+                end
+            end
+        end
+        for flag, _ in pairs(omap) do
+            if not nmap[flag] then
+                del = del + 1
+            end
+        end
+        return add, del, changed, same
+    end
+    sync()
     tab:Label("CONFIGURATION SYSTEM")
-    
     local nameBox = tab:Textbox("Config Name", false, function() end, "config_name_input")
-    
     local menu = tab:NewDropdown("Select Config", cfg.list, function(item)
         cfg.pick = item
     end, false, "config_selector")
-    
     local autoLoad = tab:Toggle("Auto Load Selected Config", false, function(on)
         if not (on and cfg.pick) then return end
-        
         local path = dir .. "/" .. cfg.pick .. ".json"
         local ok, raw = pcall(readfile, path)
-        
         if ok then
             local valid, data = pcall(function() 
                 return game:GetService("HttpService"):JSONDecode(raw) 
             end)
-            
             if not valid or type(data) ~= "table" then
                 library:Notification("Error", "Invalid config format.", "OK")
                 return
             end
-            
             data.metadata = data.metadata or {}
             data.metadata.autoLoad = true
             data.metadata.lastModified = os.time()
-            
             for _, name in ipairs(cfg.list) do
                 if name ~= cfg.pick then
                     local other = dir .. "/" .. name .. ".json"
                     local has, file = pcall(readfile, other)
-                    
                     if has then
                         local good, info = pcall(function()
                             return game:GetService("HttpService"):JSONDecode(file)
                         end)
-                        
                         if good and info.metadata then
                             info.metadata.autoLoad = false
                             pcall(writefile, other, game:GetService("HttpService"):JSONEncode(info))
@@ -2909,22 +2897,27 @@ function library:ConfigSystem(tab, name)
                 
                 if ok then
                     local msg = ""
+                    local hasChanges = false
+                    
                     if add > 0 then
-                        msg = msg .. add .. " new settings added"
+                        msg = msg .. add .. " new setting" .. (add > 1 and "s" or "") .. " added"
+                        hasChanges = true
                     end
                     
                     if changed > 0 then
                         if msg ~= "" then msg = msg .. ", " end
-                        msg = msg .. changed .. " settings changed"
+                        msg = msg .. changed .. " setting" .. (changed > 1 and "s" or "") .. " changed"
+                        hasChanges = true
                     end
                     
                     if del > 0 then
                         if msg ~= "" then msg = msg .. ", " end
-                        msg = msg .. del .. " settings removed"
+                        msg = msg .. del .. " setting" .. (del > 1 and "s" or "") .. " removed"
+                        hasChanges = true
                     end
                     
-                    if add == 0 and changed == 0 and del == 0 then
-                        msg = "No changes detected"
+                    if not hasChanges then
+                        msg = "No settings have been modified"
                     end
                     
                     library:Notification("Config Saved", "\"" .. cfg.pick .. "\": " .. msg, "OK")
