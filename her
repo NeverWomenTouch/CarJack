@@ -1294,55 +1294,6 @@ function library:Window(title, version, info, preset, closebind)
             local Stored = {}
             local SelectedValue = nil
             
-            local dropdown = {
-                value = IsMulti and Stored or SelectedValue,
-                options = Selectables,
-                
-                Refresh = function(self, newOptions, selected)
-                    RefreshOptions(newOptions, selected)
-                    return self
-                end,
-                
-                RemoveOptions = function(self)
-                    RefreshOptions({})
-                    return self
-                end,
-                
-                AddOption = function(self, option)
-                    local newOptions = {}
-                    for _, opt in pairs(self.options) do
-                        table.insert(newOptions, opt)
-                    end
-                    table.insert(newOptions, option)
-                    self.options = newOptions
-                    RefreshOptions(newOptions, self.value)
-                    return self
-                end,
-                
-                set = function(self, value)
-                    if IsMulti and type(value) == "table" then
-                        self.value = value
-                        Stored = value
-                        RefreshOptions(self.options, value)
-                    else
-                        self.value = value
-                        SelectedValue = value
-                        for _, option in pairs(self.options) do
-                            if option == value or (type(option) == "table" and option.value == value) then
-                                DropdownBox.Text = type(option) == "table" and option.text or tostring(option)
-                                break
-                            end
-                        end
-                        
-                        RefreshOptions(self.options, value)
-                    end
-                    return self
-                end
-            }
-            
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = dropdown
-            
             local function NewSelectable(Text, val)
                 local SelectableButton = Instance.new("TextButton")
                 local SelectableText = Instance.new("TextLabel")
@@ -1512,7 +1463,7 @@ function library:Window(title, version, info, preset, closebind)
                 if selected ~= nil then
                     SelectedValue = selected
                     if not IsMulti then
-                        for _, option in pairs(newOptions) do
+                        for _, option in pairs(newOptions or Selectables) do
                             if option == selected or (type(option) == "table" and option.value == selected) then
                                 DropdownBox.Text = type(option) == "table" and option.text or tostring(option)
                                 break
@@ -1533,6 +1484,55 @@ function library:Window(title, version, info, preset, closebind)
                     end
                 end
             end
+
+            local dropdown = {
+                value = IsMulti and Stored or SelectedValue,
+                options = Selectables,
+                
+                Refresh = function(self, newOptions, selected)
+                    RefreshOptions(newOptions, selected)
+                    return self
+                end,
+                
+                RemoveOptions = function(self)
+                    RefreshOptions({})
+                    return self
+                end,
+                
+                AddOption = function(self, option)
+                    local newOptions = {}
+                    for _, opt in pairs(self.options) do
+                        table.insert(newOptions, opt)
+                    end
+                    table.insert(newOptions, option)
+                    self.options = newOptions
+                    RefreshOptions(newOptions, self.value)
+                    return self
+                end,
+                
+                set = function(self, value)
+                    if IsMulti and type(value) == "table" then
+                        self.value = value
+                        Stored = value
+                        RefreshOptions(self.options, value)
+                    else
+                        self.value = value
+                        SelectedValue = value
+                        for _, option in pairs(self.options) do
+                            if option == value or (type(option) == "table" and option.value == value) then
+                                DropdownBox.Text = type(option) == "table" and option.text or tostring(option)
+                                break
+                            end
+                        end
+                        
+                        RefreshOptions(self.options, value)
+                    end
+                    return self
+                end
+            }
+            
+            if not library.flags then library.flags = {} end
+            library.flags[flag] = dropdown
             
             RefreshOptions(Selectables)
             
@@ -2502,7 +2502,11 @@ function library:ConfigSystem(tab, name)
             }
         elseif valueType == "table" then
             if value.rainbow ~= nil then
-                return serializeValue(value.value)
+                local result = serializeValue(value.value)
+                if type(result) == "table" then
+                    result.__rainbow = value.rainbow
+                end
+                return result
             end
             
             local result = {}
@@ -2556,7 +2560,14 @@ function library:ConfigSystem(tab, name)
         local success, fileContent = pcall(readfile, filePath)
         
         if success then
-            local data = game:GetService("HttpService"):JSONDecode(fileContent)
+            local success, data = pcall(function() 
+                return game:GetService("HttpService"):JSONDecode(fileContent) 
+            end)
+            
+            if not success or type(data) ~= "table" then
+                return library:Notification("Error", "Invalid config format.", "OK")
+            end
+            
             data.metadata = data.metadata or {}
             data.metadata.autoLoad = true
             data.metadata.lastModified = os.time()
@@ -2581,6 +2592,10 @@ function library:ConfigSystem(tab, name)
             
             pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(data))
             configSystem.autoLoadConfig = configSystem.selectedConfig
+            library:Notification("Success", "Auto-load enabled for config: " .. configSystem.selectedConfig, "OK")
+        else
+            library:Notification("Error", "Failed to read config file.", "OK")
+            autoLoadToggle:set(false)
         end
     end, "config_autoload")
     
@@ -2698,6 +2713,9 @@ function library:ConfigSystem(tab, name)
             return library:Notification("Error", "Invalid config format.", "OK")
         end
         
+        -- Apply all non-rainbow settings first
+        local loadedCount = 0
+        
         for flag, value in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
             
@@ -2706,16 +2724,21 @@ function library:ConfigSystem(tab, name)
                 
                 task.spawn(function()
                     pcall(function()
-                        if type(library.flags[flag]) == "table" and 
-                           type(library.flags[flag].set) == "function" then
-                            library.flags[flag]:set(deserializedValue)
+                        if type(library.flags[flag]) == "table" then
+                            if type(library.flags[flag].set) == "function" then
+                                library.flags[flag]:set(deserializedValue)
+                                loadedCount = loadedCount + 1
+                            elseif type(library.flags[flag].setRainbow) == "function" and value.__rainbow ~= nil then
+                                library.flags[flag]:setRainbow(value.__rainbow)
+                            end
                         end
                     end)
                 end)
             end
         end
         
-        task.delay(0.1, function()
+        -- Then handle rainbow settings after a short delay to avoid conflicts
+        task.delay(0.2, function()
             for flag, value in pairs(data.values) do
                 if not flag:match("_rainbow$") then continue end
                 
@@ -2727,9 +2750,9 @@ function library:ConfigSystem(tab, name)
                     end)
                 end
             end
+            
+            library:Notification("Success", "Config loaded successfully! (" .. loadedCount .. " settings applied)", "OK")
         end)
-        
-        library:Notification("Success", "Config loaded successfully!", "OK")
     end)
     
     tab:Button("Delete Config", function()
@@ -2738,6 +2761,7 @@ function library:ConfigSystem(tab, name)
         end
         
         local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
+        local configToDelete = configSystem.selectedConfig
         local success = pcall(delfile, filePath)
         
         if not success then
@@ -2749,38 +2773,61 @@ function library:ConfigSystem(tab, name)
             autoLoadToggle:set(false)
         end
         
-        RefreshConfigList()
-        dropdown:Refresh(configSystem.configList)
+        local oldSelected = configSystem.selectedConfig
         configSystem.selectedConfig = nil
         
-        library:Notification("Success", "Config deleted successfully!", "OK")
+        RefreshConfigList()
+        dropdown:Refresh(configSystem.configList)
+        dropdown:set(nil)
+        
+        library:Notification("Success", "Config deleted successfully: " .. configToDelete, "OK")
     end)
     
     tab:Button("Refresh Config List", function()
+        local oldCount = #configSystem.configList
         local configs = RefreshConfigList()
-        if dropdown and dropdown.Refresh then
+        local newCount = #configs
+        
+        if dropdown and type(dropdown.Refresh) == "function" then
             dropdown:Refresh(configs)
-            library:Notification("Success", "Config list refreshed!", "OK")
+            
+            if configSystem.selectedConfig and not table.find(configs, configSystem.selectedConfig) then
+                configSystem.selectedConfig = nil
+                dropdown:set(nil)
+            end
+            
+            library:Notification("Success", "Config list refreshed! (" .. newCount .. " configs found)", "OK")
         else
             library:Notification("Error", "Failed to refresh config list.", "OK")
         end
     end)
     
+    -- Auto-load config with a delay to ensure UI is fully loaded
     task.spawn(function()
-        task.wait(1)
+        task.wait(1.5) -- Increased delay for UI to fully initialize
+        
         if not configSystem.autoLoadConfig then return end
-            
+        
         local filePath = folder .. "/" .. configSystem.autoLoadConfig .. ".json"
         local success, fileContent = pcall(readfile, filePath)
         
-        if not success then return end
+        if not success then 
+            warn("Auto-load failed: Could not read config file")
+            return 
+        end
         
         local success, data = pcall(function() 
             return game:GetService("HttpService"):JSONDecode(fileContent) 
         end)
         
-        if not (success and type(data.values) == "table") then return end
-            
+        if not (success and type(data.values) == "table") then 
+            warn("Auto-load failed: Invalid config format")
+            return 
+        end
+        
+        local loadedCount = 0
+        
+        -- Apply regular values first
         for flag, value in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
             
@@ -2791,12 +2838,14 @@ function library:ConfigSystem(tab, name)
                     if type(library.flags[flag]) == "table" and 
                        type(library.flags[flag].set) == "function" then
                         library.flags[flag]:set(deserializedValue)
+                        loadedCount = loadedCount + 1
                     end
                 end)
             end
         end
         
-        task.delay(0.1, function()
+        -- Then apply rainbow settings
+        task.delay(0.2, function()
             for flag, value in pairs(data.values) do
                 if not flag:match("_rainbow$") then continue end
                 
@@ -2810,11 +2859,15 @@ function library:ConfigSystem(tab, name)
             end
         end)
         
+        -- Update UI
         configSystem.selectedConfig = configSystem.autoLoadConfig
-        dropdown:set(configSystem.autoLoadConfig)
-        autoLoadToggle:set(true)
         
-        if #configSystem.autoLoadConfig > 0 then
+        pcall(function()
+            dropdown:set(configSystem.autoLoadConfig)
+            autoLoadToggle:set(true)
+        end)
+        
+        if configSystem.autoLoadConfig and #configSystem.autoLoadConfig > 0 then
             library:Notification("Info", "Auto-loaded config: " .. configSystem.autoLoadConfig, "OK")
         end
     end)
