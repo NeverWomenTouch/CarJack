@@ -2450,24 +2450,29 @@ function library:ConfigSystem(tab, name)
         autoLoadConfig = nil
     }
     
-    if not library.flags then
-        library.flags = {}
-    end
+    library.flags = library.flags or {}
     
-    function configSystem:RefreshConfigList()
-        configSystem.configList = {}
+    local function RefreshConfigList()
+        table.clear(configSystem.configList)
         
-        local files = listfiles(folder)
+        local success, files = pcall(listfiles, folder)
+        if not success then return {} end
+        
         for _, file in ipairs(files) do
-            local fileName = string.match(file, "[^/\\]+$")
-            local configName = string.match(fileName, "(.+)%.json$")
+            local fileName = file:match("[^/\\]+$")
+            local configName = fileName and fileName:match("^(.+)%.json$")
+            
             if configName then
                 table.insert(configSystem.configList, configName)
                 
-                local success, fileContent = pcall(function() return readfile(file) end)
+                local success, fileContent = pcall(readfile, file)
                 if success then
-                    local success, data = pcall(function() return game:GetService("HttpService"):JSONDecode(fileContent) end)
-                    if success and data.metadata and data.metadata.autoLoad then
+                    local success, data = pcall(function() 
+                        return game:GetService("HttpService"):JSONDecode(fileContent) 
+                    end)
+                    
+                    if success and type(data) == "table" and 
+                       type(data.metadata) == "table" and data.metadata.autoLoad then
                         configSystem.autoLoadConfig = configName
                     end
                 end
@@ -2477,21 +2482,29 @@ function library:ConfigSystem(tab, name)
         return configSystem.configList
     end
     
-    function serializeValue(value)
-        if typeof(value) == "Color3" then
+    configSystem.RefreshConfigList = RefreshConfigList
+    
+    local function serializeValue(value)
+        local valueType = typeof(value)
+        
+        if valueType == "Color3" then
             return {
                 __type = "Color3",
                 r = value.R,
                 g = value.G,
                 b = value.B
             }
-        elseif typeof(value) == "EnumItem" then
+        elseif valueType == "EnumItem" then
             return {
                 __type = "EnumItem",
                 enumType = tostring(value.EnumType),
                 value = value.Name
             }
-        elseif type(value) == "table" then
+        elseif valueType == "table" then
+            if value.rainbow ~= nil then
+                return serializeValue(value.value)
+            end
+            
             local result = {}
             for k, v in pairs(value) do
                 result[k] = serializeValue(v)
@@ -2502,67 +2515,72 @@ function library:ConfigSystem(tab, name)
         end
     end
     
-    function deserializeValue(value)
-        if type(value) == "table" and value.__type then
-            if value.__type == "Color3" then
-                return Color3.new(value.r, value.g, value.b)
-            elseif value.__type == "EnumItem" then
-                local enumName = string.match(value.enumType, "Enum%.(.+)$")
-                if enumName then
-                    return Enum[enumName][value.value]
-                end
-                return value
+    local function deserializeValue(value)
+        if type(value) ~= "table" then 
+            return value 
+        end
+        
+        if value.__type == "Color3" then
+            return Color3.new(value.r, value.g, value.b)
+        elseif value.__type == "EnumItem" then
+            local enumType = value.enumType
+            local enumName = enumType:match("Enum%.([^%s]+)")
+            
+            if enumName and Enum[enumName] then
+                return Enum[enumName][value.value]
             end
-        elseif type(value) == "table" then
+            return nil
+        else
             local result = {}
             for k, v in pairs(value) do
                 result[k] = deserializeValue(v)
             end
             return result
         end
-        return value
     end
     
-    configSystem:RefreshConfigList()
+    RefreshConfigList()
     
     tab:Label("CONFIGURATION SYSTEM")
     
-    local configTextbox = tab:Textbox("Config Name", false, function(text)
-    end, "config_name_input")
+    local configTextbox = tab:Textbox("Config Name", false, function() end, "config_name_input")
     
     local dropdown = tab:NewDropdown("Select Config", configSystem.configList, function(selected)
         configSystem.selectedConfig = selected
     end, false, "config_selector")
     
     local autoLoadToggle = tab:Toggle("Auto Load Selected Config", false, function(state)
-        if state and configSystem.selectedConfig then
-            local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-            local success, fileContent = pcall(function() return readfile(filePath) end)
+        if not (state and configSystem.selectedConfig) then return end
+        
+        local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
+        local success, fileContent = pcall(readfile, filePath)
+        
+        if success then
+            local data = game:GetService("HttpService"):JSONDecode(fileContent)
+            data.metadata = data.metadata or {}
+            data.metadata.autoLoad = true
+            data.metadata.lastModified = os.time()
             
-            if success then
-                local data = game:GetService("HttpService"):JSONDecode(fileContent)
-                data.metadata = data.metadata or {}
-                data.metadata.autoLoad = true
-                data.metadata.lastModified = os.time()
-                
-                for _, configName in ipairs(configSystem.configList) do
-                    if configName ~= configSystem.selectedConfig then
-                        local otherFilePath = folder .. "/" .. configName .. ".json"
-                        local otherSuccess, otherContent = pcall(function() return readfile(otherFilePath) end)
+            for _, configName in ipairs(configSystem.configList) do
+                if configName ~= configSystem.selectedConfig then
+                    local otherFilePath = folder .. "/" .. configName .. ".json"
+                    local otherSuccess, otherContent = pcall(readfile, otherFilePath)
+                    
+                    if otherSuccess then
+                        local success, otherData = pcall(function()
+                            return game:GetService("HttpService"):JSONDecode(otherContent)
+                        end)
                         
-                        if otherSuccess then
-                            local otherData = game:GetService("HttpService"):JSONDecode(otherContent)
-                            if otherData.metadata then
-                                otherData.metadata.autoLoad = false
-                                writefile(otherFilePath, game:GetService("HttpService"):JSONEncode(otherData))
-                            end
+                        if success and otherData.metadata then
+                            otherData.metadata.autoLoad = false
+                            pcall(writefile, otherFilePath, game:GetService("HttpService"):JSONEncode(otherData))
                         end
                     end
                 end
-                
-                writefile(filePath, game:GetService("HttpService"):JSONEncode(data))
-                configSystem.autoLoadConfig = configSystem.selectedConfig
             end
+            
+            pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(data))
+            configSystem.autoLoadConfig = configSystem.selectedConfig
         end
     end, "config_autoload")
     
@@ -2573,7 +2591,7 @@ function library:ConfigSystem(tab, name)
             return library:Notification("Error", "Please enter a config name.", "OK")
         end
         
-        if not string.match(configName, "^[%w_]+$") then
+        if not configName:match("^[%w_]+$") then
             return library:Notification("Error", "Config name can only contain letters, numbers, and underscores.", "OK")
         end
         
@@ -2583,29 +2601,38 @@ function library:ConfigSystem(tab, name)
             end
         end
         
-        local config = {}
-        config.metadata = {
-            createdAt = os.time(),
-            lastModified = os.time(),
-            autoLoad = false,
-            name = configName
+        local config = {
+            metadata = {
+                createdAt = os.time(),
+                lastModified = os.time(),
+                autoLoad = false,
+                name = configName
+            },
+            values = {}
         }
-        config.values = {}
         
         for flag, element in pairs(library.flags) do
             if element.value ~= nil then
                 config.values[flag] = serializeValue(element.value)
             end
+            
+            if element.rainbow ~= nil then
+                config.values[flag.."_rainbow"] = element.rainbow
+            end
         end
         
         local filePath = folder .. "/" .. configName .. ".json"
-        writefile(filePath, game:GetService("HttpService"):JSONEncode(config))
+        local success = pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(config))
         
-        configSystem:RefreshConfigList()
-        dropdown:Refresh(configSystem.configList)
-        configTextbox:set("")
-        
-        library:Notification("Success", "Config created successfully!", "OK")
+        if success then
+            RefreshConfigList()
+            dropdown:Refresh(configSystem.configList)
+            configTextbox:set("")
+            
+            library:Notification("Success", "Config created successfully!", "OK")
+        else
+            library:Notification("Error", "Failed to create config file.", "OK")
+        end
     end)
     
     tab:Button("Save Config", function()
@@ -2614,13 +2641,20 @@ function library:ConfigSystem(tab, name)
         end
         
         local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-        local success, fileContent = pcall(function() return readfile(filePath) end)
+        local success, fileContent = pcall(readfile, filePath)
         
         if not success then
             return library:Notification("Error", "Config does not exist.", "OK")
         end
         
-        local data = game:GetService("HttpService"):JSONDecode(fileContent)
+        local success, data = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(fileContent)
+        end)
+        
+        if not success then
+            return library:Notification("Error", "Invalid config format.", "OK")
+        end
+        
         data.metadata = data.metadata or {}
         data.metadata.lastModified = os.time()
         data.values = {}
@@ -2629,11 +2663,19 @@ function library:ConfigSystem(tab, name)
             if element.value ~= nil then
                 data.values[flag] = serializeValue(element.value)
             end
+            
+            if element.rainbow ~= nil then
+                data.values[flag.."_rainbow"] = element.rainbow
+            end
         end
         
-        writefile(filePath, game:GetService("HttpService"):JSONEncode(data))
+        success = pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(data))
         
-        library:Notification("Success", "Config saved successfully!", "OK")
+        if success then
+            library:Notification("Success", "Config saved successfully!", "OK")
+        else
+            library:Notification("Error", "Failed to save config file.", "OK")
+        end
     end)
     
     tab:Button("Load Config", function()
@@ -2642,34 +2684,50 @@ function library:ConfigSystem(tab, name)
         end
         
         local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-        local success, fileContent = pcall(function() return readfile(filePath) end)
+        local success, fileContent = pcall(readfile, filePath)
         
         if not success then
             return library:Notification("Error", "Config does not exist.", "OK")
         end
         
-        local success, data = pcall(function() return game:GetService("HttpService"):JSONDecode(fileContent) end)
-        if not success or not data.values then
+        local success, data = pcall(function() 
+            return game:GetService("HttpService"):JSONDecode(fileContent) 
+        end)
+        
+        if not success or type(data.values) ~= "table" then
             return library:Notification("Error", "Invalid config format.", "OK")
         end
         
         for flag, value in pairs(data.values) do
-            if library.flags[flag] and library.flags[flag].set then
+            if flag:match("_rainbow$") then continue end
+            
+            if library.flags[flag] then
                 local deserializedValue = deserializeValue(value)
                 
-                if library.flags[flag].rainbow ~= nil and typeof(deserializedValue) == "Color3" then
-                    library.flags[flag]:set(deserializedValue)
-                    
-                    if data.values[flag.."_rainbow"] ~= nil then
-                        library.flags[flag]:setRainbow(data.values[flag.."_rainbow"])
-                    end
-                else
+                task.spawn(function()
                     pcall(function()
-                        library.flags[flag]:set(deserializedValue)
+                        if type(library.flags[flag]) == "table" and 
+                           type(library.flags[flag].set) == "function" then
+                            library.flags[flag]:set(deserializedValue)
+                        end
+                    end)
+                end)
+            end
+        end
+        
+        task.delay(0.1, function()
+            for flag, value in pairs(data.values) do
+                if not flag:match("_rainbow$") then continue end
+                
+                local baseFlagName = flag:gsub("_rainbow$", "")
+                if library.flags[baseFlagName] and 
+                   type(library.flags[baseFlagName].setRainbow) == "function" then
+                    pcall(function()
+                        library.flags[baseFlagName]:setRainbow(value)
                     end)
                 end
             end
-        end
+        end)
         
         library:Notification("Success", "Config loaded successfully!", "OK")
     end)
@@ -2680,7 +2738,7 @@ function library:ConfigSystem(tab, name)
         end
         
         local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-        local success = pcall(function() return delfile(filePath) end)
+        local success = pcall(delfile, filePath)
         
         if not success then
             return library:Notification("Error", "Failed to delete config.", "OK")
@@ -2691,7 +2749,7 @@ function library:ConfigSystem(tab, name)
             autoLoadToggle:set(false)
         end
         
-        configSystem:RefreshConfigList()
+        RefreshConfigList()
         dropdown:Refresh(configSystem.configList)
         configSystem.selectedConfig = nil
         
@@ -2699,41 +2757,67 @@ function library:ConfigSystem(tab, name)
     end)
     
     tab:Button("Refresh Config List", function()
-        configSystem:RefreshConfigList()
-        dropdown:Refresh(configSystem.configList)
-        library:Notification("Success", "Config list refreshed!", "OK")
+        local configs = RefreshConfigList()
+        if dropdown and dropdown.Refresh then
+            dropdown:Refresh(configs)
+            library:Notification("Success", "Config list refreshed!", "OK")
+        else
+            library:Notification("Error", "Failed to refresh config list.", "OK")
+        end
     end)
     
-    if configSystem.autoLoadConfig then
+    task.spawn(function()
+        task.wait(1)
+        if not configSystem.autoLoadConfig then return end
+            
         local filePath = folder .. "/" .. configSystem.autoLoadConfig .. ".json"
-        local success, fileContent = pcall(function() return readfile(filePath) end)
+        local success, fileContent = pcall(readfile, filePath)
         
-        if success then
-            local success, data = pcall(function() return game:GetService("HttpService"):JSONDecode(fileContent) end)
-            if success and data.values then
-                for flag, value in pairs(data.values) do
-                    if library.flags[flag] and library.flags[flag].set then
-                        local deserializedValue = deserializeValue(value)
-                        
-                        if library.flags[flag].rainbow ~= nil and typeof(deserializedValue) == "Color3" then
-                            library.flags[flag]:set(deserializedValue)
-                            if data.values[flag.."_rainbow"] ~= nil then
-                                library.flags[flag]:setRainbow(data.values[flag.."_rainbow"])
-                            end
-                        else
-                            pcall(function() 
-                                library.flags[flag]:set(deserializedValue)
-                            end)
-                        end
+        if not success then return end
+        
+        local success, data = pcall(function() 
+            return game:GetService("HttpService"):JSONDecode(fileContent) 
+        end)
+        
+        if not (success and type(data.values) == "table") then return end
+            
+        for flag, value in pairs(data.values) do
+            if flag:match("_rainbow$") then continue end
+            
+            if library.flags[flag] then
+                local deserializedValue = deserializeValue(value)
+                
+                pcall(function()
+                    if type(library.flags[flag]) == "table" and 
+                       type(library.flags[flag].set) == "function" then
+                        library.flags[flag]:set(deserializedValue)
                     end
-                end
-                configSystem.selectedConfig = configSystem.autoLoadConfig
-                dropdown:set(configSystem.autoLoadConfig)
-                autoLoadToggle:set(true)
-                library:Notification("Info", "Auto-loaded config: " .. configSystem.autoLoadConfig, "OK")
+                end)
             end
         end
-    end
+        
+        task.delay(0.1, function()
+            for flag, value in pairs(data.values) do
+                if not flag:match("_rainbow$") then continue end
+                
+                local baseFlagName = flag:gsub("_rainbow$", "")
+                if library.flags[baseFlagName] and 
+                   type(library.flags[baseFlagName].setRainbow) == "function" then
+                    pcall(function()
+                        library.flags[baseFlagName]:setRainbow(value)
+                    end)
+                end
+            end
+        end)
+        
+        configSystem.selectedConfig = configSystem.autoLoadConfig
+        dropdown:set(configSystem.autoLoadConfig)
+        autoLoadToggle:set(true)
+        
+        if #configSystem.autoLoadConfig > 0 then
+            library:Notification("Info", "Auto-loaded config: " .. configSystem.autoLoadConfig, "OK")
+        end
+    end)
     
     return configSystem
 end
