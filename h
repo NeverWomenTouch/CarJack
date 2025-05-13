@@ -1294,6 +1294,55 @@ function library:Window(title, version, info, preset, closebind)
             local Stored = {}
             local SelectedValue = nil
             
+            local dropdown = {
+                value = IsMulti and Stored or SelectedValue,
+                options = Selectables,
+                
+                Refresh = function(self, newOptions, selected)
+                    RefreshOptions(newOptions, selected)
+                    return self
+                end,
+                
+                RemoveOptions = function(self)
+                    RefreshOptions({})
+                    return self
+                end,
+                
+                AddOption = function(self, option)
+                    local newOptions = {}
+                    for _, opt in pairs(self.options) do
+                        table.insert(newOptions, opt)
+                    end
+                    table.insert(newOptions, option)
+                    self.options = newOptions
+                    RefreshOptions(newOptions, self.value)
+                    return self
+                end,
+                
+                set = function(self, value)
+                    if IsMulti and type(value) == "table" then
+                        self.value = value
+                        Stored = value
+                        RefreshOptions(self.options, value)
+                    else
+                        self.value = value
+                        SelectedValue = value
+                        for _, option in pairs(self.options) do
+                            if option == value or (type(option) == "table" and option.value == value) then
+                                DropdownBox.Text = type(option) == "table" and option.text or tostring(option)
+                                break
+                            end
+                        end
+                        
+                        RefreshOptions(self.options, value)
+                    end
+                    return self
+                end
+            }
+            
+            if not library.flags then library.flags = {} end
+            library.flags[flag] = dropdown
+            
             local function NewSelectable(Text, val)
                 local SelectableButton = Instance.new("TextButton")
                 local SelectableText = Instance.new("TextLabel")
@@ -1419,7 +1468,6 @@ function library:Window(title, version, info, preset, closebind)
                         end
                         
                         tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 90}):Play()
-                        tweensv:Create(FadeBackgroundFrame, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
                         Tsd:TweenPosition(UDim2.new(0.5, 0, 5, 0), "Out", "Quart", 0.3)
                     else
                         if IsSelectableChoosed.Value then
@@ -1490,64 +1538,13 @@ function library:Window(title, version, info, preset, closebind)
             
             library.Conn[#library.Conn + 1] = DropdownBox.MouseButton1Click:Connect(function()
                 tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 180}):Play()
-                tweensv:Create(FadeBackgroundFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0.3}):Play()
                 Tsd:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), "Out", "Quart", 0.3)
             end)
             
             library.Conn[#library.Conn + 1] = CloseButton.MouseButton1Click:Connect(function()
                 tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 90}):Play()
-                tweensv:Create(FadeBackgroundFrame, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
                 Tsd:TweenPosition(UDim2.new(0.5, 0, 5, 0), "Out", "Quart", 0.3)
             end)
-            
-            local dropdown = {
-                value = IsMulti and Stored or SelectedValue,
-                options = Selectables,
-                
-                Refresh = function(self, newOptions, selected)
-                    RefreshOptions(newOptions, selected)
-                    return self
-                end,
-                
-                RemoveOptions = function(self)
-                    RefreshOptions({})
-                    return self
-                end,
-                
-                AddOption = function(self, option)
-                    local newOptions = {}
-                    for _, opt in pairs(self.options) do
-                        table.insert(newOptions, opt)
-                    end
-                    table.insert(newOptions, option)
-                    self.options = newOptions
-                    RefreshOptions(newOptions, self.value)
-                    return self
-                end,
-                
-                set = function(self, value)
-                    if IsMulti and type(value) == "table" then
-                        self.value = value
-                        Stored = value
-                        RefreshOptions(self.options, value)
-                    else
-                        self.value = value
-                        SelectedValue = value
-                        for _, option in pairs(self.options) do
-                            if option == value or (type(option) == "table" and option.value == value) then
-                                DropdownBox.Text = type(option) == "table" and option.text or tostring(option)
-                                break
-                            end
-                        end
-                        
-                        RefreshOptions(self.options, value)
-                    end
-                    return self
-                end
-            }
-            
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = dropdown
             
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             
