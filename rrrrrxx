@@ -2147,8 +2147,14 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
         end
 
-        function tabcontent:Textbox(text, disapper, callback, flag)
+        function tabcontent:Textbox(text, disappear, callback, flag, options)
             local flag = flag or text
+            local options = options or {}
+            local placeholder = options.placeholder or ""
+            local maxChars = options.maxChars
+            local filterFunc = options.filter
+            local autoFocus = options.autoFocus
+            local selectAllOnFocus = options.selectAll
             
             local Textbox = Instance.new("Frame")
             local TextboxCorner = Instance.new("UICorner")
@@ -2161,7 +2167,7 @@ function library:Window(title, version, info, preset, closebind)
             Textbox.Parent = Tab
             Textbox.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
             Textbox.ClipsDescendants = true
-            Textbox.Position = UDim2.new(-0.541071415, 0, -0.532915354, 0)
+            Textbox.Position = UDim2.new(0, 0, 0, 0)
             Textbox.Size = UDim2.new(0, 363, 0, 42)
 
             TextboxCorner.CornerRadius = UDim.new(0, 5)
@@ -2170,8 +2176,7 @@ function library:Window(title, version, info, preset, closebind)
 
             TextboxTitle.Name = "TextboxTitle"
             TextboxTitle.Parent = Textbox
-            TextboxTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            TextboxTitle.BackgroundTransparency = 1.000
+            TextboxTitle.BackgroundTransparency = 1
             TextboxTitle.Position = UDim2.new(0.0358126722, 0, 0, 0)
             TextboxTitle.Size = UDim2.new(0, 187, 0, 42)
             TextboxTitle.Font = Enum.Font.SourceSans
@@ -2181,25 +2186,28 @@ function library:Window(title, version, info, preset, closebind)
             TextboxTitle.TextXAlignment = Enum.TextXAlignment.Left
 
             TextboxFrame.Name = "TextboxFrame"
-            TextboxFrame.Parent = TextboxTitle
+            TextboxFrame.Parent = Textbox
             TextboxFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
-            TextboxFrame.Position = UDim2.new(1.28877008, 0, 0.214285716, 0)
+            TextboxFrame.Position = UDim2.new(0.65, 0, 0.214285716, 0)
             TextboxFrame.Size = UDim2.new(0, 100, 0, 23)
+            TextboxFrame.ZIndex = 2
 
             TextboxFrameCorner.CornerRadius = UDim.new(0, 5)
             TextboxFrameCorner.Name = "TextboxFrameCorner"
             TextboxFrameCorner.Parent = TextboxFrame
 
+            TextBox.Name = "TextBox"
             TextBox.Parent = TextboxFrame
-            TextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            TextBox.BackgroundTransparency = 1.000
-            TextBox.Size = UDim2.new(0, 100, 0, 23)
+            TextBox.BackgroundTransparency = 1
+            TextBox.Size = UDim2.new(1, 0, 1, 0)
+            TextBox.ZIndex = 3
             TextBox.Font = Enum.Font.Gotham
             TextBox.Text = ""
+            TextBox.PlaceholderText = placeholder
             TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-            TextBox.TextSize = 14.000
+            TextBox.TextSize = 14
+            TextBox.ClearTextOnFocus = false
             
-            -- Create textbox object with methods
             local textbox = {
                 value = "",
                 set = function(self, value)
@@ -2210,25 +2218,80 @@ function library:Window(title, version, info, preset, closebind)
                 end,
                 clear = function(self)
                     return self:set("")
+                end,
+                getValue = function(self)
+                    return self.value
+                end,
+                setPlaceholder = function(self, placeholderText)
+                    TextBox.PlaceholderText = placeholderText or ""
+                    return self
                 end
             }
             
-            -- Register with flags system
             if not library.flags then library.flags = {} end
             library.flags[flag] = textbox
 
-            library.Conn[#library.Conn + 1] = TextBox.FocusLost:Connect(function(ep)
-                if ep then
-                    if #TextBox.Text > 0 then
-                        textbox.value = TextBox.Text
-                        pcall(callback, TextBox.Text)
-                        if disapper then
-                            TextBox.Text = ""
-                            textbox.value = ""
-                        end
+            library.Conn[#library.Conn + 1] = TextBox:GetPropertyChangedSignal("Text"):Connect(function()
+                if maxChars and #TextBox.Text > maxChars then
+                    TextBox.Text = string.sub(TextBox.Text, 1, maxChars)
+                    return
+                end
+                
+                if filterFunc then
+                    local filtered = filterFunc(TextBox.Text)
+                    if filtered ~= TextBox.Text then
+                        TextBox.Text = filtered
+                        return
+                    end
+                end
+                
+                textbox.value = TextBox.Text
+            end)
+
+            library.Conn[#library.Conn + 1] = TextBox.Focused:Connect(function()
+                tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(46, 46, 46)}):Play()
+                
+                if selectAllOnFocus then
+                    TextBox.SelectionStart = 0
+                    TextBox.CursorPosition = #TextBox.Text + 1
+                end
+            end)
+
+            library.Conn[#library.Conn + 1] = TextBox.FocusLost:Connect(function(enterPressed)
+                tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
+                
+                if enterPressed and #TextBox.Text > 0 then
+                    pcall(callback, TextBox.Text)
+                    if disappear then
+                        TextBox.Text = ""
+                        textbox.value = ""
                     end
                 end
             end)
+
+            library.Conn[#library.Conn + 1] = TextboxFrame.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    TextBox:CaptureFocus()
+                end
+            end)
+            
+            library.Conn[#library.Conn + 1] = TextboxFrame.MouseEnter:Connect(function()
+                if not TextBox:IsFocused() then
+                    tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(42, 42, 42)}):Play()
+                end
+            end)
+
+            library.Conn[#library.Conn + 1] = TextboxFrame.MouseLeave:Connect(function()
+                if not TextBox:IsFocused() then
+                    tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
+                end
+            end)
+            
+            if autoFocus then
+                task.defer(function()
+                    TextBox:CaptureFocus()
+                end)
+            end
             
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             return textbox
@@ -2346,19 +2409,22 @@ function library:Window(title, version, info, preset, closebind)
 end
 ----------------------------------------------------------------// CONFIG SYSTEM //----------------------------------------------------------------
 function library:ConfigSystem(tab, name)
-    local folder = library.Folder
+    local folder = library.Folder or "Dendrite.cc"
+    
     if not isfolder(folder) then
         makefolder(folder)
     end
+    
     local configSystem = {
         configList = {},
         selectedConfig = nil,
-        autoLoadConfig = nil,
-        textboxValue = ""
+        autoLoadConfig = nil
     }
+    
     if not library.flags then
         library.flags = {}
     end
+    
     function configSystem:RefreshConfigList()
         configSystem.configList = {}
         
@@ -2432,9 +2498,8 @@ function library:ConfigSystem(tab, name)
     
     tab:Label("CONFIGURATION SYSTEM")
     
-    local configNameBox = tab:Textbox("Config Name", false, "", function(text)
-        configSystem.textboxValue = text
-    end, "config_name")
+    local configTextbox = tab:Textbox("Config Name", false, function(text)
+    end, "config_name_input")
     
     local dropdown = tab:NewDropdown("Select Config", configSystem.configList, function(selected)
         configSystem.selectedConfig = selected
@@ -2473,14 +2538,18 @@ function library:ConfigSystem(tab, name)
     end, "config_autoload")
     
     tab:Button("Create Config", function()
-        if configSystem.textboxValue == "" then
+        local configName = library.flags["config_name_input"] and library.flags["config_name_input"].value or ""
+        
+        if configName == "" then
             return library:Notification("Error", "Please enter a config name.", "OK")
         end
-        if not string.match(configSystem.textboxValue, "^[%w_]+$") then
+        
+        if not string.match(configName, "^[%w_]+$") then
             return library:Notification("Error", "Config name can only contain letters, numbers, and underscores.", "OK")
         end
-        for _, configName in ipairs(configSystem.configList) do
-            if configName:lower() == configSystem.textboxValue:lower() then
+        
+        for _, existingConfig in ipairs(configSystem.configList) do
+            if existingConfig:lower() == configName:lower() then
                 return library:Notification("Error", "Config already exists.", "OK")
             end
         end
@@ -2490,7 +2559,7 @@ function library:ConfigSystem(tab, name)
             createdAt = os.time(),
             lastModified = os.time(),
             autoLoad = false,
-            name = configSystem.textboxValue
+            name = configName
         }
         config.values = {}
         
@@ -2500,12 +2569,12 @@ function library:ConfigSystem(tab, name)
             end
         end
         
-        local filePath = folder .. "/" .. configSystem.textboxValue .. ".json"
+        local filePath = folder .. "/" .. configName .. ".json"
         writefile(filePath, game:GetService("HttpService"):JSONEncode(config))
         
         configSystem:RefreshConfigList()
         dropdown:Refresh(configSystem.configList)
-        configNameBox:set("")
+        configTextbox:set("")
         
         library:Notification("Success", "Config created successfully!", "OK")
     end)
@@ -2566,7 +2635,9 @@ function library:ConfigSystem(tab, name)
                         library.flags[flag]:setRainbow(data.values[flag.."_rainbow"])
                     end
                 else
-                    library.flags[flag]:set(deserializedValue)
+                    pcall(function()
+                        library.flags[flag]:set(deserializedValue)
+                    end)
                 end
             end
         end
@@ -2604,7 +2675,6 @@ function library:ConfigSystem(tab, name)
         library:Notification("Success", "Config list refreshed!", "OK")
     end)
     
-    -- Auto-load
     if configSystem.autoLoadConfig then
         local filePath = folder .. "/" .. configSystem.autoLoadConfig .. ".json"
         local success, fileContent = pcall(function() return readfile(filePath) end)
@@ -2635,6 +2705,7 @@ function library:ConfigSystem(tab, name)
             end
         end
     end
+    
     return configSystem
 end
 
