@@ -2152,6 +2152,7 @@ function library:Window(title, version, info, preset, closebind)
             local TextboxFrame = Instance.new("Frame")
             local TextboxFrameCorner = Instance.new("UICorner")
             local TextBox = Instance.new("TextBox")
+            local TextboxButton = Instance.new("TextButton") -- Added button to capture clicks
 
             Textbox.Name = "Textbox"
             Textbox.Parent = Tab
@@ -2187,10 +2188,18 @@ function library:Window(title, version, info, preset, closebind)
             TextboxFrameCorner.Name = "TextboxFrameCorner"
             TextboxFrameCorner.Parent = TextboxFrame
 
+            -- Add transparent button to capture clicks
+            TextboxButton.Name = "TextboxButton"
+            TextboxButton.Parent = TextboxFrame
+            TextboxButton.BackgroundTransparency = 1
+            TextboxButton.Size = UDim2.new(1, 0, 1, 0)
+            TextboxButton.Text = ""
+            TextboxButton.ZIndex = 5
+
             TextBox.Parent = TextboxFrame
             TextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             TextBox.BackgroundTransparency = 1.000
-            TextBox.Size = UDim2.new(0, 100, 0, 23)
+            TextBox.Size = UDim2.new(1, 0, 1, 0)
             TextBox.Font = Enum.Font.Gotham
             TextBox.Text = default
             TextBox.PlaceholderText = placeholderText or "Enter text..."
@@ -2218,6 +2227,11 @@ function library:Window(title, version, info, preset, closebind)
             if not library.flags then library.flags = {} end
             library.flags[flag] = textbox
 
+            -- Connect the button click directly to focus
+            library.Conn[#library.Conn + 1] = TextboxButton.MouseButton1Click:Connect(function()
+                TextBox:CaptureFocus()
+            end)
+
             library.Conn[#library.Conn + 1] = TextBox:GetPropertyChangedSignal("Text"):Connect(function()
                 textbox.value = TextBox.Text
             end)
@@ -2232,6 +2246,7 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end)
 
+            -- Additional click handler on the frame
             library.Conn[#library.Conn + 1] = TextboxFrame.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     TextBox:CaptureFocus()
@@ -2255,7 +2270,7 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             return textbox
         end
-        
+
         function tabcontent:Bind(text, keypreset, callback, flag)
             local flag = flag or text
             local binding = false
