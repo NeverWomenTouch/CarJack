@@ -747,10 +747,10 @@ function library:Window(title, version, info, preset, closebind)
         end
         
         function tabcontent:KeybindT(text, default, keybind, callback, flag)
+            local flag = flag or text
             local toggled = default or false
             local assignedKey = keybind or Enum.KeyCode.World1
             local SelectingKey = false
-            local flag = flag or text
 
             local Toggle = Instance.new("TextButton")
             local ToggleCorner = Instance.new("UICorner")
@@ -784,7 +784,7 @@ function library:Window(title, version, info, preset, closebind)
             ToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             ToggleTitle.BackgroundTransparency = 1.000
             ToggleTitle.Position = UDim2.new(0.05, 0, 0, 0)
-            ToggleTitle.Size = UDim2.new(0.5, 0, 0, 40)
+            ToggleTitle.Size = UDim2.new(0.6, 0, 0, 40)
             ToggleTitle.Font = Enum.Font.SourceSans
             ToggleTitle.Text = text
             ToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -794,7 +794,7 @@ function library:Window(title, version, info, preset, closebind)
             FrameToggle1.Name = "FrameToggle1"
             FrameToggle1.Parent = Toggle
             FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            FrameToggle1.Position = UDim2.new(0.55, 0, 0.25, 0)
+            FrameToggle1.Position = UDim2.new(0.75, 0, 0.25, 0)
             FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
 
             FrameToggle1Corner.Parent = FrameToggle1
@@ -830,53 +830,36 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end)()
 
-            local function ToggleState(state)
-                toggled = state
-                if toggled then
-                    FrameToggleCircle.Position = UDim2.new(0.6, 0, 0.2, 0)
-                    FrameToggle3.BackgroundTransparency = 0
-                else
-                    FrameToggleCircle.Position = UDim2.new(0.1, 0, 0.2, 0)
-                    FrameToggle3.BackgroundTransparency = 1
-                end
-                pcall(callback, toggled)
-            end
-
             local KeybindLabel
+            
             if uis.KeyboardEnabled then
                 KeybindLabel = Instance.new("TextButton")
                 KeybindLabel.Name = "KeybindLabel"
                 KeybindLabel.Parent = Toggle
                 KeybindLabel.BackgroundTransparency = 1
-                KeybindLabel.Position = UDim2.new(0.75, 0, 0, 0)
-                KeybindLabel.Size = UDim2.new(0.2, 0, 1, 0)
+                KeybindLabel.Position = UDim2.new(0.85, 0, 0, 0)
+                KeybindLabel.Size = UDim2.new(0.15, 0, 1, 0)
                 KeybindLabel.Font = Enum.Font.SourceSans
                 KeybindLabel.Text = assignedKey == Enum.KeyCode.Unknown and "None" or assignedKey.Name
                 KeybindLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 KeybindLabel.TextSize = 16
+            end
 
-                KeybindLabel.MouseButton1Click:Connect(function()
-                    if SelectingKey then return end
-                    SelectingKey = true
-                    KeybindLabel.Text = "Press Key"
-                    local connection
-                    connection = uis.InputBegan:Connect(function(input)
-                        if input.UserInputType == Enum.UserInputType.Keyboard then
-                            assignedKey = input.KeyCode
-                            keybindT.keyCode = assignedKey
-                            KeybindLabel.Text = assignedKey.Name
-                            SelectingKey = false
-                            connection:Disconnect()
-                        end
-                    end)
-                end)
-
-                library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
-                    if gameProcessed or SelectingKey then return end
-                    if input.KeyCode == assignedKey then
-                        ToggleState(not toggled)
-                    end
-                end)
+            local function ToggleState(state)
+                toggled = state
+                if toggled then
+                    FrameToggleCircle:TweenPosition(UDim2.new(0.6, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+                    FrameToggle3.BackgroundTransparency = 0
+                else
+                    FrameToggleCircle:TweenPosition(UDim2.new(0.1, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+                    FrameToggle3.BackgroundTransparency = 1
+                end
+                
+                if keybindT then
+                    keybindT.value = toggled
+                end
+                
+                pcall(callback, toggled)
             end
 
             local keybindT = {
@@ -890,16 +873,23 @@ function library:Window(title, version, info, preset, closebind)
                     return self
                 end,
                 setKey = function(self, key)
-                    if typeof(key) == "EnumItem" then
+                    if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
                         assignedKey = key
                         self.keyCode = key
+                        if KeybindLabel then
+                            KeybindLabel.Text = key.Name
+                        end
                     elseif typeof(key) == "string" then
-                        assignedKey = Enum.KeyCode[key]
-                        self.keyCode = assignedKey
-                    end
-                    
-                    if KeybindLabel then
-                        KeybindLabel.Text = assignedKey.Name
+                        local success, keyEnum = pcall(function()
+                            return Enum.KeyCode[key]
+                        end)
+                        if success and keyEnum then
+                            assignedKey = keyEnum
+                            self.keyCode = keyEnum
+                            if KeybindLabel then
+                                KeybindLabel.Text = keyEnum.Name
+                            end
+                        end
                     end
                     return self
                 end,
@@ -927,10 +917,34 @@ function library:Window(title, version, info, preset, closebind)
             if not library.flags then library.flags = {} end
             library.flags[flag] = keybindT
 
+            if KeybindLabel then
+                library.Conn[#library.Conn + 1] = KeybindLabel.MouseButton1Click:Connect(function()
+                    if SelectingKey then return end
+                    SelectingKey = true
+                    KeybindLabel.Text = "Press Key"
+                    local connection
+                    connection = uis.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.Keyboard then
+                            assignedKey = input.KeyCode
+                            keybindT.keyCode = assignedKey
+                            KeybindLabel.Text = assignedKey.Name
+                            SelectingKey = false
+                            connection:Disconnect()
+                        end
+                    end)
+                end)
+
+                library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
+                    if gameProcessed or SelectingKey then return end
+                    if input.KeyCode == assignedKey then
+                        ToggleState(not toggled)
+                    end
+                end)
+            end
+
             library.Conn[#library.Conn + 1] = Toggle.MouseButton1Click:Connect(function()
                 if not SelectingKey then
                     ToggleState(not toggled)
-                    keybindT.value = toggled
                 end
             end)
 
@@ -1070,6 +1084,7 @@ function library:Window(title, version, info, preset, closebind)
                 local percent
                 
                 if val then
+                    val = tonumber(val) or defvalue
                     percent = math.clamp((val - min) / (max - min), 0, 1)
                 elseif mouseX then
                     percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
@@ -1098,9 +1113,11 @@ function library:Window(title, version, info, preset, closebind)
             local slider = {
                 value = precise and tonumber(value) or math.floor(RealValue),
                 set = function(self, val)
-                    if type(val) == "number" then
+                    if type(val) == "number" or type(val) == "string" then
+                        val = tonumber(val) or self.value
                         val = math.clamp(val, min, max)
                         UpdateSlider(val)
+                        self.value = precise and tonumber(string.format("%.1f", val)) or math.floor(val)
                     end
                     return self
                 end,
@@ -2513,6 +2530,7 @@ function library:Window(title, version, info, preset, closebind)
             BindText.TextColor3 = Color3.fromRGB(255, 255, 255)
             BindText.TextSize = 14.000
             BindText.TextXAlignment = Enum.TextXAlignment.Right
+            
             local keybind = {
                 value = keypreset,
                 keyName = Key,
@@ -2537,8 +2555,12 @@ function library:Window(title, version, info, preset, closebind)
                     end
                     
                     return self
+                end,
+                getValue = function(self)
+                    return self.value
                 end
             }
+            
             if not library.flags then library.flags = {} end
             library.flags[flag] = keybind
 
@@ -2550,23 +2572,26 @@ function library:Window(title, version, info, preset, closebind)
                 
                 local inputwait = uis.InputBegan:wait()
                 if inputwait.KeyCode.Name ~= "Unknown" then
-                    BindText.Text = inputwait.KeyCode.Name
                     Key = inputwait.KeyCode.Name
                     keybind.value = inputwait.KeyCode
                     keybind.keyName = inputwait.KeyCode.Name
+                    BindText.Text = inputwait.KeyCode.Name
                 end
                 binding = false
             end)
+            
             library.Conn[#library.Conn + 1] = uis.InputBegan:connect(function(current, pressed)
                 if not pressed and not binding then
                     if current.KeyCode.Name == Key then
-                        pcall(callback, Key)
+                        pcall(callback, current.KeyCode)
                     end
                 end
             end)
+            
             library.Conn[#library.Conn + 1] = Bind.MouseEnter:Connect(function()
                 tweensv:Create(Bind, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(38, 38, 38)}):Play()
             end)
+            
             library.Conn[#library.Conn + 1] = Bind.MouseLeave:Connect(function()
                 tweensv:Create(Bind, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(34, 34, 34)}):Play()
             end)
@@ -2598,7 +2623,6 @@ function library:ConfigSystem(tab, name)
         
         local success, files = pcall(listfiles, folder)
         if not success then 
-            warn("Failed to list files in folder:", folder)
             return {} 
         end
         
@@ -2690,19 +2714,35 @@ function library:ConfigSystem(tab, name)
         end
     end
     
-    local function verifyUIElements()
-        local missingSetMethods = {}
-        for flag, element in pairs(library.flags) do
-            if element ~= nil and type(element) == "table" then
-                if type(element.set) ~= "function" then
-                    table.insert(missingSetMethods, flag)
+    local function getConfigDifferences(oldValues, newValues)
+        local added, removed, unchanged = 0, 0, 0
+        local oldFlags = {}
+        local newFlags = {}
+        
+        for flag, _ in pairs(oldValues or {}) do
+            if not flag:match("_rainbow$") then
+                oldFlags[flag] = true
+            end
+        end
+        
+        for flag, _ in pairs(newValues or {}) do
+            if not flag:match("_rainbow$") then
+                newFlags[flag] = true
+                if oldFlags[flag] then
+                    unchanged = unchanged + 1
+                else
+                    added = added + 1
                 end
             end
         end
         
-        if #missingSetMethods > 0 then
-            warn("[Config System] The following UI elements are missing .set() methods:", table.concat(missingSetMethods, ", "))
+        for flag, _ in pairs(oldFlags) do
+            if not newFlags[flag] then
+                removed = removed + 1
+            end
         end
+        
+        return added, removed, unchanged
     end
     
     RefreshConfigList()
@@ -2747,10 +2787,7 @@ function library:ConfigSystem(tab, name)
                         
                         if success and otherData.metadata then
                             otherData.metadata.autoLoad = false
-                            local writeSuccess = pcall(writefile, otherFilePath, game:GetService("HttpService"):JSONEncode(otherData))
-                            if not writeSuccess then
-                                warn("Failed to update autoLoad for config:", configName)
-                            end
+                            pcall(writefile, otherFilePath, game:GetService("HttpService"):JSONEncode(otherData))
                         end
                     end
                 end
@@ -2800,9 +2837,13 @@ function library:ConfigSystem(tab, name)
             values = {}
         }
         
+        local settingsCount = 0
         for flag, element in pairs(library.flags) do
             if element and type(element) == "table" and element.value ~= nil then
                 config.values[flag] = serializeValue(element.value)
+                if not flag:match("_rainbow$") then
+                    settingsCount = settingsCount + 1
+                end
                 
                 if element.rainbow ~= nil then
                     config.values[flag.."_rainbow"] = element.rainbow
@@ -2816,241 +2857,248 @@ function library:ConfigSystem(tab, name)
         if success then
             RefreshConfigList()
             dropdown:Refresh(configSystem.configList)
-            dropdown:set(configName) -- Select the newly created config
+            dropdown:set(configName)
+            configSystem.selectedConfig = configName
             configTextbox:set("")
             
-            library:Notification("Success", "Config created successfully!", "OK")
+            library:Notification("Success", "Config \"" .. configName .. "\" created with " .. settingsCount .. " settings!", "OK")
         else
             library:Notification("Error", "Failed to create config file.", "OK")
         end
     end)
     
-    tab:Button("Save Config", function()
+    tab:Button("Save/Overwrite Config", function()
         if not configSystem.selectedConfig then
             library:Notification("Error", "No config selected.", "OK")
             return
         end
         
         local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
+        local oldValues = {}
+        
+        local success, fileContent = pcall(readfile, filePath)
+        if success then
+            local parseSuccess, data = pcall(function()
+                return game:GetService("HttpService"):JSONDecode(fileContent)
+            end)
+            
+            if parseSuccess and type(data) == "table" and type(data.values) == "table" then
+                oldValues = data.values
+                data.metadata = data.metadata or {}
+                data.metadata.lastModified = os.time()
+                data.values = {}
+                
+                local newValues = {}
+                for flag, element in pairs(library.flags) do
+                    if element and type(element) == "table" and element.value ~= nil then
+                        data.values[flag] = serializeValue(element.value)
+                        newValues[flag] = true
+                        
+                        if element.rainbow ~= nil then
+                            data.values[flag.."_rainbow"] = element.rainbow
+                        end
+                    end
+                end
+                
+                local added, removed, unchanged = getConfigDifferences(oldValues, data.values)
+                
+                success = pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(data))
+                
+                if success then
+                    local message = ""
+                    if added > 0 then
+                        message = message .. added .. " new settings added"
+                    end
+                    
+                    if removed > 0 then
+                        if message ~= "" then message = message .. ", " end
+                        message = message .. removed .. " settings removed"
+                    end
+                    
+                    if unchanged > 0 then
+                        if message ~= "" then message = message .. ", " end
+                        message = message .. unchanged .. " settings unchanged"
+                    end
+                    
+                    if message == "" then
+                        message = "No changes detected"
+                    end
+                    
+                    library:Notification("Config Saved", "\"" .. configSystem.selectedConfig .. "\": " .. message, "OK")
+                else
+                    library:Notification("Error", "Failed to save config file.", "OK")
+                end
+            else
+                library:Notification("Error", "Invalid config format.", "OK")
+            end
+        else
+            library:Notification("Error", "Config does not exist.", "OK")
+        end
+    end)
+    
+    tab:Button("Load Config", function()
+        if not configSystem.selectedConfig then
+            return library:Notification("Error", "No config selected.", "OK")
+        end
+        
+        local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
         local success, fileContent = pcall(readfile, filePath)
         
         if not success then
-            library:Notification("Error", "Config does not exist.", "OK")
-            return
+            return library:Notification("Error", "Config does not exist.", "OK")
         end
         
-        local success, data = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(fileContent)
+        local success, data = pcall(function() 
+            return game:GetService("HttpService"):JSONDecode(fileContent) 
         end)
         
-        if not success then
-            library:Notification("Error", "Invalid config format.", "OK")
-            return
+        if not success or type(data.values) ~= "table" then
+            return library:Notification("Error", "Invalid config format.", "OK")
         end
         
-        data.metadata = data.metadata or {}
-        data.metadata.lastModified = os.time()
-        data.values = {}
+        local loadedCount = 0
         
-        local savedCount = 0
-        for flag, element in pairs(library.flags) do
-            if element and type(element) == "table" and element.value ~= nil then
-                data.values[flag] = serializeValue(element.value)
-                savedCount = savedCount + 1
+        for flag, value in pairs(data.values) do
+            if flag:match("_rainbow$") then continue end
+            
+            if library.flags[flag] then
+                local deserializedValue = deserializeValue(value)
                 
-                if element.rainbow ~= nil then
-                    data.values[flag.."_rainbow"] = element.rainbow
-                end
+                task.spawn(function()
+                    pcall(function()
+                        if type(library.flags[flag]) == "table" and type(library.flags[flag].set) == "function" then
+                            library.flags[flag]:set(deserializedValue)
+                            loadedCount = loadedCount + 1
+                        end
+                    end)
+                end)
             end
         end
         
-        success = pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(data))
+        task.delay(0.3, function()
+            for flag, value in pairs(data.values) do
+                if not flag:match("_rainbow$") then continue end
+                
+                local baseFlagName = flag:gsub("_rainbow$", "")
+                if library.flags[baseFlagName] and type(library.flags[baseFlagName].setRainbow) == "function" then
+                    pcall(function()
+                        library.flags[baseFlagName]:setRainbow(value)
+                    end)
+                end
+            end
+            
+            library:Notification("Config Loaded", "\"" .. configSystem.selectedConfig .. "\": " .. loadedCount .. " settings applied", "OK")
+        end)
+    end)
+    
+    tab:Button("Delete Config", function()
+        if not configSystem.selectedConfig then
+            return library:Notification("Error", "No config selected.", "OK")
+        end
         
-        if success then
-            library:Notification("Success", "Config saved successfully! (" .. savedCount .. " settings saved)", "OK")
+        local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
+        local configToDelete = configSystem.selectedConfig
+        
+        local success = pcall(delfile, filePath)
+        if not success then
+            return library:Notification("Error", "Failed to delete config file.", "OK")
+        end
+        
+        if configSystem.autoLoadConfig == configSystem.selectedConfig then
+            configSystem.autoLoadConfig = nil
+            autoLoadToggle:set(false)
+        end
+        
+        configSystem.selectedConfig = nil
+        RefreshConfigList()
+        
+        if dropdown and type(dropdown.Refresh) == "function" then
+            dropdown:Refresh(configSystem.configList)
+            dropdown:set(nil)
+        end
+        
+        library:Notification("Success", "Config deleted: \"" .. configToDelete .. "\"", "OK")
+    end)
+    
+    tab:Button("Refresh Config List", function()
+        table.clear(configSystem.configList)
+        local configs = RefreshConfigList()
+        if dropdown then
+            if type(dropdown.Refresh) == "function" then
+                dropdown:Refresh(configs)
+                if configSystem.selectedConfig and not table.find(configs, configSystem.selectedConfig) then
+                    configSystem.selectedConfig = nil
+                end
+                library:Notification("Config List Refreshed", #configs .. " configs found", "OK")
+            else
+                dropdown = tab:NewDropdown("Select Config", configs, function(selected)
+                    configSystem.selectedConfig = selected
+                end, false, "config_selector")
+            end
         else
-            library:Notification("Error", "Failed to save config file.", "OK")
+            dropdown = tab:NewDropdown("Select Config", configs, function(selected)
+                configSystem.selectedConfig = selected
+            end, false, "config_selector")
         end
     end)
     
-tab:Button("Load Config", function()
-    if not configSystem.selectedConfig then
-        return library:Notification("Error", "No config selected.", "OK")
-    end
-    
-    local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-    local success, fileContent = pcall(readfile, filePath)
-    
-    if not success then
-        return library:Notification("Error", "Config does not exist.", "OK")
-    end
-    
-    local success, data = pcall(function() 
-        return game:GetService("HttpService"):JSONDecode(fileContent) 
-    end)
-    
-    if not success or type(data.values) ~= "table" then
-        return library:Notification("Error", "Invalid config format.", "OK")
-    end
-    
-    local loadedCount = 0
-    local errorCount = 0
-    local errors = {}
-    
-    for flag, value in pairs(data.values) do
-        if flag:match("_rainbow$") then continue end
+    task.spawn(function()
+        task.wait(0.5)
         
-        if library.flags[flag] then
-            local deserializedValue = deserializeValue(value)
+        if not configSystem.autoLoadConfig then return end
+        
+        local filePath = folder .. "/" .. configSystem.autoLoadConfig .. ".json"
+        local success, fileContent = pcall(readfile, filePath)
+        
+        if not success then return end
+        
+        local success, data = pcall(function() 
+            return game:GetService("HttpService"):JSONDecode(fileContent) 
+        end)
+        
+        if not success or type(data.values) ~= "table" then return end
+        
+        local loadedCount = 0
+        
+        for flag, value in pairs(data.values) do
+            if flag:match("_rainbow$") then continue end
             
-            task.spawn(function()
+            if library.flags[flag] then
+                local deserializedValue = deserializeValue(value)
+                
                 pcall(function()
                     if type(library.flags[flag]) == "table" and type(library.flags[flag].set) == "function" then
                         library.flags[flag]:set(deserializedValue)
                         loadedCount = loadedCount + 1
                     end
                 end)
-            end)
-        end
-    end
-    
-    task.delay(0.3, function()
-        for flag, value in pairs(data.values) do
-            if not flag:match("_rainbow$") then continue end
-            
-            local baseFlagName = flag:gsub("_rainbow$", "")
-            if library.flags[baseFlagName] and type(library.flags[baseFlagName].setRainbow) == "function" then
-                pcall(function()
-                    library.flags[baseFlagName]:setRainbow(value)
-                end)
             end
         end
-        
-        library:Notification("Config Loaded", loadedCount .. " settings applied successfully", "OK")
-    end)
-end)
-    
- tab:Button("Delete Config", function()
-    if not configSystem.selectedConfig then
-        return library:Notification("Error", "No config selected.", "OK")
-    end
-    
-    local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-    local configToDelete = configSystem.selectedConfig
-    
-    local success = pcall(delfile, filePath)
-    if not success then
-        return library:Notification("Error", "Failed to delete config file.", "OK")
-    end
-    
-    if configSystem.autoLoadConfig == configSystem.selectedConfig then
-        configSystem.autoLoadConfig = nil
-        autoLoadToggle:set(false)
-    end
-    
-    configSystem.selectedConfig = nil
-    RefreshConfigList()
-    
-    if dropdown and type(dropdown.Refresh) == "function" then
-        dropdown:Refresh(configSystem.configList)
-        dropdown:set(nil)
-    end
-    
-    library:Notification("Success", "Config deleted successfully: " .. configToDelete, "OK")
-end)
-    
- tab:Button("Refresh Config List", function()
-    table.clear(configSystem.configList)
-    local configs = RefreshConfigList()
-    if dropdown then
-        if type(dropdown.Refresh) == "function" then
-            dropdown:Refresh(configs)
-            if configSystem.selectedConfig and not table.find(configs, configSystem.selectedConfig) then
-                configSystem.selectedConfig = nil
-            end
-            library:Notification("Success", "Config list refreshed! (" .. #configs .. " configs found)", "OK")
-        else
-            library:Notification("Debug", "Dropdown exists but Refresh function not found", "OK")
-            dropdown = tab:NewDropdown("Select Config", configs, function(selected)
-                configSystem.selectedConfig = selected
-            end, false, "config_selector")
-        end
-    else
-        library:Notification("Debug", "Dropdown is nil - recreating", "OK")
-        dropdown = tab:NewDropdown("Select Config", configs, function(selected)
-            configSystem.selectedConfig = selected
-        end, false, "config_selector")
-    end
-end)
-    
-    -- Run a one-time check to verify UI elements
-    task.spawn(function() 
-        task.wait(2) -- Wait for UI to initialize
-        verifyUIElements()
-    end)
-    
-
-task.spawn(function()
-    task.wait(3)
-    
-    if not configSystem.autoLoadConfig then return end
-    
-    local filePath = folder .. "/" .. configSystem.autoLoadConfig .. ".json"
-    local success, fileContent = pcall(readfile, filePath)
-    
-    if not success then return end
-    
-    local success, data = pcall(function() 
-        return game:GetService("HttpService"):JSONDecode(fileContent) 
-    end)
-    
-    if not success or type(data.values) ~= "table" then return end
-    
-    local loadedCount = 0
-    
-    task.wait(0.5)
-    
-    for flag, value in pairs(data.values) do
-        if flag:match("_rainbow$") then continue end
-        
-        if library.flags[flag] then
-            local deserializedValue = deserializeValue(value)
-            
-            pcall(function()
-                if type(library.flags[flag]) == "table" and type(library.flags[flag].set) == "function" then
-                    library.flags[flag]:set(deserializedValue)
-                    loadedCount = loadedCount + 1
+        task.delay(0.3, function()
+            for flag, value in pairs(data.values) do
+                if not flag:match("_rainbow$") then continue end
+                
+                local baseFlagName = flag:gsub("_rainbow$", "")
+                if library.flags[baseFlagName] and type(library.flags[baseFlagName].setRainbow) == "function" then
+                    pcall(function()
+                        library.flags[baseFlagName]:setRainbow(value)
+                    end)
                 end
-            end)
-        end
-    end
-    
-    task.delay(0.5, function()
-        for flag, value in pairs(data.values) do
-            if not flag:match("_rainbow$") then continue end
-            
-            local baseFlagName = flag:gsub("_rainbow$", "")
-            if library.flags[baseFlagName] and type(library.flags[baseFlagName].setRainbow) == "function" then
-                pcall(function()
-                    library.flags[baseFlagName]:setRainbow(value)
-                end)
             end
-        end
-    end)
-    
-    configSystem.selectedConfig = configSystem.autoLoadConfig
-    
-    task.delay(0.5, function()
-        pcall(function()
-            dropdown:set(configSystem.autoLoadConfig)
-            autoLoadToggle:set(true)
         end)
         
-        library:Notification("Config Auto-loaded", "Loaded \"" .. configSystem.autoLoadConfig .. "\" with " .. loadedCount .. " settings", "OK")
+        configSystem.selectedConfig = configSystem.autoLoadConfig
+        
+        task.delay(0.2, function()
+            pcall(function()
+                dropdown:set(configSystem.autoLoadConfig)
+                autoLoadToggle:set(true)
+            end)
+            
+            library:Notification("Config Auto-loaded", "\"" .. configSystem.autoLoadConfig .. "\": " .. loadedCount .. " settings applied", "OK")
+        end)
     end)
-end)
     
     return configSystem
 end
-
 return library
