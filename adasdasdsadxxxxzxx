@@ -2165,9 +2165,8 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
         end
 
-        function tabcontent:Textbox(text, disappear, default, callback, flag, placeholderText)
+        function tabcontent:Textbox(text, disappear, callback, flag)
             local flag = flag or text
-            local default = default or ""
             
             local Textbox = Instance.new("Frame")
             local TextboxCorner = Instance.new("UICorner")
@@ -2175,6 +2174,7 @@ function library:Window(title, version, info, preset, closebind)
             local TextboxFrame = Instance.new("Frame")
             local TextboxFrameCorner = Instance.new("UICorner")
             local TextBox = Instance.new("TextBox")
+            local TextboxButton = Instance.new("TextButton") -- Transparent button to capture clicks
 
             Textbox.Name = "Textbox"
             Textbox.Parent = Tab
@@ -2204,29 +2204,34 @@ function library:Window(title, version, info, preset, closebind)
             TextboxFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
             TextboxFrame.Position = UDim2.new(1.28877008, 0, 0.214285716, 0)
             TextboxFrame.Size = UDim2.new(0, 100, 0, 23)
-            TextboxFrame.ZIndex = 3
+            TextboxFrame.ZIndex = 2
 
             TextboxFrameCorner.CornerRadius = UDim.new(0, 5)
             TextboxFrameCorner.Name = "TextboxFrameCorner"
             TextboxFrameCorner.Parent = TextboxFrame
 
+            -- Add invisible button that covers the entire textbox frame
+            TextboxButton.Name = "TextboxButton"
+            TextboxButton.Parent = TextboxFrame
+            TextboxButton.BackgroundTransparency = 1
+            TextboxButton.Size = UDim2.new(1, 0, 1, 0)
+            TextboxButton.Text = ""
+            TextboxButton.ZIndex = 4
+
             TextBox.Parent = TextboxFrame
             TextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             TextBox.BackgroundTransparency = 1.000
-            TextBox.Size = UDim2.new(0, 100, 0, 23)
+            TextBox.Size = UDim2.new(1, 0, 1, 0)
             TextBox.Font = Enum.Font.Gotham
-            TextBox.Text = default
-            TextBox.PlaceholderText = placeholderText or "Enter text..."
+            TextBox.Text = ""
             TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
             TextBox.TextSize = 14.000
             TextBox.ClearTextOnFocus = false
-            TextBox.ZIndex = 4
-            TextBox.TextXAlignment = Enum.TextXAlignment.Center
-            TextBox.ClipsDescendants = false
+            TextBox.ZIndex = 3
             TextBox.Active = true
 
             local textbox = {
-                value = default,
+                value = "",
                 set = function(self, value)
                     self.value = value or ""
                     TextBox.Text = self.value
@@ -2241,17 +2246,27 @@ function library:Window(title, version, info, preset, closebind)
             if not library.flags then library.flags = {} end
             library.flags[flag] = textbox
 
+            -- Connect button click to focus
+            library.Conn[#library.Conn + 1] = TextboxButton.MouseButton1Click:Connect(function()
+                TextBox:CaptureFocus()
+            end)
+
+            -- Connect frame click to focus
+            library.Conn[#library.Conn + 1] = TextboxFrame.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    TextBox:CaptureFocus()
+                end
+            end)
+
+            -- Update value when changed
             library.Conn[#library.Conn + 1] = TextBox:GetPropertyChangedSignal("Text"):Connect(function()
                 textbox.value = TextBox.Text
             end)
 
+            -- Handle focus lost
             library.Conn[#library.Conn + 1] = TextBox.FocusLost:Connect(function(enterPressed)
                 textbox.value = TextBox.Text
-                
-                local success, err = pcall(callback, TextBox.Text)
-                if not success and library.debug then
-                    warn("Textbox Callback Error:", err)
-                end
+                pcall(callback, TextBox.Text)
                 
                 if disappear then
                     TextBox.Text = ""
@@ -2259,12 +2274,7 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end)
 
-            library.Conn[#library.Conn + 1] = TextboxFrame.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    TextBox:CaptureFocus()
-                end
-            end)
-
+            -- Visual feedback
             library.Conn[#library.Conn + 1] = TextboxFrame.MouseEnter:Connect(function()
                 tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(42, 42, 42)}):Play()
             end)
@@ -2282,6 +2292,7 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             return textbox
         end
+
         function tabcontent:Bind(text, keypreset, callback, flag)
             local flag = flag or text
             local binding = false
