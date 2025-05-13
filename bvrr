@@ -1153,7 +1153,6 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             return slider
         end
-
 function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
     local flag = flag or placeholder
     local Dropdown = Instance.new("TextButton")
@@ -1292,7 +1291,12 @@ function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
 
     local Stored = {}
     local SelectedValue = nil
-    local SelectedItems = {}  -- Replace BoolValues with this table
+    local SelectedItems = {}
+
+    local dropdown = {
+        value = IsMulti and Stored or SelectedValue,
+        options = Selectables or {},
+    }
 
     local function NewSelectable(Text, val)
         local SelectableButton = Instance.new("TextButton")
@@ -1380,7 +1384,6 @@ function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
         ChoosedCircleStroke.Transparency = 0
         ChoosedCircleStroke.Color = Color3.fromRGB(44, 44, 44)
 
-        -- Check if this item should be selected
         local isSelected = false
         if not IsMulti then
             isSelected = (SelectedValue == val or (val == nil and SelectedValue == Text))
@@ -1397,12 +1400,10 @@ function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
             ChoosedCircleStroke.Thickness = 0
         end
         
-        -- Store selection state in our table instead of BoolValue
         SelectedItems[SelectableButton] = isSelected
 
         library.Conn[#library.Conn + 1] = SelectableButton.MouseButton1Click:Connect(function()
             if not IsMulti then
-                -- Update all buttons to deselected
                 for btn, _ in pairs(SelectedItems) do
                     if btn and btn:IsA("TextButton") and btn ~= SelectableButton then
                         SelectedItems[btn] = false
@@ -1423,10 +1424,11 @@ function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
                     end
                 end
                 
-                -- Update this button to selected
                 SelectedItems[SelectableButton] = true
                 SelectedValue = val or Text
+                
                 dropdown.value = SelectedValue
+                
                 DropdownBox.Text = Text
                 
                 if func then
@@ -1440,7 +1442,6 @@ function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
                 tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 90}):Play()
                 Tsd:TweenPosition(UDim2.new(0.5, 0, 5, 0), "Out", "Quart", 0.3)
             else
-                -- Toggle selection state
                 local newState = not SelectedItems[SelectableButton]
                 SelectedItems[SelectableButton] = newState
                 
@@ -1475,184 +1476,165 @@ function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
         return SelectableButton
     end
 
-    local dropdown = {
-        value = IsMulti and Stored or SelectedValue,
-        options = Selectables or {},
-        set = function(self, selected)
-            if not self.options then
-                self.options = {}
+    dropdown.set = function(self, selected)
+        if not self.options then
+            self.options = {}
+        end
+        
+        if selected == nil then
+            if IsMulti then
+                table.clear(Stored)
+                self.value = Stored
+            else
+                SelectedValue = nil
+                self.value = nil
+                DropdownBox.Text = placeholder
             end
             
-            -- If nothing is selected, reset the dropdown
-            if selected == nil then
-                if IsMulti then
-                    table.clear(Stored)
-                    self.value = Stored
-                else
-                    SelectedValue = nil
-                    self.value = nil
-                    DropdownBox.Text = placeholder
-                end
-                
-                -- Reset all visual elements
-                for btn, _ in pairs(SelectedItems) do
-                    if btn and btn:IsA("TextButton") then
-                        SelectedItems[btn] = false
-                        local circle = btn:FindFirstChild("ChoosedCircle")
-                        if circle then
-                            circle.BackgroundTransparency = 1
-                            local innerCircle = circle:FindFirstChild("InnerCircle")
-                            if innerCircle then
-                                innerCircle.Size = UDim2.new(0, 0, 0, 0)
-                            end
-                            local stroke = circle:FindFirstChild("CircleStroke")
-                            if stroke then
-                                stroke.Thickness = 1.3
-                            end
+            for btn, _ in pairs(SelectedItems) do
+                if btn and btn:IsA("TextButton") then
+                    SelectedItems[btn] = false
+                    local circle = btn:FindFirstChild("ChoosedCircle")
+                    if circle then
+                        circle.BackgroundTransparency = 1
+                        local innerCircle = circle:FindFirstChild("InnerCircle")
+                        if innerCircle then
+                            innerCircle.Size = UDim2.new(0, 0, 0, 0)
+                        end
+                        local stroke = circle:FindFirstChild("CircleStroke")
+                        if stroke then
+                            stroke.Thickness = 1.3
                         end
                     end
                 end
-                
-                return self
             end
+            
+            return self
+        end
 
-            -- Multi-select handling (selected is a table)
-            if IsMulti and type(selected) == "table" then
-                table.clear(Stored)
-                for k, v in pairs(selected) do
-                    Stored[k] = v
-                end
-                self.value = Stored
-                
-                -- Update visual elements based on new selection
-                for btn, _ in pairs(SelectedItems) do
-                    if btn and btn:IsA("TextButton") then
-                        local isSelected = selected[btn.Name] ~= nil
-                        SelectedItems[btn] = isSelected
-                        
-                        local circle = btn:FindFirstChild("ChoosedCircle")
-                        if circle then
-                            circle.BackgroundTransparency = isSelected and 0 or 1
-                            local innerCircle = circle:FindFirstChild("InnerCircle")
-                            if innerCircle then
-                                innerCircle.Size = isSelected and UDim2.new(0, 12, 0, 12) or UDim2.new(0, 0, 0, 0)
-                            end
-                            local stroke = circle:FindFirstChild("CircleStroke")
-                            if stroke then
-                                stroke.Thickness = isSelected and 0 or 1.3
-                            end
+        if IsMulti and type(selected) == "table" then
+            table.clear(Stored)
+            for k, v in pairs(selected) do
+                Stored[k] = v
+            end
+            self.value = Stored
+            
+            for btn, _ in pairs(SelectedItems) do
+                if btn and btn:IsA("TextButton") then
+                    local isSelected = selected[btn.Name] ~= nil
+                    SelectedItems[btn] = isSelected
+                    
+                    local circle = btn:FindFirstChild("ChoosedCircle")
+                    if circle then
+                        circle.BackgroundTransparency = isSelected and 0 or 1
+                        local innerCircle = circle:FindFirstChild("InnerCircle")
+                        if innerCircle then
+                            innerCircle.Size = isSelected and UDim2.new(0, 12, 0, 12) or UDim2.new(0, 0, 0, 0)
+                        end
+                        local stroke = circle:FindFirstChild("CircleStroke")
+                        if stroke then
+                            stroke.Thickness = isSelected and 0 or 1.3
                         end
                     end
                 end
-            else
-                -- Single-select handling
-                SelectedValue = selected
-                self.value = selected
-                local found = false
+            end
+        else
+            SelectedValue = selected
+            self.value = selected
+            local found = false
+            
+            for _, option in pairs(self.options) do
+                local optionValue = (type(option) == "table") and option.value or option
+                local optionText = (type(option) == "table") and (option.text or tostring(option.value)) or tostring(option)
                 
-                -- Find the matching option and update UI
-                for _, option in pairs(self.options) do
-                    local optionValue = (type(option) == "table") and option.value or option
-                    local optionText = (type(option) == "table") and (option.text or tostring(option.value)) or tostring(option)
+                if optionValue == selected or optionText == selected then
+                    DropdownBox.Text = optionText
+                    found = true
                     
-                    if optionValue == selected or optionText == selected then
-                        DropdownBox.Text = optionText
-                        found = true
-                        
-                        -- Update all buttons to match selection
-                        for btn, _ in pairs(SelectedItems) do
-                            if btn and btn:IsA("TextButton") then
-                                local isSelected = (btn.Name == optionText)
-                                SelectedItems[btn] = isSelected
-                                
-                                local circle = btn:FindFirstChild("ChoosedCircle")
-                                if circle then
-                                    circle.BackgroundTransparency = isSelected and 0 or 1
-                                    local innerCircle = circle:FindFirstChild("InnerCircle")
-                                    if innerCircle then
-                                        innerCircle.Size = isSelected and UDim2.new(0, 12, 0, 12) or UDim2.new(0, 0, 0, 0)
-                                    end
-                                    local stroke = circle:FindFirstChild("CircleStroke")
-                                    if stroke then
-                                        stroke.Thickness = isSelected and 0 or 1.3
-                                    end
+                    for btn, _ in pairs(SelectedItems) do
+                        if btn and btn:IsA("TextButton") then
+                            local isSelected = (btn.Name == optionText)
+                            SelectedItems[btn] = isSelected
+                            
+                            local circle = btn:FindFirstChild("ChoosedCircle")
+                            if circle then
+                                circle.BackgroundTransparency = isSelected and 0 or 1
+                                local innerCircle = circle:FindFirstChild("InnerCircle")
+                                if innerCircle then
+                                    innerCircle.Size = isSelected and UDim2.new(0, 12, 0, 12) or UDim2.new(0, 0, 0, 0)
+                                end
+                                local stroke = circle:FindFirstChild("CircleStroke")
+                                if stroke then
+                                    stroke.Thickness = isSelected and 0 or 1.3
                                 end
                             end
                         end
-                        
-                        break
                     end
-                end
-                
-                -- If no matching option, just display the text
-                if not found then
-                    DropdownBox.Text = tostring(selected)
+                    
+                    break
                 end
             end
             
-            return self
-        end,
-        
-        Refresh = function(self, newOptions, selected)
-            -- Safety check
-            if not DropdownList then return self end
-            
-            -- Clear existing options
-            for _, child in pairs(DropdownList:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child:Destroy()
-                end
+            if not found then
+                DropdownBox.Text = tostring(selected)
             end
-            
-            -- Reset selection state
-            table.clear(SelectedItems)
-            
-            if IsMulti then
-                table.clear(Stored)
-            end
-            
-            -- Update options if provided
-            if newOptions then
-                self.options = newOptions
-            end
-            
-            -- Update selected value if provided
-            if selected ~= nil then
-                self.value = selected
-                SelectedValue = selected
-            end
-            
-            -- Create new option buttons
-            for _, option in pairs(self.options) do
-                if type(option) == "table" then
-                    NewSelectable(option.text or tostring(option.value), option.value)
-                else
-                    NewSelectable(tostring(option), option)
-                end
-            end
-            
-            -- Apply selection
-            self:set(self.value)
-            
-            return self
-        end,
-        
-        RemoveOptions = function(self)
-            return self:Refresh({})
-        end,
-        
-        AddOption = function(self, option)
-            local newOptions = {}
-            
-            for _, opt in pairs(self.options) do
-                table.insert(newOptions, opt)
-            end
-            
-            table.insert(newOptions, option)
-            
-            return self:Refresh(newOptions, self.value)
         end
-    }
+        
+        return self
+    end
+    
+    dropdown.Refresh = function(self, newOptions, selected)
+        if not DropdownList then return self end
+        
+        for _, child in pairs(DropdownList:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+        
+        table.clear(SelectedItems)
+        
+        if IsMulti then
+            table.clear(Stored)
+        end
+        
+        if newOptions then
+            self.options = newOptions
+        end
+        
+        if selected ~= nil then
+            self.value = selected
+            SelectedValue = selected
+        end
+        
+        for _, option in pairs(self.options) do
+            if type(option) == "table" then
+                NewSelectable(option.text or tostring(option.value), option.value)
+            else
+                NewSelectable(tostring(option), option)
+            end
+        end
+        
+        self:set(self.value)
+        
+        return self
+    end
+    
+    dropdown.RemoveOptions = function(self)
+        return self:Refresh({})
+    end
+    
+    dropdown.AddOption = function(self, option)
+        local newOptions = {}
+        
+        for _, opt in pairs(self.options) do
+            table.insert(newOptions, opt)
+        end
+        
+        table.insert(newOptions, option)
+        
+        return self:Refresh(newOptions, self.value)
+    end
 
     if not library.flags then library.flags = {} end
     library.flags[flag] = dropdown
@@ -1667,10 +1649,8 @@ function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
         Tsd:TweenPosition(UDim2.new(0.5, 0, 5, 0), "Out", "Quart", 0.3)
     end)
 
-    -- Initialize the dropdown with options
     dropdown:Refresh(Selectables)
 
-    -- Update tab canvas size
     if Tab and TabLayout then
         Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
     end
