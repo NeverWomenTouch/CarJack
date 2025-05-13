@@ -2164,9 +2164,7 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
         end
 
-        function tabcontent:Textbox(text, disapper, callback, flag)
-            local flag = flag or text
-            
+        function tabcontent:Textbox(text, disapper, callback)
             local Textbox = Instance.new("Frame")
             local TextboxCorner = Instance.new("UICorner")
             local TextboxTitle = Instance.new("TextLabel")
@@ -2215,40 +2213,18 @@ function library:Window(title, version, info, preset, closebind)
             TextBox.Text = ""
             TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
             TextBox.TextSize = 14.000
-            
-            -- Create textbox object with methods
-            local textbox = {
-                value = "",
-                set = function(self, value)
-                    self.value = value or ""
-                    TextBox.Text = self.value
-                    pcall(callback, self.value)
-                    return self
-                end,
-                clear = function(self)
-                    return self:set("")
-                end
-            }
-            
-            -- Register with flags system
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = textbox
 
             library.Conn[#library.Conn + 1] = TextBox.FocusLost:Connect(function(ep)
                 if ep then
                     if #TextBox.Text > 0 then
-                        textbox.value = TextBox.Text
                         pcall(callback, TextBox.Text)
                         if disapper then
                             TextBox.Text = ""
-                            textbox.value = ""
                         end
                     end
                 end
             end)
-            
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-            return textbox
         end
 
         function tabcontent:Bind(text, keypreset, callback, flag)
