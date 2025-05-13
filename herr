@@ -1143,7 +1143,6 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end)
 
-            -- Clean up connection on destroy
             library.Conn[#library.Conn + 1] = Slider.AncestryChanged:Connect(function(_, parent)
                 if parent == nil and inputChangedConnection then
                     inputChangedConnection:Disconnect()
@@ -1293,6 +1292,56 @@ function library:Window(title, version, info, preset, closebind)
 
             local Stored = {}
             local SelectedValue = nil
+            
+            -- Create the dropdown object early to avoid nil references
+            local dropdown = {
+                value = IsMulti and Stored or SelectedValue,
+                options = Selectables,
+                
+                Refresh = function(self, newOptions, selected)
+                    RefreshOptions(newOptions, selected)
+                    return self
+                end,
+                
+                RemoveOptions = function(self)
+                    RefreshOptions({})
+                    return self
+                end,
+                
+                AddOption = function(self, option)
+                    local newOptions = {}
+                    for _, opt in pairs(self.options) do
+                        table.insert(newOptions, opt)
+                    end
+                    table.insert(newOptions, option)
+                    self.options = newOptions
+                    RefreshOptions(newOptions, self.value)
+                    return self
+                end,
+                
+                set = function(self, value)
+                    if IsMulti and type(value) == "table" then
+                        self.value = value
+                        Stored = value
+                        RefreshOptions(self.options, value)
+                    else
+                        self.value = value
+                        SelectedValue = value
+                        for _, option in pairs(self.options) do
+                            if option == value or (type(option) == "table" and option.value == value) then
+                                DropdownBox.Text = type(option) == "table" and option.text or tostring(option)
+                                break
+                            end
+                        end
+                        
+                        RefreshOptions(self.options, value)
+                    end
+                    return self
+                end
+            }
+            
+            if not library.flags then library.flags = {} end
+            library.flags[flag] = dropdown
             
             local function NewSelectable(Text, val)
                 local SelectableButton = Instance.new("TextButton")
@@ -1484,55 +1533,6 @@ function library:Window(title, version, info, preset, closebind)
                     end
                 end
             end
-
-            local dropdown = {
-                value = IsMulti and Stored or SelectedValue,
-                options = Selectables,
-                
-                Refresh = function(self, newOptions, selected)
-                    RefreshOptions(newOptions, selected)
-                    return self
-                end,
-                
-                RemoveOptions = function(self)
-                    RefreshOptions({})
-                    return self
-                end,
-                
-                AddOption = function(self, option)
-                    local newOptions = {}
-                    for _, opt in pairs(self.options) do
-                        table.insert(newOptions, opt)
-                    end
-                    table.insert(newOptions, option)
-                    self.options = newOptions
-                    RefreshOptions(newOptions, self.value)
-                    return self
-                end,
-                
-                set = function(self, value)
-                    if IsMulti and type(value) == "table" then
-                        self.value = value
-                        Stored = value
-                        RefreshOptions(self.options, value)
-                    else
-                        self.value = value
-                        SelectedValue = value
-                        for _, option in pairs(self.options) do
-                            if option == value or (type(option) == "table" and option.value == value) then
-                                DropdownBox.Text = type(option) == "table" and option.text or tostring(option)
-                                break
-                            end
-                        end
-                        
-                        RefreshOptions(self.options, value)
-                    end
-                    return self
-                end
-            }
-            
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = dropdown
             
             RefreshOptions(Selectables)
             
