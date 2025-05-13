@@ -2164,127 +2164,92 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
         end
 
-        function tabcontent:Textbox(text, callback, flag)
-    local flag = flag or text
-    
-    -- Create container
-    local Textbox = Instance.new("Frame")
-    Textbox.Name = "Textbox"
-    Textbox.Parent = Tab
-    Textbox.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-    Textbox.Size = UDim2.new(0, 363, 0, 42)
-    Textbox.ZIndex = 10
-    
-    -- Add corner
-    local TextboxCorner = Instance.new("UICorner")
-    TextboxCorner.CornerRadius = UDim.new(0, 5)
-    TextboxCorner.Name = "TextboxCorner"
-    TextboxCorner.Parent = Textbox
-    
-    -- Add label
-    local TextboxLabel = Instance.new("TextLabel")
-    TextboxLabel.Name = "TextboxLabel"
-    TextboxLabel.Parent = Textbox
-    TextboxLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    TextboxLabel.BackgroundTransparency = 1
-    TextboxLabel.Position = UDim2.new(0.035, 0, 0, 0)
-    TextboxLabel.Size = UDim2.new(0, 180, 0, 42)
-    TextboxLabel.Font = Enum.Font.SourceSans
-    TextboxLabel.Text = text
-    TextboxLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TextboxLabel.TextSize = 16
-    TextboxLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TextboxLabel.ZIndex = 11
-    
-    -- Create input container
-    local InputFrame = Instance.new("Frame")
-    InputFrame.Name = "InputFrame"
-    InputFrame.Parent = Textbox
-    InputFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
-    InputFrame.Position = UDim2.new(0.65, 0, 0.5, -15)
-    InputFrame.Size = UDim2.new(0, 120, 0, 30)
-    InputFrame.ZIndex = 12
-    
-    -- Add corner to input frame
-    local InputFrameCorner = Instance.new("UICorner")
-    InputFrameCorner.CornerRadius = UDim.new(0, 5)
-    InputFrameCorner.Parent = InputFrame
-    
-    -- Create actual TextBox
-    local InputBox = Instance.new("TextBox")
-    InputBox.Name = "InputBox"
-    InputBox.Parent = InputFrame
-    InputBox.BackgroundTransparency = 1
-    InputBox.Size = UDim2.new(1, -10, 1, 0)
-    InputBox.Position = UDim2.new(0, 5, 0, 0)
-    InputBox.Font = Enum.Font.Gotham
-    InputBox.PlaceholderText = "Enter text..."
-    InputBox.Text = ""
-    InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    InputBox.TextSize = 14
-    InputBox.ClearTextOnFocus = false
-    InputBox.ZIndex = 13
-    InputBox.ClipsDescendants = true
-    
-    -- Create object for API
-    local textbox = {
-        value = "",
-        set = function(self, value)
-            self.value = value or ""
-            InputBox.Text = self.value
-            return self
-        end,
-        clear = function(self)
-            self.value = ""
-            InputBox.Text = ""
-            return self
+        function tabcontent:Textbox(text, disapper, callback, flag)
+            local flag = flag or text
+            
+            local Textbox = Instance.new("Frame")
+            local TextboxCorner = Instance.new("UICorner")
+            local TextboxTitle = Instance.new("TextLabel")
+            local TextboxFrame = Instance.new("Frame")
+            local TextboxFrameCorner = Instance.new("UICorner")
+            local TextBox = Instance.new("TextBox")
+
+            Textbox.Name = "Textbox"
+            Textbox.Parent = Tab
+            Textbox.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+            Textbox.ClipsDescendants = true
+            Textbox.Position = UDim2.new(-0.541071415, 0, -0.532915354, 0)
+            Textbox.Size = UDim2.new(0, 363, 0, 42)
+
+            TextboxCorner.CornerRadius = UDim.new(0, 5)
+            TextboxCorner.Name = "TextboxCorner"
+            TextboxCorner.Parent = Textbox
+
+            TextboxTitle.Name = "TextboxTitle"
+            TextboxTitle.Parent = Textbox
+            TextboxTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            TextboxTitle.BackgroundTransparency = 1.000
+            TextboxTitle.Position = UDim2.new(0.0358126722, 0, 0, 0)
+            TextboxTitle.Size = UDim2.new(0, 187, 0, 42)
+            TextboxTitle.Font = Enum.Font.SourceSans
+            TextboxTitle.Text = text
+            TextboxTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+            TextboxTitle.TextSize = 18
+            TextboxTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            TextboxFrame.Name = "TextboxFrame"
+            TextboxFrame.Parent = TextboxTitle
+            TextboxFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
+            TextboxFrame.Position = UDim2.new(1.28877008, 0, 0.214285716, 0)
+            TextboxFrame.Size = UDim2.new(0, 100, 0, 23)
+
+            TextboxFrameCorner.CornerRadius = UDim.new(0, 5)
+            TextboxFrameCorner.Name = "TextboxFrameCorner"
+            TextboxFrameCorner.Parent = TextboxFrame
+
+            TextBox.Parent = TextboxFrame
+            TextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            TextBox.BackgroundTransparency = 1.000
+            TextBox.Size = UDim2.new(0, 100, 0, 23)
+            TextBox.Font = Enum.Font.Gotham
+            TextBox.Text = ""
+            TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            TextBox.TextSize = 14.000
+            
+            -- Create textbox object with methods
+            local textbox = {
+                value = "",
+                set = function(self, value)
+                    self.value = value or ""
+                    TextBox.Text = self.value
+                    pcall(callback, self.value)
+                    return self
+                end,
+                clear = function(self)
+                    return self:set("")
+                end
+            }
+            
+            -- Register with flags system
+            if not library.flags then library.flags = {} end
+            library.flags[flag] = textbox
+
+            library.Conn[#library.Conn + 1] = TextBox.FocusLost:Connect(function(ep)
+                if ep then
+                    if #TextBox.Text > 0 then
+                        textbox.value = TextBox.Text
+                        pcall(callback, TextBox.Text)
+                        if disapper then
+                            TextBox.Text = ""
+                            textbox.value = ""
+                        end
+                    end
+                end
+            end)
+            
+            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+            return textbox
         end
-    }
-    
-    -- Register with flags
-    if not library.flags then library.flags = {} end
-    library.flags[flag] = textbox
-    
-    -- Connect events
-    library.Conn[#library.Conn + 1] = InputBox.FocusLost:Connect(function(enterPressed)
-        textbox.value = InputBox.Text
-        if callback then 
-            pcall(callback, InputBox.Text)
-        end
-    end)
-    
-    -- Hover effects
-    library.Conn[#library.Conn + 1] = InputFrame.MouseEnter:Connect(function()
-        tweensv:Create(InputFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(42, 42, 42)}):Play()
-    end)
-    
-    library.Conn[#library.Conn + 1] = InputFrame.MouseLeave:Connect(function()
-        if not InputBox:IsFocused() then
-            tweensv:Create(InputFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
-        end
-    end)
-    
-    -- Focus effects
-    library.Conn[#library.Conn + 1] = InputBox.Focused:Connect(function()
-        tweensv:Create(InputFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(46, 46, 46)}):Play()
-    end)
-    
-    library.Conn[#library.Conn + 1] = InputBox.FocusLost:Connect(function()
-        tweensv:Create(InputFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
-    end)
-    
-    -- Make input frame clickable to focus the input box
-    library.Conn[#library.Conn + 1] = InputFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            InputBox:CaptureFocus()
-        end
-    end)
-    
-    -- Update canvas size
-    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-    
-    return textbox
-end
 
         function tabcontent:Bind(text, keypreset, callback, flag)
             local flag = flag or text
@@ -2397,297 +2362,6 @@ end
     return tabhold
 end
 ----------------------------------------------------------------// CONFIG SYSTEM //----------------------------------------------------------------
-function library:ConfigSystem(tab, name)
-    local folder = library.Folder
-    if not isfolder(folder) then
-        makefolder(folder)
-    end
-    local configSystem = {
-        configList = {},
-        selectedConfig = nil,
-        autoLoadConfig = nil,
-        textboxValue = ""
-    }
-    if not library.flags then
-        library.flags = {}
-    end
-    function configSystem:RefreshConfigList()
-        configSystem.configList = {}
-        
-        local files = listfiles(folder)
-        for _, file in ipairs(files) do
-            local fileName = string.match(file, "[^/\\]+$")
-            local configName = string.match(fileName, "(.+)%.json$")
-            if configName then
-                table.insert(configSystem.configList, configName)
-                
-                local success, fileContent = pcall(function() return readfile(file) end)
-                if success then
-                    local success, data = pcall(function() return game:GetService("HttpService"):JSONDecode(fileContent) end)
-                    if success and data.metadata and data.metadata.autoLoad then
-                        configSystem.autoLoadConfig = configName
-                    end
-                end
-            end
-        end
-        
-        return configSystem.configList
-    end
-    
-    function serializeValue(value)
-        if typeof(value) == "Color3" then
-            return {
-                __type = "Color3",
-                r = value.R,
-                g = value.G,
-                b = value.B
-            }
-        elseif typeof(value) == "EnumItem" then
-            return {
-                __type = "EnumItem",
-                enumType = tostring(value.EnumType),
-                value = value.Name
-            }
-        elseif type(value) == "table" then
-            local result = {}
-            for k, v in pairs(value) do
-                result[k] = serializeValue(v)
-            end
-            return result
-        else
-            return value
-        end
-    end
-    
-    function deserializeValue(value)
-        if type(value) == "table" and value.__type then
-            if value.__type == "Color3" then
-                return Color3.new(value.r, value.g, value.b)
-            elseif value.__type == "EnumItem" then
-                local enumName = string.match(value.enumType, "Enum%.(.+)$")
-                if enumName then
-                    return Enum[enumName][value.value]
-                end
-                return value
-            end
-        elseif type(value) == "table" then
-            local result = {}
-            for k, v in pairs(value) do
-                result[k] = deserializeValue(v)
-            end
-            return result
-        end
-        return value
-    end
-    
-    configSystem:RefreshConfigList()
-    
-    tab:Label("CONFIGURATION SYSTEM")
-    
-        local configNameBox = tab:Textbox("Config Name", function(text)
-            configSystem.textboxValue = text
-        end, "config_name_input")
-    
-    local dropdown = tab:NewDropdown("Select Config", configSystem.configList, function(selected)
-        configSystem.selectedConfig = selected
-    end, false, "config_selector")
-    
-    local autoLoadToggle = tab:Toggle("Auto Load Selected Config", false, function(state)
-        if state and configSystem.selectedConfig then
-            local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-            local success, fileContent = pcall(function() return readfile(filePath) end)
-            
-            if success then
-                local data = game:GetService("HttpService"):JSONDecode(fileContent)
-                data.metadata = data.metadata or {}
-                data.metadata.autoLoad = true
-                data.metadata.lastModified = os.time()
-                
-                for _, configName in ipairs(configSystem.configList) do
-                    if configName ~= configSystem.selectedConfig then
-                        local otherFilePath = folder .. "/" .. configName .. ".json"
-                        local otherSuccess, otherContent = pcall(function() return readfile(otherFilePath) end)
-                        
-                        if otherSuccess then
-                            local otherData = game:GetService("HttpService"):JSONDecode(otherContent)
-                            if otherData.metadata then
-                                otherData.metadata.autoLoad = false
-                                writefile(otherFilePath, game:GetService("HttpService"):JSONEncode(otherData))
-                            end
-                        end
-                    end
-                end
-                
-                writefile(filePath, game:GetService("HttpService"):JSONEncode(data))
-                configSystem.autoLoadConfig = configSystem.selectedConfig
-            end
-        end
-    end, "config_autoload")
-    
-    tab:Button("Create Config", function()
-        if configSystem.textboxValue == "" then
-            return library:Notification("Error", "Please enter a config name.", "OK")
-        end
-        if not string.match(configSystem.textboxValue, "^[%w_]+$") then
-            return library:Notification("Error", "Config name can only contain letters, numbers, and underscores.", "OK")
-        end
-        for _, configName in ipairs(configSystem.configList) do
-            if configName:lower() == configSystem.textboxValue:lower() then
-                return library:Notification("Error", "Config already exists.", "OK")
-            end
-        end
-        
-        local config = {}
-        config.metadata = {
-            createdAt = os.time(),
-            lastModified = os.time(),
-            autoLoad = false,
-            name = configSystem.textboxValue
-        }
-        config.values = {}
-        
-        for flag, element in pairs(library.flags) do
-            if element.value ~= nil then
-                config.values[flag] = serializeValue(element.value)
-            end
-        end
-        
-        local filePath = folder .. "/" .. configSystem.textboxValue .. ".json"
-        writefile(filePath, game:GetService("HttpService"):JSONEncode(config))
-        
-        configSystem:RefreshConfigList()
-        dropdown:Refresh(configSystem.configList)
-        configNameBox:set("")
-        
-        library:Notification("Success", "Config created successfully!", "OK")
-    end)
-    
-    tab:Button("Save Config", function()
-        if not configSystem.selectedConfig then
-            return library:Notification("Error", "No config selected.", "OK")
-        end
-        
-        local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-        local success, fileContent = pcall(function() return readfile(filePath) end)
-        
-        if not success then
-            return library:Notification("Error", "Config does not exist.", "OK")
-        end
-        
-        local data = game:GetService("HttpService"):JSONDecode(fileContent)
-        data.metadata = data.metadata or {}
-        data.metadata.lastModified = os.time()
-        data.values = {}
-        
-        for flag, element in pairs(library.flags) do
-            if element.value ~= nil then
-                data.values[flag] = serializeValue(element.value)
-            end
-        end
-        
-        writefile(filePath, game:GetService("HttpService"):JSONEncode(data))
-        
-        library:Notification("Success", "Config saved successfully!", "OK")
-    end)
-    
-    tab:Button("Load Config", function()
-        if not configSystem.selectedConfig then
-            return library:Notification("Error", "No config selected.", "OK")
-        end
-        
-        local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-        local success, fileContent = pcall(function() return readfile(filePath) end)
-        
-        if not success then
-            return library:Notification("Error", "Config does not exist.", "OK")
-        end
-        
-        local success, data = pcall(function() return game:GetService("HttpService"):JSONDecode(fileContent) end)
-        if not success or not data.values then
-            return library:Notification("Error", "Invalid config format.", "OK")
-        end
-        
-        for flag, value in pairs(data.values) do
-            if library.flags[flag] and library.flags[flag].set then
-                local deserializedValue = deserializeValue(value)
-                
-                if library.flags[flag].rainbow ~= nil and typeof(deserializedValue) == "Color3" then
-                    library.flags[flag]:set(deserializedValue)
-                    
-                    if data.values[flag.."_rainbow"] ~= nil then
-                        library.flags[flag]:setRainbow(data.values[flag.."_rainbow"])
-                    end
-                else
-                    library.flags[flag]:set(deserializedValue)
-                end
-            end
-        end
-        
-        library:Notification("Success", "Config loaded successfully!", "OK")
-    end)
-    
-    tab:Button("Delete Config", function()
-        if not configSystem.selectedConfig then
-            return library:Notification("Error", "No config selected.", "OK")
-        end
-        
-        local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
-        local success = pcall(function() return delfile(filePath) end)
-        
-        if not success then
-            return library:Notification("Error", "Failed to delete config.", "OK")
-        end
-        
-        if configSystem.autoLoadConfig == configSystem.selectedConfig then
-            configSystem.autoLoadConfig = nil
-            autoLoadToggle:set(false)
-        end
-        
-        configSystem:RefreshConfigList()
-        dropdown:Refresh(configSystem.configList)
-        configSystem.selectedConfig = nil
-        
-        library:Notification("Success", "Config deleted successfully!", "OK")
-    end)
-    
-    tab:Button("Refresh Config List", function()
-        configSystem:RefreshConfigList()
-        dropdown:Refresh(configSystem.configList)
-        library:Notification("Success", "Config list refreshed!", "OK")
-    end)
-    
-    -- Auto-load
-    if configSystem.autoLoadConfig then
-        local filePath = folder .. "/" .. configSystem.autoLoadConfig .. ".json"
-        local success, fileContent = pcall(function() return readfile(filePath) end)
-        
-        if success then
-            local success, data = pcall(function() return game:GetService("HttpService"):JSONDecode(fileContent) end)
-            if success and data.values then
-                for flag, value in pairs(data.values) do
-                    if library.flags[flag] and library.flags[flag].set then
-                        local deserializedValue = deserializeValue(value)
-                        
-                        if library.flags[flag].rainbow ~= nil and typeof(deserializedValue) == "Color3" then
-                            library.flags[flag]:set(deserializedValue)
-                            if data.values[flag.."_rainbow"] ~= nil then
-                                library.flags[flag]:setRainbow(data.values[flag.."_rainbow"])
-                            end
-                        else
-                            pcall(function() 
-                                library.flags[flag]:set(deserializedValue)
-                            end)
-                        end
-                    end
-                end
-                configSystem.selectedConfig = configSystem.autoLoadConfig
-                dropdown:set(configSystem.autoLoadConfig)
-                autoLoadToggle:set(true)
-                library:Notification("Info", "Auto-loaded config: " .. configSystem.autoLoadConfig, "OK")
-            end
-        end
-    end
-    return configSystem
-end
+
 
 return library
