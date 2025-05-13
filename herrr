@@ -2456,7 +2456,10 @@ function library:ConfigSystem(tab, name)
         table.clear(configSystem.configList)
         
         local success, files = pcall(listfiles, folder)
-        if not success then return {} end
+        if not success then 
+            warn("Failed to list files in folder:", folder)
+            return {} 
+        end
         
         for _, file in ipairs(files) do
             local fileName = file:match("[^/\\]+$")
@@ -2543,6 +2546,22 @@ function library:ConfigSystem(tab, name)
         end
     end
     
+    -- Verify all UI elements have valid set methods
+    local function verifyUIElements()
+        local missingSetMethods = {}
+        for flag, element in pairs(library.flags) do
+            if element ~= nil and type(element) == "table" then
+                if type(element.set) ~= "function" then
+                    table.insert(missingSetMethods, flag)
+                end
+            end
+        end
+        
+        if #missingSetMethods > 0 then
+            warn("[Config System] The following UI elements are missing .set() methods:", table.concat(missingSetMethods, ", "))
+        end
+    end
+    
     RefreshConfigList()
     
     tab:Label("CONFIGURATION SYSTEM")
@@ -2565,7 +2584,8 @@ function library:ConfigSystem(tab, name)
             end)
             
             if not success or type(data) ~= "table" then
-                return library:Notification("Error", "Invalid config format.", "OK")
+                library:Notification("Error", "Invalid config format.", "OK")
+                return
             end
             
             data.metadata = data.metadata or {}
@@ -2584,15 +2604,23 @@ function library:ConfigSystem(tab, name)
                         
                         if success and otherData.metadata then
                             otherData.metadata.autoLoad = false
-                            pcall(writefile, otherFilePath, game:GetService("HttpService"):JSONEncode(otherData))
+                            local writeSuccess = pcall(writefile, otherFilePath, game:GetService("HttpService"):JSONEncode(otherData))
+                            if not writeSuccess then
+                                warn("Failed to update autoLoad for config:", configName)
+                            end
                         end
                     end
                 end
             end
             
-            pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(data))
-            configSystem.autoLoadConfig = configSystem.selectedConfig
-            library:Notification("Success", "Auto-load enabled for config: " .. configSystem.selectedConfig, "OK")
+            local writeSuccess = pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(data))
+            if writeSuccess then
+                configSystem.autoLoadConfig = configSystem.selectedConfig
+                library:Notification("Success", "Auto-load enabled for config: " .. configSystem.selectedConfig, "OK")
+            else
+                library:Notification("Error", "Failed to update config file.", "OK")
+                autoLoadToggle:set(false)
+            end
         else
             library:Notification("Error", "Failed to read config file.", "OK")
             autoLoadToggle:set(false)
@@ -2603,16 +2631,19 @@ function library:ConfigSystem(tab, name)
         local configName = library.flags["config_name_input"] and library.flags["config_name_input"].value or ""
         
         if configName == "" then
-            return library:Notification("Error", "Please enter a config name.", "OK")
+            library:Notification("Error", "Please enter a config name.", "OK")
+            return
         end
         
         if not configName:match("^[%w_]+$") then
-            return library:Notification("Error", "Config name can only contain letters, numbers, and underscores.", "OK")
+            library:Notification("Error", "Config name can only contain letters, numbers, and underscores.", "OK")
+            return
         end
         
         for _, existingConfig in ipairs(configSystem.configList) do
             if existingConfig:lower() == configName:lower() then
-                return library:Notification("Error", "Config already exists.", "OK")
+                library:Notification("Error", "Config already exists.", "OK")
+                return
             end
         end
         
@@ -2627,12 +2658,12 @@ function library:ConfigSystem(tab, name)
         }
         
         for flag, element in pairs(library.flags) do
-            if element.value ~= nil then
+            if element and type(element) == "table" and element.value ~= nil then
                 config.values[flag] = serializeValue(element.value)
-            end
-            
-            if element.rainbow ~= nil then
-                config.values[flag.."_rainbow"] = element.rainbow
+                
+                if element.rainbow ~= nil then
+                    config.values[flag.."_rainbow"] = element.rainbow
+                end
             end
         end
         
@@ -2642,6 +2673,7 @@ function library:ConfigSystem(tab, name)
         if success then
             RefreshConfigList()
             dropdown:Refresh(configSystem.configList)
+            dropdown:set(configName) -- Select the newly created config
             configTextbox:set("")
             
             library:Notification("Success", "Config created successfully!", "OK")
@@ -2652,14 +2684,16 @@ function library:ConfigSystem(tab, name)
     
     tab:Button("Save Config", function()
         if not configSystem.selectedConfig then
-            return library:Notification("Error", "No config selected.", "OK")
+            library:Notification("Error", "No config selected.", "OK")
+            return
         end
         
         local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
         local success, fileContent = pcall(readfile, filePath)
         
         if not success then
-            return library:Notification("Error", "Config does not exist.", "OK")
+            library:Notification("Error", "Config does not exist.", "OK")
+            return
         end
         
         local success, data = pcall(function()
@@ -2667,27 +2701,30 @@ function library:ConfigSystem(tab, name)
         end)
         
         if not success then
-            return library:Notification("Error", "Invalid config format.", "OK")
+            library:Notification("Error", "Invalid config format.", "OK")
+            return
         end
         
         data.metadata = data.metadata or {}
         data.metadata.lastModified = os.time()
         data.values = {}
         
+        local savedCount = 0
         for flag, element in pairs(library.flags) do
-            if element.value ~= nil then
+            if element and type(element) == "table" and element.value ~= nil then
                 data.values[flag] = serializeValue(element.value)
-            end
-            
-            if element.rainbow ~= nil then
-                data.values[flag.."_rainbow"] = element.rainbow
+                savedCount = savedCount + 1
+                
+                if element.rainbow ~= nil then
+                    data.values[flag.."_rainbow"] = element.rainbow
+                end
             end
         end
         
         success = pcall(writefile, filePath, game:GetService("HttpService"):JSONEncode(data))
         
         if success then
-            library:Notification("Success", "Config saved successfully!", "OK")
+            library:Notification("Success", "Config saved successfully! (" .. savedCount .. " settings saved)", "OK")
         else
             library:Notification("Error", "Failed to save config file.", "OK")
         end
@@ -2695,14 +2732,16 @@ function library:ConfigSystem(tab, name)
     
     tab:Button("Load Config", function()
         if not configSystem.selectedConfig then
-            return library:Notification("Error", "No config selected.", "OK")
+            library:Notification("Error", "No config selected.", "OK")
+            return
         end
         
         local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
         local success, fileContent = pcall(readfile, filePath)
         
         if not success then
-            return library:Notification("Error", "Config does not exist.", "OK")
+            library:Notification("Error", "Config does not exist.", "OK")
+            return
         end
         
         local success, data = pcall(function() 
@@ -2710,54 +2749,73 @@ function library:ConfigSystem(tab, name)
         end)
         
         if not success or type(data.values) ~= "table" then
-            return library:Notification("Error", "Invalid config format.", "OK")
+            library:Notification("Error", "Invalid config format.", "OK")
+            return
         end
         
         -- Apply all non-rainbow settings first
         local loadedCount = 0
+        local errorCount = 0
+        local errors = {}
         
+        -- First pass: Apply regular settings
         for flag, value in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
             
-            if library.flags[flag] then
+            if library.flags[flag] and type(library.flags[flag]) == "table" then
                 local deserializedValue = deserializeValue(value)
                 
-                task.spawn(function()
-                    pcall(function()
-                        if type(library.flags[flag]) == "table" then
-                            if type(library.flags[flag].set) == "function" then
-                                library.flags[flag]:set(deserializedValue)
-                                loadedCount = loadedCount + 1
-                            elseif type(library.flags[flag].setRainbow) == "function" and value.__rainbow ~= nil then
-                                library.flags[flag]:setRainbow(value.__rainbow)
-                            end
-                        end
+                if type(library.flags[flag].set) == "function" then
+                    local success, err = pcall(function()
+                        library.flags[flag]:set(deserializedValue)
                     end)
-                end)
+                    
+                    if success then
+                        loadedCount = loadedCount + 1
+                    else
+                        errorCount = errorCount + 1
+                        table.insert(errors, "Error setting " .. flag .. ": " .. tostring(err))
+                    end
+                end
             end
         end
         
-        -- Then handle rainbow settings after a short delay to avoid conflicts
-        task.delay(0.2, function()
+        -- Second pass: Apply rainbow settings after a delay
+        task.delay(0.3, function()
             for flag, value in pairs(data.values) do
                 if not flag:match("_rainbow$") then continue end
                 
                 local baseFlagName = flag:gsub("_rainbow$", "")
                 if library.flags[baseFlagName] and 
                    type(library.flags[baseFlagName].setRainbow) == "function" then
-                    pcall(function()
+                    local success, err = pcall(function()
                         library.flags[baseFlagName]:setRainbow(value)
                     end)
+                    
+                    if not success then
+                        errorCount = errorCount + 1
+                        table.insert(errors, "Error setting rainbow for " .. baseFlagName .. ": " .. tostring(err))
+                    end
                 end
             end
             
-            library:Notification("Success", "Config loaded successfully! (" .. loadedCount .. " settings applied)", "OK")
+            -- Display final result notification
+            if errorCount > 0 then
+                warn("[Config System] " .. errorCount .. " errors occurred while loading config:")
+                for _, err in ipairs(errors) do
+                    warn("  - " .. err)
+                end
+            end
+            
+            library:Notification("Config Loaded", loadedCount .. " settings applied successfully" .. 
+                (errorCount > 0 and "\n(" .. errorCount .. " errors, check console)" or ""), "OK")
         end)
     end)
     
     tab:Button("Delete Config", function()
         if not configSystem.selectedConfig then
-            return library:Notification("Error", "No config selected.", "OK")
+            library:Notification("Error", "No config selected.", "OK")
+            return
         end
         
         local filePath = folder .. "/" .. configSystem.selectedConfig .. ".json"
@@ -2765,7 +2823,8 @@ function library:ConfigSystem(tab, name)
         local success = pcall(delfile, filePath)
         
         if not success then
-            return library:Notification("Error", "Failed to delete config.", "OK")
+            library:Notification("Error", "Failed to delete config.", "OK")
+            return
         end
         
         if configSystem.autoLoadConfig == configSystem.selectedConfig then
@@ -2773,11 +2832,10 @@ function library:ConfigSystem(tab, name)
             autoLoadToggle:set(false)
         end
         
-        local oldSelected = configSystem.selectedConfig
         configSystem.selectedConfig = nil
         
-        RefreshConfigList()
-        dropdown:Refresh(configSystem.configList)
+        local configs = RefreshConfigList()
+        dropdown:Refresh(configs)
         dropdown:set(nil)
         
         library:Notification("Success", "Config deleted successfully: " .. configToDelete, "OK")
@@ -2788,7 +2846,7 @@ function library:ConfigSystem(tab, name)
         local configs = RefreshConfigList()
         local newCount = #configs
         
-        if dropdown and type(dropdown.Refresh) == "function" then
+        if dropdown and dropdown.Refresh then
             dropdown:Refresh(configs)
             
             if configSystem.selectedConfig and not table.find(configs, configSystem.selectedConfig) then
@@ -2798,13 +2856,19 @@ function library:ConfigSystem(tab, name)
             
             library:Notification("Success", "Config list refreshed! (" .. newCount .. " configs found)", "OK")
         else
-            library:Notification("Error", "Failed to refresh config list.", "OK")
+            library:Notification("Error", "Failed to refresh config list: dropdown refresh function not found", "OK")
         end
+    end)
+    
+    -- Run a one-time check to verify UI elements
+    task.spawn(function() 
+        task.wait(2) -- Wait for UI to initialize
+        verifyUIElements()
     end)
     
     -- Auto-load config with a delay to ensure UI is fully loaded
     task.spawn(function()
-        task.wait(1.5) -- Increased delay for UI to fully initialize
+        task.wait(2.5) -- Increased delay for UI to fully initialize
         
         if not configSystem.autoLoadConfig then return end
         
@@ -2812,7 +2876,7 @@ function library:ConfigSystem(tab, name)
         local success, fileContent = pcall(readfile, filePath)
         
         if not success then 
-            warn("Auto-load failed: Could not read config file")
+            warn("[Config System] Auto-load failed: Could not read config file")
             return 
         end
         
@@ -2821,31 +2885,39 @@ function library:ConfigSystem(tab, name)
         end)
         
         if not (success and type(data.values) == "table") then 
-            warn("Auto-load failed: Invalid config format")
+            warn("[Config System] Auto-load failed: Invalid config format")
             return 
         end
         
         local loadedCount = 0
+        local errorCount = 0
         
-        -- Apply regular values first
+        -- Apply regular values first with a delay to ensure UI is ready
+        task.wait(0.5)
+        
         for flag, value in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
             
-            if library.flags[flag] then
+            if library.flags[flag] and type(library.flags[flag]) == "table" then
                 local deserializedValue = deserializeValue(value)
                 
-                pcall(function()
-                    if type(library.flags[flag]) == "table" and 
-                       type(library.flags[flag].set) == "function" then
+                if type(library.flags[flag].set) == "function" then
+                    local success, err = pcall(function()
                         library.flags[flag]:set(deserializedValue)
+                    end)
+                    
+                    if success then
                         loadedCount = loadedCount + 1
+                    else
+                        errorCount = errorCount + 1
+                        warn("[Config System] Auto-load error for " .. flag .. ": " .. tostring(err))
                     end
-                end)
+                end
             end
         end
         
-        -- Then apply rainbow settings
-        task.delay(0.2, function()
+        -- Then apply rainbow settings with additional delay
+        task.delay(0.5, function()
             for flag, value in pairs(data.values) do
                 if not flag:match("_rainbow$") then continue end
                 
@@ -2862,14 +2934,20 @@ function library:ConfigSystem(tab, name)
         -- Update UI
         configSystem.selectedConfig = configSystem.autoLoadConfig
         
-        pcall(function()
-            dropdown:set(configSystem.autoLoadConfig)
-            autoLoadToggle:set(true)
+        task.delay(0.2, function()
+            pcall(function()
+                dropdown:set(configSystem.autoLoadConfig)
+                autoLoadToggle:set(true)
+            end)
+            
+            if configSystem.autoLoadConfig and #configSystem.autoLoadConfig > 0 then
+                library:Notification("Config Auto-loaded", 
+                    "Loaded \"" .. configSystem.autoLoadConfig .. "\" with " .. 
+                    loadedCount .. " settings" .. 
+                    (errorCount > 0 and " (" .. errorCount .. " errors)" or ""), 
+                    "OK")
+            end
         end)
-        
-        if configSystem.autoLoadConfig and #configSystem.autoLoadConfig > 0 then
-            library:Notification("Info", "Auto-loaded config: " .. configSystem.autoLoadConfig, "OK")
-        end
     end)
     
     return configSystem
