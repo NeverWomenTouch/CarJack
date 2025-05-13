@@ -1154,341 +1154,378 @@ function library:Window(title, version, info, preset, closebind)
             return slider
         end
 
-        function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
-            local flag = flag or placeholder
-            local Dropdown = Instance.new("TextButton")
-            local DropdownCorner = Instance.new("UICorner")
-            local DropdownBox = Instance.new("TextButton")
-            local ImageLabel = Instance.new("ImageLabel")
-            local Tsd = Instance.new("Frame")
-            local DropdownListCorner = Instance.new("UICorner")
-            local DropdownListHeader = Instance.new("TextLabel")
-            local DropdownListHeaderCorner = Instance.new("UICorner")
-            local DropdownList = Instance.new("ScrollingFrame")
-            local UIListLayout = Instance.new("UIListLayout")
-            local DropdownLineTop = Instance.new("Frame")
-            local DropdownLineBottom = Instance.new("Frame")
-            local CloseButton = Instance.new("TextButton")
+function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
+    local flag = flag or placeholder
+    local Dropdown = Instance.new("TextButton")
+    local DropdownCorner = Instance.new("UICorner")
+    local DropdownBox = Instance.new("TextButton")
+    local ImageLabel = Instance.new("ImageLabel")
+    local Tsd = Instance.new("Frame")
+    local DropdownListCorner = Instance.new("UICorner")
+    local DropdownListHeader = Instance.new("TextLabel")
+    local DropdownListHeaderCorner = Instance.new("UICorner")
+    local DropdownList = Instance.new("ScrollingFrame")
+    local UIListLayout = Instance.new("UIListLayout")
+    local DropdownLineTop = Instance.new("Frame")
+    local DropdownLineBottom = Instance.new("Frame")
+    local CloseButton = Instance.new("TextButton")
 
-            Dropdown.Name = "Dropdown"
-            Dropdown.Parent = Tab
-            Dropdown.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
-            Dropdown.BorderSizePixel = 0
-            Dropdown.ClipsDescendants = true
-            Dropdown.Position = UDim2.new(0.286780387, 0, 0, 0)
-            Dropdown.Size = UDim2.new(0, 363, 0, 42)
-            Dropdown.AutoButtonColor = false
-            Dropdown.Font = Enum.Font.Gotham
-            Dropdown.Text = ""
-            Dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
-            Dropdown.TextSize = 14
+    Dropdown.Name = "Dropdown"
+    Dropdown.Parent = Tab
+    Dropdown.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
+    Dropdown.BorderSizePixel = 0
+    Dropdown.ClipsDescendants = true
+    Dropdown.Position = UDim2.new(0.286780387, 0, 0, 0)
+    Dropdown.Size = UDim2.new(0, 363, 0, 42)
+    Dropdown.AutoButtonColor = false
+    Dropdown.Font = Enum.Font.Gotham
+    Dropdown.Text = ""
+    Dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Dropdown.TextSize = 14
 
-            DropdownCorner.CornerRadius = UDim.new(0, 5)
-            DropdownCorner.Name = "DropdownCorner"
-            DropdownCorner.Parent = Dropdown
+    DropdownCorner.CornerRadius = UDim.new(0, 5)
+    DropdownCorner.Name = "DropdownCorner"
+    DropdownCorner.Parent = Dropdown
 
-            DropdownBox.Name = "DropdownBox"
-            DropdownBox.Parent = Dropdown
-            DropdownBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            DropdownBox.BackgroundTransparency = 1.000
-            DropdownBox.BorderSizePixel = 0
-            DropdownBox.Position = UDim2.new(0.05, 0, 0, 0)
-            DropdownBox.Size = UDim2.new(0.95, 0, 0, 40)
-            DropdownBox.Font = Enum.Font.SourceSans
-            DropdownBox.Text = placeholder
-            DropdownBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-            DropdownBox.TextSize = 18
-            DropdownBox.TextXAlignment = Enum.TextXAlignment.Left
+    DropdownBox.Name = "DropdownBox"
+    DropdownBox.Parent = Dropdown
+    DropdownBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    DropdownBox.BackgroundTransparency = 1.000
+    DropdownBox.BorderSizePixel = 0
+    DropdownBox.Position = UDim2.new(0.05, 0, 0, 0)
+    DropdownBox.Size = UDim2.new(0.95, 0, 0, 40)
+    DropdownBox.Font = Enum.Font.SourceSans
+    DropdownBox.Text = placeholder
+    DropdownBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    DropdownBox.TextSize = 18
+    DropdownBox.TextXAlignment = Enum.TextXAlignment.Left
 
-            ImageLabel.Parent = DropdownBox
-            ImageLabel.AnchorPoint = Vector2.new(0, 0.5)
-            ImageLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            ImageLabel.BackgroundTransparency = 1.000
-            ImageLabel.BorderSizePixel = 0
-            ImageLabel.Position = UDim2.new(0.910000026, 0, 0.5, 0)
-            ImageLabel.Size = UDim2.new(0, 40, 0, 35)
-            ImageLabel.Image = "rbxassetid://3926305904"
-            ImageLabel.ImageColor3 = Color3.fromRGB(136, 136, 136)
-            ImageLabel.ImageRectOffset = Vector2.new(44, 404)
-            ImageLabel.ImageRectSize = Vector2.new(36, 36)
-            ImageLabel.Rotation = 90
+    ImageLabel.Parent = DropdownBox
+    ImageLabel.AnchorPoint = Vector2.new(0, 0.5)
+    ImageLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ImageLabel.BackgroundTransparency = 1.000
+    ImageLabel.BorderSizePixel = 0
+    ImageLabel.Position = UDim2.new(0.910000026, 0, 0.5, 0)
+    ImageLabel.Size = UDim2.new(0, 40, 0, 35)
+    ImageLabel.Image = "rbxassetid://3926305904"
+    ImageLabel.ImageColor3 = Color3.fromRGB(136, 136, 136)
+    ImageLabel.ImageRectOffset = Vector2.new(44, 404)
+    ImageLabel.ImageRectSize = Vector2.new(36, 36)
+    ImageLabel.Rotation = 90
 
-            Tsd.Name = "DropdownPopup_" .. placeholder
-            Tsd.Parent = Main
-            Tsd.AnchorPoint = Vector2.new(0.5, 0.5)
-            Tsd.BackgroundColor3 = Color3.fromRGB(27, 27, 27)
-            Tsd.BorderSizePixel = 0
-            Tsd.Position = UDim2.new(0.5, 0, 5, 0)
-            Tsd.Size = UDim2.new(0, 360, 0, 270)
-            Tsd.ZIndex = 10
-            Tsd.Visible = true
+    Tsd.Name = "DropdownPopup_" .. placeholder
+    Tsd.Parent = Main
+    Tsd.AnchorPoint = Vector2.new(0.5, 0.5)
+    Tsd.BackgroundColor3 = Color3.fromRGB(27, 27, 27)
+    Tsd.BorderSizePixel = 0
+    Tsd.Position = UDim2.new(0.5, 0, 5, 0)
+    Tsd.Size = UDim2.new(0, 360, 0, 270)
+    Tsd.ZIndex = 10
+    Tsd.Visible = true
 
-            DropdownListCorner.CornerRadius = UDim.new(0, 5)
-            DropdownListCorner.Name = "DropdownListCorner"
-            DropdownListCorner.Parent = Tsd
+    DropdownListCorner.CornerRadius = UDim.new(0, 5)
+    DropdownListCorner.Name = "DropdownListCorner"
+    DropdownListCorner.Parent = Tsd
 
-            DropdownListHeader.Name = "DropdownListHeader"
-            DropdownListHeader.Parent = Tsd
-            DropdownListHeader.BackgroundColor3 = Color3.fromRGB(29, 29, 29)
-            DropdownListHeader.BackgroundTransparency = 1
-            DropdownListHeader.Size = UDim2.new(0, 334, 0, 39)
-            DropdownListHeader.Font = Enum.Font.GothamSemibold
-            DropdownListHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
-            DropdownListHeader.TextSize = 17.000
-            DropdownListHeader.Text = "  " .. placeholder
-            DropdownListHeader.TextXAlignment = Enum.TextXAlignment.Left
-            DropdownListHeader.ZIndex = 10
+    DropdownListHeader.Name = "DropdownListHeader"
+    DropdownListHeader.Parent = Tsd
+    DropdownListHeader.BackgroundColor3 = Color3.fromRGB(29, 29, 29)
+    DropdownListHeader.BackgroundTransparency = 1
+    DropdownListHeader.Size = UDim2.new(0, 334, 0, 39)
+    DropdownListHeader.Font = Enum.Font.GothamSemibold
+    DropdownListHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+    DropdownListHeader.TextSize = 17.000
+    DropdownListHeader.Text = "  " .. placeholder
+    DropdownListHeader.TextXAlignment = Enum.TextXAlignment.Left
+    DropdownListHeader.ZIndex = 10
 
-            DropdownListHeaderCorner.Name = "DropdownListHeaderCorner"
-            DropdownListHeaderCorner.Parent = DropdownListHeader
-            DropdownListHeaderCorner.CornerRadius = UDim.new(0, 5)
+    DropdownListHeaderCorner.Name = "DropdownListHeaderCorner"
+    DropdownListHeaderCorner.Parent = DropdownListHeader
+    DropdownListHeaderCorner.CornerRadius = UDim.new(0, 5)
 
-            CloseButton.Name = "CloseButton"
-            CloseButton.Parent = Tsd
-            CloseButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            CloseButton.BackgroundTransparency = 1.000
-            CloseButton.BorderSizePixel = 0
-            CloseButton.Position = UDim2.new(0.82035929, 0, 0, 0)
-            CloseButton.Size = UDim2.new(0, 60, 0, 53)
-            CloseButton.Font = Enum.Font.GothamSemibold
-            CloseButton.Text = "Close"
-            CloseButton.TextColor3 = Color3.fromRGB(0, 124, 255)
-            CloseButton.TextSize = 15.000
-            CloseButton.ZIndex = 11
+    CloseButton.Name = "CloseButton"
+    CloseButton.Parent = Tsd
+    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.BackgroundTransparency = 1.000
+    CloseButton.BorderSizePixel = 0
+    CloseButton.Position = UDim2.new(0.82035929, 0, 0, 0)
+    CloseButton.Size = UDim2.new(0, 60, 0, 53)
+    CloseButton.Font = Enum.Font.GothamSemibold
+    CloseButton.Text = "Close"
+    CloseButton.TextColor3 = Color3.fromRGB(0, 124, 255)
+    CloseButton.TextSize = 15.000
+    CloseButton.ZIndex = 11
 
-            DropdownList.Name = "DropdownList"
-            DropdownList.Parent = Tsd
-            DropdownList.Active = true
-            DropdownList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            DropdownList.BackgroundTransparency = 1
-            DropdownList.BorderSizePixel = 0
-            DropdownList.Position = UDim2.new(0, 0, 0, 55)
-            DropdownList.Size = UDim2.new(1, 0, 0, 210)
-            DropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
-            DropdownList.ScrollBarThickness = 3
-            DropdownList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-            DropdownList.ZIndex = 11
+    DropdownList.Name = "DropdownList"
+    DropdownList.Parent = Tsd
+    DropdownList.Active = true
+    DropdownList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    DropdownList.BackgroundTransparency = 1
+    DropdownList.BorderSizePixel = 0
+    DropdownList.Position = UDim2.new(0, 0, 0, 55)
+    DropdownList.Size = UDim2.new(1, 0, 0, 210)
+    DropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    DropdownList.ScrollBarThickness = 3
+    DropdownList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    DropdownList.ZIndex = 11
 
-            UIListLayout.Parent = DropdownList
-            UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-            UIListLayout.Padding = UDim.new(0, 0)
-            UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    UIListLayout.Parent = DropdownList
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 0)
+    UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-            DropdownLineTop.Parent = Tsd
-            DropdownLineTop.AnchorPoint = Vector2.new(0.5, 0)
-            DropdownLineTop.BackgroundColor3 = Color3.fromRGB(44, 44, 44)
-            DropdownLineTop.BorderSizePixel = 0
-            DropdownLineTop.Position = UDim2.new(0.5, 0, 0, 54)
-            DropdownLineTop.Size = UDim2.new(1, 0, 0, 1)
-            DropdownLineTop.ZIndex = 10
+    DropdownLineTop.Parent = Tsd
+    DropdownLineTop.AnchorPoint = Vector2.new(0.5, 0)
+    DropdownLineTop.BackgroundColor3 = Color3.fromRGB(44, 44, 44)
+    DropdownLineTop.BorderSizePixel = 0
+    DropdownLineTop.Position = UDim2.new(0.5, 0, 0, 54)
+    DropdownLineTop.Size = UDim2.new(1, 0, 0, 1)
+    DropdownLineTop.ZIndex = 10
 
-            DropdownLineBottom.Parent = Tsd
-            DropdownLineBottom.AnchorPoint = Vector2.new(0.5, 0)
-            DropdownLineBottom.BackgroundColor3 = Color3.fromRGB(44, 44, 44)
-            DropdownLineBottom.BorderSizePixel = 0
-            DropdownLineBottom.Position = UDim2.new(0.5, 0, 0, 265)
-            DropdownLineBottom.Size = UDim2.new(1, 0, 0, 1)
-            DropdownLineBottom.ZIndex = 10
+    DropdownLineBottom.Parent = Tsd
+    DropdownLineBottom.AnchorPoint = Vector2.new(0.5, 0)
+    DropdownLineBottom.BackgroundColor3 = Color3.fromRGB(44, 44, 44)
+    DropdownLineBottom.BorderSizePixel = 0
+    DropdownLineBottom.Position = UDim2.new(0.5, 0, 0, 265)
+    DropdownLineBottom.Size = UDim2.new(1, 0, 0, 1)
+    DropdownLineBottom.ZIndex = 10
 
-            local Stored = {}
-            local SelectedValue = nil
+    local Stored = {}
+    local SelectedValue = nil
 
-            local function NewSelectable(Text, val)
-                local SelectableButton = Instance.new("TextButton")
-                local SelectableText = Instance.new("TextLabel")
-                local SelectableCorner = Instance.new("UICorner")
-                local SecFrame = Instance.new("Frame")
-                local ChoosedCircle = Instance.new("Frame")
-                local InnerCircle = Instance.new("ImageButton")
-                local ChoosedCircleCorner = Instance.new("UICorner")
-                local ChoosedCircleStroke = Instance.new("UIStroke")
-                local IsSelectableChoosed = Instance.new("BoolValue")
+    local function NewSelectable(Text, val)
+        local SelectableButton = Instance.new("TextButton")
+        local SelectableText = Instance.new("TextLabel")
+        local SelectableCorner = Instance.new("UICorner")
+        local SecFrame = Instance.new("Frame")
+        local ChoosedCircle = Instance.new("Frame")
+        local InnerCircle = Instance.new("ImageButton")
+        local ChoosedCircleCorner = Instance.new("UICorner")
+        local ChoosedCircleStroke = Instance.new("UIStroke")
+        local IsSelectableChoosed = Instance.new("BoolValue")
 
-                SelectableButton.Name = Text
-                SelectableButton.Parent = DropdownList
-                SelectableButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                SelectableButton.BackgroundTransparency = 1
-                SelectableButton.BorderSizePixel = 0
-                SelectableButton.Position = UDim2.new(0.0412844047, 0, 0, 0)
-                SelectableButton.Size = UDim2.new(1, 0, 0, 40)
-                SelectableButton.AutoButtonColor = false
-                SelectableButton.Font = Enum.Font.SourceSansSemibold
-                SelectableButton.Text = ""
-                SelectableButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-                SelectableButton.TextSize = 16.000
-                SelectableButton.ZIndex = 12
+        SelectableButton.Name = Text
+        SelectableButton.Parent = DropdownList
+        SelectableButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        SelectableButton.BackgroundTransparency = 1
+        SelectableButton.BorderSizePixel = 0
+        SelectableButton.Position = UDim2.new(0.0412844047, 0, 0, 0)
+        SelectableButton.Size = UDim2.new(1, 0, 0, 40)
+        SelectableButton.AutoButtonColor = false
+        SelectableButton.Font = Enum.Font.SourceSansSemibold
+        SelectableButton.Text = ""
+        SelectableButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SelectableButton.TextSize = 16.000
+        SelectableButton.ZIndex = 12
 
-                SelectableText.Name = "SelectableText"
-                SelectableText.Parent = SelectableButton
-                SelectableText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                SelectableText.BackgroundTransparency = 1.000
-                SelectableText.BorderSizePixel = 0
-                SelectableText.Position = UDim2.new(0.0799999982, 0, 0, 0)
-                SelectableText.Size = UDim2.new(0.920000017, 0, 1, 0)
-                SelectableText.Font = Enum.Font.SourceSansSemibold
-                SelectableText.Text = "    " .. Text
-                SelectableText.TextColor3 = Color3.fromRGB(255, 255, 255)
-                SelectableText.TextSize = 18.000
-                SelectableText.TextWrapped = true
-                SelectableText.TextXAlignment = Enum.TextXAlignment.Left
-                SelectableText.ZIndex = 12
+        SelectableText.Name = "SelectableText"
+        SelectableText.Parent = SelectableButton
+        SelectableText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        SelectableText.BackgroundTransparency = 1.000
+        SelectableText.BorderSizePixel = 0
+        SelectableText.Position = UDim2.new(0.0799999982, 0, 0, 0)
+        SelectableText.Size = UDim2.new(0.920000017, 0, 1, 0)
+        SelectableText.Font = Enum.Font.SourceSansSemibold
+        SelectableText.Text = "    " .. Text
+        SelectableText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SelectableText.TextSize = 18.000
+        SelectableText.TextWrapped = true
+        SelectableText.TextXAlignment = Enum.TextXAlignment.Left
+        SelectableText.ZIndex = 12
 
-                SelectableCorner.Parent = SelectableButton
-                SelectableCorner.CornerRadius = UDim.new(0, 3)
+        SelectableCorner.Parent = SelectableButton
+        SelectableCorner.CornerRadius = UDim.new(0, 3)
 
-                SecFrame.Parent = SelectableButton
-                SecFrame.AnchorPoint = Vector2.new(0.5, 0)
-                SecFrame.BackgroundColor3 = Color3.fromRGB(44, 44, 44)
-                SecFrame.BorderSizePixel = 0
-                SecFrame.Position = UDim2.new(0.5, 24, 1, 0)
-                SecFrame.Size = UDim2.new(1, 0, 0, 1)
-                SecFrame.ZIndex = 12
+        SecFrame.Parent = SelectableButton
+        SecFrame.AnchorPoint = Vector2.new(0.5, 0)
+        SecFrame.BackgroundColor3 = Color3.fromRGB(44, 44, 44)
+        SecFrame.BorderSizePixel = 0
+        SecFrame.Position = UDim2.new(0.5, 24, 1, 0)
+        SecFrame.Size = UDim2.new(1, 0, 0, 1)
+        SecFrame.ZIndex = 12
 
-                ChoosedCircle.Name = "ChoosedCircle"
-                ChoosedCircle.Parent = SelectableButton
-                ChoosedCircle.AnchorPoint = Vector2.new(0, 0.5)
-                ChoosedCircle.BackgroundColor3 = Color3.fromRGB(0, 85, 255)
-                ChoosedCircle.BackgroundTransparency = 1.000
-                ChoosedCircle.BorderSizePixel = 0
-                ChoosedCircle.Position = UDim2.new(0, 5, 0.5, 0)
-                ChoosedCircle.Size = UDim2.new(0, 16, 0, 16)
-                ChoosedCircle.ZIndex = 13
+        ChoosedCircle.Name = "ChoosedCircle"
+        ChoosedCircle.Parent = SelectableButton
+        ChoosedCircle.AnchorPoint = Vector2.new(0, 0.5)
+        ChoosedCircle.BackgroundColor3 = Color3.fromRGB(0, 85, 255)
+        ChoosedCircle.BackgroundTransparency = 1.000
+        ChoosedCircle.BorderSizePixel = 0
+        ChoosedCircle.Position = UDim2.new(0, 5, 0.5, 0)
+        ChoosedCircle.Size = UDim2.new(0, 16, 0, 16)
+        ChoosedCircle.ZIndex = 13
 
-                InnerCircle.Name = "InnerCircle"
-                InnerCircle.Parent = ChoosedCircle
-                InnerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-                InnerCircle.BackgroundColor3 = Color3.fromRGB(0, 123, 255)
-                InnerCircle.BackgroundTransparency = 1.000
-                InnerCircle.BorderSizePixel = 0
-                InnerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-                InnerCircle.Size = UDim2.new(0, 0, 0, 0)
-                InnerCircle.Image = "rbxassetid://3926305904"
-                InnerCircle.ImageRectOffset = Vector2.new(204, 484)
-                InnerCircle.ImageRectSize = Vector2.new(36, 36)
-                InnerCircle.ImageTransparency = 0
-                InnerCircle.ZIndex = 14
+        InnerCircle.Name = "InnerCircle"
+        InnerCircle.Parent = ChoosedCircle
+        InnerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+        InnerCircle.BackgroundColor3 = Color3.fromRGB(0, 123, 255)
+        InnerCircle.BackgroundTransparency = 1.000
+        InnerCircle.BorderSizePixel = 0
+        InnerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+        InnerCircle.Size = UDim2.new(0, 0, 0, 0)
+        InnerCircle.Image = "rbxassetid://3926305904"
+        InnerCircle.ImageRectOffset = Vector2.new(204, 484)
+        InnerCircle.ImageRectSize = Vector2.new(36, 36)
+        InnerCircle.ImageTransparency = 0
+        InnerCircle.ZIndex = 14
 
-                ChoosedCircleCorner.CornerRadius = UDim.new(0, 100)
-                ChoosedCircleCorner.Name = "ChoosedCircleCorner"
-                ChoosedCircleCorner.Parent = ChoosedCircle
+        ChoosedCircleCorner.CornerRadius = UDim.new(0, 100)
+        ChoosedCircleCorner.Name = "ChoosedCircleCorner"
+        ChoosedCircleCorner.Parent = ChoosedCircle
 
-                ChoosedCircleStroke.Parent = ChoosedCircle
-                ChoosedCircleStroke.Name = "CircleStroke"
-                ChoosedCircleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-                ChoosedCircleStroke.LineJoinMode = Enum.LineJoinMode.Round
-                ChoosedCircleStroke.Thickness = 1.3
-                ChoosedCircleStroke.Transparency = 0
-                ChoosedCircleStroke.Color = Color3.fromRGB(44, 44, 44)
+        ChoosedCircleStroke.Parent = ChoosedCircle
+        ChoosedCircleStroke.Name = "CircleStroke"
+        ChoosedCircleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        ChoosedCircleStroke.LineJoinMode = Enum.LineJoinMode.Round
+        ChoosedCircleStroke.Thickness = 1.3
+        ChoosedCircleStroke.Transparency = 0
+        ChoosedCircleStroke.Color = Color3.fromRGB(44, 44, 44)
 
-                IsSelectableChoosed.Name = "IsChoosedVal"
-                IsSelectableChoosed.Parent = SelectableButton
+        IsSelectableChoosed.Name = "IsChoosedVal"
+        IsSelectableChoosed.Parent = SelectableButton
 
-                if not IsMulti then
-                    if SelectedValue == val or (val == nil and SelectedValue == Text) then
-                        IsSelectableChoosed.Value = true
-                        InnerCircle.Size = UDim2.new(0, 12, 0, 12)
-                        ChoosedCircle.BackgroundTransparency = 0
-                        ChoosedCircleStroke.Thickness = 0
-                        DropdownBox.Text = Text
+        if not IsMulti then
+            if SelectedValue == val or (val == nil and SelectedValue == Text) then
+                IsSelectableChoosed.Value = true
+                InnerCircle.Size = UDim2.new(0, 12, 0, 12)
+                ChoosedCircle.BackgroundTransparency = 0
+                ChoosedCircleStroke.Thickness = 0
+                DropdownBox.Text = Text
+            end
+        elseif IsMulti and Stored[Text] then
+            IsSelectableChoosed.Value = true
+            InnerCircle.Size = UDim2.new(0, 12, 0, 12)
+            ChoosedCircle.BackgroundTransparency = 0
+            ChoosedCircleStroke.Thickness = 0
+        end
+
+        library.Conn[#library.Conn + 1] = SelectableButton.MouseButton1Click:Connect(function()
+            if not IsMulti then
+                IsSelectableChoosed.Value = true
+                SelectedValue = val or Text
+                dropdown.value = SelectedValue
+                DropdownBox.Text = Text
+                pcall(function() if func then func(Text, val) end end)
+                InnerCircle:TweenSize(UDim2.new(0, 12, 0, 12), "In", "Sine", 0.15, true)
+                tweensv:Create(ChoosedCircle, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
+                tweensv:Create(ChoosedCircleStroke, TweenInfo.new(0.15), {Thickness = 0}):Play()
+                for _, v in next, DropdownList:GetDescendants() do
+                    if v.Name == "IsChoosedVal" and v.Parent.Name ~= Text then
+                        v.Value = false
+                        tweensv:Create(v.Parent.ChoosedCircle.CircleStroke, TweenInfo.new(0.15), {Thickness = 1.3}):Play()
+                        tweensv:Create(v.Parent.ChoosedCircle, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
+                        v.Parent.ChoosedCircle.InnerCircle:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.15, true)
                     end
-                elseif IsMulti and Stored[Text] then
-                    IsSelectableChoosed.Value = true
-                    InnerCircle.Size = UDim2.new(0, 12, 0, 12)
-                    ChoosedCircle.BackgroundTransparency = 0
-                    ChoosedCircleStroke.Thickness = 0
                 end
+                tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 90}):Play()
+                Tsd:TweenPosition(UDim2.new(0.5, 0, 5, 0), "Out", "Quart", 0.3)
+            else
+                if IsSelectableChoosed.Value then
+                    IsSelectableChoosed.Value = false
+                    InnerCircle:TweenSize(UDim2.new(0, 0, 0, 0), "In", "Sine", 0.15, true)
+                    tweensv:Create(ChoosedCircle, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
+                    tweensv:Create(ChoosedCircleStroke, TweenInfo.new(0.15), {Thickness = 1.3}):Play()
+                    Stored[Text] = nil
+                else
+                    IsSelectableChoosed.Value = true
+                    InnerCircle:TweenSize(UDim2.new(0, 12, 0, 12), "In", "Sine", 0.15, true)
+                    tweensv:Create(ChoosedCircle, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
+                    tweensv:Create(ChoosedCircleStroke, TweenInfo.new(0.15), {Thickness = 0}):Play()
+                    Stored[Text] = true
+                end
+                dropdown.value = Stored
+                pcall(function() if func then func(Stored, IsSelectableChoosed.Value) end end)
+            end
+        end)
 
-                library.Conn[#library.Conn + 1] = SelectableButton.MouseButton1Click:Connect(function()
-                    if not IsMulti then
-                        IsSelectableChoosed.Value = true
-                        SelectedValue = val or Text
-                        dropdown.value = SelectedValue
-                        DropdownBox.Text = Text
-                        pcall(function() if func then func(Text, val) end end)
-                        InnerCircle:TweenSize(UDim2.new(0, 12, 0, 12), "In", "Sine", 0.15, true)
-                        tweensv:Create(ChoosedCircle, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
-                        tweensv:Create(ChoosedCircleStroke, TweenInfo.new(0.15), {Thickness = 0}):Play()
-                        for _, v in next, DropdownList:GetDescendants() do
-                            if v.Name == "IsChoosedVal" and v.Parent.Name ~= Text then
-                                v.Value = false
-                                tweensv:Create(v.Parent.ChoosedCircle.CircleStroke, TweenInfo.new(0.15), {Thickness = 1.3}):Play()
-                                tweensv:Create(v.Parent.ChoosedCircle, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
-                                v.Parent.ChoosedCircle.InnerCircle:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.15, true)
-                            end
-                        end
-                        tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 90}):Play()
-                        Tsd:TweenPosition(UDim2.new(0.5, 0, 5, 0), "Out", "Quart", 0.3)
-                    else
-                        if IsSelectableChoosed.Value then
-                            IsSelectableChoosed.Value = false
-                            InnerCircle:TweenSize(UDim2.new(0, 0, 0, 0), "In", "Sine", 0.15, true)
-                            tweensv:Create(ChoosedCircle, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
-                            tweensv:Create(ChoosedCircleStroke, TweenInfo.new(0.15), {Thickness = 1.3}):Play()
-                            Stored[Text] = nil
-                        else
-                            IsSelectableChoosed.Value = true
-                            InnerCircle:TweenSize(UDim2.new(0, 12, 0, 12), "In", "Sine", 0.15, true)
-                            tweensv:Create(ChoosedCircle, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
-                            tweensv:Create(ChoosedCircleStroke, TweenInfo.new(0.15), {Thickness = 0}):Play()
-                            Stored[Text] = true
-                        end
-                        dropdown.value = Stored
-                        pcall(function() if func then func(Stored, IsSelectableChoosed.Value) end end)
-                    end
-                end)
+        library.Conn[#library.Conn + 1] = SelectableButton.MouseEnter:Connect(function()
+            tweensv:Create(SelectableButton, TweenInfo.new(0.25), {BackgroundTransparency = 0.96}):Play()
+        end)
+        library.Conn[#library.Conn + 1] = SelectableButton.MouseLeave:Connect(function()
+            tweensv:Create(SelectableButton, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
+        end)
+    end
 
-                library.Conn[#library.Conn + 1] = SelectableButton.MouseEnter:Connect(function()
-                    tweensv:Create(SelectableButton, TweenInfo.new(0.25), {BackgroundTransparency = 0.96}):Play()
-                end)
-                library.Conn[#library.Conn + 1] = SelectableButton.MouseLeave:Connect(function()
-                    tweensv:Create(SelectableButton, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
-                end)
+    local dropdown = {
+        value = IsMulti and Stored or SelectedValue,
+        options = Selectables or {},
+        set = function(self, selected)
+            -- Defensive: always refresh options before setting
+            if not self.options or #self.options == 0 then
+                self:Refresh(Selectables)
             end
 
-            local dropdown = {
-                value = IsMulti and Stored or SelectedValue,
-                options = Selectables or {},
-                set = function(self, selected)
-                    if selected == nil then
-                        if IsMulti then
-                            table.clear(Stored)
-                            self.value = Stored
-                        else
-                            SelectedValue = nil
-                            self.value = nil
-                            DropdownBox.Text = placeholder
-                        end
-                        for _, child in pairs(DropdownList:GetChildren()) do
-                            if child:IsA("TextButton") then
-                                local valObj = child:FindFirstChild("IsChoosedVal")
-                                if valObj then
-                                    valObj.Value = false
-                                    local circle = child:FindFirstChild("ChoosedCircle")
-                                    if circle then
-                                        circle.BackgroundTransparency = 1
-                                        local innerCircle = circle:FindFirstChild("InnerCircle")
-                                        if innerCircle then
-                                            innerCircle.Size = UDim2.new(0, 0, 0, 0)
-                                        end
-                                        local stroke = circle:FindFirstChild("CircleStroke")
-                                        if stroke then
-                                            stroke.Thickness = 1.3
-                                        end
-                                    end
+            if selected == nil then
+                if IsMulti then
+                    table.clear(Stored)
+                    self.value = Stored
+                else
+                    SelectedValue = nil
+                    self.value = nil
+                    DropdownBox.Text = placeholder
+                end
+                for _, child in pairs(DropdownList:GetChildren()) do
+                    if child:IsA("TextButton") then
+                        local valObj = child:FindFirstChild("IsChoosedVal")
+                        if valObj then
+                            valObj.Value = false
+                            local circle = child:FindFirstChild("ChoosedCircle")
+                            if circle then
+                                circle.BackgroundTransparency = 1
+                                local innerCircle = circle:FindFirstChild("InnerCircle")
+                                if innerCircle then
+                                    innerCircle.Size = UDim2.new(0, 0, 0, 0)
+                                end
+                                local stroke = circle:FindFirstChild("CircleStroke")
+                                if stroke then
+                                    stroke.Thickness = 1.3
                                 end
                             end
                         end
-                        return self
                     end
-                    if IsMulti and type(selected) == "table" then
-                        table.clear(Stored)
-                        for k, v in pairs(selected) do
-                            Stored[k] = v
+                end
+                return self
+            end
+
+            if IsMulti and type(selected) == "table" then
+                table.clear(Stored)
+                for k, v in pairs(selected) do
+                    Stored[k] = v
+                end
+                self.value = Stored
+                for _, child in pairs(DropdownList:GetChildren()) do
+                    if child:IsA("TextButton") then
+                        local isSelected = selected[child.Name] ~= nil
+                        local valObj = child:FindFirstChild("IsChoosedVal")
+                        if valObj then
+                            valObj.Value = isSelected
+                            local circle = child:FindFirstChild("ChoosedCircle")
+                            if circle then
+                                circle.BackgroundTransparency = isSelected and 0 or 1
+                                local innerCircle = circle:FindFirstChild("InnerCircle")
+                                if innerCircle then
+                                    innerCircle.Size = isSelected and UDim2.new(0, 12, 0, 12) or UDim2.new(0, 0, 0, 0)
+                                end
+                                local stroke = circle:FindFirstChild("CircleStroke")
+                                if stroke then
+                                    stroke.Thickness = isSelected and 0 or 1.3
+                                end
+                            end
                         end
-                        self.value = Stored
+                    end
+                end
+            else
+                SelectedValue = selected
+                self.value = selected
+                local found = false
+                for _, option in pairs(self.options) do
+                    local optionValue = (type(option) == "table") and option.value or option
+                    local optionText = (type(option) == "table") and (option.text or tostring(option.value)) or tostring(option)
+                    if optionValue == selected or optionText == selected then
+                        DropdownBox.Text = optionText
+                        found = true
                         for _, child in pairs(DropdownList:GetChildren()) do
                             if child:IsA("TextButton") then
-                                local isSelected = selected[child.Name] ~= nil
+                                local isSelected = (child.Name == optionText)
                                 local valObj = child:FindFirstChild("IsChoosedVal")
                                 if valObj then
                                     valObj.Value = isSelected
@@ -1507,112 +1544,72 @@ function library:Window(title, version, info, preset, closebind)
                                 end
                             end
                         end
-                    else
-                        SelectedValue = selected
-                        self.value = selected
-                        local displayText = placeholder
-                        for _, option in pairs(self.options) do
-                            local optionValue = (type(option) == "table") and option.value or option
-                            local optionText = (type(option) == "table") and (option.text or tostring(option.value)) or tostring(option)
-                            if optionValue == selected then
-                                displayText = optionText
-                                DropdownBox.Text = optionText
-                                for _, child in pairs(DropdownList:GetChildren()) do
-                                    if child:IsA("TextButton") then
-                                        local isSelected = (child.Name == optionText)
-                                        local valObj = child:FindFirstChild("IsChoosedVal")
-                                        if valObj then
-                                            valObj.Value = isSelected
-                                            local circle = child:FindFirstChild("ChoosedCircle")
-                                            if circle then
-                                                circle.BackgroundTransparency = isSelected and 0 or 1
-                                                local innerCircle = circle:FindFirstChild("InnerCircle")
-                                                if innerCircle then
-                                                    innerCircle.Size = isSelected and UDim2.new(0, 12, 0, 12) or UDim2.new(0, 0, 0, 0)
-                                                end
-                                                local stroke = circle:FindFirstChild("CircleStroke")
-                                                if stroke then
-                                                    stroke.Thickness = isSelected and 0 or 1.3
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                                break
-                            end
-                        end
+                        break
                     end
-                    return self
-                end,
-                Refresh = function(self, newOptions, selected)
-                    for _, child in pairs(DropdownList:GetChildren()) do
-                        if child:IsA("TextButton") then
-                            child:Destroy()
-                        end
-                    end
-                    if IsMulti then
-                        table.clear(Stored)
-                    end
-                    if newOptions then
-                        self.options = newOptions
-                    end
-                    if selected ~= nil then
-                        self.value = selected
-                        SelectedValue = selected
-                        if not IsMulti then
-                            for _, option in pairs(self.options) do
-                                if option == selected or (type(option) == "table" and option.value == selected) then
-                                    DropdownBox.Text = type(option) == "table" and option.text or tostring(option)
-                                    break
-                                end
-                            end
-                        else
-                            if type(selected) == "table" then
-                                for k, v in pairs(selected) do
-                                    Stored[k] = v
-                                end
-                            end
-                        end
-                    end
-                    for _, option in pairs(self.options) do
-                        if type(option) == "table" then
-                            NewSelectable(option.text or tostring(option.value), option.value)
-                        else
-                            NewSelectable(tostring(option), option)
-                        end
-                    end
-                    return self
-                end,
-                RemoveOptions = function(self)
-                    return self:Refresh({})
-                end,
-                AddOption = function(self, option)
-                    local newOptions = {}
-                    for _, opt in pairs(self.options) do
-                        table.insert(newOptions, opt)
-                    end
-                    table.insert(newOptions, option)
-                    return self:Refresh(newOptions, self.value)
                 end
-            }
-
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = dropdown
-
-            library.Conn[#library.Conn + 1] = DropdownBox.MouseButton1Click:Connect(function()
-                tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 180}):Play()
-                Tsd:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), "Out", "Quart", 0.3)
-            end)
-            library.Conn[#library.Conn + 1] = CloseButton.MouseButton1Click:Connect(function()
-                tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 90}):Play()
-                Tsd:TweenPosition(UDim2.new(0.5, 0, 5, 0), "Out", "Quart", 0.3)
-            end)
-
-            dropdown:Refresh(Selectables)
-
-            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-            return dropdown
+                if not found then
+                    DropdownBox.Text = tostring(selected)
+                end
+            end
+            return self
+        end,
+        Refresh = function(self, newOptions, selected)
+            for _, child in pairs(DropdownList:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
+            end
+            if IsMulti then
+                table.clear(Stored)
+            end
+            if newOptions then
+                self.options = newOptions
+            end
+            if selected ~= nil then
+                self.value = selected
+                SelectedValue = selected
+            end
+            for _, option in pairs(self.options) do
+                if type(option) == "table" then
+                    NewSelectable(option.text or tostring(option.value), option.value)
+                else
+                    NewSelectable(tostring(option), option)
+                end
+            end
+            -- After refreshing, re-apply selection
+            self:set(self.value)
+            return self
+        end,
+        RemoveOptions = function(self)
+            return self:Refresh({})
+        end,
+        AddOption = function(self, option)
+            local newOptions = {}
+            for _, opt in pairs(self.options) do
+                table.insert(newOptions, opt)
+            end
+            table.insert(newOptions, option)
+            return self:Refresh(newOptions, self.value)
         end
+    }
+
+    if not library.flags then library.flags = {} end
+    library.flags[flag] = dropdown
+
+    library.Conn[#library.Conn + 1] = DropdownBox.MouseButton1Click:Connect(function()
+        tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 180}):Play()
+        Tsd:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), "Out", "Quart", 0.3)
+    end)
+    library.Conn[#library.Conn + 1] = CloseButton.MouseButton1Click:Connect(function()
+        tweensv:Create(ImageLabel, TweenInfo.new(0.3), {Rotation = 90}):Play()
+        Tsd:TweenPosition(UDim2.new(0.5, 0, 5, 0), "Out", "Quart", 0.3)
+    end)
+
+    dropdown:Refresh(Selectables)
+
+    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+    return dropdown
+end
 
         function tabcontent:Colorpicker(text, preset, callback, flag)
             local flag = flag or text
