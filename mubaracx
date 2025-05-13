@@ -594,7 +594,7 @@ function library:Window(title, version, info, preset, closebind)
 
         function tabcontent:Toggle(text, default, callback, flag)
             local flag = flag or text
-            local toggled = false
+            local toggled = default or false
             
             local Toggle = Instance.new("TextButton")
             local ToggleCorner = Instance.new("UICorner")
@@ -709,6 +709,9 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end)()
             
+            if not library.flags then library.flags = {} end
+            library.flags[flag] = toggle
+            
             function ToggleState(state)
                 if state then
                     tweensv:Create(Toggle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
@@ -736,9 +739,6 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end
 
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = toggle
-            
             library.Conn[#library.Conn + 1] = Toggle.MouseButton1Click:Connect(function()
                 ToggleState(not toggled)
             end)
