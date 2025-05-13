@@ -2173,6 +2173,7 @@ function tabcontent:Textbox(text, disappear, callback, flag)
     local TextboxTitle = Instance.new("TextLabel")
     local TextboxFrame = Instance.new("Frame")
     local TextboxFrameCorner = Instance.new("UICorner")
+    local TextBoxArea = Instance.new("TextButton") -- Using a TextButton as a clickable area
     local TextBox = Instance.new("TextBox")
 
     Textbox.Name = "Textbox"
@@ -2203,12 +2204,21 @@ function tabcontent:Textbox(text, disappear, callback, flag)
     TextboxFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
     TextboxFrame.Position = UDim2.new(1.28877008, 0, 0.214285716, 0)
     TextboxFrame.Size = UDim2.new(0, 100, 0, 23)
+    TextboxFrame.ZIndex = 2
 
     TextboxFrameCorner.CornerRadius = UDim.new(0, 5)
     TextboxFrameCorner.Name = "TextboxFrameCorner"
     TextboxFrameCorner.Parent = TextboxFrame
 
-    -- KEY CHANGE: No TextboxClickArea button, just use the TextBox directly
+    -- Create a transparent TextButton to capture clicks
+    TextBoxArea.Name = "TextBoxArea"
+    TextBoxArea.Parent = TextboxFrame
+    TextBoxArea.BackgroundTransparency = 1
+    TextBoxArea.Size = UDim2.new(1, 0, 1, 0)
+    TextBoxArea.Text = ""
+    TextBoxArea.ZIndex = 3
+
+    -- Setup the actual TextBox
     TextBox.Parent = TextboxFrame
     TextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     TextBox.BackgroundTransparency = 1.000
@@ -2217,8 +2227,8 @@ function tabcontent:Textbox(text, disappear, callback, flag)
     TextBox.Text = ""
     TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     TextBox.TextSize = 14.000
-    TextBox.CursorPosition = -1 -- Allow cursor to be visible
-    TextBox.Active = true -- Ensure it's active for input
+    TextBox.ZIndex = 4
+    TextBox.ClearTextOnFocus = false
 
     local textbox = {
         value = "",
@@ -2236,11 +2246,17 @@ function tabcontent:Textbox(text, disappear, callback, flag)
     if not library.flags then library.flags = {} end
     library.flags[flag] = textbox
 
-    -- Simple focus tracking
-    library.Conn[#library.Conn + 1] = TextBox.Focused:Connect(function()
-        tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(46, 46, 46)}):Play()
+    -- Connect TextBoxArea click to TextBox focus
+    library.Conn[#library.Conn + 1] = TextBoxArea.MouseButton1Click:Connect(function()
+        TextBox:CaptureFocus()
     end)
 
+    -- Track text changes
+    library.Conn[#library.Conn + 1] = TextBox:GetPropertyChangedSignal("Text"):Connect(function()
+        textbox.value = TextBox.Text
+    end)
+
+    -- Handle focus lost
     library.Conn[#library.Conn + 1] = TextBox.FocusLost:Connect(function(enterPressed)
         tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
         
@@ -2256,7 +2272,12 @@ function tabcontent:Textbox(text, disappear, callback, flag)
         end
     end)
 
-    -- Visual feedback for hovering
+    -- Handle focus gained
+    library.Conn[#library.Conn + 1] = TextBox.Focused:Connect(function()
+        tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(46, 46, 46)}):Play()
+    end)
+
+    -- Visual feedback
     library.Conn[#library.Conn + 1] = TextboxFrame.MouseEnter:Connect(function()
         if not TextBox:IsFocused() then
             tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(42, 42, 42)}):Play()
@@ -2266,13 +2287,6 @@ function tabcontent:Textbox(text, disappear, callback, flag)
     library.Conn[#library.Conn + 1] = TextboxFrame.MouseLeave:Connect(function()
         if not TextBox:IsFocused() then
             tweensv:Create(TextboxFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(37, 37, 37)}):Play()
-        end
-    end)
-
-    -- Make TextboxFrame clickable to focus TextBox
-    library.Conn[#library.Conn + 1] = TextboxFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            TextBox:CaptureFocus()
         end
     end)
 
