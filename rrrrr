@@ -21,52 +21,44 @@ local cg = game:GetService("CoreGui")
 local httpsv = cloneref(game:GetService("HttpService"))
 local PresetColor, Drawing, placeid = Color3.fromRGB(255, 0, 0), Drawing or {}, game.PlaceId
 local CloseBind, getgenv = Enum.KeyCode.X, getgenv or {}
-
+local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
+local altloaded = false
 local rbxgui = cg:FindFirstChild("RobloxGui") or Instance.new("ScreenGui", cg)
-
-if _G.altloaded then
+if altloaded then
     for i,v in next, rbxgui:GetChildren() do
-        if v.Name == "Horizon" then
+        if v.Name == "Dendrite.cc" then
             v:Destroy()
         end
     end
 	for i,v in next, library.Conn do
 		v:Disconnect()
 	end
-	_G.altloaded = false
+	altloaded = false
 end
-
-_G.altloaded = true
-
+altloaded= true
 local screengui = Instance.new("ScreenGui", rbxgui)
-screengui.Name = "Horizon"
+ProtectGui(screengui);
+screengui.Name = "Dendrite.cc"
 screengui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-if type(syn) == "function" then
-	syn.protect_gui(screengui)
-end
 task.spawn(function()
 	while altloaded do
 		library.RainbowColorValue = library.RainbowColorValue + 1 / 255
 		library.HueSelectionPosition = library.HueSelectionPosition + 1
-
 		if library.RainbowColorValue >= 1 then
 			library.RainbowColorValue = 0
 		end
-
 		if library.HueSelectionPosition == 80 then
 			library.HueSelectionPosition = 0
 		end
 		task.wait()
 	end
 end)
-
-local function animateText(display, text, repeatCount, delay)
+function animateText(display, text, repeatCount, delay)
     if not display then return end
     local animatedRandom = "1234567890"
     for i = 1, #text do
         local revealChar = text:sub(i, i)
         local displayText = text:sub(1, i - 1)
-
         for _ = 1, math.random(1, 6) do
             local random = math.random(1, #animatedRandom)
             local randomChar = animatedRandom:sub(random, random)
@@ -2155,7 +2147,9 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
         end
 
-         function tabcontent:Textbox(text, disapper, callback)
+        function tabcontent:Textbox(text, disapper, callback, flag)
+            local flag = flag or text
+            
             local Textbox = Instance.new("Frame")
             local TextboxCorner = Instance.new("UICorner")
             local TextboxTitle = Instance.new("TextLabel")
@@ -2204,18 +2198,40 @@ function library:Window(title, version, info, preset, closebind)
             TextBox.Text = ""
             TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
             TextBox.TextSize = 14.000
+            
+            -- Create textbox object with methods
+            local textbox = {
+                value = "",
+                set = function(self, value)
+                    self.value = value or ""
+                    TextBox.Text = self.value
+                    pcall(callback, self.value)
+                    return self
+                end,
+                clear = function(self)
+                    return self:set("")
+                end
+            }
+            
+            -- Register with flags system
+            if not library.flags then library.flags = {} end
+            library.flags[flag] = textbox
 
             library.Conn[#library.Conn + 1] = TextBox.FocusLost:Connect(function(ep)
                 if ep then
                     if #TextBox.Text > 0 then
+                        textbox.value = TextBox.Text
                         pcall(callback, TextBox.Text)
                         if disapper then
                             TextBox.Text = ""
+                            textbox.value = ""
                         end
                     end
                 end
             end)
+            
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+            return textbox
         end
 
         function tabcontent:Bind(text, keypreset, callback, flag)
@@ -2418,7 +2434,7 @@ function library:ConfigSystem(tab, name)
     
     local configNameBox = tab:Textbox("Config Name", false, "", function(text)
         configSystem.textboxValue = text
-    end)
+    end, "config_name")
     
     local dropdown = tab:NewDropdown("Select Config", configSystem.configList, function(selected)
         configSystem.selectedConfig = selected
