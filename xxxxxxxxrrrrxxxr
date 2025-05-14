@@ -3785,13 +3785,13 @@ function library:ConfigSystem(tab, name)
                 nmap[flag] = val
 
                 if omap[flag] then
-                    local success, oldVal, newVal = pcall(function()
-                        local oldJson = HttpService:JSONEncode(omap[flag])
-                        local newJson = HttpService:JSONEncode(val)
-                        return oldJson, newJson
+                    local oldJson, newJson
+                    local success = pcall(function()
+                        oldJson = HttpService:JSONEncode(omap[flag])
+                        newJson = HttpService:JSONEncode(val)
                     end)
 
-                    if success and oldVal ~= newVal then
+                    if success and oldJson ~= newJson then
                         changed = changed + 1
                     else
                         same = same + 1
@@ -3838,7 +3838,9 @@ function library:ConfigSystem(tab, name)
         local ok, raw = pcall(readfile, path)
 
         if ok then
-            local valid, data = pcall(function()
+            local valid, data = false, nil
+            
+            valid, data = pcall(function()
                 return game:GetService("HttpService"):JSONDecode(raw)
             end)
 
@@ -3871,7 +3873,8 @@ function library:ConfigSystem(tab, name)
                 end
             end
 
-            local saved = pcall(writefile, path, game:GetService("HttpService"):JSONEncode(data))
+            local jsonData = game:GetService("HttpService"):JSONEncode(data)
+            local saved = pcall(writefile, path, jsonData)
 
             if saved then
                 if on then
@@ -3940,7 +3943,8 @@ function library:ConfigSystem(tab, name)
         end
 
         local path = dir .. "/" .. name .. ".json"
-        local ok = pcall(writefile, path, game:GetService("HttpService"):JSONEncode(data))
+        local jsonData = game:GetService("HttpService"):JSONEncode(data)
+        local ok = pcall(writefile, path, jsonData)
 
         if ok then
             sync()
@@ -3966,7 +3970,9 @@ function library:ConfigSystem(tab, name)
 
         local ok, raw = pcall(readfile, path)
         if ok then
-            local valid, data = pcall(function()
+            local valid, data = false, nil
+            
+            valid, data = pcall(function()
                 return game:GetService("HttpService"):JSONDecode(raw)
             end)
 
@@ -4042,8 +4048,8 @@ function library:ConfigSystem(tab, name)
                 end
 
                 local add, del, changed, same = diff(old, data.values)
-
-                ok = pcall(writefile, path, game:GetService("HttpService"):JSONEncode(data))
+                local jsonData = game:GetService("HttpService"):JSONEncode(data)
+                ok = pcall(writefile, path, jsonData)
 
                 if ok then
                     local msg = ""
@@ -4099,32 +4105,32 @@ function library:ConfigSystem(tab, name)
             return library:Notification("Error", "Config does not exist.", "OK", "rbxassetid://83065037218239")
         end
 
-        local valid, data = pcall(function()
+        local data
+        ok, data = pcall(function()
             return game:GetService("HttpService"):JSONDecode(raw)
         end)
 
-        if not valid or type(data.values) ~= "table" then
+        if not ok or type(data.values) ~= "table" then
             return library:Notification("Error", "Invalid config format.", "OK", "rbxassetid://83065037218239")
         end
 
         local loaded = 0
-        local rainbowFlags = {}
+        local normalValues = {}
+        local rainbowValues = {}
         
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then
                 local baseFlag = flag:gsub("_rainbow$", "")
-                rainbowFlags[baseFlag] = val
-                continue
+                rainbowValues[baseFlag] = val
+            elseif flag ~= "config_autoload" then
+                normalValues[flag] = val
             end
-            
-            if flag == "config_autoload" then
-                continue
-            end
-
+        end
+        
+        for flag, val in pairs(normalValues) do
             local element = library.flags[flag]
             if type(element) == "table" and type(element.set) == "function" then
-                local success = true
-                local value
+                local value = nil
                 
                 if type(val) == "table" and val.__type == "Color3" then
                     value = Color3.new(val.r, val.g, val.b)
@@ -4146,8 +4152,6 @@ function library:ConfigSystem(tab, name)
                         else
                             value = keyEnum
                         end
-                    else
-                        success = false
                     end
                 elseif type(val) == "number" or type(val) == "boolean" or type(val) == "string" then
                     value = val
@@ -4157,16 +4161,17 @@ function library:ConfigSystem(tab, name)
                     value = unpack(val)
                 end
                 
-                if success and value ~= nil then
+                if value ~= nil then
                     element:set(value)
                     loaded = loaded + 1
                 end
             end
         end
 
-        for baseFlag, val in pairs(rainbowFlags) do
-            if library.flags[baseFlag] and type(library.flags[baseFlag].setRainbow) == "function" then
-                library.flags[baseFlag]:setRainbow(val)
+        for baseFlag, val in pairs(rainbowValues) do
+            local element = library.flags[baseFlag]
+            if element and type(element.setRainbow) == "function" then
+                element:setRainbow(val)
             end
         end
 
@@ -4229,35 +4234,34 @@ function library:ConfigSystem(tab, name)
         local path = dir .. "/" .. cfg.auto .. ".json"
         local ok, raw = pcall(readfile, path)
         if ok then
-            local valid, data = pcall(function()
+            local data
+            ok, data = pcall(function()
                 return game:GetService("HttpService"):JSONDecode(raw)
             end)
 
-            if valid and type(data.values) == "table" then
-                local loaded = 0
+            if ok and type(data.values) == "table" then
                 cfg.pick = cfg.auto
-
                 if menu and type(menu.set) == "function" then
                     menu:set(cfg.auto)
                 end
                 
-                local rainbowFlags = {}
+                local normalValues = {}
+                local rainbowValues = {}
+                local loaded = 0
                 
                 for flag, val in pairs(data.values) do
                     if flag:match("_rainbow$") then
                         local baseFlag = flag:gsub("_rainbow$", "")
-                        rainbowFlags[baseFlag] = val
-                        continue
+                        rainbowValues[baseFlag] = val
+                    elseif flag ~= "config_autoload" then
+                        normalValues[flag] = val
                     end
-                    
-                    if flag == "config_autoload" then
-                        continue
-                    end
-
+                end
+                
+                for flag, val in pairs(normalValues) do
                     local element = library.flags[flag]
                     if type(element) == "table" and type(element.set) == "function" then
-                        local success = true
-                        local value
+                        local value = nil
                         
                         if type(val) == "table" and val.__type == "Color3" then
                             value = Color3.new(val.r, val.g, val.b)
@@ -4279,8 +4283,6 @@ function library:ConfigSystem(tab, name)
                                 else
                                     value = keyEnum
                                 end
-                            else
-                                success = false
                             end
                         elseif type(val) == "number" or type(val) == "boolean" or type(val) == "string" then
                             value = val
@@ -4290,16 +4292,17 @@ function library:ConfigSystem(tab, name)
                             value = unpack(val)
                         end
                         
-                        if success and value ~= nil then
+                        if value ~= nil then
                             element:set(value)
                             loaded = loaded + 1
                         end
                     end
                 end
 
-                for baseFlag, val in pairs(rainbowFlags) do
-                    if library.flags[baseFlag] and type(library.flags[baseFlag].setRainbow) == "function" then
-                        library.flags[baseFlag]:setRainbow(val)
+                for baseFlag, val in pairs(rainbowValues) do
+                    local element = library.flags[baseFlag]
+                    if element and type(element.setRainbow) == "function" then
+                        element:setRainbow(val)
                     end
                 end
 
