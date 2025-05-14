@@ -2683,7 +2683,14 @@ function library:ConfigSystem(tab, name)
                 value = val.Name
             }
         elseif typ == "table" then
-            if val.keyName ~= nil and val.value ~= nil then
+            -- Handle UI element value formats correctly
+            if val.value ~= nil then
+                -- Handle sliders that store numeric values directly
+                if type(val.value) == "number" then
+                    return val.value
+                end
+                
+                -- Handle keybind objects that contain EnumItem values
                 if typeof(val.value) == "EnumItem" then
                     return {
                         __type = "Keybind",
@@ -2693,21 +2700,17 @@ function library:ConfigSystem(tab, name)
                 end
             end
             
+            -- Handle toggle with rainbow property
             if val.rainbow ~= nil then
-                local res = pack(val.value)
-                if type(res) == "table" then
-                    res.__rainbow = val.rainbow
-                end
-                return res
-            end
-            
-            if type(val.value) == "number" then
+                local value = pack(val.value or val)
                 return {
-                    __type = "Slider",
-                    value = val.value
+                    __type = "RainbowValue",
+                    value = value,
+                    rainbow = val.rainbow
                 }
             end
             
+            -- Handle general tables
             local out = {}
             for k, v in pairs(val) do
                 out[k] = pack(v)
@@ -2717,7 +2720,7 @@ function library:ConfigSystem(tab, name)
             return val
         end
     end
-    
+
     function unpack(val)
         if type(val) ~= "table" then 
             return val 
@@ -2739,14 +2742,10 @@ function library:ConfigSystem(tab, name)
                 keyName = val.keyName,
                 value = keyValue
             }
-        elseif val.__type == "Slider" then
-            return val.value
-        elseif val.__rainbow ~= nil then
-            local unpacked = val.__rainbow
-            val.__rainbow = nil
+        elseif val.__type == "RainbowValue" then
             return {
-                value = unpack(val),
-                rainbow = unpacked
+                value = unpack(val.value),
+                rainbow = val.rainbow
             }
         else
             local out = {}
@@ -3000,63 +2999,72 @@ function library:ConfigSystem(tab, name)
         end
     end)
     
-    tab:Button("Load Config", function()
-        if not cfg.pick then
-            return library:Notification("Error", "No config selected.", "OK")
-        end
+tab:Button("Load Config", function()
+    if not cfg.pick then
+        return library:Notification("Error", "No config selected.", "OK")
+    end
+    
+    local path = dir .. "/" .. cfg.pick .. ".json"
+    local ok, raw = pcall(readfile, path)
+    
+    if not ok then
+        return library:Notification("Error", "Config does not exist.", "OK")
+    end
+    
+    local valid, data = pcall(function() 
+        return game:GetService("HttpService"):JSONDecode(raw) 
+    end)
+    
+    if not valid or type(data.values) ~= "table" then
+        return library:Notification("Error", "Invalid config format.", "OK")
+    end
+    
+    local loaded = 0
+    
+    for flag, val in pairs(data.values) do
+        if flag:match("_rainbow$") then continue end
         
-        local path = dir .. "/" .. cfg.pick .. ".json"
-        local ok, raw = pcall(readfile, path)
-        
-        if not ok then
-            return library:Notification("Error", "Config does not exist.", "OK")
-        end
-        
-        local valid, data = pcall(function() 
-            return game:GetService("HttpService"):JSONDecode(raw) 
-        end)
-        
-        if not valid or type(data.values) ~= "table" then
-            return library:Notification("Error", "Invalid config format.", "OK")
-        end
-        
-        local loaded = 0
-        
-        for flag, val in pairs(data.values) do
-            if flag:match("_rainbow$") then continue end
+        if library.flags[flag] then
+            local element = library.flags[flag]
+            local parsed = unpack(val)
             
-            if library.flags[flag] then
-                local element = library.flags[flag]
-                local parsed = unpack(val)
-                
-                task.spawn(function()
-                    pcall(function()
-                        if type(element) == "table" then
-                            if typeof(element.set) == "function" then
+            task.spawn(function()
+                pcall(function()
+                    if type(element) == "table" and typeof(element.set) == "function" then
+                        -- For sliders, the value is directly a number
+                        -- For binds/keybinds, handle the special formats
+                        if flag:find("Keybind") or flag:find("Bind") then
+                            if typeof(parsed) == "table" and parsed.value then
+                                element:set(parsed.value)
+                            else
                                 element:set(parsed)
-                                loaded = loaded + 1
                             end
+                        else
+                            element:set(parsed)
                         end
-                    end)
+                        loaded = loaded + 1
+                    end
+                end)
+            end)
+        end
+    end
+    
+    -- Handle rainbow settings separately
+    task.delay(0.3, function()
+        for flag, val in pairs(data.values) do
+            if not flag:match("_rainbow$") then continue end
+            
+            local base = flag:gsub("_rainbow$", "")
+            if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
+                pcall(function()
+                    library.flags[base]:setRainbow(val)
                 end)
             end
         end
         
-        task.delay(0.3, function()
-            for flag, val in pairs(data.values) do
-                if not flag:match("_rainbow$") then continue end
-                
-                local base = flag:gsub("_rainbow$", "")
-                if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
-                    pcall(function()
-                        library.flags[base]:setRainbow(val)
-                    end)
-                end
-            end
-            
-            library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK")
-        end)
+        library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK")
     end)
+end)
     
     tab:Button("Delete Config", function()
         if not cfg.pick then
