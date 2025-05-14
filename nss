@@ -359,98 +359,224 @@ function library:Window(title, version, info, preset, closebind)
         PresetColor = toch
     end
 
-    function library:Notification(texttitle, textdesc, textbtn)
-        local NotificationHold = Instance.new("TextButton")
-        local NotificationFrame = Instance.new("Frame")
-        local OkayBtn = Instance.new("TextButton")
-        local OkayBtnCorner = Instance.new("UICorner")
-        local OkayBtnTitle = Instance.new("TextLabel")
-        local NotificationTitle = Instance.new("TextLabel")
-        local NotificationDesc = Instance.new("TextLabel")
+function library:Notification(texttitle, textdesc, textbtn)
+    local NotificationHolder = Instance.new("Frame")
+    local NotifBackdrop = Instance.new("Frame")
+    local NotifBackdropCorner = Instance.new("UICorner")
+    local NotificationFrame = Instance.new("Frame")
+    local NotificationFrameCorner = Instance.new("UICorner")
+    local NotificationFrameStroke = Instance.new("UIStroke")
+    local NotificationIcon = Instance.new("ImageLabel")
+    local NotificationTitle = Instance.new("TextLabel")
+    local NotificationDesc = Instance.new("TextLabel")
+    local OkayBtn = Instance.new("TextButton")
+    local OkayBtnCorner = Instance.new("UICorner")
+    local OkayBtnStroke = Instance.new("UIStroke")
+    local BtnText = Instance.new("TextLabel")
+    local SideBar = Instance.new("Frame")
+    local SideBarCorner = Instance.new("UICorner")
+    local TopGlow = Instance.new("ImageLabel")
+    local BottomGlow = Instance.new("ImageLabel")
 
-        NotificationHold.Name = "NotificationHold"
-        NotificationHold.Parent = Main
-        NotificationHold.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        NotificationHold.BackgroundTransparency = 1.000
-        NotificationHold.BorderSizePixel = 0
-        NotificationHold.Size = UDim2.new(0, 560, 0, 319)
-        NotificationHold.AutoButtonColor = false
-        NotificationHold.Font = Enum.Font.SourceSans
-        NotificationHold.Text = ""
-        NotificationHold.TextColor3 = Color3.fromRGB(0, 0, 0)
-        NotificationHold.TextSize = 14.000
+    NotificationHolder.Name = "NotificationHolder"
+    NotificationHolder.Parent = Main
+    NotificationHolder.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    NotificationHolder.BackgroundTransparency = 1
+    NotificationHolder.Size = UDim2.new(1, 0, 1, 0)
+    NotificationHolder.ZIndex = 50
 
-        wait(0.4)
+    NotifBackdrop.Name = "NotifBackdrop"
+    NotifBackdrop.Parent = NotificationHolder
+    NotifBackdrop.AnchorPoint = Vector2.new(0.5, 0.5)
+    NotifBackdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    NotifBackdrop.BackgroundTransparency = 1
+    NotifBackdrop.Position = UDim2.new(0.5, 0, 0.5, 0)
+    NotifBackdrop.Size = UDim2.new(1, 0, 1, 0)
+    NotifBackdrop.ZIndex = 51
 
-        NotificationFrame.Name = "NotificationFrame"
-        NotificationFrame.Parent = NotificationHold
-        NotificationFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-        NotificationFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        NotificationFrame.BorderSizePixel = 0
-        NotificationFrame.ClipsDescendants = true
-        NotificationFrame.Position = UDim2.new(0.5, 0, 0.498432577, 0)
-        NotificationFrame.Size = UDim2.new(0, 164, 0, 193)
+    NotifBackdropCorner.CornerRadius = UDim.new(0, 10)
+    NotifBackdropCorner.Name = "NotifBackdropCorner"
+    NotifBackdropCorner.Parent = NotifBackdrop
 
-        OkayBtn.Name = "OkayBtn"
-        OkayBtn.Parent = NotificationFrame
-        OkayBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-        OkayBtn.Position = UDim2.new(0.0609756112, 0, 0.720207274, 0)
-        OkayBtn.Size = UDim2.new(0, 144, 0, 42)
-        OkayBtn.AutoButtonColor = false
-        OkayBtn.Font = Enum.Font.SourceSans
-        OkayBtn.Text = ""
-        OkayBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
-        OkayBtn.TextSize = 14.000
+    NotificationFrame.Name = "NotificationFrame"
+    NotificationFrame.Parent = NotifBackdrop
+    NotificationFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    NotificationFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    NotificationFrame.ClipsDescendants = true
+    NotificationFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    NotificationFrame.Size = UDim2.new(0, 0, 0, 0)
+    NotificationFrame.ZIndex = 52
 
-        OkayBtnCorner.CornerRadius = UDim.new(0, 5)
-        OkayBtnCorner.Name = "OkayBtnCorner"
-        OkayBtnCorner.Parent = OkayBtn
+    NotificationFrameCorner.CornerRadius = UDim.new(0, 8)
+    NotificationFrameCorner.Name = "NotificationFrameCorner"
+    NotificationFrameCorner.Parent = NotificationFrame
 
-        OkayBtnTitle.Name = "OkayBtnTitle"
-        OkayBtnTitle.Parent = OkayBtn
-        OkayBtnTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        OkayBtnTitle.BackgroundTransparency = 1.000
-        OkayBtnTitle.Position = UDim2.new(0.0763888881, 0, 0, 0)
-        OkayBtnTitle.Size = UDim2.new(0, 181, 0, 42)
-        OkayBtnTitle.Font = Enum.Font.Gotham
-        OkayBtnTitle.Text = textbtn
-        OkayBtnTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-        OkayBtnTitle.TextSize = 14.000
-        OkayBtnTitle.TextXAlignment = Enum.TextXAlignment.Left
+    NotificationFrameStroke.Name = "NotificationFrameStroke"
+    NotificationFrameStroke.Parent = NotificationFrame
+    NotificationFrameStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    NotificationFrameStroke.Color = PresetColor
+    NotificationFrameStroke.LineJoinMode = Enum.LineJoinMode.Round
+    NotificationFrameStroke.Thickness = 1.5
+    NotificationFrameStroke.Transparency = 0
+    
+    SideBar.Name = "SideBar"
+    SideBar.Parent = NotificationFrame
+    SideBar.BackgroundColor3 = PresetColor
+    SideBar.Position = UDim2.new(0, 0, 0, 0)
+    SideBar.Size = UDim2.new(0, 4, 1, 0)
+    SideBar.ZIndex = 53
+    
+    SideBarCorner.CornerRadius = UDim.new(1, 0)
+    SideBarCorner.Name = "SideBarCorner"
+    SideBarCorner.Parent = SideBar
+    
+    NotificationIcon.Name = "NotificationIcon"
+    NotificationIcon.Parent = NotificationFrame
+    NotificationIcon.AnchorPoint = Vector2.new(0, 0.5)
+    NotificationIcon.BackgroundTransparency = 1
+    NotificationIcon.Position = UDim2.new(0, 15, 0, 35)
+    NotificationIcon.Size = UDim2.new(0, 24, 0, 24)
+    NotificationIcon.Image = "rbxassetid://7072706620"
+    NotificationIcon.ImageColor3 = PresetColor
+    NotificationIcon.ZIndex = 53
 
-        NotificationTitle.Name = "NotificationTitle"
-        NotificationTitle.Parent = NotificationFrame
-        NotificationTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        NotificationTitle.BackgroundTransparency = 1.000
-        NotificationTitle.Position = UDim2.new(0.0670731738, 0, 0.0829015523, 0)
-        NotificationTitle.Size = UDim2.new(0, 143, 0, 26)
-        NotificationTitle.Font = Enum.Font.Gotham
-        NotificationTitle.Text = texttitle
-        NotificationTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-        NotificationTitle.TextSize = 18.000
-        NotificationTitle.TextXAlignment = Enum.TextXAlignment.Left
+    NotificationTitle.Name = "NotificationTitle"
+    NotificationTitle.Parent = NotificationFrame
+    NotificationTitle.BackgroundTransparency = 1
+    NotificationTitle.Position = UDim2.new(0, 45, 0, 15)
+    NotificationTitle.Size = UDim2.new(0, 260, 0, 25)
+    NotificationTitle.Font = Enum.Font.GothamBold
+    NotificationTitle.Text = texttitle
+    NotificationTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    NotificationTitle.TextSize = 18
+    NotificationTitle.TextXAlignment = Enum.TextXAlignment.Left
+    NotificationTitle.ZIndex = 53
 
-        NotificationDesc.Name = "NotificationDesc"
-        NotificationDesc.Parent = NotificationFrame
-        NotificationDesc.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        NotificationDesc.BackgroundTransparency = 1.000
-        NotificationDesc.Position = UDim2.new(0.0670000017, 0, 0.218999997, 0)
-        NotificationDesc.Size = UDim2.new(0, 143, 0, 91)
-        NotificationDesc.Font = Enum.Font.Gotham
-        NotificationDesc.Text = textdesc
-        NotificationDesc.TextColor3 = Color3.fromRGB(255, 255, 255)
-        NotificationDesc.TextSize = 15.000
-        NotificationDesc.TextWrapped = true
-        NotificationDesc.TextXAlignment = Enum.TextXAlignment.Left
-        NotificationDesc.TextYAlignment = Enum.TextYAlignment.Top
+    NotificationDesc.Name = "NotificationDesc"
+    NotificationDesc.Parent = NotificationFrame
+    NotificationDesc.BackgroundTransparency = 1
+    NotificationDesc.Position = UDim2.new(0, 15, 0, 70)
+    NotificationDesc.Size = UDim2.new(0, 290, 0, 80)
+    NotificationDesc.Font = Enum.Font.Gotham
+    NotificationDesc.Text = textdesc
+    NotificationDesc.TextColor3 = Color3.fromRGB(220, 220, 220)
+    NotificationDesc.TextSize = 15
+    NotificationDesc.TextWrapped = true
+    NotificationDesc.TextXAlignment = Enum.TextXAlignment.Left
+    NotificationDesc.TextYAlignment = Enum.TextYAlignment.Top
+    NotificationDesc.ZIndex = 53
 
+    OkayBtn.Name = "OkayBtn"
+    OkayBtn.Parent = NotificationFrame
+    OkayBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    OkayBtn.Position = UDim2.new(0.5, -60, 1, -55)
+    OkayBtn.Size = UDim2.new(0, 120, 0, 35)
+    OkayBtn.AutoButtonColor = false
+    OkayBtn.Font = Enum.Font.SourceSans
+    OkayBtn.Text = ""
+    OkayBtn.ZIndex = 54
 
-        library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Click:Connect(function()
-            NotificationFrame.Size = UDim2.new(0, 164, 0, 193)
-            wait(.4)
-            NotificationHold:Destroy()
-        end)
-    end
+    OkayBtnCorner.CornerRadius = UDim.new(0, 6)
+    OkayBtnCorner.Name = "OkayBtnCorner"
+    OkayBtnCorner.Parent = OkayBtn
+
+    OkayBtnStroke.Name = "OkayBtnStroke"
+    OkayBtnStroke.Parent = OkayBtn
+    OkayBtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    OkayBtnStroke.Color = PresetColor
+    OkayBtnStroke.LineJoinMode = Enum.LineJoinMode.Round
+    OkayBtnStroke.Thickness = 1
+    OkayBtnStroke.Transparency = 0.2
+
+    BtnText.Name = "BtnText"
+    BtnText.Parent = OkayBtn
+    BtnText.BackgroundTransparency = 1
+    BtnText.Size = UDim2.new(1, 0, 1, 0)
+    BtnText.Font = Enum.Font.GothamBold
+    BtnText.Text = textbtn
+    BtnText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    BtnText.TextSize = 14
+    BtnText.ZIndex = 54
+    
+    TopGlow.Name = "TopGlow"
+    TopGlow.Parent = NotificationFrame
+    TopGlow.BackgroundTransparency = 1
+    TopGlow.Position = UDim2.new(0.5, -130, 0, -30)
+    TopGlow.Size = UDim2.new(0, 260, 0, 80)
+    TopGlow.ZIndex = 52
+    TopGlow.Image = "rbxassetid://4996891970"
+    TopGlow.ImageColor3 = PresetColor
+    TopGlow.ImageTransparency = 0.6
+    
+    BottomGlow.Name = "BottomGlow"
+    BottomGlow.Parent = NotificationFrame
+    BottomGlow.BackgroundTransparency = 1
+    BottomGlow.Position = UDim2.new(0.5, -130, 1, -50)
+    BottomGlow.Size = UDim2.new(0, 260, 0, 80)
+    BottomGlow.ZIndex = 52
+    BottomGlow.Image = "rbxassetid://4996891970"
+    BottomGlow.ImageColor3 = PresetColor
+    BottomGlow.ImageTransparency = 0.6
+    
+    task.spawn(function()
+        while getgenv().libloaded and NotificationFrame.Parent do
+            NotificationFrameStroke.Color = PresetColor
+            OkayBtnStroke.Color = PresetColor
+            SideBar.BackgroundColor3 = PresetColor
+            NotificationIcon.ImageColor3 = PresetColor
+            TopGlow.ImageColor3 = PresetColor
+            BottomGlow.ImageColor3 = PresetColor
+            task.wait()
+        end
+    end)
+
+    task.spawn(function()
+        task.wait(0.1)
+        NotifBackdrop.BackgroundTransparency = 0.5
+
+        tweensv:Create(NotificationFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 320, 0, 180),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }):Play()
+        
+        task.wait(0.2)
+        NotificationIcon:TweenPosition(UDim2.new(0, 15, 0, 25), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
+        task.wait(0.1)
+        
+        for i = 0, 1, 0.1 do
+            TopGlow.ImageTransparency = 0.6 + (i * 0.3)
+            BottomGlow.ImageTransparency = 0.6 + (i * 0.3)
+            task.wait(0.02)
+        end
+    end)
+
+    library.Conn[#library.Conn + 1] = OkayBtn.MouseEnter:Connect(function()
+        tweensv:Create(OkayBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        }):Play()
+    end)
+
+    library.Conn[#library.Conn + 1] = OkayBtn.MouseLeave:Connect(function()
+        tweensv:Create(OkayBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        }):Play()
+    end)
+
+    library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Click:Connect(function()
+        for i = 1, 0, -0.1 do
+            NotifBackdrop.BackgroundTransparency = 1 - (i/2)
+            task.wait(0.01)
+        end
+        
+        tweensv:Create(NotificationFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }):Play()
+        
+        task.wait(0.4)
+        NotificationHolder:Destroy()
+    end)
+end
     local tabhold = {}
     function tabhold:Tab(text)
         local TabBtn = Instance.new("TextButton")
@@ -2155,617 +2281,617 @@ function library:Window(title, version, info, preset, closebind)
             return dropdown
         end
 
-function tabcontent:Colorpicker(text, preset, callback, flag)
-    local flag = flag or text
-    local ColorPickerToggled = false
-    local OldToggleColor = Color3.fromRGB(0, 0, 0)
-    local OldColor = Color3.fromRGB(0, 0, 0)
-    local OldColorSelectionPosition = nil
-    local OldHueSelectionPosition = nil
-    local ColorH, ColorS, ColorV = 1, 1, 1
-    local RainbowColorPicker = false
-    local ColorPickerInput = nil
-    local ColorInput = nil
-    local HueInput = nil
-    local rainbowSpeed = 0.3
-    local isDraggingSpeed = false
-    local RainbowConnection = nil
+        function tabcontent:Colorpicker(text, preset, callback, flag)
+            local flag = flag or text
+            local ColorPickerToggled = false
+            local OldToggleColor = Color3.fromRGB(0, 0, 0)
+            local OldColor = Color3.fromRGB(0, 0, 0)
+            local OldColorSelectionPosition = nil
+            local OldHueSelectionPosition = nil
+            local ColorH, ColorS, ColorV = 1, 1, 1
+            local RainbowColorPicker = false
+            local ColorPickerInput = nil
+            local ColorInput = nil
+            local HueInput = nil
+            local rainbowSpeed = 0.3
+            local isDraggingSpeed = false
+            local RainbowConnection = nil
 
-    local Colorpicker = Instance.new("Frame")
-    local ColorpickerCorner = Instance.new("UICorner")
-    local ColorpickerTitle = Instance.new("TextLabel")
-    local BoxColor = Instance.new("Frame")
-    local BoxColorCorner = Instance.new("UICorner")
-    local ConfirmBtn = Instance.new("TextButton")
-    local ConfirmBtnCorner = Instance.new("UICorner")
-    local ConfirmBtnTitle = Instance.new("TextLabel")
-    local ColorpickerBtn = Instance.new("TextButton")
-    local RainbowToggle = Instance.new("TextButton")
-    local RainbowToggleCorner = Instance.new("UICorner")
-    local RainbowToggleTitle = Instance.new("TextLabel")
-    local FrameRainbowToggle1 = Instance.new("Frame")
-    local FrameRainbowToggle1Corner = Instance.new("UICorner")
-    local FrameRainbowToggle2 = Instance.new("Frame")
-    local FrameRainbowToggle2_2 = Instance.new("UICorner")
-    local FrameRainbowToggle3 = Instance.new("Frame")
-    local FrameToggle3 = Instance.new("UICorner")
-    local FrameRainbowToggleCircle = Instance.new("Frame")
-    local FrameRainbowToggleCircleCorner = Instance.new("UICorner")
-    local Color = Instance.new("ImageLabel")
-    local ColorCorner = Instance.new("UICorner")
-    local ColorSelection = Instance.new("ImageLabel")
-    local Hue = Instance.new("ImageLabel")
-    local HueCorner = Instance.new("UICorner")
-    local HueGradient = Instance.new("UIGradient")
-    local HueSelection = Instance.new("ImageLabel")
-    
-    local RainbowSpeedSlider = Instance.new("Frame")
-    local RainbowSpeedSliderCorner = Instance.new("UICorner")
-    local RainbowSpeedSliderBar = Instance.new("Frame")
-    local RainbowSpeedSliderBarCorner = Instance.new("UICorner")
-    local RainbowSpeedSliderCircle = Instance.new("Frame")
-    local RainbowSpeedSliderCircleCorner = Instance.new("UICorner")
-    local RainbowSpeedLabel = Instance.new("TextLabel")
-
-    Colorpicker.Name = "Colorpicker"
-    Colorpicker.Parent = Tab
-    Colorpicker.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-    Colorpicker.ClipsDescendants = true
-    Colorpicker.Position = UDim2.new(-0.541071415, 0, -0.532915354, 0)
-    Colorpicker.Size = UDim2.new(0, 363, 0, 42)
-
-    ColorpickerCorner.CornerRadius = UDim.new(0, 5)
-    ColorpickerCorner.Name = "ColorpickerCorner"
-    ColorpickerCorner.Parent = Colorpicker
-
-    ColorpickerTitle.Name = "ColorpickerTitle"
-    ColorpickerTitle.Parent = Colorpicker
-    ColorpickerTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ColorpickerTitle.BackgroundTransparency = 1.000
-    ColorpickerTitle.Position = UDim2.new(0.0358126722, 0, 0, 0)
-    ColorpickerTitle.Size = UDim2.new(0, 187, 0, 42)
-    ColorpickerTitle.Font = Enum.Font.SourceSans
-    ColorpickerTitle.Text = text
-    ColorpickerTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ColorpickerTitle.TextSize = 18
-    ColorpickerTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-    BoxColor.Name = "BoxColor"
-    BoxColor.Parent = ColorpickerTitle
-    BoxColor.BackgroundColor3 = preset or Color3.fromRGB(255, 0, 4)
-    BoxColor.Position = UDim2.new(1.60427809, 0, 0.214285716, 0)
-    BoxColor.Size = UDim2.new(0, 41, 0, 23)
-
-    BoxColorCorner.CornerRadius = UDim.new(0, 5)
-    BoxColorCorner.Name = "BoxColorCorner"
-    BoxColorCorner.Parent = BoxColor
-
-    ConfirmBtn.Name = "ConfirmBtn"
-    ConfirmBtn.Parent = ColorpickerTitle
-    ConfirmBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-    ConfirmBtn.Position = UDim2.new(1.25814295, 0, 1.09037197, 0)
-    ConfirmBtn.Size = UDim2.new(0, 105, 0, 32)
-    ConfirmBtn.AutoButtonColor = false
-    ConfirmBtn.Font = Enum.Font.SourceSans
-    ConfirmBtn.Text = ""
-    ConfirmBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
-    ConfirmBtn.TextSize = 14.000
-
-    ConfirmBtnCorner.CornerRadius = UDim.new(0, 5)
-    ConfirmBtnCorner.Name = "ConfirmBtnCorner"
-    ConfirmBtnCorner.Parent = ConfirmBtn
-
-    ConfirmBtnTitle.Name = "ConfirmBtnTitle"
-    ConfirmBtnTitle.Parent = ConfirmBtn
-    ConfirmBtnTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ConfirmBtnTitle.BackgroundTransparency = 1.000
-    ConfirmBtnTitle.Size = UDim2.new(0, 33, 0, 32)
-    ConfirmBtnTitle.Font = Enum.Font.Gotham
-    ConfirmBtnTitle.Text = "Confirm"
-    ConfirmBtnTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ConfirmBtnTitle.TextSize = 14.000
-    ConfirmBtnTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-    ColorpickerBtn.Name = "ColorpickerBtn"
-    ColorpickerBtn.Parent = ColorpickerTitle
-    ColorpickerBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ColorpickerBtn.BackgroundTransparency = 1.000
-    ColorpickerBtn.Size = UDim2.new(0, 363, 0, 42)
-    ColorpickerBtn.Font = Enum.Font.SourceSans
-    ColorpickerBtn.Text = ""
-    ColorpickerBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
-    ColorpickerBtn.TextSize = 14.000
-
-    RainbowToggle.Name = "RainbowToggle"
-    RainbowToggle.Parent = ColorpickerTitle
-    RainbowToggle.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-    RainbowToggle.Position = UDim2.new(1.26349044, 0, 2.12684202, 0)
-    RainbowToggle.Size = UDim2.new(0, 104, 0, 32)
-    RainbowToggle.AutoButtonColor = false
-    RainbowToggle.Font = Enum.Font.SourceSans
-    RainbowToggle.Text = ""
-    RainbowToggle.TextColor3 = Color3.fromRGB(0, 0, 0)
-    RainbowToggle.TextSize = 14.000
-
-    RainbowToggleCorner.CornerRadius = UDim.new(0, 5)
-    RainbowToggleCorner.Name = "RainbowToggleCorner"
-    RainbowToggleCorner.Parent = RainbowToggle
-
-    RainbowToggleTitle.Name = "RainbowToggleTitle"
-    RainbowToggleTitle.Parent = RainbowToggle
-    RainbowToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    RainbowToggleTitle.BackgroundTransparency = 1.000
-    RainbowToggleTitle.Size = UDim2.new(0, 33, 0, 32)
-    RainbowToggleTitle.Font = Enum.Font.Gotham
-    RainbowToggleTitle.Text = "Rainbow"
-    RainbowToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    RainbowToggleTitle.TextSize = 14.000
-    RainbowToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-    FrameRainbowToggle1.Name = "FrameRainbowToggle1"
-    FrameRainbowToggle1.Parent = RainbowToggle
-    FrameRainbowToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    FrameRainbowToggle1.Position = UDim2.new(0.649999976, 0, 0.186000004, 0)
-    FrameRainbowToggle1.Size = UDim2.new(0, 37, 0, 18)
-
-    FrameRainbowToggle1Corner.Name = "FrameRainbowToggle1Corner"
-    FrameRainbowToggle1Corner.Parent = FrameRainbowToggle1
-
-    FrameRainbowToggle2.Name = "FrameRainbowToggle2"
-    FrameRainbowToggle2.Parent = FrameRainbowToggle1
-    FrameRainbowToggle2.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-    FrameRainbowToggle2.Position = UDim2.new(0.0590000004, 0, 0.112999998, 0)
-    FrameRainbowToggle2.Size = UDim2.new(0, 33, 0, 14)
-
-    FrameRainbowToggle2_2.Name = "FrameRainbowToggle2"
-    FrameRainbowToggle2_2.Parent = FrameRainbowToggle2
-
-    FrameRainbowToggle3.Name = "FrameRainbowToggle3"
-    FrameRainbowToggle3.Parent = FrameRainbowToggle1
-    FrameRainbowToggle3.BackgroundColor3 = PresetColor
-    FrameRainbowToggle3.BackgroundTransparency = 1.000
-    FrameRainbowToggle3.Size = UDim2.new(0, 37, 0, 18)
-
-    FrameToggle3.Name = "FrameToggle3"
-    FrameToggle3.Parent = FrameRainbowToggle3
-
-    FrameRainbowToggleCircle.Name = "FrameRainbowToggleCircle"
-    FrameRainbowToggleCircle.Parent = FrameRainbowToggle1
-    FrameRainbowToggleCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    FrameRainbowToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
-    FrameRainbowToggleCircle.Size = UDim2.new(0, 10, 0, 10)
-
-    FrameRainbowToggleCircleCorner.Name = "FrameRainbowToggleCircleCorner"
-    FrameRainbowToggleCircleCorner.Parent = FrameRainbowToggleCircle
-
-    Color.Name = "Color"
-    Color.Parent = ColorpickerTitle
-    Color.BackgroundColor3 = preset or Color3.fromRGB(255, 0, 4)
-    Color.Position = UDim2.new(0, 0, 0, 42)
-    Color.Size = UDim2.new(0, 194, 0, 80)
-    Color.ZIndex = 10
-    Color.Image = "rbxassetid://4155801252"
-
-    ColorCorner.CornerRadius = UDim.new(0, 3)
-    ColorCorner.Name = "ColorCorner"
-    ColorCorner.Parent = Color
-
-    ColorSelection.Name = "ColorSelection"
-    ColorSelection.Parent = Color
-    ColorSelection.AnchorPoint = Vector2.new(0.5, 0.5)
-    ColorSelection.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ColorSelection.BackgroundTransparency = 1.000
-    ColorSelection.Position = UDim2.new(preset and select(3, Color3.toHSV(preset)))
-    ColorSelection.Size = UDim2.new(0, 18, 0, 18)
-    ColorSelection.Image = "http://www.roblox.com/asset/?id=4805639000"
-    ColorSelection.ScaleType = Enum.ScaleType.Fit
-    ColorSelection.Visible = false
-
-    Hue.Name = "Hue"
-    Hue.Parent = ColorpickerTitle
-    Hue.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Hue.Position = UDim2.new(0, 202, 0, 42)
-    Hue.Size = UDim2.new(0, 25, 0, 80)
-
-    HueCorner.CornerRadius = UDim.new(0, 3)
-    HueCorner.Name = "HueCorner"
-    HueCorner.Parent = Hue
-
-    HueGradient.Color =
-        ColorSequence.new {
-        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 4)),
-        ColorSequenceKeypoint.new(0.20, Color3.fromRGB(234, 255, 0)),
-        ColorSequenceKeypoint.new(0.40, Color3.fromRGB(21, 255, 0)),
-        ColorSequenceKeypoint.new(0.60, Color3.fromRGB(0, 255, 255)),
-        ColorSequenceKeypoint.new(0.80, Color3.fromRGB(0, 17, 255)),
-        ColorSequenceKeypoint.new(0.90, Color3.fromRGB(255, 0, 251)),
-        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 4))
-    }
-    HueGradient.Rotation = 270
-    HueGradient.Name = "HueGradient"
-    HueGradient.Parent = Hue
-
-    HueSelection.Name = "HueSelection"
-    HueSelection.Parent = Hue
-    HueSelection.AnchorPoint = Vector2.new(0.5, 0.5)
-    HueSelection.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    HueSelection.BackgroundTransparency = 1.000
-    HueSelection.Position = UDim2.new(0.48, 0, 1 - select(1, Color3.toHSV(preset or Color3.fromRGB(255, 0, 4))))
-    HueSelection.Size = UDim2.new(0, 18, 0, 18)
-    HueSelection.Image = "http://www.roblox.com/asset/?id=4805639000"
-    HueSelection.Visible = false
-    
-    RainbowSpeedSlider.Name = "RainbowSpeedSlider"
-    RainbowSpeedSlider.Parent = ColorpickerTitle
-    RainbowSpeedSlider.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-    RainbowSpeedSlider.Position = UDim2.new(1.26349044, 0, 3.15, 0)
-    RainbowSpeedSlider.Size = UDim2.new(0, 104, 0, 32)
-    RainbowSpeedSlider.Visible = false
-
-    RainbowSpeedSliderCorner.CornerRadius = UDim.new(0, 5)
-    RainbowSpeedSliderCorner.Name = "RainbowSpeedSliderCorner"
-    RainbowSpeedSliderCorner.Parent = RainbowSpeedSlider
-
-    RainbowSpeedLabel.Name = "RainbowSpeedLabel"
-    RainbowSpeedLabel.Parent = RainbowSpeedSlider
-    RainbowSpeedLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    RainbowSpeedLabel.BackgroundTransparency = 1.000
-    RainbowSpeedLabel.Position = UDim2.new(0, 0, 0, 0)
-    RainbowSpeedLabel.Size = UDim2.new(0, 104, 0, 15)
-    RainbowSpeedLabel.Font = Enum.Font.Gotham
-    RainbowSpeedLabel.Text = "Speed: 0.3x"
-    RainbowSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    RainbowSpeedLabel.TextSize = 12.000
-
-    local RainbowSpeedHitbox = Instance.new("Frame")
-    RainbowSpeedHitbox.Name = "RainbowSpeedHitbox"
-    RainbowSpeedHitbox.Parent = RainbowSpeedSlider
-    RainbowSpeedHitbox.BackgroundTransparency = 1
-    RainbowSpeedHitbox.Position = UDim2.new(0.05, -5, 0.5, -10)
-    RainbowSpeedHitbox.Size = UDim2.new(0, 104, 0, 24)
-    RainbowSpeedHitbox.ZIndex = 15
-
-    RainbowSpeedSliderBar.Name = "RainbowSpeedSliderBar"
-    RainbowSpeedSliderBar.Parent = RainbowSpeedSlider
-    RainbowSpeedSliderBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    RainbowSpeedSliderBar.Position = UDim2.new(0.05, 0, 0.65, 0)
-    RainbowSpeedSliderBar.Size = UDim2.new(0, 94, 0, 4)
-
-    RainbowSpeedSliderBarCorner.CornerRadius = UDim.new(1, 0)
-    RainbowSpeedSliderBarCorner.Name = "RainbowSpeedSliderBarCorner"
-    RainbowSpeedSliderBarCorner.Parent = RainbowSpeedSliderBar
-
-    RainbowSpeedSliderCircle.Name = "RainbowSpeedSliderCircle"
-    RainbowSpeedSliderCircle.Parent = RainbowSpeedSliderBar
-    RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
-    RainbowSpeedSliderCircle.Position = UDim2.new(0.069, -5, 0.5, -5)
-    RainbowSpeedSliderCircle.Size = UDim2.new(0, 10, 0, 10)
-    RainbowSpeedSliderCircle.ZIndex = 16
-
-    RainbowSpeedSliderCircleCorner.CornerRadius = UDim.new(1, 0)
-    RainbowSpeedSliderCircleCorner.Name = "RainbowSpeedSliderCircleCorner"
-    RainbowSpeedSliderCircleCorner.Parent = RainbowSpeedSliderCircle
-
-    coroutine.wrap(function()
-        while getgenv().libloaded do
-            FrameRainbowToggle3.BackgroundColor3 = PresetColor
-            RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
-            task.wait()
-        end
-    end)()
-
-    function updateSpeedSlider(speed)
-        speed = math.clamp(speed, 0.1, 3)
-        rainbowSpeed = speed
-        
-        local position = (speed - 0.1) / 2.9
-        RainbowSpeedSliderCircle.Position = UDim2.new(position, -5, 0.5, -5)
-        RainbowSpeedLabel.Text = "Speed: " .. string.format("%.1f", speed) .. "x"
-        
-        if RainbowConnection then
-            RainbowConnection:Disconnect()
+            local Colorpicker = Instance.new("Frame")
+            local ColorpickerCorner = Instance.new("UICorner")
+            local ColorpickerTitle = Instance.new("TextLabel")
+            local BoxColor = Instance.new("Frame")
+            local BoxColorCorner = Instance.new("UICorner")
+            local ConfirmBtn = Instance.new("TextButton")
+            local ConfirmBtnCorner = Instance.new("UICorner")
+            local ConfirmBtnTitle = Instance.new("TextLabel")
+            local ColorpickerBtn = Instance.new("TextButton")
+            local RainbowToggle = Instance.new("TextButton")
+            local RainbowToggleCorner = Instance.new("UICorner")
+            local RainbowToggleTitle = Instance.new("TextLabel")
+            local FrameRainbowToggle1 = Instance.new("Frame")
+            local FrameRainbowToggle1Corner = Instance.new("UICorner")
+            local FrameRainbowToggle2 = Instance.new("Frame")
+            local FrameRainbowToggle2_2 = Instance.new("UICorner")
+            local FrameRainbowToggle3 = Instance.new("Frame")
+            local FrameToggle3 = Instance.new("UICorner")
+            local FrameRainbowToggleCircle = Instance.new("Frame")
+            local FrameRainbowToggleCircleCorner = Instance.new("UICorner")
+            local Color = Instance.new("ImageLabel")
+            local ColorCorner = Instance.new("UICorner")
+            local ColorSelection = Instance.new("ImageLabel")
+            local Hue = Instance.new("ImageLabel")
+            local HueCorner = Instance.new("UICorner")
+            local HueGradient = Instance.new("UIGradient")
+            local HueSelection = Instance.new("ImageLabel")
             
-            local startTime = tick()
-            RainbowConnection = rs.RenderStepped:Connect(function()
-                local timeElapsed = (tick() - startTime) * rainbowSpeed
-                local hue = (math.sin(timeElapsed) + 1) / 2
+            local RainbowSpeedSlider = Instance.new("Frame")
+            local RainbowSpeedSliderCorner = Instance.new("UICorner")
+            local RainbowSpeedSliderBar = Instance.new("Frame")
+            local RainbowSpeedSliderBarCorner = Instance.new("UICorner")
+            local RainbowSpeedSliderCircle = Instance.new("Frame")
+            local RainbowSpeedSliderCircleCorner = Instance.new("UICorner")
+            local RainbowSpeedLabel = Instance.new("TextLabel")
+
+            Colorpicker.Name = "Colorpicker"
+            Colorpicker.Parent = Tab
+            Colorpicker.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+            Colorpicker.ClipsDescendants = true
+            Colorpicker.Position = UDim2.new(-0.541071415, 0, -0.532915354, 0)
+            Colorpicker.Size = UDim2.new(0, 363, 0, 42)
+
+            ColorpickerCorner.CornerRadius = UDim.new(0, 5)
+            ColorpickerCorner.Name = "ColorpickerCorner"
+            ColorpickerCorner.Parent = Colorpicker
+
+            ColorpickerTitle.Name = "ColorpickerTitle"
+            ColorpickerTitle.Parent = Colorpicker
+            ColorpickerTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            ColorpickerTitle.BackgroundTransparency = 1.000
+            ColorpickerTitle.Position = UDim2.new(0.0358126722, 0, 0, 0)
+            ColorpickerTitle.Size = UDim2.new(0, 187, 0, 42)
+            ColorpickerTitle.Font = Enum.Font.SourceSans
+            ColorpickerTitle.Text = text
+            ColorpickerTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+            ColorpickerTitle.TextSize = 18
+            ColorpickerTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            BoxColor.Name = "BoxColor"
+            BoxColor.Parent = ColorpickerTitle
+            BoxColor.BackgroundColor3 = preset or Color3.fromRGB(255, 0, 4)
+            BoxColor.Position = UDim2.new(1.60427809, 0, 0.214285716, 0)
+            BoxColor.Size = UDim2.new(0, 41, 0, 23)
+
+            BoxColorCorner.CornerRadius = UDim.new(0, 5)
+            BoxColorCorner.Name = "BoxColorCorner"
+            BoxColorCorner.Parent = BoxColor
+
+            ConfirmBtn.Name = "ConfirmBtn"
+            ConfirmBtn.Parent = ColorpickerTitle
+            ConfirmBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+            ConfirmBtn.Position = UDim2.new(1.25814295, 0, 1.09037197, 0)
+            ConfirmBtn.Size = UDim2.new(0, 105, 0, 32)
+            ConfirmBtn.AutoButtonColor = false
+            ConfirmBtn.Font = Enum.Font.SourceSans
+            ConfirmBtn.Text = ""
+            ConfirmBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+            ConfirmBtn.TextSize = 14.000
+
+            ConfirmBtnCorner.CornerRadius = UDim.new(0, 5)
+            ConfirmBtnCorner.Name = "ConfirmBtnCorner"
+            ConfirmBtnCorner.Parent = ConfirmBtn
+
+            ConfirmBtnTitle.Name = "ConfirmBtnTitle"
+            ConfirmBtnTitle.Parent = ConfirmBtn
+            ConfirmBtnTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            ConfirmBtnTitle.BackgroundTransparency = 1.000
+            ConfirmBtnTitle.Size = UDim2.new(0, 33, 0, 32)
+            ConfirmBtnTitle.Font = Enum.Font.Gotham
+            ConfirmBtnTitle.Text = "Confirm"
+            ConfirmBtnTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+            ConfirmBtnTitle.TextSize = 14.000
+            ConfirmBtnTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            ColorpickerBtn.Name = "ColorpickerBtn"
+            ColorpickerBtn.Parent = ColorpickerTitle
+            ColorpickerBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            ColorpickerBtn.BackgroundTransparency = 1.000
+            ColorpickerBtn.Size = UDim2.new(0, 363, 0, 42)
+            ColorpickerBtn.Font = Enum.Font.SourceSans
+            ColorpickerBtn.Text = ""
+            ColorpickerBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+            ColorpickerBtn.TextSize = 14.000
+
+            RainbowToggle.Name = "RainbowToggle"
+            RainbowToggle.Parent = ColorpickerTitle
+            RainbowToggle.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+            RainbowToggle.Position = UDim2.new(1.26349044, 0, 2.12684202, 0)
+            RainbowToggle.Size = UDim2.new(0, 104, 0, 32)
+            RainbowToggle.AutoButtonColor = false
+            RainbowToggle.Font = Enum.Font.SourceSans
+            RainbowToggle.Text = ""
+            RainbowToggle.TextColor3 = Color3.fromRGB(0, 0, 0)
+            RainbowToggle.TextSize = 14.000
+
+            RainbowToggleCorner.CornerRadius = UDim.new(0, 5)
+            RainbowToggleCorner.Name = "RainbowToggleCorner"
+            RainbowToggleCorner.Parent = RainbowToggle
+
+            RainbowToggleTitle.Name = "RainbowToggleTitle"
+            RainbowToggleTitle.Parent = RainbowToggle
+            RainbowToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            RainbowToggleTitle.BackgroundTransparency = 1.000
+            RainbowToggleTitle.Size = UDim2.new(0, 33, 0, 32)
+            RainbowToggleTitle.Font = Enum.Font.Gotham
+            RainbowToggleTitle.Text = "Rainbow"
+            RainbowToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+            RainbowToggleTitle.TextSize = 14.000
+            RainbowToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            FrameRainbowToggle1.Name = "FrameRainbowToggle1"
+            FrameRainbowToggle1.Parent = RainbowToggle
+            FrameRainbowToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            FrameRainbowToggle1.Position = UDim2.new(0.649999976, 0, 0.186000004, 0)
+            FrameRainbowToggle1.Size = UDim2.new(0, 37, 0, 18)
+
+            FrameRainbowToggle1Corner.Name = "FrameRainbowToggle1Corner"
+            FrameRainbowToggle1Corner.Parent = FrameRainbowToggle1
+
+            FrameRainbowToggle2.Name = "FrameRainbowToggle2"
+            FrameRainbowToggle2.Parent = FrameRainbowToggle1
+            FrameRainbowToggle2.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+            FrameRainbowToggle2.Position = UDim2.new(0.0590000004, 0, 0.112999998, 0)
+            FrameRainbowToggle2.Size = UDim2.new(0, 33, 0, 14)
+
+            FrameRainbowToggle2_2.Name = "FrameRainbowToggle2"
+            FrameRainbowToggle2_2.Parent = FrameRainbowToggle2
+
+            FrameRainbowToggle3.Name = "FrameRainbowToggle3"
+            FrameRainbowToggle3.Parent = FrameRainbowToggle1
+            FrameRainbowToggle3.BackgroundColor3 = PresetColor
+            FrameRainbowToggle3.BackgroundTransparency = 1.000
+            FrameRainbowToggle3.Size = UDim2.new(0, 37, 0, 18)
+
+            FrameToggle3.Name = "FrameToggle3"
+            FrameToggle3.Parent = FrameRainbowToggle3
+
+            FrameRainbowToggleCircle.Name = "FrameRainbowToggleCircle"
+            FrameRainbowToggleCircle.Parent = FrameRainbowToggle1
+            FrameRainbowToggleCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            FrameRainbowToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
+            FrameRainbowToggleCircle.Size = UDim2.new(0, 10, 0, 10)
+
+            FrameRainbowToggleCircleCorner.Name = "FrameRainbowToggleCircleCorner"
+            FrameRainbowToggleCircleCorner.Parent = FrameRainbowToggleCircle
+
+            Color.Name = "Color"
+            Color.Parent = ColorpickerTitle
+            Color.BackgroundColor3 = preset or Color3.fromRGB(255, 0, 4)
+            Color.Position = UDim2.new(0, 0, 0, 42)
+            Color.Size = UDim2.new(0, 194, 0, 80)
+            Color.ZIndex = 10
+            Color.Image = "rbxassetid://4155801252"
+
+            ColorCorner.CornerRadius = UDim.new(0, 3)
+            ColorCorner.Name = "ColorCorner"
+            ColorCorner.Parent = Color
+
+            ColorSelection.Name = "ColorSelection"
+            ColorSelection.Parent = Color
+            ColorSelection.AnchorPoint = Vector2.new(0.5, 0.5)
+            ColorSelection.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            ColorSelection.BackgroundTransparency = 1.000
+            ColorSelection.Position = UDim2.new(preset and select(3, Color3.toHSV(preset)))
+            ColorSelection.Size = UDim2.new(0, 18, 0, 18)
+            ColorSelection.Image = "http://www.roblox.com/asset/?id=4805639000"
+            ColorSelection.ScaleType = Enum.ScaleType.Fit
+            ColorSelection.Visible = false
+
+            Hue.Name = "Hue"
+            Hue.Parent = ColorpickerTitle
+            Hue.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            Hue.Position = UDim2.new(0, 202, 0, 42)
+            Hue.Size = UDim2.new(0, 25, 0, 80)
+
+            HueCorner.CornerRadius = UDim.new(0, 3)
+            HueCorner.Name = "HueCorner"
+            HueCorner.Parent = Hue
+
+            HueGradient.Color =
+                ColorSequence.new {
+                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 4)),
+                ColorSequenceKeypoint.new(0.20, Color3.fromRGB(234, 255, 0)),
+                ColorSequenceKeypoint.new(0.40, Color3.fromRGB(21, 255, 0)),
+                ColorSequenceKeypoint.new(0.60, Color3.fromRGB(0, 255, 255)),
+                ColorSequenceKeypoint.new(0.80, Color3.fromRGB(0, 17, 255)),
+                ColorSequenceKeypoint.new(0.90, Color3.fromRGB(255, 0, 251)),
+                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 4))
+            }
+            HueGradient.Rotation = 270
+            HueGradient.Name = "HueGradient"
+            HueGradient.Parent = Hue
+
+            HueSelection.Name = "HueSelection"
+            HueSelection.Parent = Hue
+            HueSelection.AnchorPoint = Vector2.new(0.5, 0.5)
+            HueSelection.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            HueSelection.BackgroundTransparency = 1.000
+            HueSelection.Position = UDim2.new(0.48, 0, 1 - select(1, Color3.toHSV(preset or Color3.fromRGB(255, 0, 4))))
+            HueSelection.Size = UDim2.new(0, 18, 0, 18)
+            HueSelection.Image = "http://www.roblox.com/asset/?id=4805639000"
+            HueSelection.Visible = false
+            
+            RainbowSpeedSlider.Name = "RainbowSpeedSlider"
+            RainbowSpeedSlider.Parent = ColorpickerTitle
+            RainbowSpeedSlider.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+            RainbowSpeedSlider.Position = UDim2.new(1.26349044, 0, 3.15, 0)
+            RainbowSpeedSlider.Size = UDim2.new(0, 104, 0, 32)
+            RainbowSpeedSlider.Visible = false
+
+            RainbowSpeedSliderCorner.CornerRadius = UDim.new(0, 5)
+            RainbowSpeedSliderCorner.Name = "RainbowSpeedSliderCorner"
+            RainbowSpeedSliderCorner.Parent = RainbowSpeedSlider
+
+            RainbowSpeedLabel.Name = "RainbowSpeedLabel"
+            RainbowSpeedLabel.Parent = RainbowSpeedSlider
+            RainbowSpeedLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            RainbowSpeedLabel.BackgroundTransparency = 1.000
+            RainbowSpeedLabel.Position = UDim2.new(0, 0, 0, 0)
+            RainbowSpeedLabel.Size = UDim2.new(0, 104, 0, 15)
+            RainbowSpeedLabel.Font = Enum.Font.Gotham
+            RainbowSpeedLabel.Text = "Speed: 0.3x"
+            RainbowSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            RainbowSpeedLabel.TextSize = 12.000
+
+            local RainbowSpeedHitbox = Instance.new("Frame")
+            RainbowSpeedHitbox.Name = "RainbowSpeedHitbox"
+            RainbowSpeedHitbox.Parent = RainbowSpeedSlider
+            RainbowSpeedHitbox.BackgroundTransparency = 1
+            RainbowSpeedHitbox.Position = UDim2.new(0.05, -5, 0.5, -10)
+            RainbowSpeedHitbox.Size = UDim2.new(0, 104, 0, 24)
+            RainbowSpeedHitbox.ZIndex = 15
+
+            RainbowSpeedSliderBar.Name = "RainbowSpeedSliderBar"
+            RainbowSpeedSliderBar.Parent = RainbowSpeedSlider
+            RainbowSpeedSliderBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            RainbowSpeedSliderBar.Position = UDim2.new(0.05, 0, 0.65, 0)
+            RainbowSpeedSliderBar.Size = UDim2.new(0, 94, 0, 4)
+
+            RainbowSpeedSliderBarCorner.CornerRadius = UDim.new(1, 0)
+            RainbowSpeedSliderBarCorner.Name = "RainbowSpeedSliderBarCorner"
+            RainbowSpeedSliderBarCorner.Parent = RainbowSpeedSliderBar
+
+            RainbowSpeedSliderCircle.Name = "RainbowSpeedSliderCircle"
+            RainbowSpeedSliderCircle.Parent = RainbowSpeedSliderBar
+            RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
+            RainbowSpeedSliderCircle.Position = UDim2.new(0.069, -5, 0.5, -5)
+            RainbowSpeedSliderCircle.Size = UDim2.new(0, 10, 0, 10)
+            RainbowSpeedSliderCircle.ZIndex = 16
+
+            RainbowSpeedSliderCircleCorner.CornerRadius = UDim.new(1, 0)
+            RainbowSpeedSliderCircleCorner.Name = "RainbowSpeedSliderCircleCorner"
+            RainbowSpeedSliderCircleCorner.Parent = RainbowSpeedSliderCircle
+
+            coroutine.wrap(function()
+                while getgenv().libloaded do
+                    FrameRainbowToggle3.BackgroundColor3 = PresetColor
+                    RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
+                    task.wait()
+                end
+            end)()
+
+            function updateSpeedSlider(speed)
+                speed = math.clamp(speed, 0.1, 3)
+                rainbowSpeed = speed
                 
-                BoxColor.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
-                Color.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                local position = (speed - 0.1) / 2.9
+                RainbowSpeedSliderCircle.Position = UDim2.new(position, -5, 0.5, -5)
+                RainbowSpeedLabel.Text = "Speed: " .. string.format("%.1f", speed) .. "x"
+                
+                if RainbowConnection then
+                    RainbowConnection:Disconnect()
+                    
+                    local startTime = tick()
+                    RainbowConnection = rs.RenderStepped:Connect(function()
+                        local timeElapsed = (tick() - startTime) * rainbowSpeed
+                        local hue = (math.sin(timeElapsed) + 1) / 2
+                        
+                        BoxColor.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                        Color.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                        
+                        colorpicker.value = BoxColor.BackgroundColor3
+                        
+                        ColorSelection.Position = UDim2.new(1, 0, 0, 0)
+                        HueSelection.Position = UDim2.new(0.48, 0, 1 - hue, 0)
+                        
+                        pcall(callback, BoxColor.BackgroundColor3)
+                    end)
+                end
+            end
+            
+            library.Conn[#library.Conn + 1] = RainbowSpeedHitbox.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    isDraggingSpeed = true
+                    local mousePos = input.Position.X
+                    local sliderStart = RainbowSpeedSliderBar.AbsolutePosition.X
+                    local sliderEnd = sliderStart + RainbowSpeedSliderBar.AbsoluteSize.X
+                    local position = math.clamp((mousePos - sliderStart) / (sliderEnd - sliderStart), 0, 1)
+                    local speed = 0.1 + (position * 2.9)
+                    updateSpeedSlider(speed)
+                end
+            end)
+            
+            library.Conn[#library.Conn + 1] = RainbowSpeedHitbox.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    isDraggingSpeed = false
+                end
+            end)
+            
+            library.Conn[#library.Conn + 1] = RainbowSpeedSliderBar.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    isDraggingSpeed = true
+                    local sliderPos = input.Position.X - RainbowSpeedSliderBar.AbsolutePosition.X
+                    local sliderSize = RainbowSpeedSliderBar.AbsoluteSize.X
+                    local position = math.clamp(sliderPos / sliderSize, 0, 1)
+                    local speed = 0.1 + (position * 2.9)
+                    updateSpeedSlider(speed)
+                end
+            end)
+            
+            library.Conn[#library.Conn + 1] = RainbowSpeedSliderBar.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    isDraggingSpeed = false
+                end
+            end)
+            
+            library.Conn[#library.Conn + 1] = uis.InputChanged:Connect(function(input)
+                if isDraggingSpeed and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                    local mousePos = input.Position.X
+                    local sliderStart = RainbowSpeedSliderBar.AbsolutePosition.X
+                    local sliderEnd = sliderStart + RainbowSpeedSliderBar.AbsoluteSize.X
+                    local position = math.clamp((mousePos - sliderStart) / (sliderEnd - sliderStart), 0, 1)
+                    local speed = 0.1 + (position * 2.9)
+                    updateSpeedSlider(speed)
+                end
+            end)
+
+            library.Conn[#library.Conn + 1] = ColorpickerBtn.MouseButton1Click:Connect(function()
+                if ColorPickerToggled == false then
+                    ColorSelection.Visible = true
+                    HueSelection.Visible = true
+                    Colorpicker.Size = UDim2.new(0, 363, 0, RainbowColorPicker and 172 or 132)
+                    if RainbowColorPicker then
+                        RainbowSpeedSlider.Visible = true
+                    end
+                    wait(.2)
+                    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+                else
+                    ColorSelection.Visible = false
+                    HueSelection.Visible = false
+                    RainbowSpeedSlider.Visible = false
+                    Colorpicker.Size = UDim2.new(0, 363, 0, 42)
+                    wait(.2)
+                    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+                end
+                ColorPickerToggled = not ColorPickerToggled
+            end)
+
+            local colorpicker = {
+                value = preset or Color3.fromRGB(255, 0, 4),
+                rainbow = false,
+                rainbowSpeed = rainbowSpeed,
+                set = function(self, color)
+                    if typeof(color) ~= "Color3" then return end
+                    
+                    if self.rainbow then
+                        if RainbowConnection then
+                            RainbowConnection:Disconnect()
+                            RainbowConnection = nil
+                        end
+                        
+                        RainbowColorPicker = false
+                        self.rainbow = false
+                        
+                        tweensv:Create(FrameRainbowToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                        tweensv:Create(FrameRainbowToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                        tweensv:Create(FrameRainbowToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+                        tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+                        FrameRainbowToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
+                        
+                        RainbowSpeedSlider.Visible = false
+                        if ColorPickerToggled then
+                            Colorpicker.Size = UDim2.new(0, 363, 0, 132)
+                            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+                        end
+                    end
+                    
+                    self.value = color
+                    BoxColor.BackgroundColor3 = color
+                    Color.BackgroundColor3 = color
+                    
+                    local h, s, v = Color3.toHSV(color)
+                    ColorH, ColorS, ColorV = h, s, v
+                    
+                    ColorSelection.Position = UDim2.new(s, 0, 1 - v, 0)
+                    HueSelection.Position = UDim2.new(0.48, 0, 1 - h, 0)
+                    
+                    pcall(callback, color)
+                    return self
+                end,
+                setRainbow = function(self, state)
+                    RainbowColorPicker = state
+                    self.rainbow = state
+                    
+                    if state then
+                        OldToggleColor = BoxColor.BackgroundColor3
+                        OldColor = Color.BackgroundColor3
+                        OldColorSelectionPosition = ColorSelection.Position
+                        OldHueSelectionPosition = HueSelection.Position
+                        
+                        tweensv:Create(FrameRainbowToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+                        tweensv:Create(FrameRainbowToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+                        tweensv:Create(FrameRainbowToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                        tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+                        FrameRainbowToggleCircle.Position = UDim2.new(0.587, 0, 0.222000003, 0)
+                        
+                        RainbowSpeedSlider.Visible = ColorPickerToggled
+                        if ColorPickerToggled then
+                            Colorpicker.Size = UDim2.new(0, 363, 0, 172)
+                            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+                        end
+                        
+                        if RainbowConnection then
+                            RainbowConnection:Disconnect()
+                        end
+                        
+                        local startTime = tick()
+                        RainbowConnection = rs.RenderStepped:Connect(function()
+                            local timeElapsed = (tick() - startTime) * rainbowSpeed
+                            local hue = (math.sin(timeElapsed) + 1) / 2
+                            
+                            BoxColor.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                            Color.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                            
+                            self.value = BoxColor.BackgroundColor3
+                            
+                            ColorSelection.Position = UDim2.new(1, 0, 0, 0)
+                            HueSelection.Position = UDim2.new(0.48, 0, 1 - hue, 0)
+                            
+                            pcall(callback, BoxColor.BackgroundColor3)
+                        end)
+                    else
+                        tweensv:Create(FrameRainbowToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                        tweensv:Create(FrameRainbowToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                        tweensv:Create(FrameRainbowToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+                        tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+                        FrameRainbowToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
+                        
+                        RainbowSpeedSlider.Visible = false
+                        if ColorPickerToggled then
+                            Colorpicker.Size = UDim2.new(0, 363, 0, 132)
+                            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+                        end
+                        
+                        if RainbowConnection then
+                            RainbowConnection:Disconnect()
+                            RainbowConnection = nil
+                        end
+                        
+                        BoxColor.BackgroundColor3 = OldToggleColor
+                        Color.BackgroundColor3 = OldColor
+                        ColorSelection.Position = OldColorSelectionPosition
+                        HueSelection.Position = OldHueSelectionPosition
+                        self.value = BoxColor.BackgroundColor3
+                        
+                        pcall(callback, BoxColor.BackgroundColor3)
+                    end
+                    return self
+                end,
+                setRainbowSpeed = function(self, speed)
+                    updateSpeedSlider(speed)
+                    return self
+                end
+            }
+
+            if not library.flags then library.flags = {} end
+            library.flags[flag] = colorpicker
+
+            local function UpdateColorPicker(nope)
+                BoxColor.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
+                Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
                 
                 colorpicker.value = BoxColor.BackgroundColor3
-                
-                ColorSelection.Position = UDim2.new(1, 0, 0, 0)
-                HueSelection.Position = UDim2.new(0.48, 0, 1 - hue, 0)
-                
-                pcall(callback, BoxColor.BackgroundColor3)
-            end)
-        end
-    end
-    
-    library.Conn[#library.Conn + 1] = RainbowSpeedHitbox.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDraggingSpeed = true
-            local mousePos = input.Position.X
-            local sliderStart = RainbowSpeedSliderBar.AbsolutePosition.X
-            local sliderEnd = sliderStart + RainbowSpeedSliderBar.AbsoluteSize.X
-            local position = math.clamp((mousePos - sliderStart) / (sliderEnd - sliderStart), 0, 1)
-            local speed = 0.1 + (position * 2.9)
-            updateSpeedSlider(speed)
-        end
-    end)
-    
-    library.Conn[#library.Conn + 1] = RainbowSpeedHitbox.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDraggingSpeed = false
-        end
-    end)
-    
-    library.Conn[#library.Conn + 1] = RainbowSpeedSliderBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDraggingSpeed = true
-            local sliderPos = input.Position.X - RainbowSpeedSliderBar.AbsolutePosition.X
-            local sliderSize = RainbowSpeedSliderBar.AbsoluteSize.X
-            local position = math.clamp(sliderPos / sliderSize, 0, 1)
-            local speed = 0.1 + (position * 2.9)
-            updateSpeedSlider(speed)
-        end
-    end)
-    
-    library.Conn[#library.Conn + 1] = RainbowSpeedSliderBar.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDraggingSpeed = false
-        end
-    end)
-    
-    library.Conn[#library.Conn + 1] = uis.InputChanged:Connect(function(input)
-        if isDraggingSpeed and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local mousePos = input.Position.X
-            local sliderStart = RainbowSpeedSliderBar.AbsolutePosition.X
-            local sliderEnd = sliderStart + RainbowSpeedSliderBar.AbsoluteSize.X
-            local position = math.clamp((mousePos - sliderStart) / (sliderEnd - sliderStart), 0, 1)
-            local speed = 0.1 + (position * 2.9)
-            updateSpeedSlider(speed)
-        end
-    end)
-
-    library.Conn[#library.Conn + 1] = ColorpickerBtn.MouseButton1Click:Connect(function()
-        if ColorPickerToggled == false then
-            ColorSelection.Visible = true
-            HueSelection.Visible = true
-            Colorpicker.Size = UDim2.new(0, 363, 0, RainbowColorPicker and 172 or 132)
-            if RainbowColorPicker then
-                RainbowSpeedSlider.Visible = true
-            end
-            wait(.2)
-            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-        else
-            ColorSelection.Visible = false
-            HueSelection.Visible = false
-            RainbowSpeedSlider.Visible = false
-            Colorpicker.Size = UDim2.new(0, 363, 0, 42)
-            wait(.2)
-            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-        end
-        ColorPickerToggled = not ColorPickerToggled
-    end)
-
-    local colorpicker = {
-        value = preset or Color3.fromRGB(255, 0, 4),
-        rainbow = false,
-        rainbowSpeed = rainbowSpeed,
-        set = function(self, color)
-            if typeof(color) ~= "Color3" then return end
-            
-            if self.rainbow then
-                if RainbowConnection then
-                    RainbowConnection:Disconnect()
-                    RainbowConnection = nil
-                end
-                
-                RainbowColorPicker = false
-                self.rainbow = false
-                
-                tweensv:Create(FrameRainbowToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                tweensv:Create(FrameRainbowToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                tweensv:Create(FrameRainbowToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
-                FrameRainbowToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
-                
-                RainbowSpeedSlider.Visible = false
-                if ColorPickerToggled then
-                    Colorpicker.Size = UDim2.new(0, 363, 0, 132)
-                    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-                end
-            end
-            
-            self.value = color
-            BoxColor.BackgroundColor3 = color
-            Color.BackgroundColor3 = color
-            
-            local h, s, v = Color3.toHSV(color)
-            ColorH, ColorS, ColorV = h, s, v
-            
-            ColorSelection.Position = UDim2.new(s, 0, 1 - v, 0)
-            HueSelection.Position = UDim2.new(0.48, 0, 1 - h, 0)
-            
-            pcall(callback, color)
-            return self
-        end,
-        setRainbow = function(self, state)
-            RainbowColorPicker = state
-            self.rainbow = state
-            
-            if state then
-                OldToggleColor = BoxColor.BackgroundColor3
-                OldColor = Color.BackgroundColor3
-                OldColorSelectionPosition = ColorSelection.Position
-                OldHueSelectionPosition = HueSelection.Position
-                
-                tweensv:Create(FrameRainbowToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                tweensv:Create(FrameRainbowToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                tweensv:Create(FrameRainbowToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-                FrameRainbowToggleCircle.Position = UDim2.new(0.587, 0, 0.222000003, 0)
-                
-                RainbowSpeedSlider.Visible = ColorPickerToggled
-                if ColorPickerToggled then
-                    Colorpicker.Size = UDim2.new(0, 363, 0, 172)
-                    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-                end
-                
-                if RainbowConnection then
-                    RainbowConnection:Disconnect()
-                end
-                
-                local startTime = tick()
-                RainbowConnection = rs.RenderStepped:Connect(function()
-                    local timeElapsed = (tick() - startTime) * rainbowSpeed
-                    local hue = (math.sin(timeElapsed) + 1) / 2
-                    
-                    BoxColor.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
-                    Color.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
-                    
-                    self.value = BoxColor.BackgroundColor3
-                    
-                    ColorSelection.Position = UDim2.new(1, 0, 0, 0)
-                    HueSelection.Position = UDim2.new(0.48, 0, 1 - hue, 0)
-                    
-                    pcall(callback, BoxColor.BackgroundColor3)
-                end)
-            else
-                tweensv:Create(FrameRainbowToggle1, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                tweensv:Create(FrameRainbowToggle2, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                tweensv:Create(FrameRainbowToggle3, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
-                FrameRainbowToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
-                
-                RainbowSpeedSlider.Visible = false
-                if ColorPickerToggled then
-                    Colorpicker.Size = UDim2.new(0, 363, 0, 132)
-                    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-                end
-                
-                if RainbowConnection then
-                    RainbowConnection:Disconnect()
-                    RainbowConnection = nil
-                end
-                
-                BoxColor.BackgroundColor3 = OldToggleColor
-                Color.BackgroundColor3 = OldColor
-                ColorSelection.Position = OldColorSelectionPosition
-                HueSelection.Position = OldHueSelectionPosition
-                self.value = BoxColor.BackgroundColor3
-                
                 pcall(callback, BoxColor.BackgroundColor3)
             end
-            return self
-        end,
-        setRainbowSpeed = function(self, speed)
-            updateSpeedSlider(speed)
-            return self
-        end
-    }
 
-    if not library.flags then library.flags = {} end
-    library.flags[flag] = colorpicker
+            ColorH = 1 - (math.clamp(HueSelection.AbsolutePosition.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
+            ColorS = (math.clamp(ColorSelection.AbsolutePosition.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
+            ColorV = 1 - (math.clamp(ColorSelection.AbsolutePosition.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
 
-    local function UpdateColorPicker(nope)
-        BoxColor.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
-        Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
-        
-        colorpicker.value = BoxColor.BackgroundColor3
-        pcall(callback, BoxColor.BackgroundColor3)
-    end
+            BoxColor.BackgroundColor3 = preset or Color3.fromRGB(255, 0, 4)
+            Color.BackgroundColor3 = preset or Color3.fromRGB(255, 0, 4)
+            colorpicker.value = BoxColor.BackgroundColor3
+            pcall(callback, BoxColor.BackgroundColor3)
 
-    ColorH = 1 - (math.clamp(HueSelection.AbsolutePosition.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
-    ColorS = (math.clamp(ColorSelection.AbsolutePosition.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
-    ColorV = 1 - (math.clamp(ColorSelection.AbsolutePosition.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
+            library.Conn[#library.Conn + 1] = Color.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    if RainbowColorPicker then return end
 
-    BoxColor.BackgroundColor3 = preset or Color3.fromRGB(255, 0, 4)
-    Color.BackgroundColor3 = preset or Color3.fromRGB(255, 0, 4)
-    colorpicker.value = BoxColor.BackgroundColor3
-    pcall(callback, BoxColor.BackgroundColor3)
+                    if ColorInput then
+                        ColorInput:Disconnect()
+                    end
 
-    library.Conn[#library.Conn + 1] = Color.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if RainbowColorPicker then return end
+                    ColorInput = rs.RenderStepped:Connect(function()
+                        local ColorX = (math.clamp(ms.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
+                        local ColorY = (math.clamp(ms.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
 
-            if ColorInput then
-                ColorInput:Disconnect()
-            end
+                        ColorSelection.Position = UDim2.new(ColorX, 0, ColorY, 0)
+                        ColorS = ColorX
+                        ColorV = 1 - ColorY
 
-            ColorInput = rs.RenderStepped:Connect(function()
-                local ColorX = (math.clamp(ms.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
-                local ColorY = (math.clamp(ms.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
-
-                ColorSelection.Position = UDim2.new(ColorX, 0, ColorY, 0)
-                ColorS = ColorX
-                ColorV = 1 - ColorY
-
-                UpdateColorPicker(true)
+                        UpdateColorPicker(true)
+                    end)
+                end
             end)
-        end
-    end)
 
-    library.Conn[#library.Conn + 1] = Color.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if ColorInput then
-                ColorInput:Disconnect()
-            end
-        end
-    end)
-
-    library.Conn[#library.Conn + 1] = Hue.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if RainbowColorPicker then return end
-
-            if HueInput then
-                HueInput:Disconnect()
-            end
-
-            HueInput = rs.RenderStepped:Connect(function()
-                local HueY = (math.clamp(ms.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
-
-                HueSelection.Position = UDim2.new(0.48, 0, HueY, 0)
-                ColorH = 1 - HueY
-
-                UpdateColorPicker(true)
+            library.Conn[#library.Conn + 1] = Color.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    if ColorInput then
+                        ColorInput:Disconnect()
+                    end
+                end
             end)
+
+            library.Conn[#library.Conn + 1] = Hue.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    if RainbowColorPicker then return end
+
+                    if HueInput then
+                        HueInput:Disconnect()
+                    end
+
+                    HueInput = rs.RenderStepped:Connect(function()
+                        local HueY = (math.clamp(ms.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
+
+                        HueSelection.Position = UDim2.new(0.48, 0, HueY, 0)
+                        ColorH = 1 - HueY
+
+                        UpdateColorPicker(true)
+                    end)
+                end
+            end)
+
+            library.Conn[#library.Conn + 1] = Hue.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    if HueInput then
+                        HueInput:Disconnect()
+                    end
+                end
+            end)
+            
+            library.Conn[#library.Conn + 1] = RainbowToggle.MouseButton1Click:Connect(function()
+                colorpicker:setRainbow(not RainbowColorPicker)
+            end)
+
+            library.Conn[#library.Conn + 1] = ConfirmBtn.MouseButton1Click:Connect(function()
+                ColorSelection.Visible = false
+                HueSelection.Visible = false
+                RainbowSpeedSlider.Visible = false
+                Colorpicker.Size = UDim2.new(0, 363, 0, 42)
+                wait(.2)
+                Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+                ColorPickerToggled = false
+            end)
+
+            library.Conn[#library.Conn + 1] = Colorpicker.Destroying:Connect(function()
+                if RainbowConnection then
+                    RainbowConnection:Disconnect()
+                end
+            end)
+
+            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+            return colorpicker
         end
-    end)
-
-    library.Conn[#library.Conn + 1] = Hue.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if HueInput then
-                HueInput:Disconnect()
-            end
-        end
-    end)
-    
-    library.Conn[#library.Conn + 1] = RainbowToggle.MouseButton1Click:Connect(function()
-        colorpicker:setRainbow(not RainbowColorPicker)
-    end)
-
-    library.Conn[#library.Conn + 1] = ConfirmBtn.MouseButton1Click:Connect(function()
-        ColorSelection.Visible = false
-        HueSelection.Visible = false
-        RainbowSpeedSlider.Visible = false
-        Colorpicker.Size = UDim2.new(0, 363, 0, 42)
-        wait(.2)
-        Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-        ColorPickerToggled = false
-    end)
-
-    library.Conn[#library.Conn + 1] = Colorpicker.Destroying:Connect(function()
-        if RainbowConnection then
-            RainbowConnection:Disconnect()
-        end
-    end)
-
-    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-    return colorpicker
-end
 
         function tabcontent:Label(text)
             local Label = Instance.new("TextLabel")
