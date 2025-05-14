@@ -2665,10 +2665,8 @@ function library:ConfigSystem(tab, name)
     end
     
     cfg.sync = sync
-    
-    local function pack(val)
+    function pack(val)
         local typ = typeof(val)
-        
         if typ == "Color3" then
             return {
                 __type = "Color3",
@@ -2683,6 +2681,13 @@ function library:ConfigSystem(tab, name)
                 value = val.Name
             }
         elseif typ == "table" then
+            if val.keyName ~= nil and typeof(val.value) == "EnumItem" then
+                return {
+                    __type = "Keybind",
+                    keyName = val.keyName,
+                    value = pack(val.value)
+                }
+            end
             if val.rainbow ~= nil then
                 local res = pack(val.value)
                 if type(res) == "table" then
@@ -2690,7 +2695,6 @@ function library:ConfigSystem(tab, name)
                 end
                 return res
             end
-            
             local out = {}
             for k, v in pairs(val) do
                 out[k] = pack(v)
@@ -2700,22 +2704,25 @@ function library:ConfigSystem(tab, name)
             return val
         end
     end
-    
-    local function unpack(val)
+    function unpack(val)
         if type(val) ~= "table" then 
             return val 
         end
-        
         if val.__type == "Color3" then
             return Color3.new(val.r, val.g, val.b)
         elseif val.__type == "EnumItem" then
             local typ = val.enumType
             local name = typ:match("Enum%.([^%s]+)")
-            
             if name and Enum[name] then
                 return Enum[name][val.value]
             end
             return nil
+        elseif val.__type == "Keybind" then
+            local keyValue = unpack(val.value)
+            return {
+                keyName = val.keyName,
+                value = keyValue
+            }
         elseif val.__rainbow ~= nil then
             local res = unpack(val)
             return res
@@ -2950,45 +2957,41 @@ function library:ConfigSystem(tab, name)
         if not cfg.pick then
             return library:Notification("Error", "No config selected.", "OK")
         end
-        
         local path = dir .. "/" .. cfg.pick .. ".json"
         local ok, raw = pcall(readfile, path)
-        
         if not ok then
             return library:Notification("Error", "Config does not exist.", "OK")
         end
-        
         local valid, data = pcall(function() 
             return game:GetService("HttpService"):JSONDecode(raw) 
         end)
-        
         if not valid or type(data.values) ~= "table" then
             return library:Notification("Error", "Invalid config format.", "OK")
         end
-        
         local loaded = 0
-        
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
-            
             if library.flags[flag] then
                 local parsed = unpack(val)
-                
                 task.spawn(function()
                     pcall(function()
-                        if type(library.flags[flag]) == "table" and type(library.flags[flag].set) == "function" then
-                            library.flags[flag]:set(parsed)
-                            loaded = loaded + 1
+                        local element = library.flags[flag]
+                        if type(element) == "table" then
+                            if typeof(parsed) == "table" and parsed.keyName and parsed.value and typeof(element.setKey) == "function" then
+                                element:setKey(parsed.value)
+                                loaded = loaded + 1
+                            elseif typeof(element.set) == "function" then
+                                element:set(parsed)
+                                loaded = loaded + 1
+                            end
                         end
                     end)
                 end)
             end
         end
-        
         task.delay(0.3, function()
             for flag, val in pairs(data.values) do
                 if not flag:match("_rainbow$") then continue end
-                
                 local base = flag:gsub("_rainbow$", "")
                 if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
                     pcall(function()
@@ -2996,11 +2999,9 @@ function library:ConfigSystem(tab, name)
                     end)
                 end
             end
-            
             library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK")
         end)
     end)
-    
     tab:Button("Delete Config", function()
         if not cfg.pick then
             return library:Notification("Error", "No config selected.", "OK")
