@@ -2690,12 +2690,13 @@ function pack(val)
             value = val.Name
         }
     elseif typ == "table" then
-        -- Direct access for slider values - FIXED
-        if type(val.value) == "number" then
+        -- DIRECT VALUE EXTRACTION - KEY FIX
+        -- For sliders, just save the numeric value directly
+        if type(val.value) == "number" and typeof(val.set) == "function" and typeof(val.getValue) == "function" then
             return val.value
         end
         
-        -- Handle colorpickers - FIXED
+        -- For colorpickers, properly save with rainbow state
         if typeof(val.value) == "Color3" then
             local colorData = {
                 __type = "Color3",
@@ -2711,21 +2712,33 @@ function pack(val)
             return colorData
         end
         
-        -- Handle keybinds
-        if val.keyName and val.value then
-            if typeof(val.value) == "EnumItem" then
-                return {
-                    __type = "Keybind",
-                    keyName = val.keyName,
-                    value = pack(val.value)
+        -- For keybinds (both Bind and KeybindT)
+        if val.keyCode or (val.value ~= nil and typeof(val.value) == "EnumItem") then
+            local keyData = {
+                __type = "Keybind",
+                keyName = val.keyName or (val.keyCode and val.keyCode.Name)
+            }
+            
+            if val.keyCode then
+                keyData.value = {
+                    __type = "EnumItem",
+                    enumType = "Enum.KeyCode",
+                    value = val.keyCode.Name
                 }
+            else if val.value then
+                keyData.value = pack(val.value)
             end
+            end
+            
+            return keyData
         end
         
-        -- Handle general tables
+        -- For other tables, strip functions to avoid circular refs
         local out = {}
         for k, v in pairs(val) do
-            out[k] = pack(v)
+            if type(v) ~= "function" then
+                out[k] = pack(v)
+            end
         end
         return out
     else
@@ -2735,18 +2748,18 @@ end
 
 function unpack(val)
     if type(val) ~= "table" then 
-        return val
+        return val -- Simple values returned as-is
     end
     
     if val.__type == "Color3" then
-        local color = Color3.new(val.r, val.g, val.b)
         if val.__rainbow then
+            -- Return structure needed for colorpickers with rainbow
             return {
-                value = color,
+                value = Color3.new(val.r, val.g, val.b),
                 rainbow = val.__rainbow
             }
         end
-        return color
+        return Color3.new(val.r, val.g, val.b)
     elseif val.__type == "EnumItem" then
         local typ = val.enumType
         local name = typ:match("Enum%.([^%s]+)")
@@ -2756,10 +2769,17 @@ function unpack(val)
         end
         return nil
     elseif val.__type == "Keybind" then
-        local keyValue = unpack(val.value)
+        -- Handle keybind objects properly
+        local keyEnum
+        if type(val.value) == "table" and val.value.__type == "EnumItem" then
+            keyEnum = unpack(val.value)
+        elseif type(val.value) == "string" then
+            keyEnum = Enum.KeyCode[val.value]
+        end
+        
         return {
             keyName = val.keyName,
-            value = keyValue
+            value = keyEnum or Enum.KeyCode[val.keyName]
         }
     else
         local out = {}
@@ -2937,81 +2957,122 @@ end
         end
     end)
     
-    tab:Button("Save/Overwrite Config", function()
-        if not cfg.pick then
-            library:Notification("Error", "No config selected.", "OK")
-            return
-        end
+tab:Button("Save/Overwrite Config", function()
+    if not cfg.pick then
+        library:Notification("Error", "No config selected.", "OK")
+        return
+    end
+    
+    local path = dir .. "/" .. cfg.pick .. ".json"
+    local old = {}
+    
+    local ok, raw = pcall(readfile, path)
+    if ok then
+        local valid, data = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(raw)
+        end)
         
-        local path = dir .. "/" .. cfg.pick .. ".json"
-        local old = {}
-        
-        local ok, raw = pcall(readfile, path)
-        if ok then
-            local valid, data = pcall(function()
-                return game:GetService("HttpService"):JSONDecode(raw)
-            end)
+        if valid and type(data) == "table" and type(data.values) == "table" then
+            old = data.values
+            data.metadata = data.metadata or {}
+            data.metadata.lastModified = os.time()
+            data.values = {}
             
-            if valid and type(data) == "table" and type(data.values) == "table" then
-                old = data.values
-                data.metadata = data.metadata or {}
-                data.metadata.lastModified = os.time()
-                data.values = {}
-                
-                local now = {}
-                for flag, elem in pairs(library.flags) do
-                    if elem and type(elem) == "table" then
-                        if not flag:match("_rainbow$") then
-                            data.values[flag] = pack(elem)
-                            now[flag] = true
+            local now = {}
+            for flag, elem in pairs(library.flags) do
+                if elem and type(elem) == "table" then
+                    if not flag:match("_rainbow$") then
+                        -- Get the real value based on element type
+                        local value
+                        
+                        -- For sliders, directly access numeric value
+                        if flag:find("[sS]lider") and type(elem.value) == "number" then
+                            value = elem.value
+                        -- For keybinds, format specially 
+                        elseif (flag:find("[bB]ind") or flag:find("[kK]eybind")) and (elem.keyCode or elem.value) then
+                            local keyData = {
+                                __type = "Keybind",
+                                keyName = elem.keyName or (elem.keyCode and elem.keyCode.Name) or "Unknown"
+                            }
+                            
+                            if elem.keyCode then
+                                keyData.value = {
+                                    __type = "EnumItem",
+                                    enumType = "Enum.KeyCode",
+                                    value = elem.keyCode.Name
+                                }
+                            elseif typeof(elem.value) == "EnumItem" then
+                                keyData.value = {
+                                    __type = "EnumItem",
+                                    enumType = "Enum.KeyCode",
+                                    value = elem.value.Name
+                                }
+                            end
+                            
+                            value = keyData
+                        -- For colorpickers, format with rainbow state
+                        elseif flag:find("[cC]olor") and typeof(elem.value) == "Color3" then
+                            value = {
+                                __type = "Color3",
+                                r = elem.value.R,
+                                g = elem.value.G,
+                                b = elem.value.B
+                            }
+                            
+                            if elem.rainbow ~= nil then
+                                value.__rainbow = elem.rainbow
+                            end
+                        else
+                            -- For all other elements use the pack function
+                            value = pack(elem)
                         end
-
-                        if type(elem.rainbow) == "boolean" then
-                            data.values[flag.."_rainbow"] = elem.rainbow
-                        end
+                        
+                        data.values[flag] = value
+                        now[flag] = true
                     end
                 end
+            end
+            
+            local add, del, changed, same = diff(old, data.values)
+            
+            ok = pcall(writefile, path, game:GetService("HttpService"):JSONEncode(data))
+            
+            if ok then
+                local msg = ""
+                local hasChanges = false
                 
-                local add, del, changed, same = diff(old, data.values)
-                
-                ok = pcall(writefile, path, game:GetService("HttpService"):JSONEncode(data))
-                
-                if ok then
-                    local msg = ""
-                    local hasChanges = false
-                    
-                    if add > 0 then
-                        msg = msg .. add .. " new setting" .. (add > 1 and "s" or "") .. " added"
-                        hasChanges = true
-                    end
-                    
-                    if changed > 0 then
-                        if msg ~= "" then msg = msg .. ", " end
-                        msg = msg .. changed .. " setting" .. (changed > 1 and "s" or "") .. " changed"
-                        hasChanges = true
-                    end
-                    
-                    if del > 0 then
-                        if msg ~= "" then msg = msg .. ", " end
-                        msg = msg .. del .. " setting" .. (del > 1 and "s" or "") .. " removed"
-                        hasChanges = true
-                    end
-                    
-                    if not hasChanges then
-                        msg = "No settings have been modified"
-                    end
-                    
-                    library:Notification("Config Saved", "\"" .. cfg.pick .. "\": " .. msg, "OK")
-                else
-                    library:Notification("Error", "Failed to save config file.", "OK")
+                if add > 0 then
+                    msg = msg .. add .. " new setting" .. (add > 1 and "s" or "") .. " added"
+                    hasChanges = true
                 end
+                
+                if changed > 0 then
+                    if msg ~= "" then msg = msg .. ", " end
+                    msg = msg .. changed .. " setting" .. (changed > 1 and "s" or "") .. " changed"
+                    hasChanges = true
+                end
+                
+                if del > 0 then
+                    if msg ~= "" then msg = msg .. ", " end
+                    msg = msg .. del .. " setting" .. (del > 1 and "s" or "") .. " removed"
+                    hasChanges = true
+                end
+                
+                if not hasChanges then
+                    msg = "No settings have been modified"
+                end
+                
+                library:Notification("Config Saved", "\"" .. cfg.pick .. "\": " .. msg, "OK")
             else
-                library:Notification("Error", "Invalid config format.", "OK")
+                library:Notification("Error", "Failed to save config file.", "OK")
             end
         else
-            library:Notification("Error", "Config does not exist.", "OK")
+            library:Notification("Error", "Invalid config format.", "OK")
         end
-    end)
+    else
+        library:Notification("Error", "Config does not exist.", "OK")
+    end
+end)
     
 tab:Button("Load Config", function()
     if not cfg.pick then
@@ -3044,16 +3105,43 @@ tab:Button("Load Config", function()
             task.spawn(function()
                 pcall(function()
                     if type(element) == "table" and typeof(element.set) == "function" then
-                        -- FIXED: Direct handling for sliders with numeric values
-                        if flag:find("Slider") and type(val) == "number" then
+                        -- Handle sliders (simple numeric values)
+                        if type(val) == "number" then
                             element:set(val)
                             loaded = loaded + 1
                         -- Handle colorpickers
-                        elseif flag:find("Color") and type(val) == "table" and val.__type == "Color3" then
+                        elseif type(val) == "table" and val.__type == "Color3" then
                             local color = Color3.new(val.r, val.g, val.b)
                             element:set(color)
+                            
+                            -- Handle rainbow state separately
+                            if val.__rainbow ~= nil and typeof(element.setRainbow) == "function" then
+                                task.delay(0.1, function()
+                                    element:setRainbow(val.__rainbow)
+                                end)
+                            end
+                            
+                            loaded = loaded + 1
+                        -- Handle keybinds
+                        elseif type(val) == "table" and val.__type == "Keybind" then
+                            local keyEnum
+                            if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                                keyEnum = Enum.KeyCode[val.value.value]
+                            else
+                                keyEnum = Enum.KeyCode[val.keyName]
+                            end
+                            
+                            if keyEnum then
+                                element:set(keyEnum)
+                                -- For KeybindT, also handle toggle state
+                                if element.toggle and val.value == true then
+                                    element:toggle()
+                                end
+                            end
+                            
                             loaded = loaded + 1
                         else
+                            -- General case for all other element types
                             local parsed = unpack(val)
                             element:set(parsed)
                             loaded = loaded + 1
@@ -3064,30 +3152,7 @@ tab:Button("Load Config", function()
         end
     end
     
-    -- Handle rainbow settings separately
     task.delay(0.3, function()
-        for flag, val in pairs(data.values) do
-            if not flag:match("_rainbow$") then
-                -- Check for embedded rainbow data in colorpickers
-                if type(val) == "table" and val.__type == "Color3" and val.__rainbow then
-                    local base = flag
-                    if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
-                        pcall(function()
-                            library.flags[base]:setRainbow(val.__rainbow)
-                        end)
-                    end
-                end
-                continue
-            end
-            
-            local base = flag:gsub("_rainbow$", "")
-            if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
-                pcall(function()
-                    library.flags[base]:setRainbow(val)
-                end)
-            end
-        end
-        
         library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK")
     end)
 end)
