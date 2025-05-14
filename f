@@ -3905,7 +3905,8 @@ function library:ConfigSystem(tab, name)
 
     tab:Button("Load Config", function()
         if not cfg.pick then return library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239") end
-        doLoadConfig(cfg.pick, true)
+        local loaded = doLoadConfig(cfg.pick, true)
+        if not loaded then return end
     end)
 
     tab:Button("Delete Config", function()
