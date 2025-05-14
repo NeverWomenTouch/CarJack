@@ -3578,136 +3578,62 @@ end
 ----------------------------------------------------------------// CONFIG SYSTEM //----------------------------------------------------------------
 function library:ConfigSystem(tab, name)
     local dir = library.Folder or "Dendrite.cc"
-
-    if not isfolder(dir) then
-        makefolder(dir)
-    end
-
-    local cfg = {
-        list = {},
-        pick = nil,
-        auto = nil
-    }
-
+    if not isfolder(dir) then makefolder(dir) end
+    local cfg = { list = {}, pick = nil, auto = nil }
     library.flags = library.flags or {}
 
-    function sync()
+    local function sync()
         table.clear(cfg.list)
-
         local ok, files = pcall(listfiles, dir)
-        if not ok then
-            return {}
-        end
-
+        if not ok then return {} end
         for _, file in ipairs(files) do
-            local name = file:match("[^/\\]+$")
-            local item = name and name:match("^(.+)%.json$")
-
+            local fname = file:match("[^/\\]+$")
+            local item = fname and fname:match("^(.+)%.json$")
             if item then
                 table.insert(cfg.list, item)
-
                 local got, content = pcall(readfile, file)
                 if got then
-                    local valid, data = pcall(function()
-                        return game:GetService("HttpService"):JSONDecode(content)
-                    end)
-
-                    if valid and type(data) == "table" and
-                        type(data.metadata) == "table" and data.metadata.autoLoad then
+                    local data = game:GetService("HttpService"):JSONDecode(content)
+                    if type(data) == "table" and type(data.metadata) == "table" and data.metadata.autoLoad then
                         cfg.auto = item
                     end
                 end
             end
         end
-
         return cfg.list
     end
-
     cfg.sync = sync
 
-    function pack(val)
+    local function pack(val)
         local typ = typeof(val)
-
         if typ == "Color3" then
-            return {
-                __type = "Color3",
-                r = val.R,
-                g = val.G,
-                b = val.B
-            }
+            return { __type = "Color3", r = val.R, g = val.G, b = val.B }
         elseif typ == "EnumItem" then
-            return {
-                __type = "EnumItem",
-                enumType = tostring(val.EnumType),
-                value = val.Name
-            }
+            return { __type = "EnumItem", enumType = tostring(val.EnumType), value = val.Name }
         elseif typ == "table" then
             if type(val.value) == "number" then
                 return val.value
             elseif typeof(val.value) == "Color3" then
-                local colorData = {
-                    __type = "Color3",
-                    r = val.value.R,
-                    g = val.value.G,
-                    b = val.value.B
-                }
-
-                if val.rainbow ~= nil then
-                    colorData.__rainbow = val.rainbow
-                end
-
+                local colorData = { __type = "Color3", r = val.value.R, g = val.value.G, b = val.value.B }
+                if val.rainbow ~= nil then colorData.__rainbow = val.rainbow end
                 return colorData
             end
-
             if val.keyCode then
-                local keyData = {
-                    __type = "Keybind",
-                    keyName = val.keyName or (val.keyCode and val.keyCode.Name) or "Unknown"
-                }
-
-                keyData.value = {
-                    __type = "EnumItem",
-                    enumType = "Enum.KeyCode",
-                    value = val.keyCode.Name
-                }
-
-                if val.mode then
-                    keyData.mode = val.mode
-                end
-
-                if type(val.value) == "boolean" then
-                    keyData.toggleState = val.value
-                end
-
+                local keyData = { __type = "Keybind", keyName = val.keyName or (val.keyCode and val.keyCode.Name) or "Unknown" }
+                keyData.value = { __type = "EnumItem", enumType = "Enum.KeyCode", value = val.keyCode.Name }
+                if val.mode then keyData.mode = val.mode end
+                if type(val.value) == "boolean" then keyData.toggleState = val.value end
                 return keyData
             elseif val.value ~= nil and typeof(val.value) == "EnumItem" then
-                local keyData = {
-                    __type = "Keybind",
-                    keyName = val.value.Name
-                }
-
-                keyData.value = {
-                    __type = "EnumItem",
-                    enumType = "Enum.KeyCode",
-                    value = val.value.Name
-                }
-
-                if val.mode then
-                    keyData.mode = val.mode
-                end
-
-                if type(val.value) == "boolean" then
-                    keyData.toggleState = val.value
-                end
-
+                local keyData = { __type = "Keybind", keyName = val.value.Name }
+                keyData.value = { __type = "EnumItem", enumType = "Enum.KeyCode", value = val.value.Name }
+                if val.mode then keyData.mode = val.mode end
+                if type(val.value) == "boolean" then keyData.toggleState = val.value end
                 return keyData
             end
-
             local out = {}
             for k, v in pairs(val) do
-                if type(v) ~= "function" then
-                    out[k] = pack(v)
-                end
+                if type(v) ~= "function" then out[k] = pack(v) end
             end
             return out
         else
@@ -3715,26 +3641,17 @@ function library:ConfigSystem(tab, name)
         end
     end
 
-    function unpack(val)
-        if type(val) ~= "table" then
-            return val
-        end
-
+    local function unpack(val)
+        if type(val) ~= "table" then return val end
         if val.__type == "Color3" then
             if val.__rainbow then
-                return {
-                    value = Color3.new(val.r, val.g, val.b),
-                    rainbow = val.__rainbow
-                }
+                return { value = Color3.new(val.r, val.g, val.b), rainbow = val.__rainbow }
             end
             return Color3.new(val.r, val.g, val.b)
         elseif val.__type == "EnumItem" then
             local typ = val.enumType
             local name = typ:match("Enum%.([^%s]+)")
-
-            if name and Enum[name] then
-                return Enum[name][val.value]
-            end
+            if name and Enum[name] then return Enum[name][val.value] end
             return nil
         elseif val.__type == "Keybind" then
             local keyEnum
@@ -3743,128 +3660,65 @@ function library:ConfigSystem(tab, name)
             else
                 keyEnum = Enum.KeyCode[val.keyName]
             end
-
-            local result = {
-                keyName = val.keyName,
-                keyCode = keyEnum or Enum.KeyCode[val.keyName]
-            }
-
-            if val.mode then
-                result.mode = val.mode
-            end
-
-            if val.toggleState ~= nil then
-                result.value = val.toggleState
-            end
-
+            local result = { keyName = val.keyName, keyCode = keyEnum or Enum.KeyCode[val.keyName] }
+            if val.mode then result.mode = val.mode end
+            if val.toggleState ~= nil then result.value = val.toggleState end
             return result
         else
             local out = {}
-            for k, v in pairs(val) do
-                out[k] = unpack(v)
-            end
+            for k, v in pairs(val) do out[k] = unpack(v) end
             return out
         end
     end
 
-    function diff(old, new)
+    local function diff(old, new)
         local add, del, changed, same = 0, 0, 0, 0
-        local omap = {}
-        local nmap = {}
-
+        local omap, nmap = {}, {}
         local HttpService = game:GetService("HttpService")
-
-        for flag, val in pairs(old or {}) do
-            if not flag:match("_rainbow$") then
-                omap[flag] = val
-            end
-        end
-
+        for flag, val in pairs(old or {}) do if not flag:match("_rainbow$") then omap[flag] = val end end
         for flag, val in pairs(new or {}) do
             if not flag:match("_rainbow$") then
                 nmap[flag] = val
-
                 if omap[flag] then
-                    local oldJson, newJson
-                    local success = pcall(function()
-                        oldJson = HttpService:JSONEncode(omap[flag])
-                        newJson = HttpService:JSONEncode(val)
-                    end)
-
-                    if success and oldJson ~= newJson then
-                        changed = changed + 1
-                    else
-                        same = same + 1
-                    end
+                    local oldJson = HttpService:JSONEncode(omap[flag])
+                    local newJson = HttpService:JSONEncode(val)
+                    if oldJson ~= newJson then changed = changed + 1 else same = same + 1 end
                 else
                     add = add + 1
                 end
             end
         end
-
-        for flag, _ in pairs(omap) do
-            if not nmap[flag] then
-                del = del + 1
-            end
-        end
-
+        for flag, _ in pairs(omap) do if not nmap[flag] then del = del + 1 end end
         return add, del, changed, same
     end
 
     sync()
-
     tab:Label("CONFIGURATION SYSTEM")
-
     local nameBox = tab:Textbox("Config Name", false, function() end, "config_name_input")
-
-    local menu = tab:NewDropdown("Select Config", cfg.list, function(item)
-        cfg.pick = item
-    end, false, "config_selector")
-
+    local menu = tab:NewDropdown("Select Config", cfg.list, function(item) cfg.pick = item end, false, "config_selector")
     local silentAutoLoadUpdate = false
 
     local autoLoad = tab:Toggle("Auto Load Selected Config", false, function(on)
-        if silentAutoLoadUpdate then
-            silentAutoLoadUpdate = false
-            return
-        end
-
-        if not cfg.pick then
-            library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239")
-            return
-        end
-
+        if silentAutoLoadUpdate then silentAutoLoadUpdate = false return end
+        if not cfg.pick then library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239") return end
         local path = dir .. "/" .. cfg.pick .. ".json"
         local ok, raw = pcall(readfile, path)
-
         if ok then
-            local valid, data = false, nil
-            
-            valid, data = pcall(function()
-                return game:GetService("HttpService"):JSONDecode(raw)
-            end)
-
-            if not valid or type(data) ~= "table" then
-                library:Notification("Error", "Invalid config format.", "OK", "rbxassetid://83065037218239")
-                return
+            local data = game:GetService("HttpService"):JSONDecode(raw)
+            if type(data) ~= "table" then
+                library:Notification("Error", "Invalid config format.", "OK", "rbxassetid://83065037218239") return
             end
-
             data.metadata = data.metadata or {}
             data.metadata.autoLoad = on
             data.metadata.lastModified = os.time()
-
             if on then
                 for _, name in ipairs(cfg.list) do
                     if name ~= cfg.pick then
                         local other = dir .. "/" .. name .. ".json"
                         local has, file = pcall(readfile, other)
-
                         if has then
-                            local good, info = pcall(function()
-                                return game:GetService("HttpService"):JSONDecode(file)
-                            end)
-
-                            if good and info.metadata then
+                            local info = game:GetService("HttpService"):JSONDecode(file)
+                            if info.metadata then
                                 info.metadata.autoLoad = false
                                 pcall(writefile, other, game:GetService("HttpService"):JSONEncode(info))
                             end
@@ -3872,18 +3726,14 @@ function library:ConfigSystem(tab, name)
                     end
                 end
             end
-
             local jsonData = game:GetService("HttpService"):JSONEncode(data)
             local saved = pcall(writefile, path, jsonData)
-
             if saved then
                 if on then
                     cfg.auto = cfg.pick
                     library:Notification("Success", "Auto-load enabled for config: " .. cfg.pick, "OK", "rbxassetid://83065037218239", 6)
                 else
-                    if cfg.auto == cfg.pick then
-                        cfg.auto = nil
-                    end
+                    if cfg.auto == cfg.pick then cfg.auto = nil end
                     library:Notification("Success", "Auto-load disabled for config: " .. cfg.pick, "OK", "rbxassetid://83065037218239", 6)
                 end
             else
@@ -3900,34 +3750,10 @@ function library:ConfigSystem(tab, name)
 
     tab:Button("Create Config", function()
         local name = library.flags["config_name_input"] and library.flags["config_name_input"].value or ""
-
-        if name == "" then
-            library:Notification("Error", "Please enter a config name.", "OK", "rbxassetid://83065037218239")
-            return
-        end
-
-        if not name:match("^[%w_]+$") then
-            library:Notification("Error", "Config name can only contain letters, numbers, and underscores.", "OK", "rbxassetid://83065037218239")
-            return
-        end
-
-        for _, item in ipairs(cfg.list) do
-            if item:lower() == name:lower() then
-                library:Notification("Error", "Config already exists.", "OK", "rbxassetid://83065037218239")
-                return
-            end
-        end
-
-        local data = {
-            metadata = {
-                createdAt = os.time(),
-                lastModified = os.time(),
-                autoLoad = false,
-                name = name
-            },
-            values = {}
-        }
-
+        if name == "" then library:Notification("Error", "Please enter a config name.", "OK", "rbxassetid://83065037218239") return end
+        if not name:match("^[%w_]+$") then library:Notification("Error", "Config name can only contain letters, numbers, and underscores.", "OK", "rbxassetid://83065037218239") return end
+        for _, item in ipairs(cfg.list) do if item:lower() == name:lower() then library:Notification("Error", "Config already exists.", "OK", "rbxassetid://83065037218239") return end end
+        local data = { metadata = { createdAt = os.time(), lastModified = os.time(), autoLoad = false, name = name }, values = {} }
         local count = 0
         for flag, elem in pairs(library.flags) do
             if elem and type(elem) == "table" then
@@ -3935,24 +3761,18 @@ function library:ConfigSystem(tab, name)
                     data.values[flag] = pack(elem)
                     count = count + 1
                 end
-
-                if type(elem.rainbow) == "boolean" then
-                    data.values[flag.."_rainbow"] = elem.rainbow
-                end
+                if type(elem.rainbow) == "boolean" then data.values[flag.."_rainbow"] = elem.rainbow end
             end
         end
-
         local path = dir .. "/" .. name .. ".json"
         local jsonData = game:GetService("HttpService"):JSONEncode(data)
         local ok = pcall(writefile, path, jsonData)
-
         if ok then
             sync()
             menu:Refresh(cfg.list)
             menu:set(name)
             cfg.pick = name
             nameBox:set("")
-
             library:Notification("Success", "Config \"" .. name .. "\" created with " .. count .. " settings!", "OK", "rbxassetid://83065037218239", 6)
         else
             library:Notification("Error", "Failed to create config file.", "OK", "rbxassetid://83065037218239")
@@ -3960,127 +3780,56 @@ function library:ConfigSystem(tab, name)
     end)
 
     tab:Button("Save/Overwrite Config", function()
-        if not cfg.pick then
-            library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239")
-            return
-        end
-
+        if not cfg.pick then library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239") return end
         local path = dir .. "/" .. cfg.pick .. ".json"
         local old = {}
-
         local ok, raw = pcall(readfile, path)
         if ok then
-            local valid, data = false, nil
-            
-            valid, data = pcall(function()
-                return game:GetService("HttpService"):JSONDecode(raw)
-            end)
-
-            if valid and type(data) == "table" and type(data.values) == "table" then
+            local data = game:GetService("HttpService"):JSONDecode(raw)
+            if type(data) == "table" and type(data.values) == "table" then
                 old = data.values
-                local isAutoLoad = false
-                if data.metadata and data.metadata.autoLoad then
-                    isAutoLoad = true
-                end
-
+                local isAutoLoad = data.metadata and data.metadata.autoLoad or false
                 data.metadata = data.metadata or {}
                 data.metadata.lastModified = os.time()
                 data.metadata.autoLoad = isAutoLoad
                 data.values = {}
-
                 local now = {}
                 for flag, elem in pairs(library.flags) do
                     if elem and type(elem) == "table" then
                         if not flag:match("_rainbow$") then
                             if (flag:find("[bB]ind") or flag:find("[kK]eybind")) and elem.keyCode then
-                                local keyData = {
-                                    __type = "Keybind",
-                                    keyName = elem.keyName or (elem.keyCode and elem.keyCode.Name) or "Unknown"
-                                }
-
-                                keyData.value = {
-                                    __type = "EnumItem",
-                                    enumType = "Enum.KeyCode",
-                                    value = elem.keyCode.Name
-                                }
-
-                                if elem.mode then
-                                    keyData.mode = elem.mode
-                                end
-
-                                if type(elem.value) == "boolean" then
-                                    keyData.toggleState = elem.value
-                                end
-
+                                local keyData = { __type = "Keybind", keyName = elem.keyName or (elem.keyCode and elem.keyCode.Name) or "Unknown" }
+                                keyData.value = { __type = "EnumItem", enumType = "Enum.KeyCode", value = elem.keyCode.Name }
+                                if elem.mode then keyData.mode = elem.mode end
+                                if type(elem.value) == "boolean" then keyData.toggleState = elem.value end
                                 data.values[flag] = keyData
                             elseif flag:find("[cC]olor") then
-                                local colorData = {
-                                    __type = "Color3",
-                                    r = elem.value.R,
-                                    g = elem.value.G,
-                                    b = elem.value.B
-                                }
-
-                                if elem.rainbow ~= nil then
-                                    colorData.__rainbow = elem.rainbow
-                                end
-
+                                local colorData = { __type = "Color3", r = elem.value.R, g = elem.value.G, b = elem.value.B }
+                                if elem.rainbow ~= nil then colorData.__rainbow = elem.rainbow end
                                 data.values[flag] = colorData
-                            elseif type(elem.value) == "boolean" then
-                                data.values[flag] = elem.value
-                            elseif type(elem.value) == "number" then
-                                data.values[flag] = elem.value
-                            elseif type(elem.value) == "string" then
+                            elseif type(elem.value) == "boolean" or type(elem.value) == "number" or type(elem.value) == "string" then
                                 data.values[flag] = elem.value
                             elseif type(elem.value) == "table" then
                                 data.values[flag] = elem.value
                             else
                                 data.values[flag] = pack(elem)
                             end
-
                             now[flag] = true
                         end
-
-                        if type(elem.rainbow) == "boolean" then
-                            data.values[flag.."_rainbow"] = elem.rainbow
-                        end
+                        if type(elem.rainbow) == "boolean" then data.values[flag.."_rainbow"] = elem.rainbow end
                     end
                 end
-
                 local add, del, changed, same = diff(old, data.values)
                 local jsonData = game:GetService("HttpService"):JSONEncode(data)
                 ok = pcall(writefile, path, jsonData)
-
                 if ok then
-                    local msg = ""
-                    local hasChanges = false
-
-                    if add > 0 then
-                        msg = msg .. add .. " new setting" .. (add > 1 and "s" or "") .. " added"
-                        hasChanges = true
-                    end
-
-                    if changed > 0 then
-                        if msg ~= "" then msg = msg .. ", " end
-                        msg = msg .. changed .. " setting" .. (changed > 1 and "s" or "") .. " changed"
-                        hasChanges = true
-                    end
-
-                    if del > 0 then
-                        if msg ~= "" then msg = msg .. ", " end
-                        msg = msg .. del .. " setting" .. (del > 1 and "s" or "") .. " removed"
-                        hasChanges = true
-                    end
-
-                    if not hasChanges then
-                        msg = "No settings have been modified"
-                    end
-
+                    local msg, hasChanges = "", false
+                    if add > 0 then msg = msg .. add .. " new setting" .. (add > 1 and "s" or "") .. " added" hasChanges = true end
+                    if changed > 0 then if msg ~= "" then msg = msg .. ", " end msg = msg .. changed .. " setting" .. (changed > 1 and "s" or "") .. " changed" hasChanges = true end
+                    if del > 0 then if msg ~= "" then msg = msg .. ", " end msg = msg .. del .. " setting" .. (del > 1 and "s" or "") .. " removed" hasChanges = true end
+                    if not hasChanges then msg = "No settings have been modified" end
                     local total = add + changed + same
-                    if hasChanges then
-                        msg = msg .. " (Total: " .. total .. ")"
-                    end
-
+                    if hasChanges then msg = msg .. " (Total: " .. total .. ")" end
                     library:Notification("Config Saved", "\"" .. cfg.pick .. "\": " .. msg, "OK", "rbxassetid://83065037218239")
                 else
                     library:Notification("Error", "Failed to save config file.", "OK", "rbxassetid://83065037218239")
@@ -4094,30 +3843,13 @@ function library:ConfigSystem(tab, name)
     end)
 
     tab:Button("Load Config", function()
-        if not cfg.pick then
-            return library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239")
-        end
-
+        if not cfg.pick then return library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239") end
         local path = dir .. "/" .. cfg.pick .. ".json"
         local ok, raw = pcall(readfile, path)
-
-        if not ok then
-            return library:Notification("Error", "Config does not exist.", "OK", "rbxassetid://83065037218239")
-        end
-
-        local data
-        ok, data = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(raw)
-        end)
-
-        if not ok or type(data.values) ~= "table" then
-            return library:Notification("Error", "Invalid config format.", "OK", "rbxassetid://83065037218239")
-        end
-
-        local loaded = 0
-        local normalValues = {}
-        local rainbowValues = {}
-        
+        if not ok then return library:Notification("Error", "Config does not exist.", "OK", "rbxassetid://83065037218239") end
+        local data = game:GetService("HttpService"):JSONDecode(raw)
+        if type(data.values) ~= "table" then return library:Notification("Error", "Invalid config format.", "OK", "rbxassetid://83065037218239") end
+        local loaded, normalValues, rainbowValues = 0, {}, {}
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then
                 local baseFlag = flag:gsub("_rainbow$", "")
@@ -4126,12 +3858,10 @@ function library:ConfigSystem(tab, name)
                 normalValues[flag] = val
             end
         end
-        
         for flag, val in pairs(normalValues) do
             local element = library.flags[flag]
             if type(element) == "table" and type(element.set) == "function" then
-                local value = nil
-                
+                local value
                 if type(val) == "table" and val.__type == "Color3" then
                     value = Color3.new(val.r, val.g, val.b)
                 elseif type(val) == "table" and val.__type == "Keybind" then
@@ -4141,14 +3871,9 @@ function library:ConfigSystem(tab, name)
                     else
                         keyEnum = Enum.KeyCode[val.keyName]
                     end
-
                     if keyEnum then
                         if val.mode or val.toggleState ~= nil then
-                            value = {
-                                keyCode = keyEnum,
-                                mode = val.mode,
-                                value = val.toggleState
-                            }
+                            value = { keyCode = keyEnum, mode = val.mode, value = val.toggleState }
                         else
                             value = keyEnum
                         end
@@ -4160,51 +3885,33 @@ function library:ConfigSystem(tab, name)
                 else
                     value = unpack(val)
                 end
-                
-                if value ~= nil then
-                    element:set(value)
-                    loaded = loaded + 1
-                end
+                if value ~= nil then element:set(value) loaded = loaded + 1 end
             end
         end
-
         for baseFlag, val in pairs(rainbowValues) do
             local element = library.flags[baseFlag]
-            if element and type(element.setRainbow) == "function" then
-                element:setRainbow(val)
-            end
+            if element and type(element.setRainbow) == "function" then element:setRainbow(val) end
         end
-
         library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
     end)
 
     tab:Button("Delete Config", function()
-        if not cfg.pick then
-            return library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239")
-        end
-
+        if not cfg.pick then return library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239") end
         local path = dir .. "/" .. cfg.pick .. ".json"
         local gone = cfg.pick
-
         local ok = pcall(delfile, path)
-        if not ok then
-            return library:Notification("Error", "Failed to delete config file.", "OK", "rbxassetid://83065037218239")
-        end
-
+        if not ok then return library:Notification("Error", "Failed to delete config file.", "OK", "rbxassetid://83065037218239") end
         if cfg.auto == cfg.pick then
             cfg.auto = nil
             silentAutoLoadUpdate = true
             autoLoad:set(false)
         end
-
         cfg.pick = nil
         sync()
-
         if menu and type(menu.Refresh) == "function" then
             menu:Refresh(cfg.list)
             menu:set(nil)
         end
-
         library:Notification("Success", "Config deleted: \"" .. gone .. "\"", "OK", "rbxassetid://83065037218239")
     end)
 
@@ -4214,19 +3921,13 @@ function library:ConfigSystem(tab, name)
         if menu then
             if type(menu.Refresh) == "function" then
                 menu:Refresh(items)
-                if cfg.pick and not table.find(items, cfg.pick) then
-                    cfg.pick = nil
-                end
+                if cfg.pick and not table.find(items, cfg.pick) then cfg.pick = nil end
                 library:Notification("Config List Refreshed", #items .. " configs found", "OK", "rbxassetid://83065037218239")
             else
-                menu = tab:NewDropdown("Select Config", items, function(item)
-                    cfg.pick = item
-                end, false, "config_selector")
+                menu = tab:NewDropdown("Select Config", items, function(item) cfg.pick = item end, false, "config_selector")
             end
         else
-            menu = tab:NewDropdown("Select Config", items, function(item)
-                cfg.pick = item
-            end, false, "config_selector")
+            menu = tab:NewDropdown("Select Config", items, function(item) cfg.pick = item end, false, "config_selector")
         end
     end)
 
@@ -4234,21 +3935,11 @@ function library:ConfigSystem(tab, name)
         local path = dir .. "/" .. cfg.auto .. ".json"
         local ok, raw = pcall(readfile, path)
         if ok then
-            local data
-            ok, data = pcall(function()
-                return game:GetService("HttpService"):JSONDecode(raw)
-            end)
-
-            if ok and type(data.values) == "table" then
+            local data = game:GetService("HttpService"):JSONDecode(raw)
+            if type(data.values) == "table" then
                 cfg.pick = cfg.auto
-                if menu and type(menu.set) == "function" then
-                    menu:set(cfg.auto)
-                end
-                
-                local normalValues = {}
-                local rainbowValues = {}
-                local loaded = 0
-                
+                if menu and type(menu.set) == "function" then menu:set(cfg.auto) end
+                local normalValues, rainbowValues, loaded = {}, {}, 0
                 for flag, val in pairs(data.values) do
                     if flag:match("_rainbow$") then
                         local baseFlag = flag:gsub("_rainbow$", "")
@@ -4257,12 +3948,10 @@ function library:ConfigSystem(tab, name)
                         normalValues[flag] = val
                     end
                 end
-                
                 for flag, val in pairs(normalValues) do
                     local element = library.flags[flag]
                     if type(element) == "table" and type(element.set) == "function" then
-                        local value = nil
-                        
+                        local value
                         if type(val) == "table" and val.__type == "Color3" then
                             value = Color3.new(val.r, val.g, val.b)
                         elseif type(val) == "table" and val.__type == "Keybind" then
@@ -4272,14 +3961,9 @@ function library:ConfigSystem(tab, name)
                             else
                                 keyEnum = Enum.KeyCode[val.keyName]
                             end
-
                             if keyEnum then
                                 if val.mode or val.toggleState ~= nil then
-                                    value = {
-                                        keyCode = keyEnum,
-                                        mode = val.mode,
-                                        value = val.toggleState
-                                    }
+                                    value = { keyCode = keyEnum, mode = val.mode, value = val.toggleState }
                                 else
                                     value = keyEnum
                                 end
@@ -4291,28 +3975,19 @@ function library:ConfigSystem(tab, name)
                         else
                             value = unpack(val)
                         end
-                        
-                        if value ~= nil then
-                            element:set(value)
-                            loaded = loaded + 1
-                        end
+                        if value ~= nil then element:set(value) loaded = loaded + 1 end
                     end
                 end
-
                 for baseFlag, val in pairs(rainbowValues) do
                     local element = library.flags[baseFlag]
-                    if element and type(element.setRainbow) == "function" then
-                        element:setRainbow(val)
-                    end
+                    if element and type(element.setRainbow) == "function" then element:setRainbow(val) end
                 end
-
                 silentAutoLoadUpdate = true
                 autoLoad:set(true)
                 library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
             end
         end
     end
-
     return cfg
 end
 return library
