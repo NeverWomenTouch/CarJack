@@ -359,7 +359,7 @@ function library:Window(title, version, info, preset, closebind)
         PresetColor = toch
     end
 
-function library:Notification(texttitle, textdesc, textbtn)
+function library:Notification(texttitle, textdesc, textbtn, image)
     local NotificationHolder = Instance.new("Frame")
     local NotifBackdrop = Instance.new("Frame")
     local NotifBackdropGradient = Instance.new("UIGradient")
@@ -386,6 +386,7 @@ function library:Notification(texttitle, textdesc, textbtn)
     local TopAccent = Instance.new("Frame")
     local LeftGlow = Instance.new("ImageLabel")
     local RightGlow = Instance.new("ImageLabel")
+    local ParticleContainer = Instance.new("Frame")
 
     NotificationHolder.Name = "NotificationHolder"
     NotificationHolder.Parent = Main
@@ -446,6 +447,31 @@ function library:Notification(texttitle, textdesc, textbtn)
     NotificationFrameGlow.ImageColor3 = Color3.fromRGB(20, 20, 20)
     NotificationFrameGlow.ScaleType = Enum.ScaleType.Slice
     NotificationFrameGlow.SliceCenter = Rect.new(20, 20, 280, 280)
+    
+    ParticleContainer.Name = "ParticleContainer"
+    ParticleContainer.Parent = NotificationFrame
+    ParticleContainer.BackgroundTransparency = 1
+    ParticleContainer.Size = UDim2.new(1, 0, 1, 0)
+    ParticleContainer.ClipsDescendants = true
+    ParticleContainer.ZIndex = 102
+    
+    local particles = {}
+    for i = 1, 15 do
+        local particle = Instance.new("Frame")
+        particle.Name = "Particle" .. i
+        particle.Parent = ParticleContainer
+        particle.BackgroundColor3 = PresetColor
+        particle.BackgroundTransparency = 0.85 + (math.random() * 0.1)
+        particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        particle.Size = UDim2.new(0, math.random(1, 2), 0, math.random(1, 2))
+        particle.ZIndex = 102
+        
+        local particleCorner = Instance.new("UICorner")
+        particleCorner.CornerRadius = UDim.new(1, 0)
+        particleCorner.Parent = particle
+        
+        table.insert(particles, particle)
+    end
     
     LeftAccent.Name = "LeftAccent"
     LeftAccent.Parent = NotificationFrame
@@ -520,7 +546,7 @@ function library:Notification(texttitle, textdesc, textbtn)
     NotificationIcon.BackgroundTransparency = 1
     NotificationIcon.Position = UDim2.new(0, 15, 0.5, 0)
     NotificationIcon.Size = UDim2.new(0, 22, 0, 22)
-    NotificationIcon.Image = "rbxassetid://7734039270"
+    NotificationIcon.Image = image or "rbxassetid://4483345998"
     NotificationIcon.ImageColor3 = PresetColor
     NotificationIcon.ZIndex = 104
 
@@ -573,7 +599,7 @@ function library:Notification(texttitle, textdesc, textbtn)
     OkayBtn.Name = "OkayBtn"
     OkayBtn.Parent = BodySection
     OkayBtn.AnchorPoint = Vector2.new(0.5, 1)
-    OkayBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    OkayBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     OkayBtn.Position = UDim2.new(0.5, 0, 1, -20)
     OkayBtn.Size = UDim2.new(0, 130, 0, 36)
     OkayBtn.AutoButtonColor = false
@@ -594,8 +620,8 @@ function library:Notification(texttitle, textdesc, textbtn)
     OkayBtnStroke.Transparency = 0.2
     
     OkayBtnGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(42, 42, 42)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(32, 32, 32))
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(55, 55, 55)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(45, 45, 45))
     }
     OkayBtnGradient.Rotation = 90
     OkayBtnGradient.Name = "OkayBtnGradient"
@@ -634,6 +660,11 @@ function library:Notification(texttitle, textdesc, textbtn)
             BtnIcon.ImageColor3 = PresetColor
             LeftGlow.ImageColor3 = PresetColor
             RightGlow.ImageColor3 = PresetColor
+            
+            for _, particle in ipairs(particles) do
+                particle.BackgroundColor3 = PresetColor
+            end
+            
             task.wait()
         end
     end)
@@ -668,6 +699,24 @@ function library:Notification(texttitle, textdesc, textbtn)
         })
         
         sizeTween:Play()
+        
+        -- Animate particles
+        task.spawn(function()
+            while NotificationFrame.Parent do
+                for _, particle in ipairs(particles) do
+                    local targetX = math.random()
+                    local targetY = math.random()
+                    local duration = 3 + (math.random() * 2)
+                    
+                    tweensv:Create(particle, TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                        Position = UDim2.new(targetX, 0, targetY, 0),
+                        BackgroundTransparency = 0.85 + (math.random() * 0.1),
+                        Size = UDim2.new(0, math.random(1, 2), 0, math.random(1, 2))
+                    }):Play()
+                end
+                task.wait(3)
+            end
+        end)
         
         -- Wait for frame to start appearing
         task.wait(animDuration * 0.3)
@@ -827,6 +876,13 @@ function library:Notification(texttitle, textdesc, textbtn)
             ImageTransparency = 1
         }):Play()
         
+        -- Fade out particles
+        for _, particle in ipairs(particles) do
+            tweensv:Create(particle, TweenInfo.new(closingDuration * 0.5), {
+                BackgroundTransparency = 1
+            }):Play()
+        end
+        
         -- Animate accents away
         for _, accent in pairs({LeftAccent, RightAccent}) do
             tweensv:Create(accent, TweenInfo.new(closingDuration * 0.7), {
@@ -870,7 +926,7 @@ function library:Notification(texttitle, textdesc, textbtn)
     -- Button hover/click effects
     library.Conn[#library.Conn + 1] = OkayBtn.MouseEnter:Connect(function()
         tweensv:Create(OkayBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            BackgroundColor3 = Color3.fromRGB(55, 55, 55)
         }):Play()
         
         tweensv:Create(OkayBtnStroke, TweenInfo.new(0.2), {
@@ -880,7 +936,7 @@ function library:Notification(texttitle, textdesc, textbtn)
 
     library.Conn[#library.Conn + 1] = OkayBtn.MouseLeave:Connect(function()
         tweensv:Create(OkayBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            BackgroundColor3 = Color3.fromRGB(45, 45, 45)
         }):Play()
         
         tweensv:Create(OkayBtnStroke, TweenInfo.new(0.2), {
@@ -890,7 +946,7 @@ function library:Notification(texttitle, textdesc, textbtn)
     
     library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Down:Connect(function()
         tweensv:Create(OkayBtn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+            BackgroundColor3 = Color3.fromRGB(40, 40, 40),
             Size = UDim2.new(0, 126, 0, 34)
         }):Play()
         
@@ -901,12 +957,27 @@ function library:Notification(texttitle, textdesc, textbtn)
     
     library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Up:Connect(function()
         tweensv:Create(OkayBtn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+            BackgroundColor3 = Color3.fromRGB(55, 55, 55),
             Size = UDim2.new(0, 130, 0, 36)
         }):Play()
         
         tweensv:Create(BtnIcon, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
             Position = UDim2.new(0, 8, 0.5, -8)
+        }):Play()
+    end)
+
+    -- Icon hover effect
+    library.Conn[#library.Conn + 1] = NotificationIcon.MouseEnter:Connect(function()
+        tweensv:Create(NotificationIcon, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 26, 0, 26),
+            Position = UDim2.new(0, 13, 0.5, 0)
+        }):Play()
+    end)
+
+    library.Conn[#library.Conn + 1] = NotificationIcon.MouseLeave:Connect(function()
+        tweensv:Create(NotificationIcon, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 22, 0, 22),
+            Position = UDim2.new(0, 15, 0.5, 0)
         }):Play()
     end)
 
