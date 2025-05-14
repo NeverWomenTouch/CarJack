@@ -754,6 +754,7 @@ function library:Window(title, version, info, preset, closebind)
             local MenuOpen = false
             local keybindMode = "Toggle" 
             local keyState = false
+            local isChangingMode = false
             
             local Toggle = Instance.new("TextButton")
             local ToggleCorner = Instance.new("UICorner")
@@ -1102,6 +1103,11 @@ function library:Window(title, version, info, preset, closebind)
                 end,
                 setMode = function(self, mode)
                     if type(mode) == "string" and (mode == "Toggle" or mode == "Hold" or mode == "Always") then
+                        if mode == keybindMode then
+                            return self
+                        end
+                        
+                        local oldMode = keybindMode
                         keybindMode = mode
                         self.mode = mode
                         
@@ -1121,7 +1127,7 @@ function library:Window(title, version, info, preset, closebind)
                             keyState = true
                             self.keyState = true
                             pcall(callback, true)
-                        elseif keybindMode ~= "Always" and keyState then
+                        elseif oldMode == "Always" and toggled then
                             keyState = false
                             self.keyState = false
                             pcall(callback, false)
@@ -1284,15 +1290,30 @@ function library:Window(title, version, info, preset, closebind)
             end)
             
             library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Click:Connect(function()
+                if isChangingMode then return end
+                isChangingMode = true
                 keybindT:setMode("Toggle")
+                task.delay(0.3, function()
+                    isChangingMode = false
+                end)
             end)
             
             library.Conn[#library.Conn + 1] = HoldButton.MouseButton1Click:Connect(function()
+                if isChangingMode then return end
+                isChangingMode = true
                 keybindT:setMode("Hold")
+                task.delay(0.3, function()
+                    isChangingMode = false
+                end)
             end)
             
             library.Conn[#library.Conn + 1] = AlwaysButton.MouseButton1Click:Connect(function()
+                if isChangingMode then return end
+                isChangingMode = true
                 keybindT:setMode("Always")
+                task.delay(0.3, function()
+                    isChangingMode = false
+                end)
             end)
             
             for _, button in pairs(modeButtons) do
@@ -1376,9 +1397,6 @@ function library:Window(title, version, info, preset, closebind)
             local ProgressCorner = Instance.new("UICorner")
             local CircleStroke = Instance.new("UIStroke")
             local ValueLabel = Instance.new("TextLabel")
-            
-            -- Same UI creation code as before...
-            -- [UI Elements setup code...]
             
             Slider.Name = SliderText
             Slider.Parent = Tab
@@ -1483,8 +1501,6 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end)
 
-            -- Important fixed part begins here
-            -- Create a local state table for this specific slider
             local thisSlider = {
                 dragging = false,
                 isSliding = false,
@@ -1494,10 +1510,8 @@ function library:Window(title, version, info, preset, closebind)
                 inputChangedConnection = nil
             }
 
-            -- Define the slider object with correct value property and set method
             local slider = {}
             
-            -- Define the update function first, so it's available for the set method
             local function updateSlider(val, mouseX)
                 local percent
                 
@@ -1515,7 +1529,6 @@ function library:Window(title, version, info, preset, closebind)
 
                 percent = math.clamp(percent, 0, 1)
                 
-                -- Always directly set the size when called from set method
                 if thisSlider.isSettingFromConfig then
                     Progress.Size = UDim2.new(percent, 0, 1, 0)
                 else
@@ -1525,16 +1538,14 @@ function library:Window(title, version, info, preset, closebind)
                 thisSlider.realValue = min + (max - min) * percent
                 thisSlider.value = precise and string.format("%.1f", tostring(thisSlider.realValue)) or math.floor(thisSlider.realValue)
                 ValueLabel.Text = tostring(thisSlider.value)
-                
-                -- Always update the slider's value property
+
                 slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
                 
                 if UserFunc and not thisSlider.isSettingFromConfig then
                     pcall(UserFunc, slider.value)
                 end
             end
-            
-            -- Now define the slider object with proper properties
+
             slider = {
                 value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
                 set = function(self, val)
@@ -1543,23 +1554,15 @@ function library:Window(title, version, info, preset, closebind)
                         if num == nil then
                             return self
                         end
-                        
-                        -- Clamp the value
                         num = math.clamp(num, min, max)
-                        
-                        -- Set the flag to indicate config setting
+
                         thisSlider.isSettingFromConfig = true
-                        
-                        -- Call the update function
+
                         updateSlider(num)
                         
-                        -- Reset the flag
                         thisSlider.isSettingFromConfig = false
                         
-                        -- Update the slider value directly
                         self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
-                        
-                        -- Call the user function if provided
                         if UserFunc then
                             pcall(UserFunc, self.value)
                         end
@@ -1584,21 +1587,17 @@ function library:Window(title, version, info, preset, closebind)
                     return self.value
                 end
             }
-            
-            -- Initialize the slider with the default value
+
             if not library.flags then library.flags = {} end
             library.flags[flag] = slider
             
             updateSlider(defvalue)
-            
-            -- Function to handle slider movement
-            local function moveSlider(input)
+            function moveSlider(input)
                 if not thisSlider.dragging then return end
                 thisSlider.isSliding = true
                 updateSlider(nil, input.Position.X)
             end
 
-            -- Connect the slider's input events
             library.Conn[#library.Conn + 1] = Slider.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     thisSlider.dragging = true
@@ -1650,6 +1649,7 @@ function library:Window(title, version, info, preset, closebind)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             return slider
         end
+
         function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
             local flag = flag or placeholder
             local Dropdown = Instance.new("TextButton")
