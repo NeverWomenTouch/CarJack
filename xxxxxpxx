@@ -2982,13 +2982,9 @@ tab:Button("Save/Overwrite Config", function()
             for flag, elem in pairs(library.flags) do
                 if elem and type(elem) == "table" then
                     if not flag:match("_rainbow$") then
-                        -- Get the real value based on element type
-                        local value
-                        
-                        -- For sliders, directly access numeric value
-                        if flag:find("[sS]lider") and type(elem.value) == "number" then
-                            value = elem.value
-                        -- For keybinds, format specially 
+                        -- FIX: Directly save slider values as numbers
+                        if flag:match("[sS]lider") and type(elem.value) == "number" then
+                            data.values[flag] = elem.value
                         elseif (flag:find("[bB]ind") or flag:find("[kK]eybind")) and (elem.keyCode or elem.value) then
                             local keyData = {
                                 __type = "Keybind",
@@ -3009,10 +3005,9 @@ tab:Button("Save/Overwrite Config", function()
                                 }
                             end
                             
-                            value = keyData
-                        -- For colorpickers, format with rainbow state
+                            data.values[flag] = keyData
                         elseif flag:find("[cC]olor") and typeof(elem.value) == "Color3" then
-                            value = {
+                            local colorData = {
                                 __type = "Color3",
                                 r = elem.value.R,
                                 g = elem.value.G,
@@ -3020,15 +3015,19 @@ tab:Button("Save/Overwrite Config", function()
                             }
                             
                             if elem.rainbow ~= nil then
-                                value.__rainbow = elem.rainbow
+                                colorData.__rainbow = elem.rainbow
                             end
+                            
+                            data.values[flag] = colorData
                         else
-                            -- For all other elements use the pack function
-                            value = pack(elem)
+                            data.values[flag] = pack(elem)
                         end
                         
-                        data.values[flag] = value
                         now[flag] = true
+                    end
+                    
+                    if type(elem.rainbow) == "boolean" then
+                        data.values[flag.."_rainbow"] = elem.rainbow
                     end
                 end
             end
