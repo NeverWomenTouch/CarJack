@@ -1048,6 +1048,17 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                     self.keyCode = state.keyCode
                     KeybindDisplay.Text = "[" .. (state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name) .. "]"
                     KeybindButton.Text = state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name
+                elseif type(state.keyCode) == "string" then
+                    -- Try to convert string to KeyCode enum
+                    local success, keyEnum = pcall(function()
+                        return Enum.KeyCode[state.keyCode]
+                    end)
+                    if success and keyEnum then
+                        assignedKey = keyEnum
+                        self.keyCode = keyEnum
+                        KeybindDisplay.Text = "[" .. (keyEnum.Name == "Unknown" and "None" or keyEnum.Name) .. "]"
+                        KeybindButton.Text = keyEnum.Name == "Unknown" and "None" or keyEnum.Name
+                    end
                 end
                 
                 if type(state.mode) == "string" and (state.mode == "Toggle" or state.mode == "Hold" or state.mode == "Always") then
@@ -1064,6 +1075,12 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                             button.BackgroundTransparency = 0.4
                             button.TextColor3 = Color3.fromRGB(255, 255, 255)
                         end
+                    end
+                    
+                    if keybindMode == "Always" and toggled then
+                        keyState = true
+                        self.keyState = true
+                        pcall(callback, true)
                     end
                 end
                 
@@ -1119,6 +1136,12 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                         button.TextColor3 = Color3.fromRGB(255, 255, 255)
                     end
                 end
+                
+                if keybindMode == "Always" and toggled then
+                    keyState = true
+                    self.keyState = true
+                    pcall(callback, true)
+                end
             end
             return self
         end,
@@ -1131,6 +1154,9 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             return self
         end,
         toggleKeyState = function(self)
+            if keybindMode == "Always" and toggled then
+                return self
+            end
             return self:setKeyState(not keyState)
         end,
         getKeyState = function(self)
@@ -1162,9 +1188,21 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         if toggled then
             FrameToggleCircle:TweenPosition(UDim2.new(0.587, 0, 0.222000003, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
             FrameToggle3.BackgroundTransparency = 0
+            
+            if keybindMode == "Always" then
+                keyState = true
+                keybindT.keyState = true
+                pcall(callback, true)
+            end
         else
             FrameToggleCircle:TweenPosition(UDim2.new(0.127000004, 0, 0.222000003, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
             FrameToggle3.BackgroundTransparency = 1
+            
+            if keybindMode == "Always" then
+                keyState = false
+                keybindT.keyState = false
+                pcall(callback, false)
+            end
         end
         
         keybindT.value = toggled
@@ -1312,6 +1350,12 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                 }):Play()
             end
         end
+        
+        if toggled then
+            keyState = true
+            keybindT.keyState = true
+            pcall(callback, true)
+        end
     end)
     
     for _, button in pairs(modeButtons) do
@@ -1353,9 +1397,8 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                 keybindT.keyState = keyState
                 pcall(callback, keyState)
             elseif keybindMode == "Always" then
-                keyState = not keyState
-                keybindT.keyState = keyState
-                pcall(callback, keyState)
+                keyState = true
+                keybindT.keyState = true
             end
         end
     end)
