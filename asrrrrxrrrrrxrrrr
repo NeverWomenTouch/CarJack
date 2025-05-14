@@ -766,11 +766,14 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local FrameToggle3Corner = Instance.new("UICorner")
     local FrameToggleCircle = Instance.new("Frame")
     local FrameToggleCircleCorner = Instance.new("UICorner")
-    local KeybindDisplay = Instance.new("TextLabel")
+    local KeybindDisplay = Instance.new("TextButton")
+    local KeybindDisplayStroke = Instance.new("UIStroke")
     
-    -- Dropdown content container
+    -- Dropdown content container that will slide down
     local DropdownContent = Instance.new("Frame")
     local DropdownContentLayout = Instance.new("UIListLayout")
+    local DropdownBackground = Instance.new("Frame")
+    local DropdownBackgroundCorner = Instance.new("UICorner")
 
     -- Setup main toggle container
     Toggle.Name = "Toggle"
@@ -810,6 +813,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
     FrameToggle1.ZIndex = 3 -- Make sure toggle stays on top
 
+    FrameToggle1Corner.CornerRadius = UDim.new(0, 4)
     FrameToggle1Corner.Parent = FrameToggle1
 
     FrameToggle2.Name = "FrameToggle2"
@@ -819,6 +823,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     FrameToggle2.Size = UDim2.new(0, 33, 0, 14)
     FrameToggle2.ZIndex = 3
 
+    FrameToggle2Corner.CornerRadius = UDim.new(0, 4)
     FrameToggle2Corner.Parent = FrameToggle2
 
     FrameToggle3.Name = "FrameToggle3"
@@ -828,6 +833,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     FrameToggle3.Size = UDim2.new(0, 37, 0, 18)
     FrameToggle3.ZIndex = 3
 
+    FrameToggle3Corner.CornerRadius = UDim.new(0, 4)
     FrameToggle3Corner.Parent = FrameToggle3
 
     FrameToggleCircle.Name = "FrameToggleCircle"
@@ -837,188 +843,319 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     FrameToggleCircle.Size = UDim2.new(0, 10, 0, 10)
     FrameToggleCircle.ZIndex = 3
 
+    FrameToggleCircleCorner.CornerRadius = UDim.new(1, 0)
     FrameToggleCircleCorner.Parent = FrameToggleCircle
 
-    -- Keybind display - improved positioning and size
+    -- Keybind display - as a button now for better interaction
     KeybindDisplay.Name = "KeybindDisplay"
     KeybindDisplay.Parent = Toggle
     KeybindDisplay.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    KeybindDisplay.BackgroundTransparency = 0.7
+    KeybindDisplay.BackgroundTransparency = 0.4
     KeybindDisplay.Position = UDim2.new(0.6, 0, 0.5, -10)
     KeybindDisplay.Size = UDim2.new(0.2, 0, 0, 20)
     KeybindDisplay.Font = Enum.Font.SourceSans
     KeybindDisplay.Text = "[" .. (assignedKey.Name == "Unknown" and "None" or assignedKey.Name) .. "]"
-    KeybindDisplay.TextColor3 = Color3.fromRGB(230, 230, 230) -- Lighter text
+    KeybindDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
     KeybindDisplay.TextSize = 16
     KeybindDisplay.ZIndex = 3
+    KeybindDisplay.AutoButtonColor = false
     
-    -- Add a corner to the keybind display
+    -- Add a corner and stroke to the keybind display
     local KeybindDisplayCorner = Instance.new("UICorner")
     KeybindDisplayCorner.CornerRadius = UDim.new(0, 4)
     KeybindDisplayCorner.Parent = KeybindDisplay
+    
+    KeybindDisplayStroke.Parent = KeybindDisplay
+    KeybindDisplayStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    KeybindDisplayStroke.Color = PresetColor
+    KeybindDisplayStroke.Transparency = 0.6
+    KeybindDisplayStroke.Thickness = 1
 
-    -- Dropdown content container that will slide down
+    -- Create a background for the dropdown content
+    DropdownBackground.Name = "DropdownBackground"
+    DropdownBackground.Parent = Toggle
+    DropdownBackground.BackgroundColor3 = Color3.fromRGB(36, 36, 36)
+    DropdownBackground.Position = UDim2.new(0, 0, 0, 42) -- Position right after the toggle
+    DropdownBackground.Size = UDim2.new(1, 0, 0, 0) -- Start with height 0
+    DropdownBackground.ZIndex = 1
+    DropdownBackground.Visible = false
+    
+    DropdownBackgroundCorner.CornerRadius = UDim.new(0, 5)
+    DropdownBackgroundCorner.Name = "DropdownBackgroundCorner"
+    DropdownBackgroundCorner.Parent = DropdownBackground
+    
+    -- Dropdown content container
     DropdownContent.Name = "DropdownContent"
-    DropdownContent.Parent = Toggle
-    DropdownContent.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
-    DropdownContent.BorderSizePixel = 0
-    DropdownContent.Position = UDim2.new(0, 0, 0, 42) -- Start right below the toggle
-    DropdownContent.Size = UDim2.new(1, 0, 0, 80) -- Height for keybind and mode sections
-    DropdownContent.Visible = false
+    DropdownContent.Parent = DropdownBackground
+    DropdownContent.BackgroundTransparency = 1
+    DropdownContent.Size = UDim2.new(1, 0, 1, 0)
+    DropdownContent.ClipsDescendants = true
     DropdownContent.ZIndex = 2
     
     DropdownContentLayout.Parent = DropdownContent
     DropdownContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
     DropdownContentLayout.Padding = UDim.new(0, 5)
     DropdownContentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    
-    -- Add corner to dropdown content
-    local DropdownContentCorner = Instance.new("UICorner")
-    DropdownContentCorner.CornerRadius = UDim.new(0, 5)
-    DropdownContentCorner.Parent = DropdownContent
-    
-    -- Add a separator
-    local Separator = Instance.new("Frame")
-    Separator.Name = "Separator"
-    Separator.Parent = DropdownContent
-    Separator.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    Separator.BorderSizePixel = 0
-    Separator.Position = UDim2.new(0, 10, 0, 0)
-    Separator.Size = UDim2.new(1, -20, 0, 1)
-    Separator.ZIndex = 2
-    Separator.LayoutOrder = 0
-    
-    -- Create keybind section
-    local KeybindSection = Instance.new("Frame")
-    KeybindSection.Name = "KeybindSection"
-    KeybindSection.Parent = DropdownContent
-    KeybindSection.BackgroundTransparency = 1
-    KeybindSection.Size = UDim2.new(0.95, 0, 0, 35)
-    KeybindSection.ZIndex = 2
-    KeybindSection.LayoutOrder = 1
-    
-    local KeybindLabel = Instance.new("TextLabel")
-    KeybindLabel.Name = "KeybindLabel"
-    KeybindLabel.Parent = KeybindSection
-    KeybindLabel.BackgroundTransparency = 1
-    KeybindLabel.Position = UDim2.new(0.05, 0, 0, 0)
-    KeybindLabel.Size = UDim2.new(0.35, 0, 1, 0)
-    KeybindLabel.Font = Enum.Font.Gotham
-    KeybindLabel.Text = "Keybind"
-    KeybindLabel.TextColor3 = Color3.fromRGB(240, 240, 240) -- Lighter text
-    KeybindLabel.TextSize = 14
-    KeybindLabel.TextXAlignment = Enum.TextXAlignment.Left
-    KeybindLabel.ZIndex = 2
-    
-    local KeybindButton = Instance.new("TextButton")
-    KeybindButton.Name = "KeybindButton"
-    KeybindButton.Parent = KeybindSection
-    KeybindButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    KeybindButton.Position = UDim2.new(0.5, 0, 0, 0)
-    KeybindButton.Size = UDim2.new(0.45, 0, 1, 0)
-    KeybindButton.Font = Enum.Font.Gotham
-    KeybindButton.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
-    KeybindButton.TextColor3 = Color3.fromRGB(240, 240, 240) -- Lighter text
-    KeybindButton.TextSize = 13
-    KeybindButton.ZIndex = 2
-    
-    local KeybindButtonCorner = Instance.new("UICorner")
-    KeybindButtonCorner.CornerRadius = UDim.new(0, 4)
-    KeybindButtonCorner.Parent = KeybindButton
-    
-    local KeybindButtonStroke = Instance.new("UIStroke")
-    KeybindButtonStroke.Parent = KeybindButton
-    KeybindButtonStroke.Color = PresetColor
-    KeybindButtonStroke.Thickness = 1
-    KeybindButtonStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    
-    -- Create mode section
-    local ModeSection = Instance.new("Frame")
-    ModeSection.Name = "ModeSection"
-    ModeSection.Parent = DropdownContent
-    ModeSection.BackgroundTransparency = 1
-    ModeSection.Size = UDim2.new(0.95, 0, 0, 35)
-    ModeSection.ZIndex = 2
-    ModeSection.LayoutOrder = 2
-    
-    local ModeLabel = Instance.new("TextLabel")
-    ModeLabel.Name = "ModeLabel"
-    ModeLabel.Parent = ModeSection
-    ModeLabel.BackgroundTransparency = 1
-    ModeLabel.Position = UDim2.new(0.05, 0, 0, 0)
-    ModeLabel.Size = UDim2.new(0.35, 0, 1, 0)
-    ModeLabel.Font = Enum.Font.Gotham
-    ModeLabel.Text = "Mode"
-    ModeLabel.TextColor3 = Color3.fromRGB(240, 240, 240) -- Lighter text
-    ModeLabel.TextSize = 14
-    ModeLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ModeLabel.ZIndex = 2
-    
-    local ModeHolder = Instance.new("Frame")
-    ModeHolder.Name = "ModeHolder"
-    ModeHolder.Parent = ModeSection
-    ModeHolder.BackgroundTransparency = 1
-    ModeHolder.Position = UDim2.new(0.5, 0, 0, 0)
-    ModeHolder.Size = UDim2.new(0.45, 0, 1, 0)
-    ModeHolder.ZIndex = 2
-    
-    local ModeLayout = Instance.new("UIListLayout")
-    ModeLayout.Parent = ModeHolder
-    ModeLayout.FillDirection = Enum.FillDirection.Horizontal
-    ModeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    ModeLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    ModeLayout.Padding = UDim.new(0, 5)
-    
-    local modeButtons = {}
-    
-    local function createModeButton(name, order)
-        local ModeButton = Instance.new("TextButton")
-        ModeButton.Name = name .. "Button"
-        ModeButton.Parent = ModeHolder
-        ModeButton.BackgroundColor3 = keybindMode == name and PresetColor or Color3.fromRGB(45, 45, 45)
-        ModeButton.BackgroundTransparency = keybindMode == name and 0 or 0.4 -- More visible
-        ModeButton.Size = UDim2.new(0, 45, 1, 0)
-        ModeButton.Font = Enum.Font.Gotham
-        ModeButton.Text = name
-        ModeButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Pure white text
-        ModeButton.TextSize = 12
-        ModeButton.LayoutOrder = order
-        ModeButton.ZIndex = 2
+
+    -- Create keybind section and mode buttons
+    local function createDropdownContent()
+        -- Add a separator line
+        local Separator = Instance.new("Frame")
+        Separator.Name = "Separator"
+        Separator.Parent = DropdownContent
+        Separator.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        Separator.BorderSizePixel = 0
+        Separator.Position = UDim2.new(0, 10, 0, 5)
+        Separator.Size = UDim2.new(0.9, 0, 0, 1)
+        Separator.ZIndex = 2
+        Separator.LayoutOrder = 0
         
-        local ModeButtonCorner = Instance.new("UICorner")
-        ModeButtonCorner.CornerRadius = UDim.new(0, 4)
-        ModeButtonCorner.Parent = ModeButton
+        -- Keybind Section
+        local KeybindSection = Instance.new("Frame")
+        KeybindSection.Name = "KeybindSection"
+        KeybindSection.Parent = DropdownContent
+        KeybindSection.BackgroundTransparency = 1
+        KeybindSection.Size = UDim2.new(0.9, 0, 0, 35)
+        KeybindSection.ZIndex = 2
+        KeybindSection.LayoutOrder = 1
         
-        modeButtons[name] = ModeButton
+        local KeybindLabel = Instance.new("TextLabel")
+        KeybindLabel.Name = "KeybindLabel"
+        KeybindLabel.Parent = KeybindSection
+        KeybindLabel.BackgroundTransparency = 1
+        KeybindLabel.Position = UDim2.new(0.05, 0, 0, 0)
+        KeybindLabel.Size = UDim2.new(0.35, 0, 1, 0)
+        KeybindLabel.Font = Enum.Font.Gotham
+        KeybindLabel.Text = "Keybind"
+        KeybindLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        KeybindLabel.TextSize = 14
+        KeybindLabel.TextXAlignment = Enum.TextXAlignment.Left
+        KeybindLabel.ZIndex = 2
         
-        return ModeButton
+        local KeybindButton = Instance.new("TextButton")
+        KeybindButton.Name = "KeybindButton"
+        KeybindButton.Parent = KeybindSection
+        KeybindButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        KeybindButton.Position = UDim2.new(0.5, 0, 0, 0)
+        KeybindButton.Size = UDim2.new(0.45, 0, 1, 0)
+        KeybindButton.Font = Enum.Font.Gotham
+        KeybindButton.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+        KeybindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        KeybindButton.TextSize = 13
+        KeybindButton.ZIndex = 2
+        KeybindButton.AutoButtonColor = false
+        
+        local KeybindButtonCorner = Instance.new("UICorner")
+        KeybindButtonCorner.CornerRadius = UDim.new(0, 4)
+        KeybindButtonCorner.Parent = KeybindButton
+        
+        local KeybindButtonStroke = Instance.new("UIStroke")
+        KeybindButtonStroke.Parent = KeybindButton
+        KeybindButtonStroke.Color = PresetColor
+        KeybindButtonStroke.Thickness = 1
+        KeybindButtonStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        
+        -- Mode Selection Section
+        local ModeSection = Instance.new("Frame")
+        ModeSection.Name = "ModeSection"
+        ModeSection.Parent = DropdownContent
+        ModeSection.BackgroundTransparency = 1
+        ModeSection.Size = UDim2.new(0.9, 0, 0, 35)
+        ModeSection.ZIndex = 2
+        ModeSection.LayoutOrder = 2
+        
+        local ModeLabel = Instance.new("TextLabel")
+        ModeLabel.Name = "ModeLabel"
+        ModeLabel.Parent = ModeSection
+        ModeLabel.BackgroundTransparency = 1
+        ModeLabel.Position = UDim2.new(0.05, 0, 0, 0)
+        ModeLabel.Size = UDim2.new(0.35, 0, 1, 0)
+        ModeLabel.Font = Enum.Font.Gotham
+        ModeLabel.Text = "Mode"
+        ModeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ModeLabel.TextSize = 14
+        ModeLabel.TextXAlignment = Enum.TextXAlignment.Left
+        ModeLabel.ZIndex = 2
+        
+        local ModeHolder = Instance.new("Frame")
+        ModeHolder.Name = "ModeHolder"
+        ModeHolder.Parent = ModeSection
+        ModeHolder.BackgroundTransparency = 1
+        ModeHolder.Position = UDim2.new(0.5, 0, 0, 0)
+        ModeHolder.Size = UDim2.new(0.45, 0, 1, 0)
+        ModeHolder.ZIndex = 2
+        
+        local ModeLayout = Instance.new("UIListLayout")
+        ModeLayout.Parent = ModeHolder
+        ModeLayout.FillDirection = Enum.FillDirection.Horizontal
+        ModeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        ModeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        ModeLayout.Padding = UDim.new(0, 5)
+        
+        -- Create mode buttons with hover effects and selection colors
+        local modeButtons = {}
+        
+        local function createModeButton(name, order)
+            local ModeButton = Instance.new("TextButton")
+            ModeButton.Name = name .. "Button"
+            ModeButton.Parent = ModeHolder
+            ModeButton.BackgroundColor3 = keybindMode == name and PresetColor or Color3.fromRGB(45, 45, 45)
+            ModeButton.BackgroundTransparency = keybindMode == name and 0 or 0.4
+            ModeButton.Size = UDim2.new(0, 45, 1, 0)
+            ModeButton.Font = Enum.Font.Gotham
+            ModeButton.Text = name
+            -- If selected, text color matches background, else white
+            ModeButton.TextColor3 = keybindMode == name and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(255, 255, 255)
+            ModeButton.TextSize = 12
+            ModeButton.LayoutOrder = order
+            ModeButton.ZIndex = 2
+            ModeButton.AutoButtonColor = false
+            
+            local ModeButtonCorner = Instance.new("UICorner")
+            ModeButtonCorner.CornerRadius = UDim.new(0, 4)
+            ModeButtonCorner.Parent = ModeButton
+            
+            modeButtons[name] = ModeButton
+            
+            -- Connect the click event for mode selection
+            library.Conn[#library.Conn + 1] = ModeButton.MouseButton1Click:Connect(function()
+                keybindMode = name
+                
+                -- Update all buttons
+                for modeName, button in pairs(modeButtons) do
+                    if modeName == keybindMode then
+                        tweensv:Create(button, TweenInfo.new(0.2), {
+                            BackgroundColor3 = PresetColor,
+                            BackgroundTransparency = 0,
+                            TextColor3 = Color3.fromRGB(35, 35, 35) -- Text color to match background
+                        }):Play()
+                    else
+                        tweensv:Create(button, TweenInfo.new(0.2), {
+                            BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+                            BackgroundTransparency = 0.4,
+                            TextColor3 = Color3.fromRGB(255, 255, 255)
+                        }):Play()
+                    end
+                end
+                
+                if keybindT then
+                    keybindT.mode = name
+                end
+            end)
+            
+            -- Add hover effects
+            library.Conn[#library.Conn + 1] = ModeButton.MouseEnter:Connect(function()
+                if name ~= keybindMode then
+                    tweensv:Create(ModeButton, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+                end
+            end)
+            
+            library.Conn[#library.Conn + 1] = ModeButton.MouseLeave:Connect(function()
+                if name ~= keybindMode then
+                    tweensv:Create(ModeButton, TweenInfo.new(0.2), {BackgroundTransparency = 0.4}):Play()
+                end
+            end)
+            
+            return ModeButton
+        end
+        
+        -- Create mode buttons
+        local ToggleButton = createModeButton("Toggle", 1)
+        local HoldButton = createModeButton("Hold", 2)
+        local AlwaysButton = createModeButton("Always", 3)
+        
+        -- Connect keybind selection
+        library.Conn[#library.Conn + 1] = KeybindButton.MouseButton1Click:Connect(function()
+            if SelectingKey then return end
+            
+            SelectingKey = true
+            KeybindButton.Text = "..."
+            
+            local connection
+            connection = uis.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    assignedKey = input.KeyCode
+                    KeybindDisplay.Text = "[" .. assignedKey.Name .. "]"
+                    KeybindButton.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+                    SelectingKey = false
+                    
+                    if keybindT then
+                        keybindT.keyCode = assignedKey
+                    end
+                    
+                    if connection then
+                        connection:Disconnect()
+                    end
+                end
+            end)
+            
+            -- Timeout after 5 seconds
+            task.delay(5, function()
+                if SelectingKey then
+                    SelectingKey = false
+                    if connection then
+                        connection:Disconnect()
+                    end
+                    KeybindButton.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+                end
+            end)
+        end)
+        
+        -- Add hover effects for the keybind button
+        library.Conn[#library.Conn + 1] = KeybindButton.MouseEnter:Connect(function()
+            tweensv:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 55)}):Play()
+        end)
+        
+        library.Conn[#library.Conn + 1] = KeybindButton.MouseLeave:Connect(function()
+            tweensv:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 45)}):Play()
+        end)
+        
+        -- Store references for updating
+        return {
+            keyButton = KeybindButton,
+            modeButtons = modeButtons
+        }
     end
     
-    local ToggleButton = createModeButton("Toggle", 1)
-    local HoldButton = createModeButton("Hold", 2)
-    local AlwaysButton = createModeButton("Always", 3)
+    -- Create content but keep it invisible until needed
+    local dropdownElements = createDropdownContent()
 
-    coroutine.wrap(function()
-        while altloaded do
-            FrameToggle3.BackgroundColor3 = PresetColor
-            KeybindButtonStroke.Color = PresetColor
+    -- Function to toggle the keybind menu
+    local function ToggleMenu()
+        MenuOpen = not MenuOpen
+        
+        if MenuOpen then
+            -- Show dropdown content
+            DropdownBackground.Visible = true
             
-            -- Update mode button colors
-            for mode, button in pairs(modeButtons) do
-                if mode == keybindMode then
-                    button.BackgroundColor3 = PresetColor
-                end
-            end
+            -- Animate the background to expand
+            tweensv:Create(DropdownBackground, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), 
+                {Size = UDim2.new(1, 0, 0, 90)}):Play()
             
-            task.wait()
+            -- Update canvas size to accommodate the expanded toggle
+            task.delay(0.05, function()
+                Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y + 90)
+            end)
+        else
+            -- Animate the background to collapse
+            tweensv:Create(DropdownBackground, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), 
+                {Size = UDim2.new(1, 0, 0, 0)}):Play()
+            
+            -- Hide dropdown content after animation completes
+            task.delay(0.25, function()
+                DropdownBackground.Visible = false
+                
+                -- Reset canvas size
+                Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+            end)
         end
-    end)()
+    end
 
     -- Create keybindT object first to avoid nil reference
     local keybindT = {
         value = toggled,
         keyCode = assignedKey,
-        mode = keybindMode, -- Track mode: "Toggle", "Hold", "Always"
+        mode = keybindMode,
         set = function(self, state)
             -- Handle different ways this might be called:
             -- 1. From config loading with a boolean (toggle state)
@@ -1040,7 +1177,9 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                     assignedKey = state.keyCode
                     self.keyCode = state.keyCode
                     KeybindDisplay.Text = "[" .. (state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name) .. "]"
-                    KeybindButton.Text = state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name
+                    if dropdownElements.keyButton then
+                        dropdownElements.keyButton.Text = state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name
+                    end
                 end
                 
                 -- Set the mode
@@ -1049,13 +1188,17 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                     self.mode = state.mode
                     
                     -- Update mode buttons
-                    for mode, button in pairs(modeButtons) do
-                        if mode == keybindMode then
-                            button.BackgroundColor3 = PresetColor
-                            button.BackgroundTransparency = 0
-                        else
-                            button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-                            button.BackgroundTransparency = 0.4
+                    if dropdownElements.modeButtons then
+                        for modeName, button in pairs(dropdownElements.modeButtons) do
+                            if modeName == keybindMode then
+                                button.BackgroundColor3 = PresetColor
+                                button.BackgroundTransparency = 0
+                                button.TextColor3 = Color3.fromRGB(35, 35, 35) -- Text color to match background
+                            else
+                                button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+                                button.BackgroundTransparency = 0.4
+                                button.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            end
                         end
                     end
                 end
@@ -1068,7 +1211,9 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                 assignedKey = state
                 self.keyCode = state
                 KeybindDisplay.Text = "[" .. (state.Name == "Unknown" and "None" or state.Name) .. "]"
-                KeybindButton.Text = state.Name == "Unknown" and "None" or state.Name
+                if dropdownElements.keyButton then
+                    dropdownElements.keyButton.Text = state.Name == "Unknown" and "None" or state.Name
+                end
                 return self
             end
             
@@ -1079,7 +1224,9 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                 assignedKey = key
                 self.keyCode = key
                 KeybindDisplay.Text = "[" .. (key.Name == "Unknown" and "None" or key.Name) .. "]"
-                KeybindButton.Text = key.Name == "Unknown" and "None" or key.Name
+                if dropdownElements.keyButton then
+                    dropdownElements.keyButton.Text = key.Name == "Unknown" and "None" or key.Name
+                end
             elseif typeof(key) == "string" then
                 local success, keyEnum = pcall(function()
                     return Enum.KeyCode[key]
@@ -1088,7 +1235,9 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                     assignedKey = keyEnum
                     self.keyCode = keyEnum
                     KeybindDisplay.Text = "[" .. (keyEnum.Name == "Unknown" and "None" or keyEnum.Name) .. "]"
-                    KeybindButton.Text = keyEnum.Name == "Unknown" and "None" or keyEnum.Name
+                    if dropdownElements.keyButton then
+                        dropdownElements.keyButton.Text = keyEnum.Name == "Unknown" and "None" or keyEnum.Name
+                    end
                 end
             end
             return self
@@ -1099,13 +1248,17 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                 self.mode = mode
                 
                 -- Update mode buttons
-                for modeName, button in pairs(modeButtons) do
-                    if modeName == keybindMode then
-                        button.BackgroundColor3 = PresetColor
-                        button.BackgroundTransparency = 0
-                    else
-                        button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-                        button.BackgroundTransparency = 0.4
+                if dropdownElements.modeButtons then
+                    for modeName, button in pairs(dropdownElements.modeButtons) do
+                        if modeName == keybindMode then
+                            button.BackgroundColor3 = PresetColor
+                            button.BackgroundTransparency = 0
+                            button.TextColor3 = Color3.fromRGB(35, 35, 35) -- Text color to match background
+                        else
+                            button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+                            button.BackgroundTransparency = 0.4
+                            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        end
                     end
                 end
             end
@@ -1133,7 +1286,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     }
 
     -- Define ToggleState with keybindT already created
-    local function ToggleState(state)
+    function ToggleState(state)
         toggled = state
         if toggled then
             FrameToggleCircle:TweenPosition(UDim2.new(0.6, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
@@ -1151,36 +1304,22 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     if not library.flags then library.flags = {} end
     library.flags[flag] = keybindT
 
-    -- Function to toggle the keybind menu
-    local function ToggleMenu()
-        MenuOpen = not MenuOpen
-        
-        if MenuOpen then
-            -- Show dropdown content
-            DropdownContent.Visible = true
+    coroutine.wrap(function()
+        while altloaded do
+            FrameToggle3.BackgroundColor3 = PresetColor
+            KeybindDisplayStroke.Color = PresetColor
             
-            -- Animate the toggle to expand
-            tweensv:Create(Toggle, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), 
-                {Size = UDim2.new(0, 363, 0, 130)}):Play()
+            if dropdownElements.modeButtons then
+                for mode, button in pairs(dropdownElements.modeButtons) do
+                    if mode == keybindMode then
+                        button.BackgroundColor3 = PresetColor
+                    end
+                end
+            end
             
-            -- Update canvas size to accommodate the expanded toggle
-            task.delay(0.05, function()
-                Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y + 88)
-            end)
-        else
-            -- Animate the toggle to collapse
-            tweensv:Create(Toggle, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), 
-                {Size = UDim2.new(0, 363, 0, 42)}):Play()
-            
-            -- Hide dropdown content after animation completes
-            task.delay(0.25, function()
-                DropdownContent.Visible = false
-                
-                -- Reset canvas size
-                Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-            end)
+            task.wait()
         end
-    end
+    end)()
 
     -- Variable to track if a key is being held (for Hold mode)
     local isHolding = false
@@ -1192,131 +1331,56 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         end
     end)
     
+    -- Right-click toggle to open menu
     library.Conn[#library.Conn + 1] = Toggle.MouseButton2Click:Connect(function()
         ToggleMenu()
     end)
     
-    -- Keybind button
-    library.Conn[#library.Conn + 1] = KeybindButton.MouseButton1Click:Connect(function()
-        if SelectingKey then return end
-        
-        SelectingKey = true
-        KeybindButton.Text = "..."
-        
-        local connection
-        connection = uis.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                assignedKey = input.KeyCode
-                keybindT.keyCode = assignedKey
-                KeybindDisplay.Text = "[" .. assignedKey.Name .. "]"
-                KeybindButton.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
-                SelectingKey = false
-                
-                if connection then
-                    connection:Disconnect()
-                end
-            end
-        end)
-        
-        -- Timeout after 5 seconds
-        task.delay(5, function()
-            if SelectingKey then
-                SelectingKey = false
-                if connection then
-                    connection:Disconnect()
-                end
-                KeybindButton.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
-            end
-        end)
+    -- Click on keybind display to open menu
+    library.Conn[#library.Conn + 1] = KeybindDisplay.MouseButton1Click:Connect(function()
+        ToggleMenu()
     end)
     
-    -- Mode buttons
-    library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Click:Connect(function()
-        keybindMode = "Toggle"
-        keybindT.mode = "Toggle"
-        
-        -- Update button visuals
-        for mode, button in pairs(modeButtons) do
-            if mode == "Toggle" then
-                tweensv:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = PresetColor, BackgroundTransparency = 0}):Play()
-            else
-                tweensv:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 45), BackgroundTransparency = 0.4}):Play()
-            end
-        end
-    end)
-    
-    library.Conn[#library.Conn + 1] = HoldButton.MouseButton1Click:Connect(function()
-        keybindMode = "Hold"
-        keybindT.mode = "Hold"
-        
-        -- Update button visuals
-        for mode, button in pairs(modeButtons) do
-            if mode == "Hold" then
-                tweensv:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = PresetColor, BackgroundTransparency = 0}):Play()
-            else
-                tweensv:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 45), BackgroundTransparency = 0.4}):Play()
-            end
-        end
-    end)
-    
-    library.Conn[#library.Conn + 1] = AlwaysButton.MouseButton1Click:Connect(function()
-        keybindMode = "Always"
-        keybindT.mode = "Always"
-        
-        -- Update button visuals
-        for mode, button in pairs(modeButtons) do
-            if mode == "Always" then
-                tweensv:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = PresetColor, BackgroundTransparency = 0}):Play()
-            else
-                tweensv:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 45), BackgroundTransparency = 0.4}):Play()
-            end
-        end
-    end)
-    
-    -- Add hover effects
-    for _, button in pairs(modeButtons) do
-        library.Conn[#library.Conn + 1] = button.MouseEnter:Connect(function()
-            if button.BackgroundTransparency > 0.2 then
-                tweensv:Create(button, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
-            end
-        end)
-        
-        library.Conn[#library.Conn + 1] = button.MouseLeave:Connect(function()
-            if button.Text ~= keybindMode then
-                tweensv:Create(button, TweenInfo.new(0.2), {BackgroundTransparency = 0.4}):Play()
-            end
-        end)
-    end
-    
-    library.Conn[#library.Conn + 1] = KeybindButton.MouseEnter:Connect(function()
-        tweensv:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 55)}):Play()
-    end)
-    
-    library.Conn[#library.Conn + 1] = KeybindButton.MouseLeave:Connect(function()
-        tweensv:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 45)}):Play()
-    end)
-    
-    -- Add hover effect for KeybindDisplay too
+    -- Add hover effect for the keybind display
     library.Conn[#library.Conn + 1] = KeybindDisplay.MouseEnter:Connect(function()
-        tweensv:Create(KeybindDisplay, TweenInfo.new(0.2), {BackgroundTransparency = 0.5}):Play()
+        tweensv:Create(KeybindDisplay, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+        tweensv:Create(KeybindDisplayStroke, TweenInfo.new(0.2), {Transparency = 0.2}):Play()
     end)
     
     library.Conn[#library.Conn + 1] = KeybindDisplay.MouseLeave:Connect(function()
-        tweensv:Create(KeybindDisplay, TweenInfo.new(0.2), {BackgroundTransparency = 0.7}):Play()
+        tweensv:Create(KeybindDisplay, TweenInfo.new(0.2), {BackgroundTransparency = 0.4}):Play()
+        tweensv:Create(KeybindDisplayStroke, TweenInfo.new(0.2), {Transparency = 0.6}):Play()
     end)
     
+    -- Add hover effect for the toggle
+    library.Conn[#library.Conn + 1] = Toggle.MouseEnter:Connect(function()
+        if not MenuOpen then
+            tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(38, 38, 38)}):Play()
+        end
+    end)
+    
+    library.Conn[#library.Conn + 1] = Toggle.MouseLeave:Connect(function()
+        tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(34, 34, 34)}):Play()
+    end)
+    
+    -- Key input handling
     library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
         if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and 
-           not SelectingKey and assignedKey and input.KeyCode == assignedKey then
+           assignedKey and input.KeyCode == assignedKey then
             
-            -- Handle different keybind modes
-            if keybindMode == "Toggle" then
-                ToggleState(not toggled)
-            elseif keybindMode == "Hold" then
-                isHolding = true
-                ToggleState(true)
-            elseif keybindMode == "Always" and toggled then
-                -- Always mode just keeps the toggle on when enabled
+            -- Only allow keybind to work if toggle is enabled
+            if toggled then
+                -- Handle different keybind modes
+                if keybindMode == "Toggle" then
+                    -- In toggle mode, pressing the key toggles the state
+                    ToggleState(not toggled)
+                elseif keybindMode == "Hold" then
+                    -- In hold mode, just track that we're holding
+                    isHolding = true
+                    -- No need to change toggle state as it's already on
+                elseif keybindMode == "Always" then
+                    -- Always mode doesn't change the toggle state
+                end
             end
         end
     end)
@@ -1325,7 +1389,11 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and 
            assignedKey and input.KeyCode == assignedKey and keybindMode == "Hold" and isHolding then
             isHolding = false
-            ToggleState(false)
+            -- Only trigger callback if toggle is on and we were holding
+            if toggled then
+                pcall(callback, false)
+                pcall(callback, true)
+            end
         end
     end)
 
