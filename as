@@ -1084,42 +1084,7 @@ function library:Window(title, version, info, preset, closebind)
             local value = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue))
             local IsSettingFromConfig = false
             
-            local function UpdateSlider(val, mouseX)
-                local percent
-                
-                if val then
-                    val = tonumber(val)
-                    if val == nil then 
-                        val = defvalue
-                    end
-                    percent = math.clamp((val - min) / (max - min), 0, 1)
-                elseif mouseX then
-                    percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-                else
-                    percent = math.clamp((ms.X - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-                end
-
-                percent = math.clamp(percent, 0, 1)
-                
-                if IsSettingFromConfig then
-                    Progress.Size = UDim2.new(percent, 0, 1, 0)
-                else
-                    Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
-                end
-                
-                RealValue = min + (max - min) * percent
-                value = precise and string.format("%.1f", tostring(RealValue)) or math.floor(RealValue)
-                ValueLabel.Text = tostring(value)
-                
-                if slider then
-                    slider.value = precise and tonumber(value) or math.floor(RealValue)
-                end
-                
-                if UserFunc and not IsSettingFromConfig then
-                    pcall(UserFunc, slider.value)
-                end
-   
-        local slider = {
+            local slider = {
                 value = precise and tonumber(value) or math.floor(RealValue),
                 set = function(self, val)
                     if type(val) == "number" or type(val) == "string" then
@@ -1160,6 +1125,41 @@ function library:Window(title, version, info, preset, closebind)
                     return self.value
                 end
             }
+            
+            function UpdateSlider(val, mouseX)
+                local percent
+                
+                if val then
+                    val = tonumber(val)
+                    if val == nil then 
+                        val = defvalue
+                    end
+                    percent = math.clamp((val - min) / (max - min), 0, 1)
+                elseif mouseX then
+                    percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
+                else
+                    percent = math.clamp((ms.X - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
+                end
+
+                percent = math.clamp(percent, 0, 1)
+                
+                if IsSettingFromConfig then
+                    Progress.Size = UDim2.new(percent, 0, 1, 0)
+                else
+                    Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
+                end
+                
+                RealValue = min + (max - min) * percent
+                value = precise and string.format("%.1f", tostring(RealValue)) or math.floor(RealValue)
+                ValueLabel.Text = tostring(value)
+                
+                slider.value = precise and tonumber(value) or math.floor(RealValue)
+                
+                if UserFunc and not IsSettingFromConfig then
+                    pcall(UserFunc, slider.value)
+                end
+            end
+            
             if not library.flags then library.flags = {} end
             library.flags[flag] = slider
             
