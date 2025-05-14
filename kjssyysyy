@@ -3290,9 +3290,11 @@ function library:ConfigSystem(tab, name)
     local menu = tab:NewDropdown("Select Config", cfg.list, function(item)
         cfg.pick = item
     end, false, "config_selector")
-    
     local autoLoad = tab:Toggle("Auto Load Selected Config", false, function(on)
-        if not (on and cfg.pick) then return end
+        if not cfg.pick then
+            library:Notification("Error", "No config selected.", "OK")
+            return
+        end
         
         local path = dir .. "/" .. cfg.pick .. ".json"
         local ok, raw = pcall(readfile, path)
@@ -3308,22 +3310,24 @@ function library:ConfigSystem(tab, name)
             end
             
             data.metadata = data.metadata or {}
-            data.metadata.autoLoad = true
+            data.metadata.autoLoad = on
             data.metadata.lastModified = os.time()
             
-            for _, name in ipairs(cfg.list) do
-                if name ~= cfg.pick then
-                    local other = dir .. "/" .. name .. ".json"
-                    local has, file = pcall(readfile, other)
-                    
-                    if has then
-                        local good, info = pcall(function()
-                            return game:GetService("HttpService"):JSONDecode(file)
-                        end)
+            if on then
+                for _, name in ipairs(cfg.list) do
+                    if name ~= cfg.pick then
+                        local other = dir .. "/" .. name .. ".json"
+                        local has, file = pcall(readfile, other)
                         
-                        if good and info.metadata then
-                            info.metadata.autoLoad = false
-                            pcall(writefile, other, game:GetService("HttpService"):JSONEncode(info))
+                        if has then
+                            local good, info = pcall(function()
+                                return game:GetService("HttpService"):JSONDecode(file)
+                            end)
+                            
+                            if good and info.metadata then
+                                info.metadata.autoLoad = false
+                                pcall(writefile, other, game:GetService("HttpService"):JSONEncode(info))
+                            end
                         end
                     end
                 end
@@ -3332,11 +3336,18 @@ function library:ConfigSystem(tab, name)
             local saved = pcall(writefile, path, game:GetService("HttpService"):JSONEncode(data))
             
             if saved then
-                cfg.auto = cfg.pick
-                library:Notification("Success", "Auto-load enabled for config: " .. cfg.pick, "OK")
+                if on then
+                    cfg.auto = cfg.pick
+                    library:Notification("Success", "Auto-load enabled for config: " .. cfg.pick, "OK")
+                else
+                    if cfg.auto == cfg.pick then
+                        cfg.auto = nil
+                    end
+                    library:Notification("Success", "Auto-load disabled for config: " .. cfg.pick, "OK")
+                end
             else
                 library:Notification("Error", "Failed to update config file.", "OK")
-                autoLoad:set(false)
+                autoLoad:set(not on)
             end
         else
             library:Notification("Error", "Failed to read config file.", "OK")
