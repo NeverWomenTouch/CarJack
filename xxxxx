@@ -4107,79 +4107,113 @@ function library:ConfigSystem(tab, name)
         end
         
         local loaded = 0
+        local loadOrder = {}
+        local threadToggles = {}
         
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
             if flag == "config_autoload" then continue end
             
-            if library.flags[flag] then
-                local element = library.flags[flag]
-                
-                task.spawn(function()
-                    pcall(function()
-                        if type(element) == "table" and type(element.set) == "function" then
-                            if type(val) == "table" and val.__type == "Color3" then
-                                local color = Color3.new(val.r, val.g, val.b)
-                                element:set(color)
-                                loaded = loaded + 1 
-                            elseif type(val) == "table" and val.__type == "Keybind" then
-                                local keyEnum
-                                if type(val.value) == "table" and val.value.__type == "EnumItem" then
-                                    keyEnum = Enum.KeyCode[val.value.value]
-                                else
-                                    keyEnum = Enum.KeyCode[val.keyName]
-                                end
-                                
-                                if keyEnum then
-                                    if val.mode or val.toggleState ~= nil then
-                                        local keyData = {
-                                            keyCode = keyEnum,
-                                            mode = val.mode,
-                                            value = val.toggleState
-                                        }
-                                        element:set(keyData)
-                                    else
-                                        element:set(keyEnum)
-                                    end
-                                    loaded = loaded + 1
-                                end
-                            elseif type(val) == "number" then
-                                element:set(val)
-                                loaded = loaded + 1
-                            elseif type(val) == "boolean" then
-                                element:set(val)
-                                loaded = loaded + 1
-                            elseif type(val) == "table" and (val.selected or val.options) then
-                                element:set(val.selected or val)
-                                loaded = loaded + 1
-                            elseif type(val) == "string" then
-                                element:set(val)
-                                loaded = loaded + 1
-                            else
-                                local parsed = unpack(val)
-                                element:set(parsed)
-                                loaded = loaded + 1
-                            end
-                        end
-                    end)
-                end)
+            if flag:match("KA$") or flag:match("killAura") or flag:match("Kill_Aura") then
+                table.insert(threadToggles, {flag = flag, val = val})
+            elseif library.flags[flag] then
+                table.insert(loadOrder, {flag = flag, val = val})
             end
         end
         
-        task.delay(0.3, function()
-            for flag, val in pairs(data.values) do
-                if not flag:match("_rainbow$") then continue end
+        for _, item in ipairs(loadOrder) do
+            local flag, val = item.flag, item.val
+            local element = library.flags[flag]
+            
+            if type(element) == "table" and type(element.set) == "function" then
+                local success, err = pcall(function()
+                    if type(val) == "table" and val.__type == "Color3" then
+                        local color = Color3.new(val.r, val.g, val.b)
+                        element:set(color)
+                        loaded = loaded + 1 
+                    elseif type(val) == "table" and val.__type == "Keybind" then
+                        local keyEnum
+                        if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                            keyEnum = Enum.KeyCode[val.value.value]
+                        else
+                            keyEnum = Enum.KeyCode[val.keyName]
+                        end
+                        
+                        if keyEnum then
+                            if val.mode or val.toggleState ~= nil then
+                                local keyData = {
+                                    keyCode = keyEnum,
+                                    mode = val.mode,
+                                    value = val.toggleState
+                                }
+                                element:set(keyData)
+                            else
+                                element:set(keyEnum)
+                            end
+                            loaded = loaded + 1
+                        end
+                    elseif type(val) == "number" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    elseif type(val) == "boolean" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    elseif type(val) == "table" and (val.selected or val.options) then
+                        element:set(val.selected or val)
+                        loaded = loaded + 1
+                    elseif type(val) == "string" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    else
+                        local parsed = unpack(val)
+                        element:set(parsed)
+                        loaded = loaded + 1
+                    end
+                end)
                 
-                local base = flag:gsub("_rainbow$", "")
-                if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
-                    pcall(function()
-                        library.flags[base]:setRainbow(val)
-                    end)
+                if not success and library.debug then
+                    warn("Error loading config value for", flag, ":", err)
                 end
+                
+                task.wait(0.01)
             end
+        end
+        
+        task.wait(0.1)
+        
+        for _, item in ipairs(threadToggles) do
+            local flag, val = item.flag, item.val
+            local element = library.flags[flag]
+            
+            if type(element) == "table" and type(element.set) == "function" then
+                pcall(function()
+                    if type(val) == "boolean" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    else
+                        element:set(val)
+                        loaded = loaded + 1
+                    end
+                end)
+                
+                task.wait(0.05)
+            end
+        end
+        
+        task.wait(0.2)
+        
+        for flag, val in pairs(data.values) do
+            if not flag:match("_rainbow$") then continue end
+            
+            local base = flag:gsub("_rainbow$", "")
+            if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
+                pcall(function()
+                    library.flags[base]:setRainbow(val)
+                end)
+            end
+        end
 
-            library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
-        end)
+        library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
     end)
     
     tab:Button("Delete Config", function()
@@ -4211,6 +4245,7 @@ function library:ConfigSystem(tab, name)
 
         library:Notification("Success", "Config deleted: \"" .. gone .. "\"", "OK", "rbxassetid://83065037218239")
     end)
+
     tab:Button("Refresh Config List", function()
         table.clear(cfg.list)
         local items = sync()
@@ -4232,92 +4267,139 @@ function library:ConfigSystem(tab, name)
             end, false, "config_selector")
         end
     end)
+
     task.spawn(function()
         task.wait(0.5)
         if not cfg.auto then return end
+        
         local path = dir .. "/" .. cfg.auto .. ".json"
         local ok, raw = pcall(readfile, path)
         if not ok then return end
+        
         local valid, data = pcall(function() 
             return game:GetService("HttpService"):JSONDecode(raw) 
         end)
+        
         if not valid or type(data.values) ~= "table" then return end
+        
         local loaded = 0
         cfg.pick = cfg.auto
+        
         pcall(function()
             if menu and type(menu.set) == "function" then
                 menu:set(cfg.auto)
             end
         end)
+        
+        local loadOrder = {}
+        local threadToggles = {}
+        
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
             if flag == "config_autoload" then continue end
-            if library.flags[flag] then
-                local element = library.flags[flag]
+            
+            if flag:match("KA$") or flag:match("killAura") or flag:match("Kill_Aura") then
+                table.insert(threadToggles, {flag = flag, val = val})
+            elseif library.flags[flag] then
+                table.insert(loadOrder, {flag = flag, val = val})
+            end
+        end
+        
+        for _, item in ipairs(loadOrder) do
+            local flag, val = item.flag, item.val
+            local element = library.flags[flag]
+            
+            if type(element) == "table" and type(element.set) == "function" then
                 pcall(function()
-                    if type(element) == "table" and type(element.set) == "function" then
-                        if type(val) == "table" and val.__type == "Color3" then
-                            local color = Color3.new(val.r, val.g, val.b)
-                            element:set(color)
-                            loaded = loaded + 1
-                        elseif type(val) == "table" and val.__type == "Keybind" then
-                            local keyEnum
-                            if type(val.value) == "table" and val.value.__type == "EnumItem" then
-                                keyEnum = Enum.KeyCode[val.value.value]
-                            else
-                                keyEnum = Enum.KeyCode[val.keyName]
-                            end
-                            if keyEnum then
-                                if val.mode or val.toggleState ~= nil then
-                                    local keyData = {
-                                        keyCode = keyEnum,
-                                        mode = val.mode,
-                                        value = val.toggleState
-                                    }
-                                    element:set(keyData)
-                                else
-                                    element:set(keyEnum)
-                                end
-                                loaded = loaded + 1
-                            end
-                        elseif type(val) == "number" then
-                            element:set(val)
-                            loaded = loaded + 1
-                        elseif type(val) == "boolean" then
-                            element:set(val)
-                            loaded = loaded + 1
-                        elseif type(val) == "table" and (val.selected or val.options) then
-                            element:set(val.selected or val)
-                            loaded = loaded + 1
-                        elseif type(val) == "string" then
-                            element:set(val)
-                            loaded = loaded + 1
+                    if type(val) == "table" and val.__type == "Color3" then
+                        local color = Color3.new(val.r, val.g, val.b)
+                        element:set(color)
+                        loaded = loaded + 1 
+                    elseif type(val) == "table" and val.__type == "Keybind" then
+                        local keyEnum
+                        if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                            keyEnum = Enum.KeyCode[val.value.value]
                         else
-                            local parsed = unpack(val)
-                            element:set(parsed)
+                            keyEnum = Enum.KeyCode[val.keyName]
+                        end
+                        
+                        if keyEnum then
+                            if val.mode or val.toggleState ~= nil then
+                                local keyData = {
+                                    keyCode = keyEnum,
+                                    mode = val.mode,
+                                    value = val.toggleState
+                                }
+                                element:set(keyData)
+                            else
+                                element:set(keyEnum)
+                            end
                             loaded = loaded + 1
                         end
+                    elseif type(val) == "number" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    elseif type(val) == "boolean" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    elseif type(val) == "table" and (val.selected or val.options) then
+                        element:set(val.selected or val)
+                        loaded = loaded + 1
+                    elseif type(val) == "string" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    else
+                        local parsed = unpack(val)
+                        element:set(parsed)
+                        loaded = loaded + 1
                     end
+                end)
+                
+                task.wait(0.01)
+            end
+        end
+        
+        task.wait(0.1)
+        
+        for _, item in ipairs(threadToggles) do
+            local flag, val = item.flag, item.val
+            local element = library.flags[flag]
+            
+            if type(element) == "table" and type(element.set) == "function" then
+                pcall(function()
+                    if type(val) == "boolean" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    else
+                        element:set(val)
+                        loaded = loaded + 1
+                    end
+                end)
+                
+                task.wait(0.05)
+            end
+        end
+        
+        task.wait(0.2)
+        
+        for flag, val in pairs(data.values) do
+            if not flag:match("_rainbow$") then continue end
+            
+            local base = flag:gsub("_rainbow$", "")
+            if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
+                pcall(function()
+                    library.flags[base]:setRainbow(val)
                 end)
             end
         end
-        task.delay(0.3, function()
-            for flag, val in pairs(data.values) do
-                if not flag:match("_rainbow$") then continue end
-                local base = flag:gsub("_rainbow$", "")
-                if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
-                    pcall(function()
-                        library.flags[base]:setRainbow(val)
-                    end)
-                end
-            end
-            task.delay(0.2, function()
-                silentAutoLoadUpdate = true
-                autoLoad:set(true)
-                library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
-            end)
+        
+        task.delay(0.2, function()
+            silentAutoLoadUpdate = true
+            autoLoad:set(true)
+            library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
         end)
     end)
+    
     return cfg
 end
 return library
