@@ -2982,10 +2982,11 @@ tab:Button("Save/Overwrite Config", function()
             for flag, elem in pairs(library.flags) do
                 if elem and type(elem) == "table" then
                     if not flag:match("_rainbow$") then
-                        -- FIX: Directly save slider values as numbers
-                        if flag:match("[sS]lider") and type(elem.value) == "number" then
+                        -- DIRECT VALUE SAVING - this is the critical fix for sliders
+                        if type(elem.value) == "number" then
+                            -- For any numeric value (including sliders), save directly
                             data.values[flag] = elem.value
-                        elseif (flag:find("[bB]ind") or flag:find("[kK]eybind")) and (elem.keyCode or elem.value) then
+                        elseif (flag:find("[bB]ind") or flag:find("[kK]eybind")) and (elem.keyCode or (typeof(elem.value) == "EnumItem")) then
                             local keyData = {
                                 __type = "Keybind",
                                 keyName = elem.keyName or (elem.keyCode and elem.keyCode.Name) or "Unknown"
