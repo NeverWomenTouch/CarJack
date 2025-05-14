@@ -1082,6 +1082,7 @@ function library:Window(title, version, info, preset, closebind)
             local IsSliding, Dragging = false, false
             local RealValue = defvalue
             local value = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue))
+            local IsSettingFromConfig = false
             
             local function UpdateSlider(val, mouseX)
                 local percent
@@ -1096,7 +1097,12 @@ function library:Window(title, version, info, preset, closebind)
                 end
 
                 percent = math.clamp(percent, 0, 1)
-                Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
+                
+                if IsSettingFromConfig then
+                    Progress.Size = UDim2.new(percent, 0, 1, 0)
+                else
+                    Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
+                end
                 
                 RealValue = min + (max - min) * percent
                 value = precise and string.format("%.1f", tostring(RealValue)) or math.floor(RealValue)
@@ -1108,7 +1114,7 @@ function library:Window(title, version, info, preset, closebind)
                     slider.value = sliderValue
                 end
                 
-                if UserFunc then
+                if UserFunc and not IsSettingFromConfig then
                     pcall(UserFunc, sliderValue)
                 end
             end
@@ -1119,8 +1125,16 @@ function library:Window(title, version, info, preset, closebind)
                     if type(val) == "number" or type(val) == "string" then
                         val = tonumber(val) or self.value
                         val = math.clamp(val, min, max)
+                        
+                        IsSettingFromConfig = true
                         UpdateSlider(val)
+                        IsSettingFromConfig = false
+                        
                         self.value = precise and tonumber(string.format("%.1f", val)) or math.floor(val)
+                        
+                        if UserFunc then
+                            pcall(UserFunc, self.value)
+                        end
                     end
                     return self
                 end,
@@ -2570,34 +2584,16 @@ function library:Window(title, version, info, preset, closebind)
                 BindText.Text = "..."
                 binding = true
                 
-                local inputConnection
-                inputConnection = uis.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.Keyboard then
-                        if inputConnection then 
-                            inputConnection:Disconnect()
-                            inputConnection = nil
-                        end
-                        
-                        if input.KeyCode.Name ~= "Unknown" then
-                            Key = input.KeyCode.Name
-                            keybind.value = input.KeyCode
-                            keybind.keyName = input.KeyCode.Name
-                            BindText.Text = input.KeyCode.Name
-                        end
-                        binding = false
-                    end
-                end)
-                
-                task.delay(5, function()
-                    if binding and inputConnection then
-                        inputConnection:Disconnect()
-                        inputConnection = nil
-                        binding = false
-                        BindText.Text = Key
-                    end
-                end)
+                local inputwait = uis.InputBegan:wait()
+                if inputwait.UserInputType == Enum.UserInputType.Keyboard and inputwait.KeyCode.Name ~= "Unknown" then
+                    Key = inputwait.KeyCode.Name
+                    keybind.value = inputwait.KeyCode
+                    keybind.keyName = inputwait.KeyCode.Name
+                    BindText.Text = inputwait.KeyCode.Name
+                end
+                binding = false
             end)
-            
+
             library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
                 if not binding and not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard then
                     if input.KeyCode.Name == Key then
