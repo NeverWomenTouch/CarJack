@@ -2698,11 +2698,21 @@ function pack(val)
             value = val.Name
         }
     elseif typ == "table" then
-        -- DIRECT VALUE EXTRACTION - KEY FIX
-        -- For sliders, just save the numeric value directly
-        if type(val.value) == "number" and typeof(val.set) == "function" and typeof(val.getValue) == "function" then
-            return val.value
-        end
+            -- Check if it's a slider by looking for specific properties
+            if flag and flag:match("[sS]lider") then
+                -- For sliders, directly access the current value by getting the raw value
+                if type(val.value) == "number" then
+                    return val.value
+                elseif type(rawget(val, "_realValue")) == "number" then
+                    -- Fallback to real value if present
+                    local realVal = rawget(val, "_realValue")
+                    if precise then
+                        return tonumber(string.format("%.1f", realVal))
+                    else
+                        return math.floor(realVal)
+                    end
+                end
+            end
         
         -- For colorpickers, properly save with rainbow state
         if typeof(val.value) == "Color3" then
