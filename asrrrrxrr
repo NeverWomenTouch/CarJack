@@ -2996,8 +2996,12 @@ tab:Button("Save/Overwrite Config", function()
             for flag, elem in pairs(library.flags) do
                 if elem and type(elem) == "table" then
                     if not flag:match("_rainbow$") then
-                        -- For sliders, directly save the numeric value
+                        -- Handle different element types
                         if type(elem.value) == "number" then
+                            -- For sliders
+                            data.values[flag] = elem.value
+                        elseif type(elem.value) == "boolean" then
+                            -- For toggles
                             data.values[flag] = elem.value
                         elseif (flag:find("[bB]ind") or flag:find("[kK]eybind")) then
                             -- Keybind handling 
@@ -3035,6 +3039,12 @@ tab:Button("Save/Overwrite Config", function()
                             end
                             
                             data.values[flag] = colorData
+                        elseif type(elem.value) == "string" then
+                            -- For textboxes
+                            data.values[flag] = elem.value
+                        elseif flag:find("dropdown") or elem.options then
+                            -- For dropdowns
+                            data.values[flag] = elem.value
                         else
                             data.values[flag] = pack(elem)
                         end
@@ -3077,6 +3087,12 @@ tab:Button("Save/Overwrite Config", function()
                     msg = "No settings have been modified"
                 end
                 
+                -- Add total count to the notification
+                local total = add + changed + same
+                if hasChanges then
+                    msg = msg .. " (Total: " .. total .. ")"
+                end
+                
                 library:Notification("Config Saved", "\"" .. cfg.pick .. "\": " .. msg, "OK")
             else
                 library:Notification("Error", "Failed to save config file.", "OK")
@@ -3111,7 +3127,6 @@ tab:Button("Load Config", function()
     
     local loaded = 0
     
-    -- First, load all non-slider values
     for flag, val in pairs(data.values) do
         if flag:match("_rainbow$") then continue end
         
@@ -3126,7 +3141,7 @@ tab:Button("Load Config", function()
                             local color = Color3.new(val.r, val.g, val.b)
                             element:set(color)
                             loaded = loaded + 1
-                        -- Handle keybinds
+                        -- Handle keybinds  
                         elseif type(val) == "table" and val.__type == "Keybind" then
                             local keyEnum
                             if type(val.value) == "table" and val.value.__type == "EnumItem" then
@@ -3143,7 +3158,20 @@ tab:Button("Load Config", function()
                         elseif type(val) == "number" then
                             element:set(val)
                             loaded = loaded + 1
+                        -- Handle toggles (boolean values)
+                        elseif type(val) == "boolean" then
+                            element:set(val)
+                            loaded = loaded + 1
+                        -- Handle dropdowns
+                        elseif type(val) == "table" and (val.selected or val.options) then
+                            element:set(val.selected or val)
+                            loaded = loaded + 1
+                        -- Handle textboxes
+                        elseif type(val) == "string" then
+                            element:set(val)
+                            loaded = loaded + 1
                         else
+                            -- General case for all other elements
                             local parsed = unpack(val)
                             element:set(parsed)
                             loaded = loaded + 1
@@ -3269,7 +3297,18 @@ task.spawn(function()
                         loaded = loaded + 1
                     -- Handle sliders (direct numeric values)
                     elseif type(val) == "number" then
-                        -- Direct pass-through to set method
+                        element:set(val)
+                        loaded = loaded + 1
+                    -- Handle toggles (boolean values)
+                    elseif type(val) == "boolean" then
+                        element:set(val)
+                        loaded = loaded + 1
+                    -- Handle dropdowns
+                    elseif type(val) == "table" and (val.selected or val.options) then
+                        element:set(val.selected or val)
+                        loaded = loaded + 1
+                    -- Handle textboxes
+                    elseif type(val) == "string" then
                         element:set(val)
                         loaded = loaded + 1
                     else
