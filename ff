@@ -3698,6 +3698,16 @@ function library:ConfigSystem(tab, name)
     local menu = tab:NewDropdown("Select Config", cfg.list, function(item) cfg.pick = item end, false, "config_selector")
     local silentAutoLoadUpdate = false
 
+    local function getTextValue(flag)
+        local v = library.flags[flag]
+        if type(v) == "table" and type(v.value) ~= "function" and type(v.value) ~= "table" then
+            return v.value
+        elseif type(v) == "string" then
+            return v
+        end
+        return ""
+    end
+
     local function doLoadConfig(configName, showNotify)
         local path = dir .. "/" .. configName .. ".json"
         local ok, raw = pcall(readfile, path)
@@ -3810,7 +3820,8 @@ function library:ConfigSystem(tab, name)
     end, "config_autoload")
 
     tab:Button("Create Config", function()
-        local name = library.flags["config_name_input"] and library.flags["config_name_input"].value or ""
+        local name = getTextValue("config_name_input")
+        if type(name) ~= "string" then name = "" end
         if name == "" then library:Notification("Error", "Please enter a config name.", "OK", "rbxassetid://83065037218239") return end
         if not name:match("^[%w_]+$") then library:Notification("Error", "Config name can only contain letters, numbers, and underscores.", "OK", "rbxassetid://83065037218239") return end
         for _, item in ipairs(cfg.list) do if item:lower() == name:lower() then library:Notification("Error", "Config already exists.", "OK", "rbxassetid://83065037218239") return end end
@@ -3833,7 +3844,9 @@ function library:ConfigSystem(tab, name)
             menu:Refresh(cfg.list)
             menu:set(name)
             cfg.pick = name
-            nameBox:set("")
+            if type(nameBox) == "table" and type(nameBox.set) == "function" then
+                nameBox:set("")
+            end
             library:Notification("Success", "Config \"" .. name .. "\" created with " .. count .. " settings!", "OK", "rbxassetid://83065037218239", 6)
         else
             library:Notification("Error", "Failed to create config file.", "OK", "rbxassetid://83065037218239")
@@ -3905,8 +3918,7 @@ function library:ConfigSystem(tab, name)
 
     tab:Button("Load Config", function()
         if not cfg.pick then return library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239") end
-        local loaded = doLoadConfig(cfg.pick, true)
-        if not loaded then return end
+        doLoadConfig(cfg.pick, true)
     end)
 
     tab:Button("Delete Config", function()
