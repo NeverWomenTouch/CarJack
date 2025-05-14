@@ -5,6 +5,7 @@ local library = {
     SafeCall = false, 
     Conn = {},
     Folder = "Dendrite.cc",
+    LibName = "Dendrite.cc",
     animatetext = false,
     debug = false,
     OCbtn = false
@@ -22,26 +23,25 @@ local httpsv = cloneref(game:GetService("HttpService"))
 local PresetColor, Drawing, placeid = Color3.fromRGB(255, 0, 0), Drawing or {}, game.PlaceId
 local CloseBind, getgenv = Enum.KeyCode.X, getgenv or {}
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
-local altloaded = false
-local rbxgui = cg:FindFirstChild("RobloxGui") or Instance.new("ScreenGui", cg)
-if altloaded then
-    for i,v in next, rbxgui:GetChildren() do
-        if v.Name == "Dendrite.cc" then
-            v:Destroy()
+if getgenv().libloaded then
+    for i, v in next, library.Conn do
+        v:Disconnect()
+    end
+    for _, gui in pairs(game:GetService("CoreGui"):GetDescendants()) do
+        if gui.Name == library.LibName then
+            gui:Destroy()
         end
     end
-	for i,v in next, library.Conn do
-		v:Disconnect()
-	end
-	altloaded = false
+    getgenv().libloaded = false
 end
-altloaded= true
+getgenv().libloaded = true
+local rbxgui = cg:FindFirstChild("RobloxGui") or Instance.new("ScreenGui", cg)
 local screengui = Instance.new("ScreenGui", rbxgui)
 ProtectGui(screengui);
-screengui.Name = "Dendrite.cc"
+screengui.Name = library.LibName
 screengui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 task.spawn(function()
-	while altloaded do
+	while getgenv().libloaded do
 		library.RainbowColorValue = library.RainbowColorValue + 1 / 255
 		library.HueSelectionPosition = library.HueSelectionPosition + 1
 		if library.RainbowColorValue >= 1 then
@@ -84,7 +84,7 @@ function library:Unload()
     for i,v in next, library.Conn do
 		v:Disconnect()
 	end
-    altloaded = false
+    getgenv().libloaded = false
 end
 
 function MakeDraggable(topbarobject, object)
@@ -273,7 +273,7 @@ function library:Window(title, version, info, preset, closebind)
     }
 
     coroutine.wrap(function()
-        while altloaded do
+        while getgenv().libloaded do
             local repeatCount = 10
             local delay = 0.05
             for _, v in ipairs(textDisplays) do
@@ -288,7 +288,7 @@ function library:Window(title, version, info, preset, closebind)
     end)()
 
     task.spawn(function()
-        while altloaded do
+        while getgenv().libloaded do
             Title.TextColor3 = PresetColor
             line.BackgroundColor3 = PresetColor
             line2.BackgroundColor3 = PresetColor
@@ -490,7 +490,7 @@ function library:Window(title, version, info, preset, closebind)
         TabBtnIndicatorCorner.Parent = TabBtnIndicator
 
         coroutine.wrap(function()
-            while altloaded do
+            while getgenv().libloaded do
                 TabBtnIndicator.BackgroundColor3 = PresetColor
 				task.wait()
             end
@@ -655,7 +655,7 @@ function library:Window(title, version, info, preset, closebind)
             FrameToggleCircleCorner.Parent = FrameToggleCircle
             
             coroutine.wrap(function()
-                while altloaded do
+                while getgenv().libloaded do
                     FrameToggle3.BackgroundColor3 = PresetColor
                     task.wait()
                 end
@@ -1011,7 +1011,7 @@ function library:Window(title, version, info, preset, closebind)
             local AlwaysButton = createModeButton("Always", 3)
 
             coroutine.wrap(function()
-                while altloaded do
+                while getgenv().libloaded do
                     FrameToggle3.BackgroundColor3 = PresetColor
                     KeybindButtonStroke.Color = PresetColor
                     KeybindDisplayStroke.Color = PresetColor
@@ -1494,7 +1494,7 @@ function library:Window(title, version, info, preset, closebind)
             CircleCorner.Parent = Circle
 
             task.spawn(function()
-                while altloaded do
+                while getgenv().libloaded do
                     Circle.BackgroundColor3 = PresetColor
                     Progress.BackgroundColor3 = PresetColor
                     task.wait()
@@ -2437,7 +2437,7 @@ function library:Window(title, version, info, preset, closebind)
             RainbowSpeedSliderCircleCorner.Parent = RainbowSpeedSliderCircle
 
             coroutine.wrap(function()
-                while altloaded do
+                while getgenv().libloaded do
                     FrameRainbowToggle3.BackgroundColor3 = PresetColor
                     RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
                     task.wait()
@@ -3682,11 +3682,9 @@ function library:ConfigSystem(tab, name)
         
         library:Notification("Success", "Config deleted: \"" .. gone .. "\"", "OK")
     end)
-    
     tab:Button("Refresh Config List", function()
         table.clear(cfg.list)
         local items = sync()
-        
         if menu then
             if type(menu.Refresh) == "function" then
                 menu:Refresh(items)
@@ -3705,36 +3703,26 @@ function library:ConfigSystem(tab, name)
             end, false, "config_selector")
         end
     end)
-    
     task.spawn(function()
         task.wait(0.5)
-        
         if not cfg.auto then return end
-        
         local path = dir .. "/" .. cfg.auto .. ".json"
         local ok, raw = pcall(readfile, path)
-        
         if not ok then return end
-        
         local valid, data = pcall(function() 
             return game:GetService("HttpService"):JSONDecode(raw) 
         end)
-        
         if not valid or type(data.values) ~= "table" then return end
-        
         local loaded = 0
         cfg.pick = cfg.auto
-
         pcall(function()
             if menu and type(menu.set) == "function" then
                 menu:set(cfg.auto)
             end
         end)
-        
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
             if flag == "config_autoload" then continue end
-            
             if library.flags[flag] then
                 local element = library.flags[flag]
                 pcall(function()
@@ -3784,7 +3772,6 @@ function library:ConfigSystem(tab, name)
                 end)
             end
         end
-        
         task.delay(0.3, function()
             for flag, val in pairs(data.values) do
                 if not flag:match("_rainbow$") then continue end
@@ -3796,7 +3783,6 @@ function library:ConfigSystem(tab, name)
                     end)
                 end
             end
-            
             task.delay(0.2, function()
                 silentAutoLoadUpdate = true
                 autoLoad:set(true)
@@ -3805,7 +3791,6 @@ function library:ConfigSystem(tab, name)
             end)
         end)
     end)
-    
     return cfg
 end
 return library
