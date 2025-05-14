@@ -746,7 +746,7 @@ function library:Window(title, version, info, preset, closebind)
             return toggle
         end
         
-function tabcontent:KeybindT(text, default, keybind, callback, flag)
+        function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local flag = flag or text
     local toggled = default or false
     local assignedKey = keybind or Enum.KeyCode.Unknown
@@ -801,7 +801,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     ToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     ToggleTitle.BackgroundTransparency = 1.000
     ToggleTitle.Position = UDim2.new(0.05, 0, 0, 0)
-    ToggleTitle.Size = UDim2.new(0.5, 0, 1, 0)
+    ToggleTitle.Size = UDim2.new(0.6, 0, 1, 0)
     ToggleTitle.Font = Enum.Font.SourceSans
     ToggleTitle.Text = text
     ToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -809,11 +809,11 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
     ToggleTitle.ZIndex = 5
 
-    -- Right side toggle
+    -- Right side toggle (updated to match old style)
     FrameToggle1.Name = "FrameToggle1"
     FrameToggle1.Parent = FixedElements
     FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    FrameToggle1.Position = UDim2.new(0.85, 0, 0.5, -9) -- Right side
+    FrameToggle1.Position = UDim2.new(0.75, 0, 0.25, 0)
     FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
     FrameToggle1.ZIndex = 5
 
@@ -846,7 +846,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     FrameToggleCircle.Name = "FrameToggleCircle"
     FrameToggleCircle.Parent = FrameToggle1
     FrameToggleCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    FrameToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
+    FrameToggleCircle.Position = UDim2.new(0.1, 0, 0.2, 0)
     FrameToggleCircle.Size = UDim2.new(0, 10, 0, 10)
     FrameToggleCircle.ZIndex = 5
 
@@ -859,8 +859,8 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     KeybindDisplay.Parent = FixedElements
     KeybindDisplay.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     KeybindDisplay.BackgroundTransparency = 0.7
-    KeybindDisplay.Position = UDim2.new(0.58, 0, 0.5, -10)
-    KeybindDisplay.Size = UDim2.new(0.22, 0, 0, 20)
+    KeybindDisplay.Position = UDim2.new(0.85, 0, 0.5, -10)
+    KeybindDisplay.Size = UDim2.new(0.12, 0, 0, 20)
     KeybindDisplay.Font = Enum.Font.SourceSans
     KeybindDisplay.Text = "[" .. (assignedKey.Name == "Unknown" and "None" or assignedKey.Name) .. "]"
     KeybindDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1167,10 +1167,10 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     function ToggleState(state)
         toggled = state
         if toggled then
-            FrameToggleCircle:TweenPosition(UDim2.new(0.587, 0, 0.222000003, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            FrameToggleCircle:TweenPosition(UDim2.new(0.6, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
             FrameToggle3.BackgroundTransparency = 0
         else
-            FrameToggleCircle:TweenPosition(UDim2.new(0.127000004, 0, 0.222000003, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            FrameToggleCircle:TweenPosition(UDim2.new(0.1, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
             FrameToggle3.BackgroundTransparency = 1
         end
         
@@ -1370,12 +1370,13 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             if toggled then
                 -- Handle different keybind modes
                 if keybindMode == "Toggle" then
-                    ToggleState(not toggled)
+                    -- Send the keybind state instead of changing toggle state
+                    pcall(callback, true)
                 elseif keybindMode == "Hold" then
                     isHolding = true
-                    -- No need to change toggle state as it's already on
+                    pcall(callback, true)
                 elseif keybindMode == "Always" then
-                    -- Always mode doesn't change the toggle state
+                    pcall(callback, true)
                 end
             end
         end
@@ -1383,12 +1384,18 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     
     library.Conn[#library.Conn + 1] = uis.InputEnded:Connect(function(input, gameProcessed)
         if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and 
-           assignedKey and input.KeyCode == assignedKey and keybindMode == "Hold" and isHolding then
-            isHolding = false
-            -- Only trigger callback if toggle is on and we were holding
+           assignedKey and input.KeyCode == assignedKey then
+            
             if toggled then
-                pcall(callback, false)
-                pcall(callback, true)
+                if keybindMode == "Toggle" then
+                    -- For toggle mode, send false when key is released
+                    pcall(callback, false)
+                elseif keybindMode == "Hold" and isHolding then
+                    isHolding = false
+                    pcall(callback, false)
+                elseif keybindMode == "Always" then
+                    pcall(callback, false)
+                end
             end
         end
     end)
@@ -1402,6 +1409,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     
     return keybindT
 end
+
 function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue, flag)
     local flag = flag or SliderText
     local Slider = Instance.new("TextButton")
