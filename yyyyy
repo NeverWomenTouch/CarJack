@@ -767,8 +767,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local FrameToggleCircle = Instance.new("Frame")
     local FrameToggleCircleCorner = Instance.new("UICorner")
     local KeybindDisplay = Instance.new("TextButton")
-    local KeybindDisplayCorner = Instance.new("UICorner")
-    local KeybindDisplayStroke = Instance.new("UIStroke")
 
     -- Setup main toggle container
     Toggle.Name = "Toggle"
@@ -801,7 +799,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     ToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     ToggleTitle.BackgroundTransparency = 1.000
     ToggleTitle.Position = UDim2.new(0.05, 0, 0, 0)
-    ToggleTitle.Size = UDim2.new(0.5, 0, 1, 0)
+    ToggleTitle.Size = UDim2.new(0.6, 0, 1, 0)
     ToggleTitle.Font = Enum.Font.SourceSans
     ToggleTitle.Text = text
     ToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -809,11 +807,11 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
     ToggleTitle.ZIndex = 5
 
-    -- Right side toggle
+    -- Right side toggle - using the old version's positioning
     FrameToggle1.Name = "FrameToggle1"
     FrameToggle1.Parent = FixedElements
     FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    FrameToggle1.Position = UDim2.new(0.85, 0, 0.5, -9) -- Right side
+    FrameToggle1.Position = UDim2.new(0.75, 0, 0.25, 0)
     FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
     FrameToggle1.ZIndex = 5
 
@@ -846,7 +844,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     FrameToggleCircle.Name = "FrameToggleCircle"
     FrameToggleCircle.Parent = FrameToggle1
     FrameToggleCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    FrameToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
+    FrameToggleCircle.Position = UDim2.new(0.1, 0, 0.2, 0)
     FrameToggleCircle.Size = UDim2.new(0, 10, 0, 10)
     FrameToggleCircle.ZIndex = 5
 
@@ -854,28 +852,18 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     FrameToggleCircleCorner.Name = "FrameToggleCircleCorner"
     FrameToggleCircleCorner.Parent = FrameToggleCircle
 
-    -- Keybind display as a button for better interaction
+    -- Keybind display as a button
     KeybindDisplay.Name = "KeybindDisplay"
     KeybindDisplay.Parent = FixedElements
-    KeybindDisplay.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    KeybindDisplay.BackgroundTransparency = 0.7
-    KeybindDisplay.Position = UDim2.new(0.58, 0, 0.5, -10)
-    KeybindDisplay.Size = UDim2.new(0.22, 0, 0, 20)
+    KeybindDisplay.BackgroundTransparency = 1
+    KeybindDisplay.Position = UDim2.new(0.85, 0, 0, 0)
+    KeybindDisplay.Size = UDim2.new(0.15, 0, 1, 0)
     KeybindDisplay.Font = Enum.Font.SourceSans
-    KeybindDisplay.Text = "[" .. (assignedKey.Name == "Unknown" and "None" or assignedKey.Name) .. "]"
-    KeybindDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+    KeybindDisplay.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+    KeybindDisplay.TextColor3 = Color3.fromRGB(200, 200, 200)
     KeybindDisplay.TextSize = 16
     KeybindDisplay.ZIndex = 5
     KeybindDisplay.AutoButtonColor = false
-    
-    KeybindDisplayCorner.CornerRadius = UDim.new(0, 4)
-    KeybindDisplayCorner.Parent = KeybindDisplay
-    
-    KeybindDisplayStroke.Parent = KeybindDisplay
-    KeybindDisplayStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    KeybindDisplayStroke.Color = PresetColor
-    KeybindDisplayStroke.Transparency = 0.6
-    KeybindDisplayStroke.Thickness = 1
 
     -- Create dropdown content that will slide down inside the toggle
     local DropdownContent = Instance.new("Frame")
@@ -1028,7 +1016,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         while altloaded do
             FrameToggle3.BackgroundColor3 = PresetColor
             KeybindButtonStroke.Color = PresetColor
-            KeybindDisplayStroke.Color = PresetColor
             
             -- Update mode button colors
             for mode, button in pairs(modeButtons) do
@@ -1066,7 +1053,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                 if typeof(state.keyCode) == "EnumItem" and state.keyCode.EnumType == Enum.KeyCode then
                     assignedKey = state.keyCode
                     self.keyCode = state.keyCode
-                    KeybindDisplay.Text = "[" .. (state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name) .. "]"
+                    KeybindDisplay.Text = state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name
                     KeybindButton.Text = state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name
                 end
                 
@@ -1096,7 +1083,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             if typeof(state) == "EnumItem" and state.EnumType == Enum.KeyCode then
                 assignedKey = state
                 self.keyCode = state
-                KeybindDisplay.Text = "[" .. (state.Name == "Unknown" and "None" or state.Name) .. "]"
+                KeybindDisplay.Text = state.Name == "Unknown" and "None" or state.Name
                 KeybindButton.Text = state.Name == "Unknown" and "None" or state.Name
                 return self
             end
@@ -1107,7 +1094,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
                 assignedKey = key
                 self.keyCode = key
-                KeybindDisplay.Text = "[" .. (key.Name == "Unknown" and "None" or key.Name) .. "]"
+                KeybindDisplay.Text = key.Name == "Unknown" and "None" or key.Name
                 KeybindButton.Text = key.Name == "Unknown" and "None" or key.Name
             elseif typeof(key) == "string" then
                 local success, keyEnum = pcall(function()
@@ -1116,7 +1103,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                 if success and keyEnum then
                     assignedKey = keyEnum
                     self.keyCode = keyEnum
-                    KeybindDisplay.Text = "[" .. (keyEnum.Name == "Unknown" and "None" or keyEnum.Name) .. "]"
+                    KeybindDisplay.Text = keyEnum.Name == "Unknown" and "None" or keyEnum.Name
                     KeybindButton.Text = keyEnum.Name == "Unknown" and "None" or keyEnum.Name
                 end
             end
@@ -1167,10 +1154,10 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     function ToggleState(state)
         toggled = state
         if toggled then
-            FrameToggleCircle:TweenPosition(UDim2.new(0.587, 0, 0.222000003, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            FrameToggleCircle:TweenPosition(UDim2.new(0.6, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
             FrameToggle3.BackgroundTransparency = 0
         else
-            FrameToggleCircle:TweenPosition(UDim2.new(0.127000004, 0, 0.222000003, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            FrameToggleCircle:TweenPosition(UDim2.new(0.1, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
             FrameToggle3.BackgroundTransparency = 1
         end
         
@@ -1223,18 +1210,36 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     
     -- Keybind display
     library.Conn[#library.Conn + 1] = KeybindDisplay.MouseButton1Click:Connect(function()
-        ToggleMenu()
-    end)
-    
-    -- Add hover effects for the keybind display
-    library.Conn[#library.Conn + 1] = KeybindDisplay.MouseEnter:Connect(function()
-        tweensv:Create(KeybindDisplay, TweenInfo.new(0.2), {BackgroundTransparency = 0.5}):Play()
-        tweensv:Create(KeybindDisplayStroke, TweenInfo.new(0.2), {Transparency = 0.3}):Play()
-    end)
-    
-    library.Conn[#library.Conn + 1] = KeybindDisplay.MouseLeave:Connect(function()
-        tweensv:Create(KeybindDisplay, TweenInfo.new(0.2), {BackgroundTransparency = 0.7}):Play()
-        tweensv:Create(KeybindDisplayStroke, TweenInfo.new(0.2), {Transparency = 0.6}):Play()
+        if SelectingKey then return end
+        
+        SelectingKey = true
+        KeybindDisplay.Text = "..."
+        
+        local connection
+        connection = uis.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                assignedKey = input.KeyCode
+                keybindT.keyCode = assignedKey
+                KeybindDisplay.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+                KeybindButton.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+                SelectingKey = false
+                
+                if connection then
+                    connection:Disconnect()
+                end
+            end
+        end)
+        
+        -- Timeout after 5 seconds
+        task.delay(5, function()
+            if SelectingKey then
+                SelectingKey = false
+                if connection then
+                    connection:Disconnect()
+                end
+                KeybindDisplay.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+            end
+        end)
     end)
     
     -- Keybind button
@@ -1249,7 +1254,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 assignedKey = input.KeyCode
                 keybindT.keyCode = assignedKey
-                KeybindDisplay.Text = "[" .. assignedKey.Name .. "]"
+                KeybindDisplay.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
                 KeybindButton.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
                 SelectingKey = false
                 
@@ -1353,29 +1358,25 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         end)
     end
     
-    library.Conn[#library.Conn + 1] = KeybindButton.MouseEnter:Connect(function()
-        tweensv:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 55)}):Play()
-    end)
-    
-    library.Conn[#library.Conn + 1] = KeybindButton.MouseLeave:Connect(function()
-        tweensv:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 45)}):Play()
-    end)
-    
-    -- Key input handling - only works when toggle is enabled
+    -- Key input handling - only executes the keybind callback when toggle is already enabled
     library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
         if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and 
            not SelectingKey and assignedKey and input.KeyCode == assignedKey then
            
             -- Only allow keybind to work if toggle is enabled
             if toggled then
-                -- Handle different keybind modes
+                local keybindValue
+                
                 if keybindMode == "Toggle" then
-                    ToggleState(not toggled)
+                    keybindValue = not toggled
+                    pcall(callback, keybindValue) -- Only send keybind value to callback, don't change toggle state
                 elseif keybindMode == "Hold" then
                     isHolding = true
-                    -- No need to change toggle state as it's already on
+                    keybindValue = true
+                    pcall(callback, keybindValue) -- Send hold start event
                 elseif keybindMode == "Always" then
-                    -- Always mode doesn't change the toggle state
+                    keybindValue = true
+                    pcall(callback, keybindValue)
                 end
             end
         end
@@ -1385,10 +1386,10 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and 
            assignedKey and input.KeyCode == assignedKey and keybindMode == "Hold" and isHolding then
             isHolding = false
+            
             -- Only trigger callback if toggle is on and we were holding
             if toggled then
-                pcall(callback, false)
-                pcall(callback, true)
+                pcall(callback, false) -- Send hold end event
             end
         end
     end)
