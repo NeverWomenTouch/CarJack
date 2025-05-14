@@ -3290,7 +3290,15 @@ function library:ConfigSystem(tab, name)
     local menu = tab:NewDropdown("Select Config", cfg.list, function(item)
         cfg.pick = item
     end, false, "config_selector")
+    
+    local silentAutoLoadUpdate = false
+    
     local autoLoad = tab:Toggle("Auto Load Selected Config", false, function(on)
+        if silentAutoLoadUpdate then
+            silentAutoLoadUpdate = false
+            return
+        end
+        
         if not cfg.pick then
             library:Notification("Error", "No config selected.", "OK")
             return
@@ -3347,10 +3355,12 @@ function library:ConfigSystem(tab, name)
                 end
             else
                 library:Notification("Error", "Failed to update config file.", "OK")
+                silentAutoLoadUpdate = true
                 autoLoad:set(not on)
             end
         else
             library:Notification("Error", "Failed to read config file.", "OK")
+            silentAutoLoadUpdate = true
             autoLoad:set(false)
         end
     end, "config_autoload")
@@ -3432,8 +3442,14 @@ function library:ConfigSystem(tab, name)
             
             if valid and type(data) == "table" and type(data.values) == "table" then
                 old = data.values
+                local isAutoLoad = false
+                if data.metadata and data.metadata.autoLoad then
+                    isAutoLoad = true
+                end
+                
                 data.metadata = data.metadata or {}
                 data.metadata.lastModified = os.time()
+                data.metadata.autoLoad = isAutoLoad
                 data.values = {}
                 
                 local now = {}
@@ -3565,6 +3581,7 @@ function library:ConfigSystem(tab, name)
         
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
+            if flag == "config_autoload" then continue end
             
             if library.flags[flag] then
                 local element = library.flags[flag]
@@ -3651,6 +3668,7 @@ function library:ConfigSystem(tab, name)
         
         if cfg.auto == cfg.pick then
             cfg.auto = nil
+            silentAutoLoadUpdate = true
             autoLoad:set(false)
         end
         
@@ -3705,7 +3723,6 @@ function library:ConfigSystem(tab, name)
         if not valid or type(data.values) ~= "table" then return end
         
         local loaded = 0
-
         cfg.pick = cfg.auto
 
         pcall(function()
@@ -3716,6 +3733,8 @@ function library:ConfigSystem(tab, name)
         
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
+            if flag == "config_autoload" then continue end
+            
             if library.flags[flag] then
                 local element = library.flags[flag]
                 pcall(function()
@@ -3765,9 +3784,11 @@ function library:ConfigSystem(tab, name)
                 end)
             end
         end
+        
         task.delay(0.3, function()
             for flag, val in pairs(data.values) do
                 if not flag:match("_rainbow$") then continue end
+                
                 local base = flag:gsub("_rainbow$", "")
                 if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
                     pcall(function()
@@ -3775,26 +3796,16 @@ function library:ConfigSystem(tab, name)
                     end)
                 end
             end
+            
             task.delay(0.2, function()
-                pcall(function()
-                    if autoLoad then
-                        if typeof(autoLoad) == "table" and typeof(autoLoad.value) ~= "nil" then
-                            autoLoad.value = true
-                            local toggleCircle = autoLoad._instance and autoLoad._instance:FindFirstChild("FrameToggleCircle")
-                            if toggleCircle then
-                                toggleCircle.Position = UDim2.new(0.587, 0, 0.222000003, 0)
-                            end
-                            local frameToggle3 = autoLoad._instance and autoLoad._instance:FindFirstChild("FrameToggle3")
-                            if frameToggle3 then
-                                frameToggle3.BackgroundTransparency = 0
-                            end
-                        end
-                    end
-                end)
+                silentAutoLoadUpdate = true
+                autoLoad:set(true)
+                
                 library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK")
             end)
         end)
     end)
+    
     return cfg
 end
 return library
