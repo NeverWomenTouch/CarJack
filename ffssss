@@ -3785,13 +3785,10 @@ function library:ConfigSystem(tab, name)
                 nmap[flag] = val
                 
                 if omap[flag] then
-                    local success, oldVal, newVal = pcall(function()
-                        local oldJson = HttpService:JSONEncode(omap[flag])
-                        local newJson = HttpService:JSONEncode(val)
-                        return oldJson, newJson
-                    end)
+                    local oldJson = HttpService:JSONEncode(omap[flag])
+                    local newJson = HttpService:JSONEncode(val)
                     
-                    if success and oldVal ~= newVal then
+                    if oldJson ~= newJson then
                         changed = changed + 1
                     else
                         same = same + 1
@@ -4109,7 +4106,6 @@ function library:ConfigSystem(tab, name)
         local loaded = 0
         local rainbowFlags = {}
         
-        -- First pass: standard settings
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then 
                 local baseName = flag:gsub("_rainbow$", "")
@@ -4123,46 +4119,42 @@ function library:ConfigSystem(tab, name)
                 local element = library.flags[flag]
                 
                 if type(element) == "table" and type(element.set) == "function" then
-                    local status = false
+                    local status = true
                     
                     if type(val) == "table" and val.__type == "Color3" then
-                        status = pcall(function()
-                            local color = Color3.new(val.r, val.g, val.b)
-                            element:set(color)
-                        end)
+                        local color = Color3.new(val.r, val.g, val.b)
+                        status = pcall(element.set, element, color)
                     elseif type(val) == "table" and val.__type == "Keybind" then
-                        status = pcall(function()
-                            local keyEnum
-                            if type(val.value) == "table" and val.value.__type == "EnumItem" then
-                                keyEnum = Enum.KeyCode[val.value.value]
+                        local keyEnum
+                        if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                            keyEnum = Enum.KeyCode[val.value.value]
+                        else
+                            keyEnum = Enum.KeyCode[val.keyName]
+                        end
+                        
+                        if keyEnum then
+                            if val.mode or val.toggleState ~= nil then
+                                local keyData = {
+                                    keyCode = keyEnum,
+                                    mode = val.mode,
+                                    value = val.toggleState
+                                }
+                                status = pcall(element.set, element, keyData)
                             else
-                                keyEnum = Enum.KeyCode[val.keyName]
+                                status = pcall(element.set, element, keyEnum)
                             end
-                            
-                            if keyEnum then
-                                if val.mode or val.toggleState ~= nil then
-                                    local keyData = {
-                                        keyCode = keyEnum,
-                                        mode = val.mode,
-                                        value = val.toggleState
-                                    }
-                                    element:set(keyData)
-                                else
-                                    element:set(keyEnum)
-                                end
-                            end
-                        end)
+                        end
                     elseif type(val) == "number" then
-                        status = pcall(function() element:set(val) end)
+                        status = pcall(element.set, element, val)
                     elseif type(val) == "boolean" then
-                        status = pcall(function() element:set(val) end)
+                        status = pcall(element.set, element, val)
                     elseif type(val) == "table" and (val.selected or val.options) then
-                        status = pcall(function() element:set(val.selected or val) end)
+                        status = pcall(element.set, element, val.selected or val)
                     elseif type(val) == "string" then
-                        status = pcall(function() element:set(val) end)
+                        status = pcall(element.set, element, val)
                     else
                         local parsed = unpack(val)
-                        status = pcall(function() element:set(parsed) end)
+                        status = pcall(element.set, element, parsed)
                     end
                     
                     if status then loaded = loaded + 1 end
@@ -4170,18 +4162,13 @@ function library:ConfigSystem(tab, name)
             end
         end
         
-        -- Second pass: rainbow settings (after normal settings are applied)
-        task.delay(0.1, function()
-            for baseName, isRainbow in pairs(rainbowFlags) do
-                if library.flags[baseName] and type(library.flags[baseName].setRainbow) == "function" then
-                    pcall(function()
-                        library.flags[baseName]:setRainbow(isRainbow)
-                    end)
-                end
+        for baseName, isRainbow in pairs(rainbowFlags) do
+            if library.flags[baseName] and type(library.flags[baseName].setRainbow) == "function" then
+                pcall(library.flags[baseName].setRainbow, library.flags[baseName], isRainbow)
             end
-            
-            library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
-        end)
+        end
+        
+        library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
     end)
     
     tab:Button("Delete Config", function()
@@ -4236,108 +4223,91 @@ function library:ConfigSystem(tab, name)
         end
     end)
 
-    task.spawn(function()
-        task.wait(0.5)
-        if not cfg.auto then return end
-        
+    if cfg.auto then
         local path = dir .. "/" .. cfg.auto .. ".json"
         local ok, raw = pcall(readfile, path)
-        if not ok then return end
-        
-        local valid, data = pcall(function() 
-            return game:GetService("HttpService"):JSONDecode(raw) 
-        end)
-        
-        if not valid or type(data.values) ~= "table" then return end
-        
-        cfg.pick = cfg.auto
-        if menu and type(menu.set) == "function" then
-            menu:set(cfg.auto)
-        end
-        
-        local loaded = 0
-        local rainbowFlags = {}
-        
-        -- Load normal values first
-        for flag, val in pairs(data.values) do
-            if flag:match("_rainbow$") then
-                local baseName = flag:gsub("_rainbow$", "")
-                rainbowFlags[baseName] = val
-                continue
-            end
+        if ok then
+            local valid, data = pcall(function() 
+                return game:GetService("HttpService"):JSONDecode(raw) 
+            end)
             
-            if flag == "config_autoload" then continue end
-            
-            if library.flags[flag] then
-                local element = library.flags[flag]
+            if valid and type(data.values) == "table" then
+                cfg.pick = cfg.auto
+                if menu and type(menu.set) == "function" then
+                    menu:set(cfg.auto)
+                end
                 
-                if type(element) == "table" and type(element.set) == "function" then
-                    local status = false
-                    
-                    if type(val) == "table" and val.__type == "Color3" then
-                        status = pcall(function()
-                            local color = Color3.new(val.r, val.g, val.b)
-                            element:set(color)
-                        end)
-                    elseif type(val) == "table" and val.__type == "Keybind" then
-                        status = pcall(function()
-                            local keyEnum
-                            if type(val.value) == "table" and val.value.__type == "EnumItem" then
-                                keyEnum = Enum.KeyCode[val.value.value]
-                            else
-                                keyEnum = Enum.KeyCode[val.keyName]
-                            end
-                            
-                            if keyEnum then
-                                if val.mode or val.toggleState ~= nil then
-                                    local keyData = {
-                                        keyCode = keyEnum,
-                                        mode = val.mode,
-                                        value = val.toggleState
-                                    }
-                                    element:set(keyData)
-                                else
-                                    element:set(keyEnum)
-                                end
-                            end
-                        end)
-                    elseif type(val) == "number" then
-                        status = pcall(function() element:set(val) end)
-                    elseif type(val) == "boolean" then
-                        status = pcall(function() element:set(val) end)
-                    elseif type(val) == "table" and (val.selected or val.options) then
-                        status = pcall(function() element:set(val.selected or val) end)
-                    elseif type(val) == "string" then
-                        status = pcall(function() element:set(val) end)
-                    else
-                        status = pcall(function()
-                            local parsed = unpack(val)
-                            element:set(parsed)
-                        end)
+                local loaded = 0
+                local rainbowFlags = {}
+                
+                for flag, val in pairs(data.values) do
+                    if flag:match("_rainbow$") then
+                        local baseName = flag:gsub("_rainbow$", "")
+                        rainbowFlags[baseName] = val
+                        continue
                     end
                     
-                    if status then loaded = loaded + 1 end
+                    if flag == "config_autoload" then continue end
+                    
+                    if library.flags[flag] then
+                        local element = library.flags[flag]
+                        
+                        if type(element) == "table" and type(element.set) == "function" then
+                            local status = true
+                            
+                            if type(val) == "table" and val.__type == "Color3" then
+                                local color = Color3.new(val.r, val.g, val.b)
+                                status = pcall(element.set, element, color)
+                            elseif type(val) == "table" and val.__type == "Keybind" then
+                                local keyEnum
+                                if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                                    keyEnum = Enum.KeyCode[val.value.value]
+                                else
+                                    keyEnum = Enum.KeyCode[val.keyName]
+                                end
+                                
+                                if keyEnum then
+                                    if val.mode or val.toggleState ~= nil then
+                                        local keyData = {
+                                            keyCode = keyEnum,
+                                            mode = val.mode,
+                                            value = val.toggleState
+                                        }
+                                        status = pcall(element.set, element, keyData)
+                                    else
+                                        status = pcall(element.set, element, keyEnum)
+                                    end
+                                end
+                            elseif type(val) == "number" then
+                                status = pcall(element.set, element, val)
+                            elseif type(val) == "boolean" then
+                                status = pcall(element.set, element, val)
+                            elseif type(val) == "table" and (val.selected or val.options) then
+                                status = pcall(element.set, element, val.selected or val)
+                            elseif type(val) == "string" then
+                                status = pcall(element.set, element, val)
+                            else
+                                local parsed = unpack(val)
+                                status = pcall(element.set, element, parsed)
+                            end
+                            
+                            if status then loaded = loaded + 1 end
+                        end
+                    end
                 end
-            end
-        end
-        
-        -- Apply rainbow settings after a short delay
-        task.delay(0.2, function()
-            for baseName, isRainbow in pairs(rainbowFlags) do
-                if library.flags[baseName] and type(library.flags[baseName].setRainbow) == "function" then
-                    pcall(function()
-                        library.flags[baseName]:setRainbow(isRainbow)
-                    end)
+                
+                for baseName, isRainbow in pairs(rainbowFlags) do
+                    if library.flags[baseName] and type(library.flags[baseName].setRainbow) == "function" then
+                        pcall(library.flags[baseName].setRainbow, library.flags[baseName], isRainbow)
+                    end
                 end
-            end
-            
-            task.delay(0.1, function()
+                
                 silentAutoLoadUpdate = true
                 autoLoad:set(true)
                 library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
-            end)
-        end)
-    end)
+            end
+        end
+    end
     
     return cfg
 end
