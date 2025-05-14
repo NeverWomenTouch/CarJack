@@ -746,7 +746,7 @@ function library:Window(title, version, info, preset, closebind)
             return toggle
         end
         
- function tabcontent:KeybindT(text, default, keybind, callback, flag)
+function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local flag = flag or text
     local toggled = default or false
     local assignedKey = keybind or Enum.KeyCode.Unknown
@@ -794,35 +794,11 @@ function library:Window(title, version, info, preset, closebind)
     ToggleTitle.TextSize = 18
     ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Keybind in the middle
-    KeybindFrame = Instance.new("Frame")
-    KeybindFrame.Name = "KeybindFrame"
-    KeybindFrame.Parent = Toggle
-    KeybindFrame.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
-    KeybindFrame.Position = UDim2.new(0.37, 0, 0.25, 0)
-    KeybindFrame.Size = UDim2.new(0, 120, 0, 24)
-    
-    KeybindFrameCorner = Instance.new("UICorner")
-    KeybindFrameCorner.CornerRadius = UDim.new(0, 4)
-    KeybindFrameCorner.Parent = KeybindFrame
-    
-    KeybindLabel = Instance.new("TextButton")
-    KeybindLabel.Name = "KeybindLabel"
-    KeybindLabel.Parent = KeybindFrame
-    KeybindLabel.BackgroundTransparency = 1
-    KeybindLabel.Position = UDim2.new(0, 0, 0, 0)
-    KeybindLabel.Size = UDim2.new(1, 0, 1, 0)
-    KeybindLabel.Font = Enum.Font.SourceSans
-    KeybindLabel.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
-    KeybindLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    KeybindLabel.TextSize = 16
-    KeybindLabel.ClipsDescendants = true
-
-    -- Toggle on the right side
+    -- Toggle position (now in the middle where keybind was)
     FrameToggle1.Name = "FrameToggle1"
     FrameToggle1.Parent = Toggle
     FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    FrameToggle1.Position = UDim2.new(0.85, 0, 0.25, 0)
+    FrameToggle1.Position = UDim2.new(0.4, 0, 0.5, -9) -- Centered vertically
     FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
 
     FrameToggle1Corner.Parent = FrameToggle1
@@ -851,6 +827,30 @@ function library:Window(title, version, info, preset, closebind)
 
     FrameToggleCircleCorner.Parent = FrameToggleCircle
 
+    -- Keybind moved to right side
+    KeybindFrame = Instance.new("Frame")
+    KeybindFrame.Name = "KeybindFrame"
+    KeybindFrame.Parent = Toggle
+    KeybindFrame.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
+    KeybindFrame.Position = UDim2.new(0.77, 0, 0.5, -10) -- Right aligned and vertically centered
+    KeybindFrame.Size = UDim2.new(0, 65, 0, 20) -- Smaller size
+    
+    KeybindFrameCorner = Instance.new("UICorner")
+    KeybindFrameCorner.CornerRadius = UDim.new(0, 4)
+    KeybindFrameCorner.Parent = KeybindFrame
+    
+    KeybindLabel = Instance.new("TextButton")
+    KeybindLabel.Name = "KeybindLabel"
+    KeybindLabel.Parent = KeybindFrame
+    KeybindLabel.BackgroundTransparency = 1
+    KeybindLabel.Position = UDim2.new(0, 0, 0, 0)
+    KeybindLabel.Size = UDim2.new(1, 0, 1, 0)
+    KeybindLabel.Font = Enum.Font.SourceSans
+    KeybindLabel.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+    KeybindLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    KeybindLabel.TextSize = 14
+    KeybindLabel.ClipsDescendants = true
+
     coroutine.wrap(function()
         while altloaded do
             FrameToggle3.BackgroundColor3 = PresetColor
@@ -858,21 +858,7 @@ function library:Window(title, version, info, preset, closebind)
         end
     end)()
 
-    local function ToggleState(state)
-        toggled = state
-        if toggled then
-            FrameToggleCircle:TweenPosition(UDim2.new(0.6, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
-            FrameToggle3.BackgroundTransparency = 0
-        else
-            FrameToggleCircle:TweenPosition(UDim2.new(0.1, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
-            FrameToggle3.BackgroundTransparency = 1
-        end
-        
-        keybindT.value = toggled
-        
-        pcall(callback, toggled)
-    end
-
+    -- Create keybindT object first to avoid nil reference
     local keybindT = {
         value = toggled,
         keyCode = assignedKey,
@@ -949,6 +935,22 @@ function library:Window(title, version, info, preset, closebind)
             return toggled
         end
     }
+
+    -- Now define ToggleState with keybindT already created
+    local function ToggleState(state)
+        toggled = state
+        if toggled then
+            FrameToggleCircle:TweenPosition(UDim2.new(0.6, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            FrameToggle3.BackgroundTransparency = 0
+        else
+            FrameToggleCircle:TweenPosition(UDim2.new(0.1, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            FrameToggle3.BackgroundTransparency = 1
+        end
+        
+        keybindT.value = toggled
+        
+        pcall(callback, toggled)
+    end
     
     if not library.flags then library.flags = {} end
     library.flags[flag] = keybindT
@@ -956,7 +958,7 @@ function library:Window(title, version, info, preset, closebind)
     library.Conn[#library.Conn + 1] = KeybindLabel.MouseButton1Click:Connect(function()
         if SelectingKey then return end
         SelectingKey = true
-        KeybindLabel.Text = "Press Key"
+        KeybindLabel.Text = "..."
         
         local connection
         connection = uis.InputBegan:Connect(function(input)
