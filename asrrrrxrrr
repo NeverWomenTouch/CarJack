@@ -746,219 +746,262 @@ function library:Window(title, version, info, preset, closebind)
             return toggle
         end
         
-        function tabcontent:KeybindT(text, default, keybind, callback, flag)
-            local flag = flag or text
-            local toggled = default or false
-            local assignedKey = keybind or Enum.KeyCode.Unknown
-            local SelectingKey = false
+ function tabcontent:KeybindT(text, default, keybind, callback, flag)
+    local flag = flag or text
+    local toggled = default or false
+    local assignedKey = keybind or Enum.KeyCode.Unknown
+    local SelectingKey = false
 
-            local Toggle = Instance.new("TextButton")
-            local ToggleCorner = Instance.new("UICorner")
-            local ToggleTitle = Instance.new("TextLabel")
-            local FrameToggle1 = Instance.new("Frame")
-            local FrameToggle1Corner = Instance.new("UICorner")
-            local FrameToggle2 = Instance.new("Frame")
-            local FrameToggle2Corner = Instance.new("UICorner")
-            local FrameToggle3 = Instance.new("Frame")
-            local FrameToggle3Corner = Instance.new("UICorner")
-            local FrameToggleCircle = Instance.new("Frame")
-            local FrameToggleCircleCorner = Instance.new("UICorner")
+    local Toggle = Instance.new("TextButton")
+    local ToggleCorner = Instance.new("UICorner")
+    local ToggleTitle = Instance.new("TextLabel")
+    local KeybindFrame = Instance.new("Frame")
+    local KeybindFrameCorner = Instance.new("UICorner")
+    local KeybindLabel = Instance.new("TextButton")
+    local FrameToggle1 = Instance.new("Frame")
+    local FrameToggle1Corner = Instance.new("UICorner")
+    local FrameToggle2 = Instance.new("Frame")
+    local FrameToggle2Corner = Instance.new("UICorner")
+    local FrameToggle3 = Instance.new("Frame")
+    local FrameToggle3Corner = Instance.new("UICorner")
+    local FrameToggleCircle = Instance.new("Frame")
+    local FrameToggleCircleCorner = Instance.new("UICorner")
 
-            Toggle.Name = "Toggle"
-            Toggle.Parent = Tab
-            Toggle.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-            Toggle.Position = UDim2.new(0.215625003, 0, 0.446271926, 0)
-            Toggle.Size = UDim2.new(0, 363, 0, 42)
-            Toggle.AutoButtonColor = false
-            Toggle.Font = Enum.Font.SourceSans
-            Toggle.Text = ""
-            Toggle.TextColor3 = Color3.fromRGB(0, 0, 0)
-            Toggle.TextSize = 14
+    Toggle.Name = "Toggle"
+    Toggle.Parent = Tab
+    Toggle.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+    Toggle.Position = UDim2.new(0.215625003, 0, 0.446271926, 0)
+    Toggle.Size = UDim2.new(0, 363, 0, 42)
+    Toggle.AutoButtonColor = false
+    Toggle.Font = Enum.Font.SourceSans
+    Toggle.Text = ""
+    Toggle.TextColor3 = Color3.fromRGB(0, 0, 0)
+    Toggle.TextSize = 14
 
-            ToggleCorner.CornerRadius = UDim.new(0, 5)
-            ToggleCorner.Name = "ToggleCorner"
-            ToggleCorner.Parent = Toggle
+    ToggleCorner.CornerRadius = UDim.new(0, 5)
+    ToggleCorner.Name = "ToggleCorner"
+    ToggleCorner.Parent = Toggle
 
-            ToggleTitle.Name = "ToggleTitle"
-            ToggleTitle.Parent = Toggle
-            ToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            ToggleTitle.BackgroundTransparency = 1.000
-            ToggleTitle.Position = UDim2.new(0.05, 0, 0, 0)
-            ToggleTitle.Size = UDim2.new(0.6, 0, 0, 40)
-            ToggleTitle.Font = Enum.Font.SourceSans
-            ToggleTitle.Text = text
-            ToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-            ToggleTitle.TextSize = 18
-            ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
+    ToggleTitle.Name = "ToggleTitle"
+    ToggleTitle.Parent = Toggle
+    ToggleTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleTitle.BackgroundTransparency = 1.000
+    ToggleTitle.Position = UDim2.new(0.05, 0, 0, 0)
+    ToggleTitle.Size = UDim2.new(0.3, 0, 1, 0)
+    ToggleTitle.Font = Enum.Font.SourceSans
+    ToggleTitle.Text = text
+    ToggleTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleTitle.TextSize = 18
+    ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-            FrameToggle1.Name = "FrameToggle1"
-            FrameToggle1.Parent = Toggle
-            FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            FrameToggle1.Position = UDim2.new(0.75, 0, 0.25, 0)
-            FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
+    -- Keybind in the middle
+    KeybindFrame = Instance.new("Frame")
+    KeybindFrame.Name = "KeybindFrame"
+    KeybindFrame.Parent = Toggle
+    KeybindFrame.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
+    KeybindFrame.Position = UDim2.new(0.37, 0, 0.25, 0)
+    KeybindFrame.Size = UDim2.new(0, 120, 0, 24)
+    
+    KeybindFrameCorner = Instance.new("UICorner")
+    KeybindFrameCorner.CornerRadius = UDim.new(0, 4)
+    KeybindFrameCorner.Parent = KeybindFrame
+    
+    KeybindLabel = Instance.new("TextButton")
+    KeybindLabel.Name = "KeybindLabel"
+    KeybindLabel.Parent = KeybindFrame
+    KeybindLabel.BackgroundTransparency = 1
+    KeybindLabel.Position = UDim2.new(0, 0, 0, 0)
+    KeybindLabel.Size = UDim2.new(1, 0, 1, 0)
+    KeybindLabel.Font = Enum.Font.SourceSans
+    KeybindLabel.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+    KeybindLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    KeybindLabel.TextSize = 16
+    KeybindLabel.ClipsDescendants = true
 
-            FrameToggle1Corner.Parent = FrameToggle1
+    -- Toggle on the right side
+    FrameToggle1.Name = "FrameToggle1"
+    FrameToggle1.Parent = Toggle
+    FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    FrameToggle1.Position = UDim2.new(0.85, 0, 0.25, 0)
+    FrameToggle1.Size = UDim2.new(0, 37, 0, 18)
 
-            FrameToggle2.Name = "FrameToggle2"
-            FrameToggle2.Parent = FrameToggle1
-            FrameToggle2.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-            FrameToggle2.Position = UDim2.new(0.05, 0, 0.1, 0)
-            FrameToggle2.Size = UDim2.new(0, 33, 0, 14)
+    FrameToggle1Corner.Parent = FrameToggle1
 
-            FrameToggle2Corner.Parent = FrameToggle2
+    FrameToggle2.Name = "FrameToggle2"
+    FrameToggle2.Parent = FrameToggle1
+    FrameToggle2.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+    FrameToggle2.Position = UDim2.new(0.05, 0, 0.1, 0)
+    FrameToggle2.Size = UDim2.new(0, 33, 0, 14)
 
-            FrameToggle3.Name = "FrameToggle3"
-            FrameToggle3.Parent = FrameToggle1
+    FrameToggle2Corner.Parent = FrameToggle2
+
+    FrameToggle3.Name = "FrameToggle3"
+    FrameToggle3.Parent = FrameToggle1
+    FrameToggle3.BackgroundColor3 = PresetColor
+    FrameToggle3.BackgroundTransparency = 1.000
+    FrameToggle3.Size = UDim2.new(0, 37, 0, 18)
+
+    FrameToggle3Corner.Parent = FrameToggle3
+
+    FrameToggleCircle.Name = "FrameToggleCircle"
+    FrameToggleCircle.Parent = FrameToggle1
+    FrameToggleCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    FrameToggleCircle.Position = UDim2.new(0.1, 0, 0.2, 0)
+    FrameToggleCircle.Size = UDim2.new(0, 10, 0, 10)
+
+    FrameToggleCircleCorner.Parent = FrameToggleCircle
+
+    coroutine.wrap(function()
+        while altloaded do
             FrameToggle3.BackgroundColor3 = PresetColor
-            FrameToggle3.BackgroundTransparency = 1.000
-            FrameToggle3.Size = UDim2.new(0, 37, 0, 18)
-
-            FrameToggle3Corner.Parent = FrameToggle3
-
-            FrameToggleCircle.Name = "FrameToggleCircle"
-            FrameToggleCircle.Parent = FrameToggle1
-            FrameToggleCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            FrameToggleCircle.Position = UDim2.new(0.1, 0, 0.2, 0)
-            FrameToggleCircle.Size = UDim2.new(0, 10, 0, 10)
-
-            FrameToggleCircleCorner.Parent = FrameToggleCircle
-
-            coroutine.wrap(function()
-                while altloaded do
-                    FrameToggle3.BackgroundColor3 = PresetColor
-                    task.wait()
-                end
-            end)()
-
-            local KeybindLabel
-
-            if uis.KeyboardEnabled then
-                KeybindLabel = Instance.new("TextButton")
-                KeybindLabel.Name = "KeybindLabel"
-                KeybindLabel.Parent = Toggle
-                KeybindLabel.BackgroundTransparency = 1
-                KeybindLabel.Position = UDim2.new(0.85, 0, 0, 0)
-                KeybindLabel.Size = UDim2.new(0.15, 0, 1, 0)
-                KeybindLabel.Font = Enum.Font.SourceSans
-                KeybindLabel.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
-                KeybindLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-                KeybindLabel.TextSize = 16
-            end
-
-            local function ToggleState(state)
-                toggled = state
-                if toggled then
-                    FrameToggleCircle:TweenPosition(UDim2.new(0.6, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
-                    FrameToggle3.BackgroundTransparency = 0
-                else
-                    FrameToggleCircle:TweenPosition(UDim2.new(0.1, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
-                    FrameToggle3.BackgroundTransparency = 1
-                end
-                
-                if keybindT then
-                    keybindT.value = toggled
-                end
-                
-                pcall(callback, toggled)
-            end
-
-            local keybindT = {
-                value = toggled,
-                keyCode = assignedKey,
-                set = function(self, state)
-                    if type(state) == "boolean" then
-                        ToggleState(state)
-                        self.value = state
-                    end
-                    return self
-                end,
-                setKey = function(self, key)
-                    if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
-                        assignedKey = key
-                        self.keyCode = key
-                        if KeybindLabel then
-                            KeybindLabel.Text = key.Name == "Unknown" and "None" or key.Name
-                        end
-                    elseif typeof(key) == "string" then
-                        local success, keyEnum = pcall(function()
-                            return Enum.KeyCode[key]
-                        end)
-                        if success and keyEnum then
-                            assignedKey = keyEnum
-                            self.keyCode = keyEnum
-                            if KeybindLabel then
-                                KeybindLabel.Text = keyEnum.Name == "Unknown" and "None" or keyEnum.Name
-                            end
-                        end
-                    end
-                    return self
-                end,
-                toggle = function(self)
-                    self:set(not toggled)
-                    return self
-                end,
-                enable = function(self)
-                    if not toggled then
-                        self:set(true)
-                    end
-                    return self
-                end,
-                disable = function(self)
-                    if toggled then
-                        self:set(false)
-                    end
-                    return self
-                end,
-                getState = function(self)
-                    return toggled
-                end
-            }
-            
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = keybindT
-
-            if KeybindLabel then
-                library.Conn[#library.Conn + 1] = KeybindLabel.MouseButton1Click:Connect(function()
-                    if SelectingKey then return end
-                    SelectingKey = true
-                    KeybindLabel.Text = "Press Key"
-                    
-                    local connection
-                    connection = uis.InputBegan:Connect(function(input)
-                        if input.UserInputType == Enum.UserInputType.Keyboard then
-                            assignedKey = input.KeyCode
-                            keybindT.keyCode = assignedKey
-                            KeybindLabel.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
-                            SelectingKey = false
-                            if connection then
-                                connection:Disconnect()
-                            end
-                        end
-                    end)
-                end)
-
-                library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
-                    if gameProcessed or SelectingKey then return end
-                    if input and input.KeyCode and assignedKey and input.KeyCode == assignedKey then
-                        ToggleState(not toggled)
-                    end
-                end)
-            end
-
-            library.Conn[#library.Conn + 1] = Toggle.MouseButton1Click:Connect(function()
-                if not SelectingKey then
-                    ToggleState(not toggled)
-                end
-            end)
-
-            if default then
-                ToggleState(true)
-            end
-
-            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-            
-            return keybindT
+            task.wait()
         end
+    end)()
+
+    local function ToggleState(state)
+        toggled = state
+        if toggled then
+            FrameToggleCircle:TweenPosition(UDim2.new(0.6, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            FrameToggle3.BackgroundTransparency = 0
+        else
+            FrameToggleCircle:TweenPosition(UDim2.new(0.1, 0, 0.2, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            FrameToggle3.BackgroundTransparency = 1
+        end
+        
+        keybindT.value = toggled
+        
+        pcall(callback, toggled)
+    end
+
+    local keybindT = {
+        value = toggled,
+        keyCode = assignedKey,
+        set = function(self, state)
+            -- Handle different ways this might be called:
+            -- 1. From config loading with a boolean (toggle state)
+            if type(state) == "boolean" then
+                ToggleState(state)
+                self.value = state
+                return self
+            end
+            
+            -- 2. From config loading with a keybind object (both state and key)
+            if type(state) == "table" and state.keyCode ~= nil then
+                -- Set the toggle state
+                if type(state.value) == "boolean" then
+                    ToggleState(state.value)
+                    self.value = state.value
+                end
+                
+                -- Set the key
+                if typeof(state.keyCode) == "EnumItem" and state.keyCode.EnumType == Enum.KeyCode then
+                    assignedKey = state.keyCode
+                    self.keyCode = state.keyCode
+                    KeybindLabel.Text = state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name
+                end
+                return self
+            end
+            
+            -- 3. Direct key setting (just changes the key)
+            if typeof(state) == "EnumItem" and state.EnumType == Enum.KeyCode then
+                assignedKey = state
+                self.keyCode = state
+                KeybindLabel.Text = state.Name == "Unknown" and "None" or state.Name
+                return self
+            end
+            
+            return self
+        end,
+        setKey = function(self, key)
+            if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
+                assignedKey = key
+                self.keyCode = key
+                KeybindLabel.Text = key.Name == "Unknown" and "None" or key.Name
+            elseif typeof(key) == "string" then
+                local success, keyEnum = pcall(function()
+                    return Enum.KeyCode[key]
+                end)
+                if success and keyEnum then
+                    assignedKey = keyEnum
+                    self.keyCode = keyEnum
+                    KeybindLabel.Text = keyEnum.Name == "Unknown" and "None" or keyEnum.Name
+                end
+            end
+            return self
+        end,
+        toggle = function(self)
+            self:set(not toggled)
+            return self
+        end,
+        enable = function(self)
+            if not toggled then
+                self:set(true)
+            end
+            return self
+        end,
+        disable = function(self)
+            if toggled then
+                self:set(false)
+            end
+            return self
+        end,
+        getState = function(self)
+            return toggled
+        end
+    }
+    
+    if not library.flags then library.flags = {} end
+    library.flags[flag] = keybindT
+
+    library.Conn[#library.Conn + 1] = KeybindLabel.MouseButton1Click:Connect(function()
+        if SelectingKey then return end
+        SelectingKey = true
+        KeybindLabel.Text = "Press Key"
+        
+        local connection
+        connection = uis.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                assignedKey = input.KeyCode
+                keybindT.keyCode = assignedKey
+                KeybindLabel.Text = assignedKey.Name == "Unknown" and "None" or assignedKey.Name
+                SelectingKey = false
+                if connection then
+                    connection:Disconnect()
+                end
+            end
+        end)
+    end)
+
+    -- Add hover effect for Keybind
+    library.Conn[#library.Conn + 1] = KeybindFrame.MouseEnter:Connect(function()
+        tweensv:Create(KeybindFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+    end)
+    
+    library.Conn[#library.Conn + 1] = KeybindFrame.MouseLeave:Connect(function()
+        tweensv:Create(KeybindFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(43, 43, 43)}):Play()
+    end)
+
+    library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed or SelectingKey then return end
+        if input and input.KeyCode and assignedKey and input.KeyCode == assignedKey then
+            ToggleState(not toggled)
+        end
+    end)
+
+    library.Conn[#library.Conn + 1] = Toggle.MouseButton1Click:Connect(function()
+        if not SelectingKey then
+            ToggleState(not toggled)
+        end
+    end)
+
+    if default then
+        ToggleState(true)
+    end
+
+    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+    
+    return keybindT
+end
 
 function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue, flag)
     local flag = flag or SliderText
