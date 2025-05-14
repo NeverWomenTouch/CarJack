@@ -3698,6 +3698,67 @@ function library:ConfigSystem(tab, name)
     local menu = tab:NewDropdown("Select Config", cfg.list, function(item) cfg.pick = item end, false, "config_selector")
     local silentAutoLoadUpdate = false
 
+    local function doLoadConfig(configName, showNotify)
+        local path = dir .. "/" .. configName .. ".json"
+        local ok, raw = pcall(readfile, path)
+        if not ok then
+            if showNotify then library:Notification("Error", "Config does not exist.", "OK", "rbxassetid://83065037218239") end
+            return false
+        end
+        local data = game:GetService("HttpService"):JSONDecode(raw)
+        if type(data.values) ~= "table" then
+            if showNotify then library:Notification("Error", "Invalid config format.", "OK", "rbxassetid://83065037218239") end
+            return false
+        end
+        local loaded, normalValues, rainbowValues = 0, {}, {}
+        for flag, val in pairs(data.values) do
+            if flag:match("_rainbow$") then
+                local baseFlag = flag:gsub("_rainbow$", "")
+                rainbowValues[baseFlag] = val
+            elseif flag ~= "config_autoload" then
+                normalValues[flag] = val
+            end
+        end
+        for flag, val in pairs(normalValues) do
+            local element = library.flags[flag]
+            if type(element) == "table" and type(element.set) == "function" then
+                local value
+                if type(val) == "table" and val.__type == "Color3" then
+                    value = Color3.new(val.r, val.g, val.b)
+                elseif type(val) == "table" and val.__type == "Keybind" then
+                    local keyEnum
+                    if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                        keyEnum = Enum.KeyCode[val.value.value]
+                    else
+                        keyEnum = Enum.KeyCode[val.keyName]
+                    end
+                    if keyEnum then
+                        if val.mode or val.toggleState ~= nil then
+                            value = { keyCode = keyEnum, mode = val.mode, value = val.toggleState }
+                        else
+                            value = keyEnum
+                        end
+                    end
+                elseif type(val) == "number" or type(val) == "boolean" or type(val) == "string" then
+                    value = val
+                elseif type(val) == "table" and (val.selected or val.options) then
+                    value = val.selected or val
+                else
+                    value = unpack(val)
+                end
+                if value ~= nil then element:set(value) loaded = loaded + 1 end
+            end
+        end
+        for baseFlag, val in pairs(rainbowValues) do
+            local element = library.flags[baseFlag]
+            if element and type(element.setRainbow) == "function" then element:setRainbow(val) end
+        end
+        if showNotify then
+            library:Notification("Config Loaded", "\"" .. configName .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
+        end
+        return true
+    end
+
     local autoLoad = tab:Toggle("Auto Load Selected Config", false, function(on)
         if silentAutoLoadUpdate then silentAutoLoadUpdate = false return end
         if not cfg.pick then library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239") return end
@@ -3844,55 +3905,7 @@ function library:ConfigSystem(tab, name)
 
     tab:Button("Load Config", function()
         if not cfg.pick then return library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239") end
-        local path = dir .. "/" .. cfg.pick .. ".json"
-        local ok, raw = pcall(readfile, path)
-        if not ok then return library:Notification("Error", "Config does not exist.", "OK", "rbxassetid://83065037218239") end
-        local data = game:GetService("HttpService"):JSONDecode(raw)
-        if type(data.values) ~= "table" then return library:Notification("Error", "Invalid config format.", "OK", "rbxassetid://83065037218239") end
-        local loaded, normalValues, rainbowValues = 0, {}, {}
-        for flag, val in pairs(data.values) do
-            if flag:match("_rainbow$") then
-                local baseFlag = flag:gsub("_rainbow$", "")
-                rainbowValues[baseFlag] = val
-            elseif flag ~= "config_autoload" then
-                normalValues[flag] = val
-            end
-        end
-        for flag, val in pairs(normalValues) do
-            local element = library.flags[flag]
-            if type(element) == "table" and type(element.set) == "function" then
-                local value
-                if type(val) == "table" and val.__type == "Color3" then
-                    value = Color3.new(val.r, val.g, val.b)
-                elseif type(val) == "table" and val.__type == "Keybind" then
-                    local keyEnum
-                    if type(val.value) == "table" and val.value.__type == "EnumItem" then
-                        keyEnum = Enum.KeyCode[val.value.value]
-                    else
-                        keyEnum = Enum.KeyCode[val.keyName]
-                    end
-                    if keyEnum then
-                        if val.mode or val.toggleState ~= nil then
-                            value = { keyCode = keyEnum, mode = val.mode, value = val.toggleState }
-                        else
-                            value = keyEnum
-                        end
-                    end
-                elseif type(val) == "number" or type(val) == "boolean" or type(val) == "string" then
-                    value = val
-                elseif type(val) == "table" and (val.selected or val.options) then
-                    value = val.selected or val
-                else
-                    value = unpack(val)
-                end
-                if value ~= nil then element:set(value) loaded = loaded + 1 end
-            end
-        end
-        for baseFlag, val in pairs(rainbowValues) do
-            local element = library.flags[baseFlag]
-            if element and type(element.setRainbow) == "function" then element:setRainbow(val) end
-        end
-        library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
+        doLoadConfig(cfg.pick, true)
     end)
 
     tab:Button("Delete Config", function()
@@ -3932,61 +3945,11 @@ function library:ConfigSystem(tab, name)
     end)
 
     if cfg.auto then
-        local path = dir .. "/" .. cfg.auto .. ".json"
-        local ok, raw = pcall(readfile, path)
-        if ok then
-            local data = game:GetService("HttpService"):JSONDecode(raw)
-            if type(data.values) == "table" then
-                cfg.pick = cfg.auto
-                if menu and type(menu.set) == "function" then menu:set(cfg.auto) end
-                local normalValues, rainbowValues, loaded = {}, {}, 0
-                for flag, val in pairs(data.values) do
-                    if flag:match("_rainbow$") then
-                        local baseFlag = flag:gsub("_rainbow$", "")
-                        rainbowValues[baseFlag] = val
-                    elseif flag ~= "config_autoload" then
-                        normalValues[flag] = val
-                    end
-                end
-                for flag, val in pairs(normalValues) do
-                    local element = library.flags[flag]
-                    if type(element) == "table" and type(element.set) == "function" then
-                        local value
-                        if type(val) == "table" and val.__type == "Color3" then
-                            value = Color3.new(val.r, val.g, val.b)
-                        elseif type(val) == "table" and val.__type == "Keybind" then
-                            local keyEnum
-                            if type(val.value) == "table" and val.value.__type == "EnumItem" then
-                                keyEnum = Enum.KeyCode[val.value.value]
-                            else
-                                keyEnum = Enum.KeyCode[val.keyName]
-                            end
-                            if keyEnum then
-                                if val.mode or val.toggleState ~= nil then
-                                    value = { keyCode = keyEnum, mode = val.mode, value = val.toggleState }
-                                else
-                                    value = keyEnum
-                                end
-                            end
-                        elseif type(val) == "number" or type(val) == "boolean" or type(val) == "string" then
-                            value = val
-                        elseif type(val) == "table" and (val.selected or val.options) then
-                            value = val.selected or val
-                        else
-                            value = unpack(val)
-                        end
-                        if value ~= nil then element:set(value) loaded = loaded + 1 end
-                    end
-                end
-                for baseFlag, val in pairs(rainbowValues) do
-                    local element = library.flags[baseFlag]
-                    if element and type(element.setRainbow) == "function" then element:setRainbow(val) end
-                end
-                silentAutoLoadUpdate = true
-                autoLoad:set(true)
-                library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
-            end
-        end
+        cfg.pick = cfg.auto
+        if menu and type(menu.set) == "function" then menu:set(cfg.auto) end
+        doLoadConfig(cfg.auto, true)
+        silentAutoLoadUpdate = true
+        autoLoad:set(true)
     end
     return cfg
 end
