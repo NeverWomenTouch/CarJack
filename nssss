@@ -362,13 +362,13 @@ function library:Window(title, version, info, preset, closebind)
 function library:Notification(texttitle, textdesc, textbtn)
     local NotificationHolder = Instance.new("Frame")
     local NotifBackdrop = Instance.new("Frame")
-    local BlurEffect = Instance.new("Frame")
+    local NotifBackdropGradient = Instance.new("UIGradient")
     local NotificationFrame = Instance.new("Frame")
     local NotificationFrameCorner = Instance.new("UICorner")
-    local NotificationFrameGlow = Instance.new("ImageLabel")
     local NotificationFrameStroke = Instance.new("UIStroke")
+    local NotificationFrameGlow = Instance.new("ImageLabel")
     local HeaderSection = Instance.new("Frame")
-    local HeaderSectionCorner = Instance.new("UICorner") 
+    local HeaderSectionCorner = Instance.new("UICorner")
     local NotificationIcon = Instance.new("ImageLabel")
     local NotificationTitle = Instance.new("TextLabel")
     local CloseBtn = Instance.new("ImageButton")
@@ -380,17 +380,19 @@ function library:Notification(texttitle, textdesc, textbtn)
     local OkayBtnGradient = Instance.new("UIGradient")
     local BtnText = Instance.new("TextLabel")
     local BtnIcon = Instance.new("ImageLabel")
-    local SideBar = Instance.new("Frame")
-    local SideBarCorner = Instance.new("UICorner")
-    local SideBarGradient = Instance.new("UIGradient")
-    local ParticleEmitter = Instance.new("Frame")
+    local LeftAccent = Instance.new("Frame")
+    local RightAccent = Instance.new("Frame")
+    local BottomAccent = Instance.new("Frame")
+    local TopAccent = Instance.new("Frame")
+    local LeftGlow = Instance.new("ImageLabel")
+    local RightGlow = Instance.new("ImageLabel")
 
     NotificationHolder.Name = "NotificationHolder"
     NotificationHolder.Parent = Main
     NotificationHolder.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     NotificationHolder.BackgroundTransparency = 1
     NotificationHolder.Size = UDim2.new(1, 0, 1, 0)
-    NotificationHolder.ZIndex = 50
+    NotificationHolder.ZIndex = 100
 
     NotifBackdrop.Name = "NotifBackdrop"
     NotifBackdrop.Parent = NotificationHolder
@@ -399,55 +401,116 @@ function library:Notification(texttitle, textdesc, textbtn)
     NotifBackdrop.BackgroundTransparency = 1
     NotifBackdrop.Position = UDim2.new(0.5, 0, 0.5, 0)
     NotifBackdrop.Size = UDim2.new(1, 0, 1, 0)
-    NotifBackdrop.ZIndex = 51
+    NotifBackdrop.ZIndex = 101
 
-    BlurEffect.Name = "BlurEffect"
-    BlurEffect.Parent = NotifBackdrop
-    BlurEffect.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    BlurEffect.BackgroundTransparency = 0.95
-    BlurEffect.Size = UDim2.new(1, 0, 1, 0)
-    BlurEffect.ZIndex = 51
+    NotifBackdropGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 25)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 10))
+    })
+    NotifBackdropGradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.5, 0.94),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    NotifBackdropGradient.Rotation = 90
+    NotifBackdropGradient.Parent = NotifBackdrop
     
     NotificationFrame.Name = "NotificationFrame"
     NotificationFrame.Parent = NotifBackdrop
     NotificationFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    NotificationFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+    NotificationFrame.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
     NotificationFrame.ClipsDescendants = true
     NotificationFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     NotificationFrame.Size = UDim2.new(0, 0, 0, 0)
-    NotificationFrame.ZIndex = 52
+    NotificationFrame.ZIndex = 102
 
-    NotificationFrameCorner.CornerRadius = UDim.new(0, 8)
+    NotificationFrameCorner.CornerRadius = UDim.new(0, 6)
     NotificationFrameCorner.Name = "NotificationFrameCorner"
     NotificationFrameCorner.Parent = NotificationFrame
-
-    NotificationFrameGlow.Name = "NotificationFrameGlow"
-    NotificationFrameGlow.Parent = NotificationFrame
-    NotificationFrameGlow.BackgroundTransparency = 1
-    NotificationFrameGlow.BorderSizePixel = 0
-    NotificationFrameGlow.Size = UDim2.new(1, 0, 1, 0)
-    NotificationFrameGlow.ZIndex = 52
-    NotificationFrameGlow.Image = "rbxassetid://4996891970"
-    NotificationFrameGlow.ImageColor3 = Color3.fromRGB(15, 15, 15)
-    NotificationFrameGlow.ScaleType = Enum.ScaleType.Slice
-    NotificationFrameGlow.SliceCenter = Rect.new(20, 20, 280, 280)
 
     NotificationFrameStroke.Name = "NotificationFrameStroke"
     NotificationFrameStroke.Parent = NotificationFrame
     NotificationFrameStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     NotificationFrameStroke.Color = PresetColor
     NotificationFrameStroke.LineJoinMode = Enum.LineJoinMode.Round
-    NotificationFrameStroke.Thickness = 1.5
+    NotificationFrameStroke.Thickness = 1.2
     NotificationFrameStroke.Transparency = 0
+
+    NotificationFrameGlow.Name = "NotificationFrameGlow"
+    NotificationFrameGlow.Parent = NotificationFrame
+    NotificationFrameGlow.BackgroundTransparency = 1
+    NotificationFrameGlow.BorderSizePixel = 0
+    NotificationFrameGlow.Size = UDim2.new(1, 0, 1, 0)
+    NotificationFrameGlow.ZIndex = 102
+    NotificationFrameGlow.Image = "rbxassetid://4996891970"
+    NotificationFrameGlow.ImageColor3 = Color3.fromRGB(20, 20, 20)
+    NotificationFrameGlow.ScaleType = Enum.ScaleType.Slice
+    NotificationFrameGlow.SliceCenter = Rect.new(20, 20, 280, 280)
+    
+    LeftAccent.Name = "LeftAccent"
+    LeftAccent.Parent = NotificationFrame
+    LeftAccent.BackgroundColor3 = PresetColor
+    LeftAccent.BorderSizePixel = 0
+    LeftAccent.Position = UDim2.new(0, 0, 0, 0)
+    LeftAccent.Size = UDim2.new(0, 3, 1, 0)
+    LeftAccent.ZIndex = 103
+
+    RightAccent.Name = "RightAccent"
+    RightAccent.Parent = NotificationFrame
+    RightAccent.BackgroundColor3 = PresetColor
+    RightAccent.BorderSizePixel = 0
+    RightAccent.Position = UDim2.new(1, -3, 0, 0)
+    RightAccent.Size = UDim2.new(0, 3, 1, 0)
+    RightAccent.ZIndex = 103
+
+    TopAccent.Name = "TopAccent"
+    TopAccent.Parent = NotificationFrame
+    TopAccent.BackgroundColor3 = PresetColor
+    TopAccent.BackgroundTransparency = 0.7
+    TopAccent.BorderSizePixel = 0
+    TopAccent.Position = UDim2.new(0, 0, 0, 0)
+    TopAccent.Size = UDim2.new(1, 0, 0, 1)
+    TopAccent.ZIndex = 103
+
+    BottomAccent.Name = "BottomAccent"
+    BottomAccent.Parent = NotificationFrame
+    BottomAccent.BackgroundColor3 = PresetColor
+    BottomAccent.BackgroundTransparency = 0.7
+    BottomAccent.BorderSizePixel = 0
+    BottomAccent.Position = UDim2.new(0, 0, 1, -1)
+    BottomAccent.Size = UDim2.new(1, 0, 0, 1)
+    BottomAccent.ZIndex = 103
+
+    LeftGlow.Name = "LeftGlow"
+    LeftGlow.Parent = NotificationFrame
+    LeftGlow.BackgroundTransparency = 1
+    LeftGlow.BorderSizePixel = 0
+    LeftGlow.Position = UDim2.new(0, -15, 0.5, -40)
+    LeftGlow.Size = UDim2.new(0, 30, 0, 80)
+    LeftGlow.ZIndex = 103
+    LeftGlow.Image = "rbxassetid://4996891970"
+    LeftGlow.ImageColor3 = PresetColor
+    LeftGlow.ImageTransparency = 0.9
+
+    RightGlow.Name = "RightGlow"
+    RightGlow.Parent = NotificationFrame
+    RightGlow.BackgroundTransparency = 1
+    RightGlow.BorderSizePixel = 0
+    RightGlow.Position = UDim2.new(1, -15, 0.5, -40)
+    RightGlow.Size = UDim2.new(0, 30, 0, 80)
+    RightGlow.ZIndex = 103
+    RightGlow.Image = "rbxassetid://4996891970"
+    RightGlow.ImageColor3 = PresetColor
+    RightGlow.ImageTransparency = 0.9
     
     HeaderSection.Name = "HeaderSection"
     HeaderSection.Parent = NotificationFrame
-    HeaderSection.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+    HeaderSection.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
     HeaderSection.Position = UDim2.new(0, 0, 0, 0)
-    HeaderSection.Size = UDim2.new(1, 0, 0, 40)
-    HeaderSection.ZIndex = 53
+    HeaderSection.Size = UDim2.new(1, 0, 0, 38)
+    HeaderSection.ZIndex = 104
     
-    HeaderSectionCorner.CornerRadius = UDim.new(0, 8)
+    HeaderSectionCorner.CornerRadius = UDim.new(0, 6)
     HeaderSectionCorner.Name = "HeaderSectionCorner"
     HeaderSectionCorner.Parent = HeaderSection
     
@@ -456,10 +519,10 @@ function library:Notification(texttitle, textdesc, textbtn)
     NotificationIcon.AnchorPoint = Vector2.new(0, 0.5)
     NotificationIcon.BackgroundTransparency = 1
     NotificationIcon.Position = UDim2.new(0, 15, 0.5, 0)
-    NotificationIcon.Size = UDim2.new(0, 24, 0, 24)
-    NotificationIcon.Image = "rbxassetid://7733715400"
+    NotificationIcon.Size = UDim2.new(0, 22, 0, 22)
+    NotificationIcon.Image = "rbxassetid://7734039270"
     NotificationIcon.ImageColor3 = PresetColor
-    NotificationIcon.ZIndex = 53
+    NotificationIcon.ZIndex = 104
 
     NotificationTitle.Name = "NotificationTitle"
     NotificationTitle.Parent = HeaderSection
@@ -469,25 +532,27 @@ function library:Notification(texttitle, textdesc, textbtn)
     NotificationTitle.Font = Enum.Font.GothamBold
     NotificationTitle.Text = texttitle
     NotificationTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    NotificationTitle.TextSize = 16
+    NotificationTitle.TextSize = 15
     NotificationTitle.TextXAlignment = Enum.TextXAlignment.Left
-    NotificationTitle.ZIndex = 53
+    NotificationTitle.ZIndex = 104
+    NotificationTitle.MaxVisibleGraphemes = 0
+    NotificationTitle.RichText = true
 
     CloseBtn.Name = "CloseBtn"
     CloseBtn.Parent = HeaderSection
     CloseBtn.BackgroundTransparency = 1
-    CloseBtn.Position = UDim2.new(1, -30, 0.5, -9)
+    CloseBtn.Position = UDim2.new(1, -28, 0.5, -9)
     CloseBtn.Size = UDim2.new(0, 18, 0, 18)
-    CloseBtn.ZIndex = 53
+    CloseBtn.ZIndex = 104
     CloseBtn.Image = "rbxassetid://7072725342"
     CloseBtn.ImageColor3 = Color3.fromRGB(180, 180, 180)
     
     BodySection.Name = "BodySection"
     BodySection.Parent = NotificationFrame
     BodySection.BackgroundTransparency = 1
-    BodySection.Position = UDim2.new(0, 0, 0, 40)
-    BodySection.Size = UDim2.new(1, 0, 1, -40)
-    BodySection.ZIndex = 53
+    BodySection.Position = UDim2.new(0, 0, 0, 38)
+    BodySection.Size = UDim2.new(1, 0, 1, -38)
+    BodySection.ZIndex = 104
     
     NotificationDesc.Name = "NotificationDesc"
     NotificationDesc.Parent = BodySection
@@ -501,7 +566,9 @@ function library:Notification(texttitle, textdesc, textbtn)
     NotificationDesc.TextWrapped = true
     NotificationDesc.TextXAlignment = Enum.TextXAlignment.Left
     NotificationDesc.TextYAlignment = Enum.TextYAlignment.Top
-    NotificationDesc.ZIndex = 53
+    NotificationDesc.ZIndex = 104
+    NotificationDesc.MaxVisibleGraphemes = 0
+    NotificationDesc.RichText = true
 
     OkayBtn.Name = "OkayBtn"
     OkayBtn.Parent = BodySection
@@ -512,7 +579,7 @@ function library:Notification(texttitle, textdesc, textbtn)
     OkayBtn.AutoButtonColor = false
     OkayBtn.Font = Enum.Font.SourceSans
     OkayBtn.Text = ""
-    OkayBtn.ZIndex = 54
+    OkayBtn.ZIndex = 105
 
     OkayBtnCorner.CornerRadius = UDim.new(0, 6)
     OkayBtnCorner.Name = "OkayBtnCorner"
@@ -523,7 +590,7 @@ function library:Notification(texttitle, textdesc, textbtn)
     OkayBtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     OkayBtnStroke.Color = PresetColor
     OkayBtnStroke.LineJoinMode = Enum.LineJoinMode.Round
-    OkayBtnStroke.Thickness = 1.5
+    OkayBtnStroke.Thickness = 1
     OkayBtnStroke.Transparency = 0.2
     
     OkayBtnGradient.Color = ColorSequence.new{
@@ -543,7 +610,7 @@ function library:Notification(texttitle, textdesc, textbtn)
     BtnText.Text = textbtn
     BtnText.TextColor3 = Color3.fromRGB(255, 255, 255)
     BtnText.TextSize = 14
-    BtnText.ZIndex = 54
+    BtnText.ZIndex = 105
     BtnText.TextXAlignment = Enum.TextXAlignment.Left
     
     BtnIcon.Name = "BtnIcon"
@@ -553,291 +620,310 @@ function library:Notification(texttitle, textdesc, textbtn)
     BtnIcon.Size = UDim2.new(0, 16, 0, 16)
     BtnIcon.Image = "rbxassetid://7733658504"
     BtnIcon.ImageColor3 = PresetColor
-    BtnIcon.ZIndex = 54
-    
-    SideBar.Name = "SideBar"
-    SideBar.Parent = NotificationFrame
-    SideBar.BackgroundColor3 = PresetColor
-    SideBar.Position = UDim2.new(0, 0, 0, 0)
-    SideBar.Size = UDim2.new(0, 5, 1, 0)
-    SideBar.ZIndex = 53
-    
-    SideBarCorner.CornerRadius = UDim.new(0, 8)
-    SideBarCorner.Name = "SideBarCorner"
-    SideBarCorner.Parent = SideBar
-    
-    SideBarGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, PresetColor),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(PresetColor.R * 0.7, PresetColor.G * 0.7, PresetColor.B * 0.7))
-    }
-    SideBarGradient.Rotation = 90
-    SideBarGradient.Name = "SideBarGradient"
-    SideBarGradient.Parent = SideBar
-    
-    ParticleEmitter.Name = "ParticleEmitter"
-    ParticleEmitter.Parent = NotificationFrame
-    ParticleEmitter.BackgroundTransparency = 1
-    ParticleEmitter.Size = UDim2.new(1, 0, 1, 0)
-    ParticleEmitter.ZIndex = 52
-    
-    local particles = {}
-    for i = 1, 6 do
-        local particle = Instance.new("Frame")
-        particle.Name = "Particle" .. i
-        particle.Parent = ParticleEmitter
-        particle.BackgroundColor3 = PresetColor
-        particle.BackgroundTransparency = 0.7
-        particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
-        particle.Size = UDim2.new(0, math.random(2, 5), 0, math.random(2, 5))
-        particle.ZIndex = 52
-        
-        local particleCorner = Instance.new("UICorner")
-        particleCorner.CornerRadius = UDim.new(1, 0)
-        particleCorner.Parent = particle
-        
-        table.insert(particles, particle)
-    end
+    BtnIcon.ZIndex = 105
     
     task.spawn(function()
         while getgenv().libloaded and NotificationFrame.Parent do
             NotificationFrameStroke.Color = PresetColor
+            LeftAccent.BackgroundColor3 = PresetColor
+            RightAccent.BackgroundColor3 = PresetColor
+            TopAccent.BackgroundColor3 = PresetColor 
+            BottomAccent.BackgroundColor3 = PresetColor
             OkayBtnStroke.Color = PresetColor
             NotificationIcon.ImageColor3 = PresetColor
             BtnIcon.ImageColor3 = PresetColor
-            SideBar.BackgroundColor3 = PresetColor
-            SideBarGradient.Color = ColorSequence.new{
-                ColorSequenceKeypoint.new(0, PresetColor),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(PresetColor.R * 0.7, PresetColor.G * 0.7, PresetColor.B * 0.7))
-            }
-            
-            for _, particle in ipairs(particles) do
-                particle.BackgroundColor3 = PresetColor
-            end
+            LeftGlow.ImageColor3 = PresetColor
+            RightGlow.ImageColor3 = PresetColor
             task.wait()
         end
     end)
 
+    -- Animation Variables
+    local animDuration = 0.65
+    local textAnimSpeed = 0.012
+    local fadeInDuration = 0.2
+    
+    -- Animation Controller
     task.spawn(function()
-        BlurEffect.BackgroundTransparency = 1
+        -- Initial backdrop fade
         NotifBackdrop.BackgroundTransparency = 1
-        
         for i = 1, 10 do
-            BlurEffect.BackgroundTransparency = 1 - (i * 0.005)
-            task.wait(0.02)
+            NotifBackdrop.BackgroundTransparency = 1 - (i * 0.05)
+            task.wait(0.01)
         end
         
-        local initialPos = UDim2.new(0.5, 0, 0.5, -200)
-        local finalPos = UDim2.new(0.5, 0, 0.5, 0)
-        
-        NotificationFrame.Position = initialPos
+        -- Setup initial state
         NotificationFrame.Size = UDim2.new(0, 0, 0, 0)
+        LeftAccent.BackgroundTransparency = 1
+        RightAccent.BackgroundTransparency = 1
+        TopAccent.BackgroundTransparency = 1
+        BottomAccent.BackgroundTransparency = 1
+        LeftGlow.ImageTransparency = 1
+        RightGlow.ImageTransparency = 1
+        NotificationFrameStroke.Transparency = 1
         
-        local animDuration = 0.6
-        local midpoint = animDuration * 0.7
-        
-        local sizeTween = tweensv:Create(NotificationFrame, TweenInfo.new(animDuration, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+        -- Create smooth opening animation
+        local sizeTween = tweensv:Create(NotificationFrame, TweenInfo.new(animDuration, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
             Size = UDim2.new(0, 360, 0, 180)
         })
         
-        local posTween = tweensv:Create(NotificationFrame, TweenInfo.new(animDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            Position = finalPos
-        })
-        
         sizeTween:Play()
-        posTween:Play()
         
-        task.wait(midpoint)
+        -- Wait for frame to start appearing
+        task.wait(animDuration * 0.3)
         
-        for i, particle in ipairs(particles) do
-            task.spawn(function()
-                local startPos = particle.Position
-                local endPos = UDim2.new(math.random(), 0, math.random(), 0)
-                
-                for j = 0, 1, 0.05 do
-                    local x = startPos.X.Scale + (endPos.X.Scale - startPos.X.Scale) * j
-                    local y = startPos.Y.Scale + (endPos.Y.Scale - startPos.Y.Scale) * j
-                    
-                    particle.Position = UDim2.new(x, 0, y, 0)
-                    task.wait(0.02 + (i * 0.01))
-                end
-            end)
+        -- Fade in frame stroke and accents
+        tweensv:Create(NotificationFrameStroke, TweenInfo.new(fadeInDuration), {
+            Transparency = 0
+        }):Play()
+        
+        task.wait(0.05)
+        
+        -- Animate the accents
+        for _, accent in pairs({LeftAccent, RightAccent}) do
+            accent.Size = UDim2.new(0, 3, 0, 0)
+            accent.BackgroundTransparency = 0
+            tweensv:Create(accent, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 3, 1, 0)
+            }):Play()
         end
         
-        task.wait(animDuration - midpoint)
+        for _, accent in pairs({TopAccent, BottomAccent}) do
+            accent.Size = UDim2.new(0, 0, 0, 1)
+            accent.BackgroundTransparency = 0.7
+            tweensv:Create(accent, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                Size = UDim2.new(1, 0, 0, 1)
+            }):Play()
+        end
         
-        NotificationIcon:TweenPosition(UDim2.new(0, 15, 0.5, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Bounce, 0.4, true)
+        -- Animate the icon
+        NotificationIcon:TweenPosition(UDim2.new(0, 15, 0.5, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.3, true)
         
-        task.wait(0.2)
+        task.wait(0.1)
         
+        -- Glow effects
+        tweensv:Create(LeftGlow, TweenInfo.new(0.5), {
+            ImageTransparency = 0.85
+        }):Play()
+        
+        tweensv:Create(RightGlow, TweenInfo.new(0.5), {
+            ImageTransparency = 0.85
+        }):Play()
+        
+        -- Text reveal animations (smoother version)
         for i = 1, #NotificationTitle.Text do
             NotificationTitle.MaxVisibleGraphemes = i
-            task.wait(0.02)
-        end
-        
-        task.wait(0.2)
-        
-        for i = 1, #NotificationDesc.Text do
-            NotificationDesc.MaxVisibleGraphemes = i
-            task.wait(0.005)
+            task.wait(textAnimSpeed)
         end
         
         task.wait(0.1)
         
-        tweensv:Create(OkayBtn, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            BackgroundTransparency = 0,
-            Position = UDim2.new(0.5, 0, 1, -20)
+        -- Create a smoother description text animation
+        local descLength = #NotificationDesc.Text
+        local batchSize = math.ceil(descLength / 50) -- Adjust based on length
+        local currentChar = 0
+        
+        while currentChar < descLength do
+            local nextBatch = math.min(currentChar + batchSize, descLength)
+            NotificationDesc.MaxVisibleGraphemes = nextBatch
+            currentChar = nextBatch
+            task.wait(textAnimSpeed * 2) -- Slightly slower for readability
+        end
+        
+        task.wait(0.2)
+        
+        -- Button animation
+        OkayBtn.BackgroundTransparency = 1
+        BtnText.TextTransparency = 1
+        BtnIcon.ImageTransparency = 1
+        OkayBtnStroke.Transparency = 1
+        
+        tweensv:Create(OkayBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
+            BackgroundTransparency = 0
         }):Play()
         
-        tweensv:Create(BtnText, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+        tweensv:Create(BtnText, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
             TextTransparency = 0
         }):Play()
         
-        tweensv:Create(BtnIcon, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+        tweensv:Create(BtnIcon, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
             ImageTransparency = 0
         }):Play()
-    end)
-
-    local function animateParticles()
-        for i, particle in ipairs(particles) do
-            task.spawn(function()
-                local startPos = particle.Position
-                local endPos = UDim2.new(math.random(), 0, math.random(), 0)
-                
-                for j = 0, 1, 0.05 do
-                    local x = startPos.X.Scale + (endPos.X.Scale - startPos.X.Scale) * j
-                    local y = startPos.Y.Scale + (endPos.Y.Scale - startPos.Y.Scale) * j
-                    
-                    particle.Position = UDim2.new(x, 0, y, 0)
-                    task.wait(0.02 + (i * 0.01))
-                end
-            end)
-        end
-    end
-
-    task.spawn(function()
-        while NotificationFrame.Parent do
-            task.wait(3)
-            animateParticles()
-        end
-    end)
-
-    library.Conn[#library.Conn + 1] = OkayBtn.MouseEnter:Connect(function()
-        tweensv:Create(OkayBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-            BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-        }):Play()
         
-        tweensv:Create(OkayBtnStroke, TweenInfo.new(0.3), {
-            Transparency = 0
-        }):Play()
-        
-        tweensv:Create(BtnIcon, TweenInfo.new(0.3), {
-            Size = UDim2.new(0, 18, 0, 18),
-            Position = UDim2.new(0, 7, 0.5, -9)
-        }):Play()
-    end)
-
-    library.Conn[#library.Conn + 1] = OkayBtn.MouseLeave:Connect(function()
-        tweensv:Create(OkayBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-            BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-        }):Play()
-        
-        tweensv:Create(OkayBtnStroke, TweenInfo.new(0.3), {
+        tweensv:Create(OkayBtnStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
             Transparency = 0.2
         }):Play()
         
-        tweensv:Create(BtnIcon, TweenInfo.new(0.3), {
-            Size = UDim2.new(0, 16, 0, 16),
-            Position = UDim2.new(0, 8, 0.5, -8)
-        }):Play()
-    end)
-    
-    library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Down:Connect(function()
-        tweensv:Create(OkayBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
-            BackgroundColor3 = Color3.fromRGB(30, 30, 30),
-            Size = UDim2.new(0, 126, 0, 34)
-        }):Play()
-    end)
-    
-    library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Up:Connect(function()
-        tweensv:Create(OkayBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
-            BackgroundColor3 = Color3.fromRGB(45, 45, 45),
-            Size = UDim2.new(0, 130, 0, 36)
-        }):Play()
+        -- Pulse animation for accents
+        task.spawn(function()
+            while NotificationFrame.Parent do
+                -- Subtle glow pulse effect
+                tweensv:Create(LeftGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    ImageTransparency = 0.75
+                }):Play()
+                
+                tweensv:Create(RightGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    ImageTransparency = 0.75
+                }):Play()
+                
+                task.wait(1.5)
+                
+                tweensv:Create(LeftGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    ImageTransparency = 0.85
+                }):Play()
+                
+                tweensv:Create(RightGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    ImageTransparency = 0.85
+                }):Play()
+                
+                task.wait(1.5)
+            end
+        end)
     end)
 
     local function closeNotification()
-        for i, particle in ipairs(particles) do
-            tweensv:Create(particle, TweenInfo.new(0.4), {
+        -- Stop any running animations
+        for _, tween in pairs(tweensv:GetChildren()) do
+            if tween.Instance and (tween.Instance:IsDescendantOf(NotificationFrame) or tween.Instance == NotificationFrame) then
+                tween:Cancel()
+            end
+        end
+        
+        -- Create a smooth closing sequence
+        local closingDuration = 0.4
+        
+        -- Fade out text first
+        tweensv:Create(NotificationTitle, TweenInfo.new(closingDuration * 0.7), {
+            TextTransparency = 1
+        }):Play()
+        
+        tweensv:Create(NotificationDesc, TweenInfo.new(closingDuration * 0.7), {
+            TextTransparency = 1
+        }):Play()
+        
+        -- Fade out button
+        tweensv:Create(OkayBtn, TweenInfo.new(closingDuration * 0.5), {
+            BackgroundTransparency = 1
+        }):Play()
+        
+        tweensv:Create(BtnText, TweenInfo.new(closingDuration * 0.5), {
+            TextTransparency = 1
+        }):Play()
+        
+        tweensv:Create(BtnIcon, TweenInfo.new(closingDuration * 0.5), {
+            ImageTransparency = 1
+        }):Play()
+        
+        -- Fade out icons and accents
+        tweensv:Create(NotificationIcon, TweenInfo.new(closingDuration * 0.6), {
+            ImageTransparency = 1
+        }):Play()
+        
+        tweensv:Create(LeftGlow, TweenInfo.new(closingDuration * 0.3), {
+            ImageTransparency = 1
+        }):Play()
+        
+        tweensv:Create(RightGlow, TweenInfo.new(closingDuration * 0.3), {
+            ImageTransparency = 1
+        }):Play()
+        
+        -- Animate accents away
+        for _, accent in pairs({LeftAccent, RightAccent}) do
+            tweensv:Create(accent, TweenInfo.new(closingDuration * 0.7), {
+                Size = UDim2.new(0, 3, 0, 0),
                 BackgroundTransparency = 1
             }):Play()
         end
         
-        tweensv:Create(NotificationTitle, TweenInfo.new(0.4), {
-            TextTransparency = 1
-        }):Play()
+        for _, accent in pairs({TopAccent, BottomAccent}) do
+            tweensv:Create(accent, TweenInfo.new(closingDuration * 0.7), {
+                Size = UDim2.new(0, 0, 0, 1),
+                BackgroundTransparency = 1
+            }):Play()
+        end
         
-        tweensv:Create(NotificationDesc, TweenInfo.new(0.4), {
-            TextTransparency = 1
-        }):Play()
+        task.wait(closingDuration * 0.5)
         
-        tweensv:Create(NotificationIcon, TweenInfo.new(0.4), {
-            ImageTransparency = 1
-        }):Play()
-        
-        tweensv:Create(OkayBtn, TweenInfo.new(0.4), {
-            BackgroundTransparency = 1
-        }):Play()
-        
-        tweensv:Create(BtnText, TweenInfo.new(0.4), {
-            TextTransparency = 1
-        }):Play()
-        
-        tweensv:Create(BtnIcon, TweenInfo.new(0.4), {
-            ImageTransparency = 1
-        }):Play()
-        
-        tweensv:Create(CloseBtn, TweenInfo.new(0.4), {
-            ImageTransparency = 1
-        }):Play()
-        
-        task.wait(0.3)
-        
-        tweensv:Create(SideBar, TweenInfo.new(0.4), {
-            Size = UDim2.new(0, 0, 1, 0)
-        }):Play()
-        
-        tweensv:Create(NotificationFrameStroke, TweenInfo.new(0.4), {
+        -- Fade out stroke
+        tweensv:Create(NotificationFrameStroke, TweenInfo.new(closingDuration * 0.3), {
             Transparency = 1
         }):Play()
         
-        local shrinkTween = tweensv:Create(NotificationFrame, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.In), {
-            Size = UDim2.new(0, 0, 0, 0),
-            Position = UDim2.new(0.5, 0, 0.5, 0)
+        -- Collapse the notification
+        local collapseTween = tweensv:Create(NotificationFrame, TweenInfo.new(closingDuration, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0)
         })
         
-        shrinkTween:Play()
-        shrinkTween.Completed:Wait()
+        collapseTween:Play()
+        collapseTween.Completed:Wait()
         
+        -- Fade out backdrop
         for i = 1, 10 do
-            BlurEffect.BackgroundTransparency = 0.95 + (i * 0.005)
-            task.wait(0.02)
+            NotifBackdrop.BackgroundTransparency = 0.5 + (i * 0.05)
+            task.wait(0.01)
         end
         
+        -- Clean up
         NotificationHolder:Destroy()
     end
 
+    -- Button hover/click effects
+    library.Conn[#library.Conn + 1] = OkayBtn.MouseEnter:Connect(function()
+        tweensv:Create(OkayBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        }):Play()
+        
+        tweensv:Create(OkayBtnStroke, TweenInfo.new(0.2), {
+            Transparency = 0
+        }):Play()
+    end)
+
+    library.Conn[#library.Conn + 1] = OkayBtn.MouseLeave:Connect(function()
+        tweensv:Create(OkayBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        }):Play()
+        
+        tweensv:Create(OkayBtnStroke, TweenInfo.new(0.2), {
+            Transparency = 0.2
+        }):Play()
+    end)
+    
+    library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Down:Connect(function()
+        tweensv:Create(OkayBtn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+            Size = UDim2.new(0, 126, 0, 34)
+        }):Play()
+        
+        tweensv:Create(BtnIcon, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+            Position = UDim2.new(0, 7, 0.5, -8)
+        }):Play()
+    end)
+    
+    library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Up:Connect(function()
+        tweensv:Create(OkayBtn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+            Size = UDim2.new(0, 130, 0, 36)
+        }):Play()
+        
+        tweensv:Create(BtnIcon, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+            Position = UDim2.new(0, 8, 0.5, -8)
+        }):Play()
+    end)
+
+    -- Close button effects
     library.Conn[#library.Conn + 1] = CloseBtn.MouseEnter:Connect(function()
-        tweensv:Create(CloseBtn, TweenInfo.new(0.3), {
+        tweensv:Create(CloseBtn, TweenInfo.new(0.2), {
             ImageColor3 = Color3.fromRGB(255, 255, 255)
         }):Play()
     end)
 
     library.Conn[#library.Conn + 1] = CloseBtn.MouseLeave:Connect(function()
-        tweensv:Create(CloseBtn, TweenInfo.new(0.3), {
+        tweensv:Create(CloseBtn, TweenInfo.new(0.2), {
             ImageColor3 = Color3.fromRGB(180, 180, 180)
         }):Play()
     end)
 
+    -- Close handlers
     library.Conn[#library.Conn + 1] = CloseBtn.MouseButton1Click:Connect(closeNotification)
     library.Conn[#library.Conn + 1] = OkayBtn.MouseButton1Click:Connect(closeNotification)
 end
