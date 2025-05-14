@@ -1114,7 +1114,8 @@ function library:Window(title, version, info, preset, closebind)
                 local sliderValue = precise and tonumber(value) or math.floor(RealValue)
                 
                 if slider then
-                    slider.value = sliderValue
+                slider.value = sliderValue
+                rawset(slider, "_realValue", RealValue)
                 end
                 
                 if UserFunc and not IsSettingFromConfig then
@@ -1122,7 +1123,7 @@ function library:Window(title, version, info, preset, closebind)
                 end
             end
             
-            local slider = {
+        local slider = {
                 value = precise and tonumber(value) or math.floor(RealValue),
                 set = function(self, val)
                     if type(val) == "number" or type(val) == "string" then
@@ -1163,7 +1164,14 @@ function library:Window(title, version, info, preset, closebind)
                     return self.value
                 end
             }
-            
+            setmetatable(slider, {
+                __index = function(t, k)
+                    if k == "value" then
+                        return precise and tonumber(value) or math.floor(RealValue)
+                    end
+                    return rawget(t, k)
+                end
+            })
             if not library.flags then library.flags = {} end
             library.flags[flag] = slider
             
