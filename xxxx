@@ -1088,7 +1088,10 @@ function library:Window(title, version, info, preset, closebind)
                 local percent
                 
                 if val then
-                    val = tonumber(val) or defvalue
+                    val = tonumber(val)
+                    if val == nil then 
+                        val = defvalue
+                    end
                     percent = math.clamp((val - min) / (max - min), 0, 1)
                 elseif mouseX then
                     percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
@@ -1123,7 +1126,11 @@ function library:Window(title, version, info, preset, closebind)
                 value = precise and tonumber(value) or math.floor(RealValue),
                 set = function(self, val)
                     if type(val) == "number" or type(val) == "string" then
-                        val = tonumber(val) or self.value
+                        val = tonumber(val)
+                        if val == nil then
+                            return self
+                        end
+                        
                         val = math.clamp(val, min, max)
                         
                         IsSettingFromConfig = true
