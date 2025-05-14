@@ -751,7 +751,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local toggled = default or false
     local assignedKey = keybind or Enum.KeyCode.Unknown
     local SelectingKey = false
-    local ContextMenuOpen = false
+    local MenuOpen = false
     local keybindMode = "Toggle" -- Default mode: Toggle, Hold, Always
 
     local Toggle = Instance.new("TextButton")
@@ -766,7 +766,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local FrameToggleCircle = Instance.new("Frame")
     local FrameToggleCircleCorner = Instance.new("UICorner")
     local KeybindDisplay = Instance.new("TextLabel")
-    local KeybindMenu = Instance.new("Frame")
 
     Toggle.Name = "Toggle"
     Toggle.Parent = Tab
@@ -841,37 +840,27 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     KeybindDisplay.TextColor3 = Color3.fromRGB(180, 180, 180)
     KeybindDisplay.TextSize = 14
 
-    -- Sliding menu for keybind setup (initially hidden)
-    KeybindMenu = Instance.new("Frame")
-    KeybindMenu.Name = "KeybindMenu"
-    KeybindMenu.Parent = Toggle
-    KeybindMenu.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
-    KeybindMenu.BorderSizePixel = 0
-    KeybindMenu.Position = UDim2.new(0, 0, 1, 0) -- Position below the toggle
-    KeybindMenu.Size = UDim2.new(1, 0, 0, 100)
-    KeybindMenu.ZIndex = 10
-    KeybindMenu.Visible = false
-    KeybindMenu.ClipsDescendants = true
-    
-    local MenuStroke = Instance.new("UIStroke")
-    MenuStroke.Parent = KeybindMenu
-    MenuStroke.Color = PresetColor
-    MenuStroke.Thickness = 1
-    MenuStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    
-    local MenuCorner = Instance.new("UICorner")
-    MenuCorner.CornerRadius = UDim.new(0, 5)
-    MenuCorner.Parent = KeybindMenu
-    
-    -- Keybind Section
+    -- Create keybind setup UI elements
     local KeybindSection = Instance.new("Frame")
-    KeybindSection.Name = "KeybindSection"
-    KeybindSection.Parent = KeybindMenu
-    KeybindSection.BackgroundTransparency = 1
-    KeybindSection.Position = UDim2.new(0, 0, 0, 10)
-    KeybindSection.Size = UDim2.new(1, 0, 0, 30)
-    
     local KeybindLabel = Instance.new("TextLabel")
+    local KeybindButton = Instance.new("TextButton")
+    local KeybindButtonCorner = Instance.new("UICorner")
+    local KeybindButtonStroke = Instance.new("UIStroke")
+    
+    -- Mode Section
+    local ModeSection = Instance.new("Frame")
+    local ModeLabel = Instance.new("TextLabel")
+    local ModeHolder = Instance.new("Frame")
+    local ModeLayout = Instance.new("UIListLayout")
+    
+    -- All of these are children of Toggle and will be revealed/hidden
+    KeybindSection.Name = "KeybindSection"
+    KeybindSection.Parent = Toggle
+    KeybindSection.BackgroundTransparency = 1
+    KeybindSection.Position = UDim2.new(0, 0, 0, 50) -- Position it below the toggle main part
+    KeybindSection.Size = UDim2.new(1, 0, 0, 30)
+    KeybindSection.Visible = false
+    
     KeybindLabel.Name = "KeybindLabel"
     KeybindLabel.Parent = KeybindSection
     KeybindLabel.BackgroundTransparency = 1
@@ -883,7 +872,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     KeybindLabel.TextSize = 14
     KeybindLabel.TextXAlignment = Enum.TextXAlignment.Left
     
-    local KeybindButton = Instance.new("TextButton")
     KeybindButton.Name = "KeybindButton"
     KeybindButton.Parent = KeybindSection
     KeybindButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
@@ -894,25 +882,21 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     KeybindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     KeybindButton.TextSize = 13
     
-    local KeybindButtonCorner = Instance.new("UICorner")
     KeybindButtonCorner.CornerRadius = UDim.new(0, 4)
     KeybindButtonCorner.Parent = KeybindButton
     
-    local KeybindButtonStroke = Instance.new("UIStroke")
     KeybindButtonStroke.Parent = KeybindButton
     KeybindButtonStroke.Color = PresetColor
     KeybindButtonStroke.Thickness = 1
     KeybindButtonStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     
-    -- Mode Section
-    local ModeSection = Instance.new("Frame")
     ModeSection.Name = "ModeSection"
-    ModeSection.Parent = KeybindMenu
+    ModeSection.Parent = Toggle
     ModeSection.BackgroundTransparency = 1
-    ModeSection.Position = UDim2.new(0, 0, 0, 50)
+    ModeSection.Position = UDim2.new(0, 0, 0, 90) -- Below the keybind section
     ModeSection.Size = UDim2.new(1, 0, 0, 30)
+    ModeSection.Visible = false
     
-    local ModeLabel = Instance.new("TextLabel")
     ModeLabel.Name = "ModeLabel"
     ModeLabel.Parent = ModeSection
     ModeLabel.BackgroundTransparency = 1
@@ -924,15 +908,12 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     ModeLabel.TextSize = 14
     ModeLabel.TextXAlignment = Enum.TextXAlignment.Left
     
-    -- Mode selection buttons
-    local ModeHolder = Instance.new("Frame")
     ModeHolder.Name = "ModeHolder"
     ModeHolder.Parent = ModeSection
     ModeHolder.BackgroundTransparency = 1
     ModeHolder.Position = UDim2.new(0.5, 0, 0, 0)
     ModeHolder.Size = UDim2.new(0.45, 0, 1, 0)
     
-    local ModeLayout = Instance.new("UIListLayout")
     ModeLayout.Parent = ModeHolder
     ModeLayout.FillDirection = Enum.FillDirection.Horizontal
     ModeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -970,7 +951,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     coroutine.wrap(function()
         while altloaded do
             FrameToggle3.BackgroundColor3 = PresetColor
-            MenuStroke.Color = PresetColor
             KeybindButtonStroke.Color = PresetColor
             
             -- Update mode button colors
@@ -1123,35 +1103,31 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
 
     -- Function to toggle the keybind menu
     local function ToggleMenu()
-        ContextMenuOpen = not ContextMenuOpen
-        
-        if ContextMenuOpen then
-            -- Show the menu with a slide effect
-            KeybindMenu.Position = UDim2.new(0, 0, 1, 0)
-            KeybindMenu.Visible = true
+        MenuOpen = not MenuOpen
+        if MenuOpen then
+            -- Show keybind sections
+            KeybindSection.Visible = true
+            ModeSection.Visible = true
             
-            -- Make the toggle larger to fit the menu
-            local originalSize = Toggle.Size
-            local expandedSize = UDim2.new(originalSize.X.Scale, originalSize.X.Offset, 
-                                          originalSize.Y.Scale, originalSize.Y.Offset + KeybindMenu.Size.Y.Offset + 10)
-            
-            tweensv:Create(KeybindMenu, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), 
-                          {Position = UDim2.new(0, 0, 0, 42)}):Play()
+            -- Animate the toggle to expand
             tweensv:Create(Toggle, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), 
-                          {Size = expandedSize}):Play()
-                          
-            -- Update canvas size
-            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y + KeybindMenu.Size.Y.Offset)
+                {Size = UDim2.new(0, 363, 0, 130)}):Play()
+            
+            -- Update canvas size to accommodate the expanded toggle
+            task.delay(0.05, function()
+                Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y + 88)
+            end)
         else
-            -- Hide the menu with a slide effect
-            tweensv:Create(KeybindMenu, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), 
-                          {Position = UDim2.new(0, 0, 1, 0)}):Play()
+            -- Animate the toggle to collapse
             tweensv:Create(Toggle, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), 
-                          {Size = UDim2.new(0, 363, 0, 42)}):Play()
-                          
-            -- Set menu to invisible after animation
-            task.delay(0.3, function()
-                KeybindMenu.Visible = false
+                {Size = UDim2.new(0, 363, 0, 42)}):Play()
+            
+            -- Hide keybind sections after animation completes
+            task.delay(0.25, function()
+                KeybindSection.Visible = false
+                ModeSection.Visible = false
+                
+                -- Reset canvas size
                 Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             end)
         end
