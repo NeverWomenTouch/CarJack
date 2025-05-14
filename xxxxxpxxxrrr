@@ -1111,18 +1111,14 @@ function library:Window(title, version, info, preset, closebind)
                 value = precise and string.format("%.1f", tostring(RealValue)) or math.floor(RealValue)
                 ValueLabel.Text = tostring(value)
                 
-                local sliderValue = precise and tonumber(value) or math.floor(RealValue)
-                
                 if slider then
-                slider.value = sliderValue
-                rawset(slider, "_realValue", RealValue)
+                    slider.value = precise and tonumber(value) or math.floor(RealValue)
                 end
                 
                 if UserFunc and not IsSettingFromConfig then
-                    pcall(UserFunc, sliderValue)
+                    pcall(UserFunc, slider.value)
                 end
-            end
-            
+   
         local slider = {
                 value = precise and tonumber(value) or math.floor(RealValue),
                 set = function(self, val)
@@ -1164,14 +1160,6 @@ function library:Window(title, version, info, preset, closebind)
                     return self.value
                 end
             }
-            setmetatable(slider, {
-                __index = function(t, k)
-                    if k == "value" then
-                        return precise and tonumber(value) or math.floor(RealValue)
-                    end
-                    return rawget(t, k)
-                end
-            })
             if not library.flags then library.flags = {} end
             library.flags[flag] = slider
             
@@ -2680,7 +2668,7 @@ function library:ConfigSystem(tab, name)
     end
     
     cfg.sync = sync
-    
+
 function pack(val)
     local typ = typeof(val)
     
@@ -2698,24 +2686,9 @@ function pack(val)
             value = val.Name
         }
     elseif typ == "table" then
-            -- Check if it's a slider by looking for specific properties
-            if flag and flag:match("[sS]lider") then
-                -- For sliders, directly access the current value by getting the raw value
-                if type(val.value) == "number" then
-                    return val.value
-                elseif type(rawget(val, "_realValue")) == "number" then
-                    -- Fallback to real value if present
-                    local realVal = rawget(val, "_realValue")
-                    if precise then
-                        return tonumber(string.format("%.1f", realVal))
-                    else
-                        return math.floor(realVal)
-                    end
-                end
-            end
-        
-        -- For colorpickers, properly save with rainbow state
-        if typeof(val.value) == "Color3" then
+        if type(val.value) == "number" then
+            return val.value
+        elseif typeof(val.value) == "Color3" then
             local colorData = {
                 __type = "Color3",
                 r = val.value.R,
@@ -2730,7 +2703,6 @@ function pack(val)
             return colorData
         end
         
-        -- For keybinds (both Bind and KeybindT)
         if val.keyCode or (val.value ~= nil and typeof(val.value) == "EnumItem") then
             local keyData = {
                 __type = "Keybind",
@@ -2751,7 +2723,6 @@ function pack(val)
             return keyData
         end
         
-        -- For other tables, strip functions to avoid circular refs
         local out = {}
         for k, v in pairs(val) do
             if type(v) ~= "function" then
@@ -2974,7 +2945,7 @@ end
             library:Notification("Error", "Failed to create config file.", "OK")
         end
     end)
-    
+
 tab:Button("Save/Overwrite Config", function()
     if not cfg.pick then
         library:Notification("Error", "No config selected.", "OK")
@@ -3000,11 +2971,11 @@ tab:Button("Save/Overwrite Config", function()
             for flag, elem in pairs(library.flags) do
                 if elem and type(elem) == "table" then
                     if not flag:match("_rainbow$") then
-                        -- DIRECT VALUE SAVING - this is the critical fix for sliders
+                        -- For sliders, directly save the numeric value
                         if type(elem.value) == "number" then
-                            -- For any numeric value (including sliders), save directly
                             data.values[flag] = elem.value
-                        elseif (flag:find("[bB]ind") or flag:find("[kK]eybind")) and (elem.keyCode or (typeof(elem.value) == "EnumItem")) then
+                        elseif (flag:find("[bB]ind") or flag:find("[kK]eybind")) then
+                            -- Keybind handling 
                             local keyData = {
                                 __type = "Keybind",
                                 keyName = elem.keyName or (elem.keyCode and elem.keyCode.Name) or "Unknown"
@@ -3025,7 +2996,8 @@ tab:Button("Save/Overwrite Config", function()
                             end
                             
                             data.values[flag] = keyData
-                        elseif flag:find("[cC]olor") and typeof(elem.value) == "Color3" then
+                        elseif flag:find("[cC]olor") then
+                            -- Color handling
                             local colorData = {
                                 __type = "Color3",
                                 r = elem.value.R,
@@ -3091,7 +3063,7 @@ tab:Button("Save/Overwrite Config", function()
         library:Notification("Error", "Config does not exist.", "OK")
     end
 end)
-    
+
 tab:Button("Load Config", function()
     if not cfg.pick then
         return library:Notification("Error", "No config selected.", "OK")
