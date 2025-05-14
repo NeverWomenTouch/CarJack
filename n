@@ -1,0 +1,510 @@
+local cloneref = cloneref or function(...) return ... end
+local plrs = cloneref(game:GetService("Players"))
+local lp = plrs.LocalPlayer
+local ms = lp:GetMouse()
+local rs = cloneref(game:GetService('RunService'))
+local ws = cloneref(game:GetService("Workspace"))
+local cam = ws.CurrentCamera
+local replicatedst = cloneref(game:GetService('ReplicatedStorage'))
+local uis = cloneref(game:GetService('UserInputService'))
+local pfs = cloneref(game:GetService('PathfindingService'))
+local httpservice = cloneref(game:GetService("HttpService"))
+local VirtualInputManager = cloneref(game:GetService("VirtualInputManager"))
+local cg = cloneref(game:GetService('CoreGui'))
+local lighting = cloneref(game:GetService("Lighting"))
+local stats = cloneref(game:GetService("Stats"))
+local mps = cloneref(game:GetService("MarketplaceService"))
+local library = loadstring(game:HttpGet('https://raw.githubusercontent.com/olympokram/new/refs/heads/main/Dendrite.cc/Library'))()
+local targetplace = mps:GetProductInfo(7006496598)
+local window = library:Window(targetplace.Name, "", "Dendrite.cc", Color3.fromRGB(255, 0, 0))
+----- TABS
+local main = window:Tab("Silent Aim")
+local visual = window:Tab("Visuals")
+local misc = window:Tab("Misc")
+local setting = window:Tab("Settings")
+SAS = {
+    Enabled = false,
+    TeamCheck = false,
+    VisibleCheck = false, 
+    TargetPart = "Head",
+    SilentAimMethod = "Raycast",
+    FOVRadius = 130,
+    FOVColor = Color3.fromRGB(255, 255, 255),
+    FOVVisible = false,
+    ShowSnapLine = false, 
+    SnapColor = Color3.fromRGB(255, 255, 255),
+    HitChance = 100,
+    WallbangEnabled = false
+}
+local next = next
+local pcall = pcall
+local Vector2New = Vector2.new
+local Color3FromRGB = Color3.fromRGB
+local RayNew = Ray.new
+local mathFloor = math.floor
+local mathRandom = math.random
+local tableUnpack = unpack or table.unpack 
+getgenv().SAS = SAS
+Camera = workspace.CurrentCamera
+Players = game:GetService("Players")
+RunService = game:GetService("RunService")
+UserInputService = game:GetService("UserInputService")
+LocalPlayer = Players.LocalPlayer
+Mouse = LocalPlayer:GetMouse()
+GetChildren = game.GetChildren
+GetPlayers = Players.GetPlayers
+WorldToScreen = Camera.WorldToScreenPoint
+WorldToViewportPoint = Camera.WorldToViewportPoint
+GetPartsObscuringTarget = Camera.GetPartsObscuringTarget
+FindFirstChild = game.FindFirstChild
+RenderStepped = RunService.RenderStepped
+GetMouseLocation = UserInputService.GetMouseLocation
+ValidTargetParts = {"Head", "HumanoidRootPart"}
+local fov_circle = Drawing.new("Circle")
+fov_circle.Thickness = 1
+fov_circle.NumSides = 100
+fov_circle.Radius = SAS.FOVRadius
+fov_circle.Filled = false
+fov_circle.Visible = SAS.FOVVisible
+fov_circle.ZIndex = 999
+fov_circle.Transparency = 1
+fov_circle.Color = SAS.FOVColor
+local snaps = Drawing.new("Line")
+snaps.Visible = SAS.ShowSnapLine
+snaps.ZIndex = 999 
+snaps.Color = SAS.SnapColor
+snaps.Thickness = 1
+local EA = {
+    Raycast = {
+        ArgCountRequired = 3,
+        Args = {
+            "Instance", "Vector3", "Vector3", "RaycastParams"
+        }
+    }
+}
+function CalculateChance(Percentage)
+    Percentage = math.floor(Percentage)
+    local chance = math.floor(Random.new().NextNumber(Random.new(), 0, 1) * 100) / 100
+    return chance <= Percentage / 100
+end
+function getPositionOnScreen(Vector)
+    local Vec3, OnScreen = WorldToScreen(Camera, Vector)
+    return Vector2.new(Vec3.X, Vec3.Y), OnScreen
+end
+function ValidateArguments(Args, RayMethod)
+    local Matches = 0
+    if #Args < RayMethod.ArgCountRequired then
+        return false
+    end
+    for Pos, Argument in next, Args do
+        if typeof(Argument) == RayMethod.Args[Pos] then
+            Matches = Matches + 1
+        end
+    end
+    return Matches >= RayMethod.ArgCountRequired
+end
+function getDirection(Origin, Position)
+    return (Position - Origin).Unit * 1000
+end
+function getMousePosition()
+    return GetMouseLocation(UserInputService)
+end
+function IsPlayerVisible(Player)
+    local PlayerCharacter = Player.Character
+    local LocalPlayerCharacter = LocalPlayer.Character
+    if not (PlayerCharacter or LocalPlayerCharacter) then return end 
+    local PlayerRoot = FindFirstChild(PlayerCharacter, SAS.TargetPart) or FindFirstChild(PlayerCharacter, "HumanoidRootPart")
+    if not PlayerRoot then return end 
+    local CastPoints, IgnoreList = {PlayerRoot.Position, LocalPlayerCharacter, PlayerCharacter}, {LocalPlayerCharacter, PlayerCharacter}
+    local ObscuringObjects = #GetPartsObscuringTarget(Camera, CastPoints, IgnoreList)
+    return ((ObscuringObjects == 0 and true) or (ObscuringObjects > 0 and false))
+end
+function getClosestPlayer()
+    if not SAS.TargetPart then return nil end
+    local Closest = nil
+    local DistanceToMouse = nil
+    local CurrentMousePos = getMousePosition()
+    local FOVRadius = tonumber(SAS.FOVRadius) or 2000
+    local TeamCheck = SAS.TeamCheck
+    local VisibleCheck = SAS.VisibleCheck
+    local TargetPart = SAS.TargetPart
+    for _, Player in next, GetPlayers(Players) do
+        if Player == LocalPlayer then continue end
+        if TeamCheck and Player.Team == LocalPlayer.Team then continue end
+        local Character = Player.Character
+        if not Character then continue end
+        if VisibleCheck and not IsPlayerVisible(Player) then continue end
+        local HumanoidRootPart = FindFirstChild(Character, "HumanoidRootPart")
+        local Humanoid = FindFirstChild(Character, "Humanoid")
+        if not HumanoidRootPart or not Humanoid or Humanoid and Humanoid.Health <= 0 then 
+            continue 
+        end
+        local ScreenPosition, OnScreen = getPositionOnScreen(HumanoidRootPart.Position)
+        if not OnScreen then continue end
+        local Distance = (CurrentMousePos - ScreenPosition).Magnitude
+        if Distance <= (tonumber(DistanceToMouse) or FOVRadius) then
+            if TargetPart == "Random" then
+                local randomIndex = mathRandom(1, #ValidTargetParts)
+                local partName = ValidTargetParts[randomIndex]
+                Closest = Character[partName]
+            else
+                Closest = Character[TargetPart]
+                if not Closest then
+                    Closest = HumanoidRootPart
+                end
+            end
+            DistanceToMouse = Distance
+        end
+    end
+    return Closest
+end
+local lastUpdate = tick()
+local updateInterval = 0.01
+local cachedMousePos = getMousePosition()
+RunService.RenderStepped:Connect(function(deltaTime)
+    local currentTime = tick()
+    if currentTime - lastUpdate < updateInterval then return end
+    lastUpdate = currentTime
+    cachedMousePos = getMousePosition()
+    fov_circle.Position = cachedMousePos
+    fov_circle.Radius = SAS.FOVRadius
+    fov_circle.Color = SAS.FOVColor
+    snaps.Color = SAS.SnapColor
+    fov_circle.Visible = SAS.FOVVisible
+    if SAS.ShowSnapLine and SAS.Enabled then
+        local Target = getClosestPlayer()
+        if Target then 
+            local Root = Target.Parent.PrimaryPart or Target
+            local _, IsOnScreen = nil, false
+            pcall(function()
+                local RootToViewportPoint
+                RootToViewportPoint, IsOnScreen = WorldToViewportPoint(Camera, Root.Position)
+                if IsOnScreen then
+                    snaps.From = Vector2.new(cachedMousePos.X, cachedMousePos.Y)
+                    snaps.To = Vector2.new(RootToViewportPoint.X, RootToViewportPoint.Y)
+                end
+                snaps.Visible = IsOnScreen
+            end)
+        else
+            snaps.Visible = false
+        end
+    else
+        snaps.Visible = false
+    end
+end)
+local lastWallbangTime = 0
+local wallbangCooldown = 0.005
+function GetWallbangableTable(Target)
+    if not Target or not Target.Parent then return {} end
+    local Character = Target.Parent
+    local HumanoidRootPart = FindFirstChild(Character, "HumanoidRootPart")
+    if not HumanoidRootPart then return {} end
+    return {Character}
+end
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
+    local Method = getnamecallmethod()
+    local Arguments = {...}
+    local self = Arguments[1]
+    local chance = CalculateChance(SAS.HitChance)
+    if SAS.Enabled and self == workspace and not checkcaller() and chance == true then
+        if Method == "Raycast" and SAS.SilentAimMethod == Method then
+            if ValidateArguments(Arguments, EA.Raycast) then
+                local A_Origin = Arguments[2]
+                local HitPart = getClosestPlayer()
+                if HitPart then
+                    Arguments[3] = getDirection(A_Origin, HitPart.Position)
+                    if SAS.WallbangEnabled and tick() - lastWallbangTime > wallbangCooldown then
+                        lastWallbangTime = tick()
+                        local params = RaycastParams.new()
+                        params.FilterType = Enum.RaycastFilterType.Include
+                        params.IgnoreWater = true
+                        params.RespectCanCollide = false
+                        params.FilterDescendantsInstances = GetWallbangableTable(HitPart)
+                        Arguments[4] = params
+                    end
+                    
+                    return oldNamecall(unpack(Arguments))
+                end
+            end
+        end
+    end
+    return oldNamecall(unpack(Arguments))
+end))
+main:Toggle("Silent Aim", false, function(brd)
+    SAS.Enabled = brd
+end)
+main:NewSlider("Hitchance", 1, 100, 1, function(brd)
+    SAS.HitChance = brd
+end, 100)
+main:Toggle("FOV", false, function(circlearound)
+    SAS.FOVVisible = circlearound
+end)
+main:Toggle("Snapline", false, function(snaperrrsad)
+    SAS.ShowSnapLine = snaperrrsad
+end)
+main:NewSlider("Fov Radius", 90, 500, 1, function(brd)
+    SAS.FOVRadius = tonumber(brd) or 150
+end, 150)
+main:Colorpicker("FOV Color", Color3.fromRGB(255, 255, 255), function(t)
+    SAS.FOVColor = Color3.fromRGB(t.R * 255, t.G * 255, t.B * 255)
+end)
+main:Colorpicker("Snapline Color", Color3.fromRGB(255, 255, 255), function(t)
+    SAS.SnapColor = Color3.fromRGB(t.R * 255, t.G * 255, t.B * 255)
+end)
+main:NewDropdown("Target Part", {
+    "Head",
+    "HumanoidRootPart",
+    "Torso",
+    "Left Arm",
+    "Right Arm",
+    "Left Leg",
+    "Right Leg",
+    "Random"
+}, function(selected)
+    SAS.TargetPart = selected
+end)
+main:Toggle("Wallbang", false, function(snapersrrsad)
+    SAS.WallbangEnabled = snapersrrsad
+end)
+
+
+------------ VISUALS
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = game:GetService("Workspace").CurrentCamera
+local ESPInstances = {}
+
+local Config = {
+    Esp = {
+        Box = false,
+        BoxOutline = false,
+        BoxColor = Color3.fromRGB(255, 255, 255),
+        BoxOutlineColor = Color3.fromRGB(0, 0, 0),
+        HealthBar = false,
+        HealthBarSide = "Left", 
+        Names = false,
+        Nametext = "None",
+        NamesOutline = false,
+        NamesColor = Color3.fromRGB(255, 255, 255),
+        NamesOutlineColor = Color3.fromRGB(0, 0, 0),
+        NamesFont = 2,
+        NamesSize = 15,
+        Weapon = false,
+        Weapontext = "Weapon: None",
+        WeaponOutline = false,
+        WeaponColor = Color3.fromRGB(255, 255, 255),
+        WeaponOutlineColor = Color3.fromRGB(0, 0, 0),
+        WeaponFont = 2,
+        WeaponSize = 15
+    }
+}
+
+function CleanupESP(Player)
+    if ESPInstances[Player] then
+        for _, drawing in pairs(ESPInstances[Player].drawings) do
+            if drawing and drawing.__OBJECT_EXISTS then
+                drawing:Remove()
+            end
+        end
+        if ESPInstances[Player].connection then
+            ESPInstances[Player].connection:Disconnect()
+        end
+        ESPInstances[Player] = nil
+    end
+end
+
+function CreateEsp(Player)
+    if not Player then return end
+    CleanupESP(Player)
+
+    local Box, BoxOutline, Name, Weapon, HealthBar, HealthBarOutline = Drawing.new("Square"), Drawing.new("Square"), Drawing.new("Text"), Drawing.new("Text"), Drawing.new("Square"), Drawing.new("Square")
+    
+    ESPInstances[Player] = {
+        drawings = {Box, BoxOutline, Name, Weapon, HealthBar, HealthBarOutline},
+        connection = nil
+    }
+
+    local Updater = RunService.RenderStepped:Connect(function()
+        local humanoid = Player:FindFirstChild("Humanoid")
+        if Player and Player.Parent and Player:FindFirstChild("HumanoidRootPart") and humanoid then
+            local Target2dPosition, IsVisible = Camera:WorldToViewportPoint(Player.HumanoidRootPart.Position)
+            local scale_factor = 1 / (Target2dPosition.Z * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
+            local width, height = math.floor(40 * scale_factor), math.floor(60 * scale_factor)
+
+            if humanoid.Health <= 0 then
+                CleanupESP(Player)
+                return
+            end
+
+            if Config.Esp.Box then
+                Box.Visible = IsVisible
+                Box.Color = Config.Esp.BoxColor
+                Box.Size = Vector2.new(width, height)
+                Box.Position = Vector2.new(Target2dPosition.X - Box.Size.X / 2, Target2dPosition.Y - Box.Size.Y / 2)
+                Box.Filled = false
+                Box.Thickness = 1
+                Box.ZIndex = 69
+                if Config.Esp.BoxOutline then
+                    BoxOutline.Visible = IsVisible
+                    BoxOutline.Color = Config.Esp.BoxOutlineColor
+                    BoxOutline.Size = Box.Size
+                    BoxOutline.Position = Box.Position
+                    BoxOutline.Filled = false
+                    BoxOutline.Thickness = 3
+                    BoxOutline.ZIndex = 1
+                else
+                    BoxOutline.Visible = false
+                end
+            else
+                Box.Visible = false
+                BoxOutline.Visible = false
+            end
+
+            if Config.Esp.Names then
+                Name.Visible = IsVisible
+                Name.Color = Config.Esp.NamesColor
+                Name.Text = Player.Name
+                Name.Center = true
+                Name.Outline = Config.Esp.NamesOutline
+                Name.OutlineColor = Config.Esp.NamesOutlineColor
+                Name.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height * 0.5 - 15)
+                Name.Font = Config.Esp.NamesFont
+                Name.Size = Config.Esp.NamesSize
+            else
+                Name.Visible = false
+            end
+
+            if Config.Esp.Weapon then
+                Weapon.Visible = IsVisible
+                Weapon.Color = Config.Esp.WeaponColor
+                Weapon.Text = Config.Esp.Weapontext
+                Weapon.Center = true
+                Weapon.Outline = Config.Esp.WeaponOutline
+                Weapon.OutlineColor = Config.Esp.WeaponOutlineColor
+                Weapon.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y + height * 0.5 + 3)
+                Weapon.Font = Config.Esp.WeaponFont
+                Weapon.Size = Config.Esp.WeaponSize
+                local tool = Player:FindFirstChildOfClass("Tool")
+                Weapon.Text = tool and tool.Name or Config.Esp.Weapontext
+            else
+                Weapon.Visible = false
+            end
+
+            if Config.Esp.HealthBar then
+                HealthBarOutline.Visible = IsVisible
+                HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
+                HealthBarOutline.Filled = true
+                HealthBarOutline.ZIndex = 1
+                HealthBar.Visible = IsVisible
+                HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), humanoid.Health / humanoid.MaxHealth)
+                HealthBar.Thickness = 1
+                HealthBar.Filled = true
+                HealthBar.ZIndex = 69
+                if Config.Esp.HealthBarSide == "Left" then
+                    HealthBarOutline.Size = Vector2.new(2, height)
+                    HealthBarOutline.Position = Box.Position + Vector2.new(-3, 0)
+                    HealthBar.Size = Vector2.new(1, -(HealthBarOutline.Size.Y - 2) * (humanoid.Health / humanoid.MaxHealth))
+                    HealthBar.Position = HealthBarOutline.Position + Vector2.new(1, HealthBarOutline.Size.Y - 1)
+                elseif Config.Esp.HealthBarSide == "Bottom" then
+                    HealthBarOutline.Size = Vector2.new(width, 3)
+                    HealthBarOutline.Position = Box.Position + Vector2.new(0, height + 2)
+                    HealthBar.Size = Vector2.new((HealthBarOutline.Size.X - 2) * (humanoid.Health / humanoid.MaxHealth), 1)
+                    HealthBar.Position = HealthBarOutline.Position + Vector2.new(1, 1)
+                elseif Config.Esp.HealthBarSide == "Right" then
+                    HealthBarOutline.Size = Vector2.new(2, height)
+                    HealthBarOutline.Position = Box.Position + Vector2.new(width + 1, 0)
+                    HealthBar.Size = Vector2.new(1, -(HealthBarOutline.Size.Y - 2) * (humanoid.Health / humanoid.MaxHealth))
+                    HealthBar.Position = HealthBarOutline.Position + Vector2.new(1, HealthBarOutline.Size.Y - 1)
+                end
+            else
+                HealthBar.Visible = false
+                HealthBarOutline.Visible = false
+            end
+        else
+            Box.Visible = false
+            BoxOutline.Visible = false
+            Name.Visible = false
+            Weapon.Visible = false
+            HealthBar.Visible = false
+            HealthBarOutline.Visible = false
+        end
+    end)
+
+    ESPInstances[Player].connection = Updater
+end
+
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= Players.LocalPlayer then
+        if player.Character then
+            CreateEsp(player.Character)
+        end
+        player.CharacterAdded:Connect(CreateEsp)
+        player.CharacterRemoving:Connect(CleanupESP)
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    if player ~= Players.LocalPlayer then
+        if player.Character then
+            CreateEsp(player.Character)
+        end
+        player.CharacterAdded:Connect(CreateEsp)
+        player.CharacterRemoving:Connect(CleanupESP)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if player.Character then
+        CleanupESP(player.Character)
+    end
+end)
+----------- TOGGLES SETTINGS
+visual:Label("PLAYERS VISUALS SECTION")
+visual:Toggle("Names", false, function(xxxx)
+    Config.Esp.Names = xxxx
+end)
+visual:Toggle("Names Outline", false, function(xxxx)
+    Config.Esp.NamesOutline = xxxx
+end)
+visual:Colorpicker("Names Color",Color3.fromRGB(17, 214, 43), function(t)
+    Config.Esp.NamesColor = (Color3.fromRGB(t.R * 255, t.G * 255, t.B * 255))
+end)
+visual:Toggle("Box", false, function(xxxx)
+    Config.Esp.Box = xxxx
+end)
+visual:Toggle("Box Outline", false, function(xxxx)
+    Config.Esp.BoxOutline = xxxx
+end)
+visual:Colorpicker("Box Color",Color3.fromRGB(17, 214, 43), function(t)
+    Config.Esp.BoxColor = (Color3.fromRGB(t.R * 255, t.G * 255, t.B * 255))
+end)
+visual:Toggle("Health", false, function(xxxx)
+    Config.Esp.HealthBar = xxxx
+end)
+visual:Toggle("Weapons", false, function(xxxx)
+    Config.Esp.Weapon = xxxx
+end)
+visual:Toggle("Weapons Outline", false, function(xxxx)
+    Config.Esp.WeaponOutline = xxxx
+end)
+visual:Colorpicker("Weapons Color",Color3.fromRGB(17, 214, 43), function(t)
+    Config.Esp.WeaponColor = (Color3.fromRGB(t.R * 255, t.G * 255, t.B * 255))
+end)
+
+
+
+------------------------ SETTTINGS
+setting:Colorpicker("UI Theme",Color3.fromRGB(17, 214, 43), function(t)
+    library:ChangePresetColor(Color3.fromRGB(t.R * 255, t.G * 255, t.B * 255))
+    end)
+    setting:Bind("UI Keybind",Enum.KeyCode.V,function(t)
+        library:ChangeBind(Enum.KeyCode[t])
+    end)
+    setting:Button("Remove Title Animation", function()
+        library.animatetext = true
+    end)
+    setting:Button("Unload UI", function()
+        library:Unload()
+        Loaded = false
+    end)
