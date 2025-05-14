@@ -753,6 +753,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local SelectingKey = false
     local ContextMenuOpen = false
     local ContextMenu = nil
+    local keybindMode = "Toggle" -- Default mode: Toggle, Hold, Always
 
     local Toggle = Instance.new("TextButton")
     local ToggleCorner = Instance.new("UICorner")
@@ -794,7 +795,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     ToggleTitle.TextSize = 18
     ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Toggle in the middle-right position
+    -- Toggle in the right position
     FrameToggle1.Name = "FrameToggle1"
     FrameToggle1.Parent = Toggle
     FrameToggle1.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
@@ -846,122 +847,318 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         end
     end)()
 
-    -- Function to create the context menu
+    -- Function to create the context menu with animation
     local function CreateContextMenu(x, y)
         -- Remove existing menu if open
         if ContextMenu then
-            ContextMenu:Destroy()
-            ContextMenu = nil
+            -- Fade out animation
+            tweensv:Create(ContextMenu, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+            for _, child in pairs(ContextMenu:GetChildren()) do
+                if child:IsA("TextButton") or child:IsA("TextBox") or child:IsA("Frame") then
+                    tweensv:Create(child, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+                    if child:IsA("TextButton") or child:IsA("TextBox") then
+                        tweensv:Create(child, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1}):Play()
+                    end
+                end
+            end
+            
+            task.delay(0.2, function()
+                ContextMenu:Destroy()
+                ContextMenu = nil
+            end)
+            return
         end
         
         ContextMenu = Instance.new("Frame")
         local ContextMenuCorner = Instance.new("UICorner")
         local ContextMenuStroke = Instance.new("UIStroke")
-        local SelectKeybindBtn = Instance.new("TextButton")
-        local ClearKeybindBtn = Instance.new("TextButton")
+        local SelectKeybindBox = Instance.new("TextBox")
+        local ModeLabel = Instance.new("TextLabel")
+        local ModeDropdown = Instance.new("Frame")
+        local ModeDropdownStroke = Instance.new("UIStroke")
+        local ModeDropdownCorner = Instance.new("UICorner")
+        local ModeDropdownArrow = Instance.new("ImageLabel")
+        local ModeDropdownDisplay = Instance.new("TextLabel")
+        local ModeDropdownList = Instance.new("Frame")
+        local ModeDropdownListLayout = Instance.new("UIListLayout")
+        local ModeToggleBtn = Instance.new("TextButton")
+        local ModeHoldBtn = Instance.new("TextButton")
+        local ModeAlwaysBtn = Instance.new("TextButton")
         local MenuLayout = Instance.new("UIListLayout")
+        
+        -- Initial transparency for animation
+        ContextMenu.BackgroundTransparency = 1
         
         ContextMenu.Name = "KeybindContextMenu"
         ContextMenu.Parent = screengui
-        ContextMenu.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        ContextMenu.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
         ContextMenu.Position = UDim2.new(0, x, 0, y)
-        ContextMenu.Size = UDim2.new(0, 150, 0, 60)
+        ContextMenu.Size = UDim2.new(0, 200, 0, 120)
         ContextMenu.ZIndex = 100
         ContextMenu.ClipsDescendants = true
         
-        ContextMenuCorner.CornerRadius = UDim.new(0, 5)
+        ContextMenuCorner.CornerRadius = UDim.new(0, 6)
+        ContextMenuCorner.Name = "ContextMenuCorner"
         ContextMenuCorner.Parent = ContextMenu
         
         ContextMenuStroke.Parent = ContextMenu
         ContextMenuStroke.Color = PresetColor
-        ContextMenuStroke.Thickness = 1
+        ContextMenuStroke.Thickness = 1.5
         ContextMenuStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         
         MenuLayout.Parent = ContextMenu
         MenuLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        MenuLayout.Padding = UDim.new(0, 2)
+        MenuLayout.Padding = UDim.new(0, 10)
+        MenuLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         
-        SelectKeybindBtn.Name = "SelectKeybindBtn"
-        SelectKeybindBtn.Parent = ContextMenu
-        SelectKeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-        SelectKeybindBtn.BackgroundTransparency = 1
-        SelectKeybindBtn.Size = UDim2.new(1, 0, 0, 30)
-        SelectKeybindBtn.Font = Enum.Font.SourceSans
-        SelectKeybindBtn.Text = "  Select Keybind"
-        SelectKeybindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        SelectKeybindBtn.TextSize = 14
-        SelectKeybindBtn.TextXAlignment = Enum.TextXAlignment.Left
-        SelectKeybindBtn.ZIndex = 101
+        -- Label for "Keybind"
+        local KeybindLabel = Instance.new("TextLabel")
+        KeybindLabel.Name = "KeybindLabel"
+        KeybindLabel.Parent = ContextMenu
+        KeybindLabel.BackgroundTransparency = 1
+        KeybindLabel.Position = UDim2.new(0, 10, 0, 5)
+        KeybindLabel.Size = UDim2.new(1, -20, 0, 20)
+        KeybindLabel.Font = Enum.Font.Gotham
+        KeybindLabel.Text = "Keybind"
+        KeybindLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        KeybindLabel.TextSize = 13
+        KeybindLabel.TextXAlignment = Enum.TextXAlignment.Left
+        KeybindLabel.LayoutOrder = 1
+        KeybindLabel.ZIndex = 101
+        KeybindLabel.TextTransparency = 1
         
-        ClearKeybindBtn.Name = "ClearKeybindBtn"
-        ClearKeybindBtn.Parent = ContextMenu
-        ClearKeybindBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-        ClearKeybindBtn.BackgroundTransparency = 1
-        ClearKeybindBtn.Size = UDim2.new(1, 0, 0, 30)
-        ClearKeybindBtn.Font = Enum.Font.SourceSans
-        ClearKeybindBtn.Text = "  Clear Keybind"
-        ClearKeybindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        ClearKeybindBtn.TextSize = 14
-        ClearKeybindBtn.TextXAlignment = Enum.TextXAlignment.Left
-        ClearKeybindBtn.ZIndex = 101
+        -- Textbox for selecting keybind
+        SelectKeybindBox.Name = "SelectKeybindBox"
+        SelectKeybindBox.Parent = ContextMenu
+        SelectKeybindBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        SelectKeybindBox.Size = UDim2.new(0.9, 0, 0, 30)
+        SelectKeybindBox.Font = Enum.Font.Gotham
+        SelectKeybindBox.Text = assignedKey.Name == "Unknown" and "Click to bind" or assignedKey.Name
+        SelectKeybindBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SelectKeybindBox.TextSize = 14
+        SelectKeybindBox.LayoutOrder = 2
+        SelectKeybindBox.ZIndex = 101
+        SelectKeybindBox.BackgroundTransparency = 1
+        SelectKeybindBox.TextTransparency = 1
         
-        -- Handle hover effects
-        library.Conn[#library.Conn + 1] = SelectKeybindBtn.MouseEnter:Connect(function()
-            tweensv:Create(SelectKeybindBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+        local SelectKeybindBoxCorner = Instance.new("UICorner")
+        SelectKeybindBoxCorner.CornerRadius = UDim.new(0, 4)
+        SelectKeybindBoxCorner.Parent = SelectKeybindBox
+        
+        local SelectKeybindBoxStroke = Instance.new("UIStroke")
+        SelectKeybindBoxStroke.Parent = SelectKeybindBox
+        SelectKeybindBoxStroke.Color = PresetColor
+        SelectKeybindBoxStroke.Thickness = 1
+        SelectKeybindBoxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        
+        -- Label for "Mode"
+        ModeLabel = Instance.new("TextLabel")
+        ModeLabel.Name = "ModeLabel"
+        ModeLabel.Parent = ContextMenu
+        ModeLabel.BackgroundTransparency = 1
+        ModeLabel.Size = UDim2.new(1, -20, 0, 20)
+        ModeLabel.Font = Enum.Font.Gotham
+        ModeLabel.Text = "Mode"
+        ModeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ModeLabel.TextSize = 13
+        ModeLabel.TextXAlignment = Enum.TextXAlignment.Left
+        ModeLabel.Position = UDim2.new(0, 10, 0, 0)
+        ModeLabel.LayoutOrder = 3
+        ModeLabel.ZIndex = 101
+        ModeLabel.TextTransparency = 1
+        
+        -- Dropdown for keybind mode
+        ModeDropdown = Instance.new("Frame")
+        ModeDropdown.Name = "ModeDropdown"
+        ModeDropdown.Parent = ContextMenu
+        ModeDropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        ModeDropdown.Size = UDim2.new(0.9, 0, 0, 30)
+        ModeDropdown.LayoutOrder = 4
+        ModeDropdown.ZIndex = 101
+        ModeDropdown.BackgroundTransparency = 1
+        
+        ModeDropdownCorner = Instance.new("UICorner")
+        ModeDropdownCorner.CornerRadius = UDim.new(0, 4)
+        ModeDropdownCorner.Parent = ModeDropdown
+        
+        ModeDropdownStroke = Instance.new("UIStroke")
+        ModeDropdownStroke.Parent = ModeDropdown
+        ModeDropdownStroke.Color = PresetColor
+        ModeDropdownStroke.Thickness = 1
+        ModeDropdownStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        
+        ModeDropdownDisplay = Instance.new("TextLabel")
+        ModeDropdownDisplay.Name = "ModeDropdownDisplay"
+        ModeDropdownDisplay.Parent = ModeDropdown
+        ModeDropdownDisplay.BackgroundTransparency = 1
+        ModeDropdownDisplay.Size = UDim2.new(1, -30, 1, 0)
+        ModeDropdownDisplay.Font = Enum.Font.Gotham
+        ModeDropdownDisplay.Text = keybindMode
+        ModeDropdownDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ModeDropdownDisplay.TextSize = 14
+        ModeDropdownDisplay.Position = UDim2.new(0, 10, 0, 0)
+        ModeDropdownDisplay.TextXAlignment = Enum.TextXAlignment.Left
+        ModeDropdownDisplay.ZIndex = 102
+        ModeDropdownDisplay.TextTransparency = 1
+        
+        ModeDropdownArrow = Instance.new("ImageLabel")
+        ModeDropdownArrow.Name = "ModeDropdownArrow"
+        ModeDropdownArrow.Parent = ModeDropdown
+        ModeDropdownArrow.BackgroundTransparency = 1
+        ModeDropdownArrow.Position = UDim2.new(1, -25, 0.5, -8)
+        ModeDropdownArrow.Size = UDim2.new(0, 16, 0, 16)
+        ModeDropdownArrow.Image = "rbxassetid://3926305904"
+        ModeDropdownArrow.ImageRectOffset = Vector2.new(564, 284)
+        ModeDropdownArrow.ImageRectSize = Vector2.new(36, 36)
+        ModeDropdownArrow.Rotation = 90
+        ModeDropdownArrow.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        ModeDropdownArrow.ZIndex = 102
+        ModeDropdownArrow.ImageTransparency = 1
+        
+        -- Mode dropdown list (hidden by default)
+        ModeDropdownList = Instance.new("Frame")
+        ModeDropdownList.Name = "ModeDropdownList"
+        ModeDropdownList.Parent = ContextMenu
+        ModeDropdownList.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        ModeDropdownList.Position = UDim2.new(0.05, 0, 0, 0) -- Position will be set dynamically
+        ModeDropdownList.Size = UDim2.new(0.9, 0, 0, 90)
+        ModeDropdownList.Visible = false
+        ModeDropdownList.ZIndex = 103
+        ModeDropdownList.ClipsDescendants = true
+        
+        local ModeDropdownListCorner = Instance.new("UICorner")
+        ModeDropdownListCorner.CornerRadius = UDim.new(0, 4)
+        ModeDropdownListCorner.Parent = ModeDropdownList
+        
+        local ModeDropdownListStroke = Instance.new("UIStroke")
+        ModeDropdownListStroke.Parent = ModeDropdownList
+        ModeDropdownListStroke.Color = PresetColor
+        ModeDropdownListStroke.Thickness = 1
+        ModeDropdownListStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        
+        ModeDropdownListLayout = Instance.new("UIListLayout")
+        ModeDropdownListLayout.Parent = ModeDropdownList
+        ModeDropdownListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        ModeDropdownListLayout.Padding = UDim.new(0, 0)
+        
+        -- Mode buttons
+        local function CreateModeButton(text, order)
+            local btn = Instance.new("TextButton")
+            btn.Name = text .. "Btn"
+            btn.Parent = ModeDropdownList
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            btn.BackgroundTransparency = text == keybindMode and 0.7 or 1
+            btn.Size = UDim2.new(1, 0, 0, 30)
+            btn.Font = Enum.Font.Gotham
+            btn.Text = "  " .. text
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.TextSize = 14
+            btn.LayoutOrder = order
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.ZIndex = 104
+            
+            library.Conn[#library.Conn + 1] = btn.MouseEnter:Connect(function()
+                tweensv:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency = 0.7}):Play()
+            end)
+            
+            library.Conn[#library.Conn + 1] = btn.MouseLeave:Connect(function()
+                tweensv:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency = text == keybindMode and 0.7 or 1}):Play()
+            end)
+            
+            library.Conn[#library.Conn + 1] = btn.MouseButton1Click:Connect(function()
+                keybindMode = text
+                ModeDropdownDisplay.Text = text
+                keybindT.mode = text
+                
+                -- Update background transparencies
+                for _, child in pairs(ModeDropdownList:GetChildren()) do
+                    if child:IsA("TextButton") then
+                        tweensv:Create(child, TweenInfo.new(0.2), {BackgroundTransparency = child.Text:match(text) and 0.7 or 1}):Play()
+                    end
+                end
+                
+                -- Hide dropdown
+                ModeDropdownList.Visible = false
+                ModeDropdownArrow.Rotation = 90
+            end)
+            
+            return btn
+        end
+        
+        ModeToggleBtn = CreateModeButton("Toggle", 1)
+        ModeHoldBtn = CreateModeButton("Hold", 2)
+        ModeAlwaysBtn = CreateModeButton("Always", 3)
+        
+        -- Handle modal dropdown
+        library.Conn[#library.Conn + 1] = ModeDropdown.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if ModeDropdownList.Visible then
+                    ModeDropdownList.Visible = false
+                    ModeDropdownArrow.Rotation = 90
+                else
+                    ModeDropdownList.Visible = true
+                    ModeDropdownList.Position = UDim2.new(0.05, 0, 0, ModeDropdown.AbsolutePosition.Y - ContextMenu.AbsolutePosition.Y + ModeDropdown.AbsoluteSize.Y + 5)
+                    ModeDropdownArrow.Rotation = 270
+                    
+                    -- Make sure context menu is big enough to display dropdown
+                    local originalSize = ContextMenu.Size
+                    local requiredHeight = ModeDropdown.AbsolutePosition.Y - ContextMenu.AbsolutePosition.Y + ModeDropdown.AbsoluteSize.Y + ModeDropdownList.AbsoluteSize.Y + 15
+                    
+                    if requiredHeight > ContextMenu.AbsoluteSize.Y then
+                        ContextMenu.Size = UDim2.new(0, 200, 0, requiredHeight)
+                    end
+                end
+            end
         end)
         
-        library.Conn[#library.Conn + 1] = SelectKeybindBtn.MouseLeave:Connect(function()
-            tweensv:Create(SelectKeybindBtn, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+        -- Handle selecting keybind
+        SelectKeybindBox.Focused:Connect(function()
+            SelectKeybindBox.Text = "Press any key..."
         end)
         
-        library.Conn[#library.Conn + 1] = ClearKeybindBtn.MouseEnter:Connect(function()
-            tweensv:Create(ClearKeybindBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
-        end)
-        
-        library.Conn[#library.Conn + 1] = ClearKeybindBtn.MouseLeave:Connect(function()
-            tweensv:Create(ClearKeybindBtn, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
-        end)
-        
-        -- Button click events
-        library.Conn[#library.Conn + 1] = SelectKeybindBtn.MouseButton1Click:Connect(function()
+        library.Conn[#library.Conn + 1] = SelectKeybindBox.FocusLost:Connect(function(enterPressed)
             if SelectingKey then return end
             
-            -- Close the context menu
-            ContextMenu:Destroy()
-            ContextMenu = nil
-            ContextMenuOpen = false
-            
-            -- Start selecting key
             SelectingKey = true
-            KeybindDisplay.Text = "[...]"
             
+            -- Capture key
             local connection
             connection = uis.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.Keyboard then
                     assignedKey = input.KeyCode
                     keybindT.keyCode = assignedKey
                     KeybindDisplay.Text = "[" .. assignedKey.Name .. "]"
+                    SelectKeybindBox.Text = assignedKey.Name
                     SelectingKey = false
                     if connection then
                         connection:Disconnect()
                     end
                 end
             end)
-        end)
-        
-        library.Conn[#library.Conn + 1] = ClearKeybindBtn.MouseButton1Click:Connect(function()
-            -- Clear the keybind
-            assignedKey = Enum.KeyCode.Unknown
-            keybindT.keyCode = assignedKey
-            KeybindDisplay.Text = "[None]"
             
-            -- Close the context menu
-            ContextMenu:Destroy()
-            ContextMenu = nil
-            ContextMenuOpen = false
+            -- Timeout after 5 seconds
+            task.delay(5, function()
+                if SelectingKey then
+                    SelectingKey = false
+                    if connection then
+                        connection:Disconnect()
+                    end
+                    SelectKeybindBox.Text = assignedKey.Name == "Unknown" and "Click to bind" or assignedKey.Name
+                end
+            end)
         end)
         
         ContextMenuOpen = true
+        
+        -- Animation - fade in
+        tweensv:Create(ContextMenu, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+        tweensv:Create(KeybindLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        tweensv:Create(SelectKeybindBox, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+        tweensv:Create(ModeLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        tweensv:Create(ModeDropdown, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+        tweensv:Create(ModeDropdownDisplay, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        tweensv:Create(ModeDropdownArrow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 0}):Play()
+        
         return ContextMenu
     end
 
@@ -969,6 +1166,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local keybindT = {
         value = toggled,
         keyCode = assignedKey,
+        mode = keybindMode, -- Track mode: "Toggle", "Hold", "Always"
         set = function(self, state)
             -- Handle different ways this might be called:
             -- 1. From config loading with a boolean (toggle state)
@@ -979,8 +1177,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             end
             
             -- 2. From config loading with a keybind object (both state and key)
-            if type(state) == "table" and state.keyCode ~= nil then
-                -- Set the toggle state
+            if type(state) == "table" then
                 if type(state.value) == "boolean" then
                     ToggleState(state.value)
                     self.value = state.value
@@ -992,6 +1189,13 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                     self.keyCode = state.keyCode
                     KeybindDisplay.Text = "[" .. (state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name) .. "]"
                 end
+                
+                -- Set the mode
+                if type(state.mode) == "string" and (state.mode == "Toggle" or state.mode == "Hold" or state.mode == "Always") then
+                    keybindMode = state.mode
+                    self.mode = state.mode
+                end
+                
                 return self
             end
             
@@ -1019,6 +1223,13 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                     self.keyCode = keyEnum
                     KeybindDisplay.Text = "[" .. (keyEnum.Name == "Unknown" and "None" or keyEnum.Name) .. "]"
                 end
+            end
+            return self
+        end,
+        setMode = function(self, mode)
+            if type(mode) == "string" and (mode == "Toggle" or mode == "Hold" or mode == "Always") then
+                keybindMode = mode
+                self.mode = mode
             end
             return self
         end,
@@ -1062,6 +1273,9 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     if not library.flags then library.flags = {} end
     library.flags[flag] = keybindT
 
+    -- Variable to track if a key is being held (for Hold mode)
+    local isHolding = false
+    
     -- Mouse events for the toggle
     library.Conn[#library.Conn + 1] = Toggle.MouseButton1Click:Connect(function()
         if not SelectingKey then
@@ -1070,46 +1284,93 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     end)
     
     library.Conn[#library.Conn + 1] = Toggle.MouseButton2Click:Connect(function()
+        local mousePos = uis:GetMouseLocation()
+        
         if ContextMenuOpen then
-            if ContextMenu then
-                ContextMenu:Destroy()
-                ContextMenu = nil
-            end
+            -- Start fade out animation and close
+            CreateContextMenu() -- This will handle destroying the existing menu
             ContextMenuOpen = false
         else
-            local mousePos = uis:GetMouseLocation()
-            CreateContextMenu(mousePos.X, mousePos.Y)
+            local menu = CreateContextMenu(mousePos.X, mousePos.Y)
+            ContextMenuOpen = true
         end
     end)
     
     library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and ContextMenuOpen then
-            if ContextMenu then
-                local mousePos = uis:GetMouseLocation()
-                local menuPos = ContextMenu.AbsolutePosition
-                local menuSize = ContextMenu.AbsoluteSize
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and ContextMenuOpen and ContextMenu then
+            local mousePos = uis:GetMouseLocation()
+            local menuPos = ContextMenu.AbsolutePosition
+            local menuSize = ContextMenu.AbsoluteSize
+            
+            -- Check if click is outside the menu and its dropdown
+            local inMenu = mousePos.X >= menuPos.X and 
+                           mousePos.X <= menuPos.X + menuSize.X and 
+                           mousePos.Y >= menuPos.Y and 
+                           mousePos.Y <= menuPos.Y + menuSize.Y
+                           
+            local inDropdown = false
+            if ContextMenu:FindFirstChild("ModeDropdownList") and ContextMenu.ModeDropdownList.Visible then
+                local dropPos = ContextMenu.ModeDropdownList.AbsolutePosition
+                local dropSize = ContextMenu.ModeDropdownList.AbsoluteSize
                 
-                -- Check if click is outside the menu
-                if mousePos.X < menuPos.X or 
-                   mousePos.X > menuPos.X + menuSize.X or 
-                   mousePos.Y < menuPos.Y or 
-                   mousePos.Y > menuPos.Y + menuSize.Y then
-                    ContextMenu:Destroy()
-                    ContextMenu = nil
-                    ContextMenuOpen = false
-                end
+                inDropdown = mousePos.X >= dropPos.X and 
+                             mousePos.X <= dropPos.X + dropSize.X and 
+                             mousePos.Y >= dropPos.Y and 
+                             mousePos.Y <= dropPos.Y + dropSize.Y
+            end
+            
+            if not inMenu and not inDropdown then
+                -- Start fade out animation and close
+                CreateContextMenu() -- This will handle destroying the existing menu
+                ContextMenuOpen = false
             end
         end
         
         if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and 
            not SelectingKey and assignedKey and input.KeyCode == assignedKey then
-            ToggleState(not toggled)
+            
+            -- Handle different keybind modes
+            if keybindMode == "Toggle" then
+                -- Toggle mode behaves like a normal toggle
+                ToggleState(not toggled)
+            elseif keybindMode == "Hold" then
+                -- Hold mode sets toggle on while key is held
+                isHolding = true
+                ToggleState(true)
+            elseif keybindMode == "Always" then
+                -- Always mode does nothing on key press, it's just always enabled when toggle is on
+            end
+        end
+    end)
+    
+    library.Conn[#library.Conn + 1] = uis.InputEnded:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and 
+           assignedKey and input.KeyCode == assignedKey and keybindMode == "Hold" and isHolding then
+            
+            -- Release the hold
+            isHolding = false
+            ToggleState(false)
         end
     end)
 
     if default then
         ToggleState(true)
     end
+
+    -- Make sure color sync works for the ContextMenu UI elements
+    coroutine.wrap(function()
+        while altloaded do
+            -- If ContextMenu exists, update its UI stroke colors
+            if ContextMenu then
+                for _, element in pairs(ContextMenu:GetDescendants()) do
+                    if element:IsA("UIStroke") then
+                        element.Color = PresetColor
+                    end
+                end
+            end
+            task.wait()
+        end
+    end)()
 
     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
     
