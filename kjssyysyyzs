@@ -3713,6 +3713,7 @@ function library:ConfigSystem(tab, name)
                 menu:set(cfg.auto)
             end
         end)
+        
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then continue end
             if library.flags[flag] then
@@ -3776,16 +3777,24 @@ function library:ConfigSystem(tab, name)
             end
             task.delay(0.2, function()
                 pcall(function()
-                    if autoLoad and type(autoLoad.set) == "function" then
-                        autoLoad:set(true)
+                    if autoLoad then
+                        if typeof(autoLoad) == "table" and typeof(autoLoad.value) ~= "nil" then
+                            autoLoad.value = true
+                            local toggleCircle = autoLoad._instance and autoLoad._instance:FindFirstChild("FrameToggleCircle")
+                            if toggleCircle then
+                                toggleCircle.Position = UDim2.new(0.587, 0, 0.222000003, 0)
+                            end
+                            local frameToggle3 = autoLoad._instance and autoLoad._instance:FindFirstChild("FrameToggle3")
+                            if frameToggle3 then
+                                frameToggle3.BackgroundTransparency = 0
+                            end
+                        end
                     end
                 end)
-                
                 library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK")
             end)
         end)
     end)
-
     return cfg
 end
 return library
