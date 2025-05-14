@@ -753,6 +753,7 @@ function library:Window(title, version, info, preset, closebind)
             local SelectingKey = false
             local MenuOpen = false
             local keybindMode = "Toggle" 
+            local keyState = false -- New variable to track the toggle state of the keybind
             
             local Toggle = Instance.new("TextButton")
             local ToggleCorner = Instance.new("UICorner")
@@ -1028,6 +1029,7 @@ function library:Window(title, version, info, preset, closebind)
                 value = toggled,
                 keyCode = assignedKey,
                 mode = keybindMode,
+                keyState = keyState, -- Add the key state to the return object
                 set = function(self, state)
                     if type(state) == "boolean" then
                         ToggleState(state)
@@ -1063,6 +1065,10 @@ function library:Window(title, version, info, preset, closebind)
                                     button.TextColor3 = Color3.fromRGB(255, 255, 255)
                                 end
                             end
+                        end
+                        
+                        if type(state.keyState) == "boolean" then
+                            self:setKeyState(state.keyState)
                         end
                         
                         return self
@@ -1115,6 +1121,20 @@ function library:Window(title, version, info, preset, closebind)
                         end
                     end
                     return self
+                end,
+                setKeyState = function(self, state)
+                    if type(state) == "boolean" then
+                        keyState = state
+                        self.keyState = state
+                        pcall(callback, keyState)
+                    end
+                    return self
+                end,
+                toggleKeyState = function(self)
+                    return self:setKeyState(not keyState)
+                end,
+                getKeyState = function(self)
+                    return keyState
                 end,
                 toggle = function(self)
                     self:set(not toggled)
@@ -1317,18 +1337,25 @@ function library:Window(title, version, info, preset, closebind)
                 tweensv:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 45)}):Play()
             end)
             
+            -- Modified keybind press handling to toggle the state
             library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input, gameProcessed)
                 if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and 
                 not SelectingKey and assignedKey and input.KeyCode == assignedKey then
-                
-                    if toggled then
+                    
+                    if toggled then -- Only trigger when the toggle is on
                         if keybindMode == "Toggle" then
-                            pcall(callback, assignedKey)
+                            keyState = not keyState
+                            keybindT.keyState = keyState
+                            pcall(callback, keyState)
                         elseif keybindMode == "Hold" then
                             isHolding = true
-                            pcall(callback, assignedKey)
+                            keyState = true
+                            keybindT.keyState = keyState
+                            pcall(callback, keyState)
                         elseif keybindMode == "Always" then
-                            pcall(callback, assignedKey)
+                            keyState = not keyState
+                            keybindT.keyState = keyState
+                            pcall(callback, keyState)
                         end
                     end
                 end
@@ -1339,7 +1366,9 @@ function library:Window(title, version, info, preset, closebind)
                 assignedKey and input.KeyCode == assignedKey and keybindMode == "Hold" and isHolding then
                     isHolding = false
                     if toggled then
-                        pcall(callback, false)
+                        keyState = false
+                        keybindT.keyState = keyState
+                        pcall(callback, keyState)
                     end
                 end
             end)
