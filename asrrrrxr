@@ -976,6 +976,9 @@ function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue,
     local CircleStroke = Instance.new("UIStroke")
     local ValueLabel = Instance.new("TextLabel")
     
+    -- Same UI creation code as before...
+    -- [UI Elements setup code...]
+    
     Slider.Name = SliderText
     Slider.Parent = Tab
     Slider.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
@@ -1079,8 +1082,9 @@ function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue,
         end
     end)
 
-    -- Self-contained state for this specific slider instance
-    local sliderState = {
+    -- Important fixed part begins here
+    -- Create a local state table for this specific slider
+    local thisSlider = {
         dragging = false,
         isSliding = false,
         realValue = defvalue,
@@ -1089,9 +1093,49 @@ function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue,
         inputChangedConnection = nil
     }
 
-    -- Create the slider object
-    local slider = {
-        value = precise and tonumber(sliderState.value) or math.floor(sliderState.realValue),
+    -- Define the slider object with correct value property and set method
+    local slider = {}
+    
+    -- Define the update function first, so it's available for the set method
+    local function updateSlider(val, mouseX)
+        local percent
+        
+        if val then
+            val = tonumber(val)
+            if val == nil then 
+                val = defvalue
+            end
+            percent = math.clamp((val - min) / (max - min), 0, 1)
+        elseif mouseX then
+            percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
+        else
+            percent = math.clamp((ms.X - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
+        end
+
+        percent = math.clamp(percent, 0, 1)
+        
+        -- Always directly set the size when called from set method
+        if thisSlider.isSettingFromConfig then
+            Progress.Size = UDim2.new(percent, 0, 1, 0)
+        else
+            Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
+        end
+        
+        thisSlider.realValue = min + (max - min) * percent
+        thisSlider.value = precise and string.format("%.1f", tostring(thisSlider.realValue)) or math.floor(thisSlider.realValue)
+        ValueLabel.Text = tostring(thisSlider.value)
+        
+        -- Always update the slider's value property
+        slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
+        
+        if UserFunc and not thisSlider.isSettingFromConfig then
+            pcall(UserFunc, slider.value)
+        end
+    end
+    
+    -- Now define the slider object with proper properties
+    slider = {
+        value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
         set = function(self, val)
             if type(val) == "number" or type(val) == "string" then
                 local num = tonumber(val)
@@ -1099,14 +1143,22 @@ function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue,
                     return self
                 end
                 
+                -- Clamp the value
                 num = math.clamp(num, min, max)
                 
-                sliderState.isSettingFromConfig = true
-                updateThisSlider(num)
-                sliderState.isSettingFromConfig = false
+                -- Set the flag to indicate config setting
+                thisSlider.isSettingFromConfig = true
                 
+                -- Call the update function
+                updateSlider(num)
+                
+                -- Reset the flag
+                thisSlider.isSettingFromConfig = false
+                
+                -- Update the slider value directly
                 self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
                 
+                -- Call the user function if provided
                 if UserFunc then
                     pcall(UserFunc, self.value)
                 end
@@ -1132,81 +1184,47 @@ function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue,
         end
     }
     
-    -- Private function specific to this slider instance
-    local function updateThisSlider(val, mouseX)
-        local percent
-        
-        if val then
-            val = tonumber(val)
-            if val == nil then 
-                val = defvalue
-            end
-            percent = math.clamp((val - min) / (max - min), 0, 1)
-        elseif mouseX then
-            percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-        else
-            percent = math.clamp((ms.X - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-        end
-
-        percent = math.clamp(percent, 0, 1)
-        
-        if sliderState.isSettingFromConfig then
-            Progress.Size = UDim2.new(percent, 0, 1, 0)
-        else
-            Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
-        end
-        
-        sliderState.realValue = min + (max - min) * percent
-        sliderState.value = precise and string.format("%.1f", tostring(sliderState.realValue)) or math.floor(sliderState.realValue)
-        ValueLabel.Text = tostring(sliderState.value)
-        
-        slider.value = precise and tonumber(sliderState.value) or math.floor(sliderState.realValue)
-        
-        if UserFunc and not sliderState.isSettingFromConfig then
-            pcall(UserFunc, slider.value)
-        end
-    end
-    
+    -- Initialize the slider with the default value
     if not library.flags then library.flags = {} end
     library.flags[flag] = slider
     
-    updateThisSlider(defvalue)
+    updateSlider(defvalue)
     
-    -- Private function specific to this slider instance
-    local function moveThisSlider(input)
-        if not sliderState.dragging then return end
-        sliderState.isSliding = true
-        updateThisSlider(nil, input.Position.X)
+    -- Function to handle slider movement
+    local function moveSlider(input)
+        if not thisSlider.dragging then return end
+        thisSlider.isSliding = true
+        updateSlider(nil, input.Position.X)
     end
 
-    -- Each slider gets its own input connections
+    -- Connect the slider's input events
     library.Conn[#library.Conn + 1] = Slider.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            sliderState.dragging = true
-            sliderState.isSliding = false
+            thisSlider.dragging = true
+            thisSlider.isSliding = false
             
-            if sliderState.inputChangedConnection then
-                sliderState.inputChangedConnection:Disconnect()
+            if thisSlider.inputChangedConnection then
+                thisSlider.inputChangedConnection:Disconnect()
             end
             
-            sliderState.inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
-                if sliderState.dragging and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
-                    moveThisSlider(changedInput)
+            thisSlider.inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
+                if thisSlider.dragging and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                    moveSlider(changedInput)
                 end
             end)
             
-            moveThisSlider(input)
+            moveSlider(input)
         end
     end)
 
     library.Conn[#library.Conn + 1] = Slider.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            sliderState.dragging = false
-            sliderState.isSliding = false
+            thisSlider.dragging = false
+            thisSlider.isSliding = false
             
-            if sliderState.inputChangedConnection then
-                sliderState.inputChangedConnection:Disconnect()
-                sliderState.inputChangedConnection = nil
+            if thisSlider.inputChangedConnection then
+                thisSlider.inputChangedConnection:Disconnect()
+                thisSlider.inputChangedConnection = nil
             end
         end
     end)
@@ -1216,15 +1234,15 @@ function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue,
     end)
 
     library.Conn[#library.Conn + 1] = Slider.MouseLeave:Connect(function()
-        if not sliderState.dragging then
+        if not thisSlider.dragging then
             HideColor:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
         end
     end)
 
     library.Conn[#library.Conn + 1] = Slider.AncestryChanged:Connect(function(_, parent)
-        if parent == nil and sliderState.inputChangedConnection then
-            sliderState.inputChangedConnection:Disconnect()
-            sliderState.inputChangedConnection = nil
+        if parent == nil and thisSlider.inputChangedConnection then
+            thisSlider.inputChangedConnection:Disconnect()
+            thisSlider.inputChangedConnection = nil
         end
     end)
 
