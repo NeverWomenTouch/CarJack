@@ -2690,16 +2690,29 @@ function pack(val)
             value = val.Name
         }
     elseif typ == "table" then
-        -- Check specifically for slider objects
-        if type(val.getValue) == "function" and type(val.set) == "function" and type(val.value) == "number" then
-            return {
-                __type = "Slider",
-                value = val.value
-            }
+        -- Direct access for slider values - FIXED
+        if type(val.value) == "number" then
+            return val.value
         end
         
-        -- Handle keybind objects
-        if val.keyName ~= nil and val.value ~= nil then
+        -- Handle colorpickers - FIXED
+        if typeof(val.value) == "Color3" then
+            local colorData = {
+                __type = "Color3",
+                r = val.value.R,
+                g = val.value.G,
+                b = val.value.B
+            }
+            
+            if val.rainbow ~= nil then
+                colorData.__rainbow = val.rainbow
+            end
+            
+            return colorData
+        end
+        
+        -- Handle keybinds
+        if val.keyName and val.value then
             if typeof(val.value) == "EnumItem" then
                 return {
                     __type = "Keybind",
@@ -2707,16 +2720,6 @@ function pack(val)
                     value = pack(val.value)
                 }
             end
-        end
-        
-        -- Handle toggle with rainbow property
-        if val.rainbow ~= nil then
-            local value = pack(val.value)
-            return {
-                __type = "RainbowValue",
-                value = value,
-                rainbow = val.rainbow
-            }
         end
         
         -- Handle general tables
@@ -2732,11 +2735,18 @@ end
 
 function unpack(val)
     if type(val) ~= "table" then 
-        return val 
+        return val
     end
     
     if val.__type == "Color3" then
-        return Color3.new(val.r, val.g, val.b)
+        local color = Color3.new(val.r, val.g, val.b)
+        if val.__rainbow then
+            return {
+                value = color,
+                rainbow = val.__rainbow
+            }
+        end
+        return color
     elseif val.__type == "EnumItem" then
         local typ = val.enumType
         local name = typ:match("Enum%.([^%s]+)")
@@ -2750,14 +2760,6 @@ function unpack(val)
         return {
             keyName = val.keyName,
             value = keyValue
-        }
-    elseif val.__type == "Slider" then
-        -- Return just the number for slider values
-        return val.value
-    elseif val.__type == "RainbowValue" then
-        return {
-            value = unpack(val.value),
-            rainbow = val.rainbow
         }
     else
         local out = {}
@@ -3038,24 +3040,24 @@ tab:Button("Load Config", function()
         
         if library.flags[flag] then
             local element = library.flags[flag]
-            local parsed = unpack(val)
             
             task.spawn(function()
                 pcall(function()
                     if type(element) == "table" and typeof(element.set) == "function" then
-                        -- Extra safety for sliders
-                        if flag:find("Slider") and type(parsed) == "number" then
-                            element:set(parsed)
-                        elseif flag:find("Keybind") or flag:find("Bind") then
-                            if typeof(parsed) == "table" and parsed.value then
-                                element:set(parsed.value)
-                            else
-                                element:set(parsed)
-                            end
+                        -- FIXED: Direct handling for sliders with numeric values
+                        if flag:find("Slider") and type(val) == "number" then
+                            element:set(val)
+                            loaded = loaded + 1
+                        -- Handle colorpickers
+                        elseif flag:find("Color") and type(val) == "table" and val.__type == "Color3" then
+                            local color = Color3.new(val.r, val.g, val.b)
+                            element:set(color)
+                            loaded = loaded + 1
                         else
+                            local parsed = unpack(val)
                             element:set(parsed)
+                            loaded = loaded + 1
                         end
-                        loaded = loaded + 1
                     end
                 end)
             end)
@@ -3065,7 +3067,18 @@ tab:Button("Load Config", function()
     -- Handle rainbow settings separately
     task.delay(0.3, function()
         for flag, val in pairs(data.values) do
-            if not flag:match("_rainbow$") then continue end
+            if not flag:match("_rainbow$") then
+                -- Check for embedded rainbow data in colorpickers
+                if type(val) == "table" and val.__type == "Color3" and val.__rainbow then
+                    local base = flag
+                    if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
+                        pcall(function()
+                            library.flags[base]:setRainbow(val.__rainbow)
+                        end)
+                    end
+                end
+                continue
+            end
             
             local base = flag:gsub("_rainbow$", "")
             if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
