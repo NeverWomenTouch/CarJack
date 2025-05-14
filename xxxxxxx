@@ -4107,10 +4107,7 @@ function library:ConfigSystem(tab, name)
         end
         
         local loaded = 0
-        local loadOrder = {}
-        local threadToggles = {}
         
-        -- Separate normal toggles from thread toggles (like Kill Aura)
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") then 
                 continue 
@@ -4120,17 +4117,6 @@ function library:ConfigSystem(tab, name)
                 continue 
             end
             
-            -- Check if this is a thread toggle (Kill Aura)
-            if flag:match("KA$") or flag:match("killAura") or flag:match("Kill_Aura") then
-                table.insert(threadToggles, {flag = flag, val = val})
-            elseif library.flags[flag] then
-                table.insert(loadOrder, {flag = flag, val = val})
-            end
-        end
-        
-        -- First load all regular toggles/settings
-        for _, item in ipairs(loadOrder) do
-            local flag, val = item.flag, item.val
             local element = library.flags[flag]
             
             if type(element) == "table" and type(element.set) == "function" then
@@ -4177,35 +4163,9 @@ function library:ConfigSystem(tab, name)
                         loaded = loaded + 1
                     end
                 end)
-                
-                task.wait(0.01)
             end
         end
         
-        -- Wait a bit before loading thread toggles
-        task.wait(0.1)
-        
-        -- Then load thread toggles (like Kill Aura) separately
-        for _, item in ipairs(threadToggles) do
-            local flag, val = item.flag, item.val
-            local element = library.flags[flag]
-            
-            if type(element) == "table" and type(element.set) == "function" then
-                pcall(function()
-                    if type(val) == "boolean" then
-                        element:set(val)
-                        loaded = loaded + 1
-                    else
-                        element:set(val)
-                        loaded = loaded + 1
-                    end
-                end)
-                
-                task.wait(0.05)
-            end
-        end
-        
-        -- Apply rainbow settings
         task.wait(0.2)
         
         for flag, val in pairs(data.values) do
@@ -4218,28 +4178,6 @@ function library:ConfigSystem(tab, name)
                 end)
             end
         end
-        
-        -- Special fix for Kill Aura thread - force respawn all thread-based toggles
-        task.wait(0.5)
-        task.spawn(function()
-            for _, item in ipairs(threadToggles) do
-                local flag, val = item.flag, item.val
-                
-                if type(val) == "boolean" and val == true then
-                    -- For KA toggle, we need to ensure x4 exists
-                    if flag:match("KA$") and _G.x1 and _G.x1.x2 == true then
-                        if _G.x4 then
-                            task.cancel(_G.x4)
-                            _G.x4 = nil
-                        end
-                        
-                        if _G.x17 then
-                            _G.x4 = task.spawn(_G.x17)
-                        end
-                    end
-                end
-            end
-        end)
 
         library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
     end)
@@ -4296,155 +4234,98 @@ function library:ConfigSystem(tab, name)
         end
     end)
 
-    task.spawn(function()
-        task.wait(0.5)
-        if not cfg.auto then return end
-        
-        local path = dir .. "/" .. cfg.auto .. ".json"
-        local ok, raw = pcall(readfile, path)
-        if not ok then return end
-        
-        local valid, data = pcall(function() 
-            return game:GetService("HttpService"):JSONDecode(raw) 
-        end)
-        
-        if not valid or type(data.values) ~= "table" then return end
-        
-        local loaded = 0
-        cfg.pick = cfg.auto
-        
-        pcall(function()
-            if menu and type(menu.set) == "function" then
-                menu:set(cfg.auto)
-            end
-        end)
-        
-        local loadOrder = {}
-        local threadToggles = {}
-        
-        for flag, val in pairs(data.values) do
-            if flag:match("_rainbow$") then continue end
-            if flag == "config_autoload" then continue end
+    if cfg.auto then
+        task.delay(1, function()
+            local path = dir .. "/" .. cfg.auto .. ".json"
+            local ok, raw = pcall(readfile, path)
+            if not ok then return end
             
-            if flag:match("KA$") or flag:match("killAura") or flag:match("Kill_Aura") then
-                table.insert(threadToggles, {flag = flag, val = val})
-            elseif library.flags[flag] then
-                table.insert(loadOrder, {flag = flag, val = val})
-            end
-        end
-        
-        for _, item in ipairs(loadOrder) do
-            local flag, val = item.flag, item.val
-            local element = library.flags[flag]
+            local valid, data = pcall(function() 
+                return game:GetService("HttpService"):JSONDecode(raw) 
+            end)
             
-            if type(element) == "table" and type(element.set) == "function" then
-                pcall(function()
-                    if type(val) == "table" and val.__type == "Color3" then
-                        local color = Color3.new(val.r, val.g, val.b)
-                        element:set(color)
-                        loaded = loaded + 1 
-                    elseif type(val) == "table" and val.__type == "Keybind" then
-                        local keyEnum
-                        if type(val.value) == "table" and val.value.__type == "EnumItem" then
-                            keyEnum = Enum.KeyCode[val.value.value]
-                        else
-                            keyEnum = Enum.KeyCode[val.keyName]
-                        end
-                        
-                        if keyEnum then
-                            if val.mode or val.toggleState ~= nil then
-                                element:set({
-                                    keyCode = keyEnum,
-                                    mode = val.mode,
-                                    value = val.toggleState
-                                })
+            if not valid or type(data.values) ~= "table" then return end
+            
+            local loaded = 0
+            cfg.pick = cfg.auto
+            
+            pcall(function()
+                if menu and type(menu.set) == "function" then
+                    menu:set(cfg.auto)
+                end
+            end)
+            
+            for flag, val in pairs(data.values) do
+                if flag:match("_rainbow$") then continue end
+                if flag == "config_autoload" then continue end
+                
+                local element = library.flags[flag]
+                
+                if type(element) == "table" and type(element.set) == "function" then
+                    pcall(function()
+                        if type(val) == "table" and val.__type == "Color3" then
+                            local color = Color3.new(val.r, val.g, val.b)
+                            element:set(color)
+                            loaded = loaded + 1 
+                        elseif type(val) == "table" and val.__type == "Keybind" then
+                            local keyEnum
+                            if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                                keyEnum = Enum.KeyCode[val.value.value]
                             else
-                                element:set(keyEnum)
+                                keyEnum = Enum.KeyCode[val.keyName]
                             end
+                            
+                            if keyEnum then
+                                if val.mode or val.toggleState ~= nil then
+                                    element:set({
+                                        keyCode = keyEnum,
+                                        mode = val.mode,
+                                        value = val.toggleState
+                                    })
+                                else
+                                    element:set(keyEnum)
+                                end
+                                loaded = loaded + 1
+                            end
+                        elseif type(val) == "number" then
+                            element:set(val)
+                            loaded = loaded + 1
+                        elseif type(val) == "boolean" then
+                            element:set(val)
+                            loaded = loaded + 1
+                        elseif type(val) == "table" and (val.selected or val.options) then
+                            element:set(val.selected or val)
+                            loaded = loaded + 1
+                        elseif type(val) == "string" then
+                            element:set(val)
+                            loaded = loaded + 1
+                        else
+                            local parsed = unpack(val)
+                            element:set(parsed)
                             loaded = loaded + 1
                         end
-                    elseif type(val) == "number" then
-                        element:set(val)
-                        loaded = loaded + 1
-                    elseif type(val) == "boolean" then
-                        element:set(val)
-                        loaded = loaded + 1
-                    elseif type(val) == "table" and (val.selected or val.options) then
-                        element:set(val.selected or val)
-                        loaded = loaded + 1
-                    elseif type(val) == "string" then
-                        element:set(val)
-                        loaded = loaded + 1
-                    else
-                        local parsed = unpack(val)
-                        element:set(parsed)
-                        loaded = loaded + 1
-                    end
-                end)
-                
-                task.wait(0.01)
+                    end)
+                end
             end
-        end
-        
-        task.wait(0.1)
-        
-        for _, item in ipairs(threadToggles) do
-            local flag, val = item.flag, item.val
-            local element = library.flags[flag]
             
-            if type(element) == "table" and type(element.set) == "function" then
-                pcall(function()
-                    if type(val) == "boolean" then
-                        element:set(val)
-                        loaded = loaded + 1
-                    else
-                        element:set(val)
-                        loaded = loaded + 1
-                    end
-                end)
-                
-                task.wait(0.05)
-            end
-        end
-        
-        task.wait(0.2)
-        
-        for flag, val in pairs(data.values) do
-            if not flag:match("_rainbow$") then continue end
+            task.wait(0.2)
             
-            local base = flag:gsub("_rainbow$", "")
-            if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
-                pcall(function()
-                    library.flags[base]:setRainbow(val)
-                end)
+            for flag, val in pairs(data.values) do
+                if not flag:match("_rainbow$") then continue end
+                
+                local base = flag:gsub("_rainbow$", "")
+                if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
+                    pcall(function()
+                        library.flags[base]:setRainbow(val)
+                    end)
+                end
             end
-        end
-        
-        task.delay(0.2, function()
+            
             silentAutoLoadUpdate = true
             autoLoad:set(true)
             library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
-            
-            task.wait(0.5)
-            
-            for _, item in ipairs(threadToggles) do
-                local flag, val = item.flag, item.val
-                
-                if type(val) == "boolean" and val == true then
-                    if flag:match("KA$") and _G.x1 and _G.x1.x2 == true then
-                        if _G.x4 then 
-                            task.cancel(_G.x4)
-                            _G.x4 = nil 
-                        end
-                        
-                        if _G.x17 then
-                            _G.x4 = task.spawn(_G.x17)
-                        end
-                    end
-                end
-            end
         end)
-    end)
+    end
     
     return cfg
 end
