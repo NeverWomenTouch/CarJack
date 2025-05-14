@@ -1049,7 +1049,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                     KeybindDisplay.Text = "[" .. (state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name) .. "]"
                     KeybindButton.Text = state.keyCode.Name == "Unknown" and "None" or state.keyCode.Name
                 elseif type(state.keyCode) == "string" then
-                    -- Try to convert string to KeyCode enum
                     local success, keyEnum = pcall(function()
                         return Enum.KeyCode[state.keyCode]
                     end)
@@ -1062,26 +1061,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                 end
                 
                 if type(state.mode) == "string" and (state.mode == "Toggle" or state.mode == "Hold" or state.mode == "Always") then
-                    keybindMode = state.mode
-                    self.mode = state.mode
-                    
-                    for mode, button in pairs(modeButtons) do
-                        if mode == keybindMode then
-                            button.BackgroundColor3 = PresetColor
-                            button.BackgroundTransparency = 0
-                            button.TextColor3 = Color3.fromRGB(35, 35, 35)
-                        else
-                            button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-                            button.BackgroundTransparency = 0.4
-                            button.TextColor3 = Color3.fromRGB(255, 255, 255)
-                        end
-                    end
-                    
-                    if keybindMode == "Always" and toggled then
-                        keyState = true
-                        self.keyState = true
-                        pcall(callback, true)
-                    end
+                    self:setMode(state.mode)
                 end
                 
                 if type(state.keyState) == "boolean" then
@@ -1141,12 +1121,22 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
                     keyState = true
                     self.keyState = true
                     pcall(callback, true)
+                elseif keybindMode ~= "Always" and keyState then
+                    keyState = false
+                    self.keyState = false
+                    pcall(callback, false)
                 end
             end
             return self
         end,
         setKeyState = function(self, state)
             if type(state) == "boolean" then
+                if keybindMode == "Always" and not toggled then
+                    keyState = false
+                    self.keyState = false
+                    return self
+                end
+                
                 keyState = state
                 self.keyState = state
                 pcall(callback, keyState)
@@ -1154,7 +1144,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             return self
         end,
         toggleKeyState = function(self)
-            if keybindMode == "Always" and toggled then
+            if keybindMode == "Always" then
                 return self
             end
             return self:setKeyState(not keyState)
@@ -1198,7 +1188,11 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             FrameToggleCircle:TweenPosition(UDim2.new(0.127000004, 0, 0.222000003, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
             FrameToggle3.BackgroundTransparency = 1
             
-            if keybindMode == "Always" then
+            if keybindMode == "Always" or keybindMode == "Hold" then
+                keyState = false
+                keybindT.keyState = false
+                pcall(callback, false)
+            elseif keybindMode == "Toggle" and keyState then
                 keyState = false
                 keybindT.keyState = false
                 pcall(callback, false)
@@ -1206,7 +1200,7 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         end
         
         keybindT.value = toggled
-    end
+    }
     
     if not library.flags then library.flags = {} end
     library.flags[flag] = keybindT
@@ -1290,72 +1284,15 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     end)
     
     library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Click:Connect(function()
-        keybindMode = "Toggle"
-        keybindT.mode = "Toggle"
-        
-        for mode, button in pairs(modeButtons) do
-            if mode == "Toggle" then
-                tweensv:Create(button, TweenInfo.new(0.2), {
-                    BackgroundColor3 = PresetColor, 
-                    BackgroundTransparency = 0,
-                    TextColor3 = Color3.fromRGB(35, 35, 35)
-                }):Play()
-            else
-                tweensv:Create(button, TweenInfo.new(0.2), {
-                    BackgroundColor3 = Color3.fromRGB(45, 45, 45), 
-                    BackgroundTransparency = 0.4,
-                    TextColor3 = Color3.fromRGB(255, 255, 255)
-                }):Play()
-            end
-        end
+        keybindT:setMode("Toggle")
     end)
     
     library.Conn[#library.Conn + 1] = HoldButton.MouseButton1Click:Connect(function()
-        keybindMode = "Hold"
-        keybindT.mode = "Hold"
-        
-        for mode, button in pairs(modeButtons) do
-            if mode == "Hold" then
-                tweensv:Create(button, TweenInfo.new(0.2), {
-                    BackgroundColor3 = PresetColor, 
-                    BackgroundTransparency = 0,
-                    TextColor3 = Color3.fromRGB(35, 35, 35)
-                }):Play()
-            else
-                tweensv:Create(button, TweenInfo.new(0.2), {
-                    BackgroundColor3 = Color3.fromRGB(45, 45, 45), 
-                    BackgroundTransparency = 0.4,
-                    TextColor3 = Color3.fromRGB(255, 255, 255)
-                }):Play()
-            end
-        end
+        keybindT:setMode("Hold")
     end)
     
     library.Conn[#library.Conn + 1] = AlwaysButton.MouseButton1Click:Connect(function()
-        keybindMode = "Always"
-        keybindT.mode = "Always"
-        
-        for mode, button in pairs(modeButtons) do
-            if mode == "Always" then
-                tweensv:Create(button, TweenInfo.new(0.2), {
-                    BackgroundColor3 = PresetColor, 
-                    BackgroundTransparency = 0,
-                    TextColor3 = Color3.fromRGB(35, 35, 35)
-                }):Play()
-            else
-                tweensv:Create(button, TweenInfo.new(0.2), {
-                    BackgroundColor3 = Color3.fromRGB(45, 45, 45), 
-                    BackgroundTransparency = 0.4,
-                    TextColor3 = Color3.fromRGB(255, 255, 255)
-                }):Play()
-            end
-        end
-        
-        if toggled then
-            keyState = true
-            keybindT.keyState = true
-            pcall(callback, true)
-        end
+        keybindT:setMode("Always")
     end)
     
     for _, button in pairs(modeButtons) do
@@ -1386,20 +1323,17 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         if SelectingKey then return end
         if assignedKey == nil or input.KeyCode ~= assignedKey then return end
         
-        if toggled then
-            if keybindMode == "Toggle" then
-                keyState = not keyState
-                keybindT.keyState = keyState
-                pcall(callback, keyState)
-            elseif keybindMode == "Hold" then
-                isHolding = true
-                keyState = true
-                keybindT.keyState = keyState
-                pcall(callback, keyState)
-            elseif keybindMode == "Always" then
-                keyState = true
-                keybindT.keyState = true
-            end
+        if not toggled then return end
+        
+        if keybindMode == "Toggle" then
+            keyState = not keyState
+            keybindT.keyState = keyState
+            pcall(callback, keyState)
+        elseif keybindMode == "Hold" then
+            isHolding = true
+            keyState = true
+            keybindT.keyState = keyState
+            pcall(callback, keyState)
         end
     end)
     
