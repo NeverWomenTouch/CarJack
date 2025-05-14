@@ -7,6 +7,7 @@ local library = {
     Folder = "Dendrite.cc",
     LibName = "Dendrite.cc",
     animatetext = false,
+    LibraryLines = true,
     debug = false,
     OCbtn = false
 }
@@ -76,7 +77,6 @@ function animateText(display, text, repeatCount, delay)
     end
     task.wait(5)
 end
-
 function library:Unload()
     if screengui then
         screengui:Destroy()
@@ -86,13 +86,11 @@ function library:Unload()
 	end
     getgenv().libloaded = false
 end
-
 function MakeDraggable(topbarobject, object)
     local Dragging = nil
     local DragInput = nil
     local DragStart = nil
     local StartPosition = nil
-
     local function Update(input)
         local Delta = input.Position - DragStart
         local pos =
@@ -104,13 +102,11 @@ function MakeDraggable(topbarobject, object)
         )
         object.Position = pos
     end
-
     library.Conn[#library.Conn + 1] = topbarobject.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             Dragging = true
             DragStart = input.Position
             StartPosition = object.Position
-
             library.Conn[#library.Conn + 1] = input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     Dragging = false
@@ -118,37 +114,31 @@ function MakeDraggable(topbarobject, object)
             end)
         end
     end)
-
     library.Conn[#library.Conn + 1] = topbarobject.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             DragInput = input
         end
     end)
-
     library.Conn[#library.Conn + 1] = uis.InputChanged:Connect(function(input)
         if input == DragInput and Dragging then
             Update(input)
         end
     end)
 end
-
 function library:ChangeBind(key)
 	CloseBind = key
 end
-
 function library:Window(title, version, info, preset, closebind)
     CloseBind = closebind or Enum.KeyCode.Z
     PresetColor = preset or Color3.fromRGB(255, 0, 0)
     fs = false
     local Main = Instance.new("Frame")
     local TabHold = Instance.new("Frame")
-
     local TabHoldLayout = Instance.new("UIListLayout")
     local Title = Instance.new("TextLabel")
     local TabFolder = Instance.new("Folder")
     local DragFrame = Instance.new("Frame")
 	local close = Instance.new("ImageButton")
-
     local line = Instance.new("Frame", Main)
     line.Name = "Line"
     line.Position = UDim2.new(0.28, 0, 0.1, 5)
@@ -156,7 +146,8 @@ function library:Window(title, version, info, preset, closebind)
     line.BackgroundColor3 = PresetColor
     line.BorderColor3 = PresetColor
     line.BorderSizePixel = 0
-
+    line.Visible = library.LibraryLines
+    
     local line2 = Instance.new("Frame", Main)
     line2.Name = "Line"
     line2.Position = UDim2.new(0.6, 18, -0.5, 1)
@@ -165,6 +156,7 @@ function library:Window(title, version, info, preset, closebind)
     line2.BorderSizePixel = 0
     line2.BorderColor3 = PresetColor
     line2.BackgroundColor3 = PresetColor
+    line2.Visible = library.LibraryLines
 
     local line3 = Instance.new("Frame", Main)
     line3.Name = "Line"
@@ -174,6 +166,7 @@ function library:Window(title, version, info, preset, closebind)
     line3.BorderSizePixel = 0
     line3.BorderColor3 = PresetColor
     line3.BackgroundColor3 = PresetColor
+    line3.Visible = library.LibraryLines
 
     local line4 = Instance.new("Frame", Main)
     line4.Name = "Line"
@@ -182,6 +175,7 @@ function library:Window(title, version, info, preset, closebind)
     line4.BorderSizePixel = 0
     line4.BorderColor3 = PresetColor
     line4.BackgroundColor3 = PresetColor
+    line4.Visible = library.LibraryLines
 
     Main.Name = "Main"
     Main.Parent = screengui
@@ -290,10 +284,16 @@ function library:Window(title, version, info, preset, closebind)
     task.spawn(function()
         while getgenv().libloaded do
             Title.TextColor3 = PresetColor
-            line.BackgroundColor3 = PresetColor
-            line2.BackgroundColor3 = PresetColor
-            line3.BackgroundColor3 = PresetColor
-            line4.BackgroundColor3 = PresetColor
+            line.Visible = library.LibraryLines
+            line2.Visible = library.LibraryLines
+            line3.Visible = library.LibraryLines
+            line4.Visible = library.LibraryLines
+            if library.LibraryLines then
+                line.BackgroundColor3 = PresetColor
+                line2.BackgroundColor3 = PresetColor
+                line3.BackgroundColor3 = PresetColor
+                line4.BackgroundColor3 = PresetColor
+            end
             task.wait()
         end
     end)
