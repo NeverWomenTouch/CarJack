@@ -770,10 +770,10 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     local KeybindDisplayStroke = Instance.new("UIStroke")
     
     -- Dropdown content container that will slide down
-    local DropdownContent = Instance.new("Frame")
-    local DropdownContentLayout = Instance.new("UIListLayout")
     local DropdownBackground = Instance.new("Frame")
     local DropdownBackgroundCorner = Instance.new("UICorner")
+    local DropdownContent = Instance.new("Frame")
+    local DropdownContentLayout = Instance.new("UIListLayout")
 
     -- Setup main toggle container
     Toggle.Name = "Toggle"
@@ -878,7 +878,8 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     DropdownBackground.Position = UDim2.new(0, 0, 0, 42) -- Position right after the toggle
     DropdownBackground.Size = UDim2.new(1, 0, 0, 0) -- Start with height 0
     DropdownBackground.ZIndex = 1
-    DropdownBackground.Visible = false
+    DropdownBackground.Visible = true -- Keep it visible but with height 0
+    DropdownBackground.ClipsDescendants = true -- Important for animation
     
     DropdownBackgroundCorner.CornerRadius = UDim.new(0, 5)
     DropdownBackgroundCorner.Name = "DropdownBackgroundCorner"
@@ -889,7 +890,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     DropdownContent.Parent = DropdownBackground
     DropdownContent.BackgroundTransparency = 1
     DropdownContent.Size = UDim2.new(1, 0, 1, 0)
-    DropdownContent.ClipsDescendants = true
     DropdownContent.ZIndex = 2
     
     DropdownContentLayout.Parent = DropdownContent
@@ -1125,9 +1125,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
         MenuOpen = not MenuOpen
         
         if MenuOpen then
-            -- Show dropdown content
-            DropdownBackground.Visible = true
-            
             -- Animate the background to expand
             tweensv:Create(DropdownBackground, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), 
                 {Size = UDim2.new(1, 0, 0, 90)}):Play()
@@ -1141,11 +1138,8 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
             tweensv:Create(DropdownBackground, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), 
                 {Size = UDim2.new(1, 0, 0, 0)}):Play()
             
-            -- Hide dropdown content after animation completes
+            -- Reset canvas size after animation completes
             task.delay(0.25, function()
-                DropdownBackground.Visible = false
-                
-                -- Reset canvas size
                 Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
             end)
         end
@@ -1350,17 +1344,6 @@ function tabcontent:KeybindT(text, default, keybind, callback, flag)
     library.Conn[#library.Conn + 1] = KeybindDisplay.MouseLeave:Connect(function()
         tweensv:Create(KeybindDisplay, TweenInfo.new(0.2), {BackgroundTransparency = 0.4}):Play()
         tweensv:Create(KeybindDisplayStroke, TweenInfo.new(0.2), {Transparency = 0.6}):Play()
-    end)
-    
-    -- Add hover effect for the toggle
-    library.Conn[#library.Conn + 1] = Toggle.MouseEnter:Connect(function()
-        if not MenuOpen then
-            tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(38, 38, 38)}):Play()
-        end
-    end)
-    
-    library.Conn[#library.Conn + 1] = Toggle.MouseLeave:Connect(function()
-        tweensv:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(34, 34, 34)}):Play()
     end)
     
     -- Key input handling
