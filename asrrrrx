@@ -3093,58 +3093,62 @@ tab:Button("Load Config", function()
     
     local loaded = 0
     
+    -- First, load all non-slider values
     for flag, val in pairs(data.values) do
         if flag:match("_rainbow$") then continue end
         
         if library.flags[flag] then
             local element = library.flags[flag]
             
-            pcall(function()
-                if type(element) == "table" and type(element.set) == "function" then
-                    -- Direct handling for number values (sliders)
-                    if type(val) == "number" then
-                        element.value = val -- First directly set the value property
-                        element:set(val)    -- Then call the set method to update visuals
-                        loaded = loaded + 1
-                    -- Handle colorpickers
-                    elseif type(val) == "table" and val.__type == "Color3" then
-                        local color = Color3.new(val.r, val.g, val.b)
-                        element:set(color)
-                        
-                        -- Handle rainbow state separately
-                        if val.__rainbow ~= nil and typeof(element.setRainbow) == "function" then
-                            task.delay(0.1, function()
-                                element:setRainbow(val.__rainbow)
-                            end)
-                        end
-                        
-                        loaded = loaded + 1
-                    -- Handle keybinds
-                    elseif type(val) == "table" and val.__type == "Keybind" then
-                        local keyEnum
-                        if type(val.value) == "table" and val.value.__type == "EnumItem" then
-                            keyEnum = Enum.KeyCode[val.value.value]
+            task.spawn(function()
+                pcall(function()
+                    if type(element) == "table" and type(element.set) == "function" then
+                        -- Handle colorpickers
+                        if type(val) == "table" and val.__type == "Color3" then
+                            local color = Color3.new(val.r, val.g, val.b)
+                            element:set(color)
+                            loaded = loaded + 1
+                        -- Handle keybinds
+                        elseif type(val) == "table" and val.__type == "Keybind" then
+                            local keyEnum
+                            if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                                keyEnum = Enum.KeyCode[val.value.value]
+                            else
+                                keyEnum = Enum.KeyCode[val.keyName]
+                            end
+                            
+                            if keyEnum then
+                                element:set(keyEnum)
+                            end
+                            loaded = loaded + 1
+                        -- Handle sliders (direct numeric values)
+                        elseif type(val) == "number" then
+                            element:set(val)
+                            loaded = loaded + 1
                         else
-                            keyEnum = Enum.KeyCode[val.keyName]
+                            local parsed = unpack(val)
+                            element:set(parsed)
+                            loaded = loaded + 1
                         end
-                        
-                        if keyEnum then
-                            element:set(keyEnum)
-                        end
-                        
-                        loaded = loaded + 1
-                    else
-                        -- General case for all other element types
-                        local parsed = unpack(val)
-                        element:set(parsed)
-                        loaded = loaded + 1
                     end
-                end
+                end)
             end)
         end
     end
     
+    -- Handle rainbow settings in a delayed callback
     task.delay(0.3, function()
+        for flag, val in pairs(data.values) do
+            if not flag:match("_rainbow$") then continue end
+            
+            local base = flag:gsub("_rainbow$", "")
+            if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
+                pcall(function()
+                    library.flags[base]:setRainbow(val)
+                end)
+            end
+        end
+        
         library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK")
     end)
 end)
@@ -3227,13 +3231,8 @@ task.spawn(function()
             
             pcall(function()
                 if type(element) == "table" and type(element.set) == "function" then
-                    -- Direct handling for number values (sliders)
-                    if type(val) == "number" then
-                        element.value = val -- First directly set the value property
-                        element:set(val)    -- Then call the set method to update visuals
-                        loaded = loaded + 1
                     -- Handle colorpickers
-                    elseif type(val) == "table" and val.__type == "Color3" then
+                    if type(val) == "table" and val.__type == "Color3" then
                         local color = Color3.new(val.r, val.g, val.b)
                         element:set(color)
                         loaded = loaded + 1
@@ -3249,6 +3248,11 @@ task.spawn(function()
                         if keyEnum then
                             element:set(keyEnum)
                         end
+                        loaded = loaded + 1
+                    -- Handle sliders (direct numeric values)
+                    elseif type(val) == "number" then
+                        -- Direct pass-through to set method
+                        element:set(val)
                         loaded = loaded + 1
                     else
                         local parsed = unpack(val)
