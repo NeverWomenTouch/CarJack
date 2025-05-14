@@ -4110,10 +4110,17 @@ function library:ConfigSystem(tab, name)
         local loadOrder = {}
         local threadToggles = {}
         
+        -- Separate normal toggles from thread toggles (like Kill Aura)
         for flag, val in pairs(data.values) do
-            if flag:match("_rainbow$") then continue end
-            if flag == "config_autoload" then continue end
+            if flag:match("_rainbow$") then 
+                continue 
+            end
             
+            if flag == "config_autoload" then 
+                continue 
+            end
+            
+            -- Check if this is a thread toggle (Kill Aura)
             if flag:match("KA$") or flag:match("killAura") or flag:match("Kill_Aura") then
                 table.insert(threadToggles, {flag = flag, val = val})
             elseif library.flags[flag] then
@@ -4121,12 +4128,13 @@ function library:ConfigSystem(tab, name)
             end
         end
         
+        -- First load all regular toggles/settings
         for _, item in ipairs(loadOrder) do
             local flag, val = item.flag, item.val
             local element = library.flags[flag]
             
             if type(element) == "table" and type(element.set) == "function" then
-                local success, err = pcall(function()
+                pcall(function()
                     if type(val) == "table" and val.__type == "Color3" then
                         local color = Color3.new(val.r, val.g, val.b)
                         element:set(color)
@@ -4141,12 +4149,11 @@ function library:ConfigSystem(tab, name)
                         
                         if keyEnum then
                             if val.mode or val.toggleState ~= nil then
-                                local keyData = {
+                                element:set({
                                     keyCode = keyEnum,
                                     mode = val.mode,
                                     value = val.toggleState
-                                }
-                                element:set(keyData)
+                                })
                             else
                                 element:set(keyEnum)
                             end
@@ -4171,16 +4178,14 @@ function library:ConfigSystem(tab, name)
                     end
                 end)
                 
-                if not success and library.debug then
-                    warn("Error loading config value for", flag, ":", err)
-                end
-                
                 task.wait(0.01)
             end
         end
         
+        -- Wait a bit before loading thread toggles
         task.wait(0.1)
         
+        -- Then load thread toggles (like Kill Aura) separately
         for _, item in ipairs(threadToggles) do
             local flag, val = item.flag, item.val
             local element = library.flags[flag]
@@ -4200,6 +4205,7 @@ function library:ConfigSystem(tab, name)
             end
         end
         
+        -- Apply rainbow settings
         task.wait(0.2)
         
         for flag, val in pairs(data.values) do
@@ -4212,6 +4218,28 @@ function library:ConfigSystem(tab, name)
                 end)
             end
         end
+        
+        -- Special fix for Kill Aura thread - force respawn all thread-based toggles
+        task.wait(0.5)
+        task.spawn(function()
+            for _, item in ipairs(threadToggles) do
+                local flag, val = item.flag, item.val
+                
+                if type(val) == "boolean" and val == true then
+                    -- For KA toggle, we need to ensure x4 exists
+                    if flag:match("KA$") and _G.x1 and _G.x1.x2 == true then
+                        if _G.x4 then
+                            task.cancel(_G.x4)
+                            _G.x4 = nil
+                        end
+                        
+                        if _G.x17 then
+                            _G.x4 = task.spawn(_G.x17)
+                        end
+                    end
+                end
+            end
+        end)
 
         library:Notification("Config Loaded", "\"" .. cfg.pick .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
     end)
@@ -4325,12 +4353,11 @@ function library:ConfigSystem(tab, name)
                         
                         if keyEnum then
                             if val.mode or val.toggleState ~= nil then
-                                local keyData = {
+                                element:set({
                                     keyCode = keyEnum,
                                     mode = val.mode,
                                     value = val.toggleState
-                                }
-                                element:set(keyData)
+                                })
                             else
                                 element:set(keyEnum)
                             end
@@ -4397,6 +4424,25 @@ function library:ConfigSystem(tab, name)
             silentAutoLoadUpdate = true
             autoLoad:set(true)
             library:Notification("Config Auto-loaded", "\"" .. cfg.auto .. "\": " .. loaded .. " settings applied", "OK", "rbxassetid://83065037218239", 6)
+            
+            task.wait(0.5)
+            
+            for _, item in ipairs(threadToggles) do
+                local flag, val = item.flag, item.val
+                
+                if type(val) == "boolean" and val == true then
+                    if flag:match("KA$") and _G.x1 and _G.x1.x2 == true then
+                        if _G.x4 then 
+                            task.cancel(_G.x4)
+                            _G.x4 = nil 
+                        end
+                        
+                        if _G.x17 then
+                            _G.x4 = task.spawn(_G.x17)
+                        end
+                    end
+                end
+            end
         end)
     end)
     
