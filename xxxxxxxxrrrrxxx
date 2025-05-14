@@ -3788,7 +3788,7 @@ function library:ConfigSystem(tab, name)
                     local success, oldVal, newVal = pcall(function()
                         local oldJson = HttpService:JSONEncode(omap[flag])
                         local newJson = HttpService:JSONEncode(val)
-                        return oldJson, newVal
+                        return oldJson, newJson
                     end)
 
                     if success and oldVal ~= newVal then
@@ -4108,21 +4108,23 @@ function library:ConfigSystem(tab, name)
         end
 
         local loaded = 0
-        local processedValues = {}
+        local rainbowFlags = {}
         
-        -- First pass: collect all values to process
         for flag, val in pairs(data.values) do
-            if not flag:match("_rainbow$") and flag ~= "config_autoload" then
-                processedValues[flag] = val
+            if flag:match("_rainbow$") then
+                local baseFlag = flag:gsub("_rainbow$", "")
+                rainbowFlags[baseFlag] = val
+                continue
             end
-        end
-        
-        -- Second pass: apply values properly without nested pcalls
-        for flag, val in pairs(processedValues) do
+            
+            if flag == "config_autoload" then
+                continue
+            end
+
             local element = library.flags[flag]
             if type(element) == "table" and type(element.set) == "function" then
                 local success = true
-                local value = nil
+                local value
                 
                 if type(val) == "table" and val.__type == "Color3" then
                     value = Color3.new(val.r, val.g, val.b)
@@ -4162,13 +4164,9 @@ function library:ConfigSystem(tab, name)
             end
         end
 
-        -- Process rainbow settings after all other settings
-        for flag, val in pairs(data.values) do
-            if flag:match("_rainbow$") then
-                local base = flag:gsub("_rainbow$", "")
-                if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
-                    library.flags[base]:setRainbow(val)
-                end
+        for baseFlag, val in pairs(rainbowFlags) do
+            if library.flags[baseFlag] and type(library.flags[baseFlag].setRainbow) == "function" then
+                library.flags[baseFlag]:setRainbow(val)
             end
         end
 
@@ -4227,7 +4225,6 @@ function library:ConfigSystem(tab, name)
         end
     end)
 
-    -- Improved auto-loading logic
     if cfg.auto then
         local path = dir .. "/" .. cfg.auto .. ".json"
         local ok, raw = pcall(readfile, path)
@@ -4240,25 +4237,27 @@ function library:ConfigSystem(tab, name)
                 local loaded = 0
                 cfg.pick = cfg.auto
 
-                -- Update the dropdown
                 if menu and type(menu.set) == "function" then
                     menu:set(cfg.auto)
                 end
-
-                -- Process non-rainbow settings first
-                local toLoad = {}
+                
+                local rainbowFlags = {}
+                
                 for flag, val in pairs(data.values) do
-                    if not flag:match("_rainbow$") and flag ~= "config_autoload" then
-                        toLoad[flag] = val
+                    if flag:match("_rainbow$") then
+                        local baseFlag = flag:gsub("_rainbow$", "")
+                        rainbowFlags[baseFlag] = val
+                        continue
                     end
-                end
+                    
+                    if flag == "config_autoload" then
+                        continue
+                    end
 
-                -- Apply settings in a controlled way without nested pcalls
-                for flag, val in pairs(toLoad) do
                     local element = library.flags[flag]
                     if type(element) == "table" and type(element.set) == "function" then
                         local success = true
-                        local value = nil
+                        local value
                         
                         if type(val) == "table" and val.__type == "Color3" then
                             value = Color3.new(val.r, val.g, val.b)
@@ -4298,13 +4297,9 @@ function library:ConfigSystem(tab, name)
                     end
                 end
 
-                -- Apply rainbow settings after
-                for flag, val in pairs(data.values) do
-                    if flag:match("_rainbow$") then
-                        local base = flag:gsub("_rainbow$", "")
-                        if library.flags[base] and type(library.flags[base].setRainbow) == "function" then
-                            library.flags[base]:setRainbow(val)
-                        end
+                for baseFlag, val in pairs(rainbowFlags) do
+                    if library.flags[baseFlag] and type(library.flags[baseFlag].setRainbow) == "function" then
+                        library.flags[baseFlag]:setRainbow(val)
                     end
                 end
 
