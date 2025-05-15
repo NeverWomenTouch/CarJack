@@ -3620,64 +3620,72 @@ function library:ConfigSystem(tab, name)
     
     cfg.sync = sync
 
-    local function pack(val)
-        local typ = typeof(val)
-        if typ == "Color3" then
-            return {__type="Color3", r=val.R, g=val.G, b=val.B}
-        elseif typ == "EnumItem" then
-            return {__type="EnumItem", enumType=tostring(val.EnumType), value=val.Name}
-        elseif typ == "table" then
-            if val.value ~= nil then
-                if type(val.value) == "number" then return val.value
-                elseif typeof(val.value) == "Color3" then
-                    local t = {__type="Color3", r=val.value.R, g=val.value.G, b=val.value.B}
-                    if val.rainbow ~= nil then t.__rainbow = val.rainbow end
-                    return t
-                end
+local function pack(val)
+    local typ = typeof(val)
+    if typ == "Color3" then
+        return {__type="Color3", r=val.R, g=val.G, b=val.B}
+    elseif typ == "EnumItem" then
+        return {__type="EnumItem", enumType=tostring(val.EnumType), value=val.Name}
+    elseif typ == "table" then
+        -- Handle basic values like toggles and textboxes
+        if val.value ~= nil then
+            if type(val.value) == "number" or type(val.value) == "string" or type(val.value) == "boolean" then 
+                return val.value
+            elseif typeof(val.value) == "Color3" then
+                local t = {__type="Color3", r=val.value.R, g=val.value.G, b=val.value.B}
+                if val.rainbow ~= nil then t.__rainbow = val.rainbow end
+                return t
             end
-            
-            if val.keyCode or (val.value and typeof(val.value) == "EnumItem") then
-                local keyData = {
-                    __type = "Keybind",
-                    keyName = val.keyName or (val.keyCode and val.keyCode.Name) or (val.value and val.value.Name) or "Unknown"
-                }
-                keyData.value = {__type="EnumItem", enumType="Enum.KeyCode", value=(val.keyCode or val.value).Name}
-                if val.mode then keyData.mode = val.mode end
-                if type(val.value) == "boolean" then keyData.toggleState = val.value end
-                return keyData
-            end
-            
-            local out = {}
-            for k, v in pairs(val) do
-                if type(v) ~= "function" then 
-                    out[k] = pack(v)
-                end
-            end
-            return out
         end
-        return val
-    end
-
-    local function unpack(val)
-        if type(val) ~= "table" then return val end
-        if val.__type == "Color3" then
-            local color = Color3.new(val.r, val.g, val.b)
-            return val.__rainbow and {value=color, rainbow=val.__rainbow} or color
-        elseif val.__type == "EnumItem" then
-            local enumName = val.enumType:match("Enum%.([^%s]+)$") or val.enumType:match("Enum%.([^%s]+)")
-            return enumName and Enum[enumName] and Enum[enumName][val.value]
-        elseif val.__type == "Keybind" then
-            local keyEnum = type(val.value) == "table" and val.value.__type == "EnumItem" and Enum.KeyCode[val.value.value] or Enum.KeyCode[val.keyName]
-            local result = {keyName=val.keyName, keyCode=keyEnum or Enum.KeyCode.Unknown}
-            if val.mode then result.mode = val.mode end
-            if val.toggleState ~= nil then result.value = val.toggleState end
-            return result
+        
+        -- Handle dropdowns
+        if type(val.set) == "function" and val.options and val.value then
+            return {selected = val.value, options = val.options}
+        end
+        
+        -- Handle keybinds
+        if val.keyCode or (val.value and typeof(val.value) == "EnumItem") then
+            local keyData = {
+                __type = "Keybind",
+                keyName = val.keyName or (val.keyCode and val.keyCode.Name) or (val.value and val.value.Name) or "Unknown"
+            }
+            keyData.value = {__type="EnumItem", enumType="Enum.KeyCode", value=(val.keyCode or val.value).Name}
+            if val.mode then keyData.mode = val.mode end
+            if type(val.value) == "boolean" then keyData.toggleState = val.value end
+            return keyData
         end
         
         local out = {}
-        for k, v in pairs(val) do out[k] = unpack(v) end
+        for k, v in pairs(val) do
+            if type(v) ~= "function" then 
+                out[k] = pack(v)
+            end
+        end
         return out
     end
+    return val
+end
+
+local function unpack(val)
+    if type(val) ~= "table" then return val end
+    if val.__type == "Color3" then
+        local color = Color3.new(val.r, val.g, val.b)
+        return val.__rainbow and {value=color, rainbow=val.__rainbow} or color
+    elseif val.__type == "EnumItem" then
+        local enumName = val.enumType:match("Enum%.([^%s]+)$") or val.enumType:match("Enum%.([^%s]+)")
+        return enumName and Enum[enumName] and Enum[enumName][val.value]
+    elseif val.__type == "Keybind" then
+        local keyEnum = type(val.value) == "table" and val.value.__type == "EnumItem" and Enum.KeyCode[val.value.value] or Enum.KeyCode[val.keyName]
+        local result = {keyName=val.keyName, keyCode=keyEnum or Enum.KeyCode.Unknown}
+        if val.mode then result.mode = val.mode end
+        if val.toggleState ~= nil then result.value = val.toggleState end
+        return result
+    end
+    
+    local out = {}
+    for k, v in pairs(val) do out[k] = unpack(v) end
+    return out
+end
     
     local function diff(old, new)
         local added, removed, changed, same = 0, 0, 0, 0
@@ -3866,7 +3874,7 @@ function library:ConfigSystem(tab, name)
                     if type(elem.rainbow) == "boolean" then
                         data.values[flag.."_rainbow"] = elem.rainbow
                     end
-                else -- Handle simple values (toggles, textboxes, etc)
+                else
                     data.values[flag] = elem
                     count = count + 1
                 end
