@@ -2022,31 +2022,42 @@ function library:Window(title, version, info, preset, closebind)
 
             local thisSlider = {
                 dragging = false,
-                isSliding = false,
-                realValue = defvalue,
-                value = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue)),
-                isSettingFromConfig = false
+                inputChangedConnection = nil
             }
 
-            local slider = {
+            local slider = {}
+            
+            local function updateSlider(val, mouseX)
+                local percent
+                
+                if val then
+                    val = tonumber(val)
+                    if val == nil then 
+                        val = defvalue
+                    end
+                    percent = math.clamp((val - min) / (max - min), 0, 1)
+                elseif mouseX then
+                    percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
+                end
+                
+                percent = math.clamp(percent, 0, 1)
+                Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
+                
+                thisSlider.realValue = min + (max - min) * percent
+                thisSlider.value = precise and string.format("%.1f", tostring(thisSlider.realValue))) or math.floor(thisSlider.realValue)
+                ValueLabel.Text = tostring(thisSlider.value)
+                slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
+                
+                if UserFunc then
+                    pcall(UserFunc, slider.value)
+                end
+            end
+
+            slider = {
                 value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
                 set = function(self, val)
                     if type(val) == "number" or type(val) == "string" then
-                        local num = tonumber(val)
-                        if num == nil then
-                            return self
-                        end
-                        num = math.clamp(num, min, max)
-
-                        thisSlider.isSettingFromConfig = true
-                        updateSlider(num)
-                        thisSlider.isSettingFromConfig = false
-                        
-                        self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
-                        
-                        if UserFunc then
-                            UserFunc(self.value)
-                        end
+                        updateSlider(val)
                     end
                     return self
                 end,
@@ -2069,84 +2080,38 @@ function library:Window(title, version, info, preset, closebind)
                 end
             }
 
-            if not library.flags then 
-                library.flags = {} 
-            end
+            if not library.flags then library.flags = {} end
             library.flags[flag] = slider
             
-            function updateSlider(val, mouseX)
-                local percent
-                
-                if val then
-                    val = tonumber(val)
-                    if val == nil then 
-                        val = defvalue
-                    end
-                    percent = math.clamp((val - min) / (max - min), 0, 1)
-                elseif mouseX then
-                    percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-                else
-                    percent = math.clamp((ms.X - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-                end
-
-                percent = math.clamp(percent, 0, 1)
-                
-                if thisSlider.isSettingFromConfig then
-                    Progress.Size = UDim2.new(percent, 0, 1, 0)
-                else
-                    Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
-                end
-                
-                thisSlider.realValue = min + (max - min) * percent
-                thisSlider.value = precise and string.format("%.1f", tostring(thisSlider.realValue)) or math.floor(thisSlider.realValue)
-                ValueLabel.Text = tostring(thisSlider.value)
-
-                slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
-                
-                if UserFunc and not thisSlider.isSettingFromConfig then
-                    UserFunc(slider.value)
-                end
-            end
-            
             updateSlider(defvalue)
-            
-            local inputChangedConnection = nil
-            local function disconnectInputChanged()
-                if inputChangedConnection then
-                    inputChangedConnection:Disconnect()
-                    inputChangedConnection = nil
-                end
-            end
-            
-            function moveSlider(input)
+
+            local function moveSlider(input)
                 if not thisSlider.dragging then return end
-                thisSlider.isSliding = true
                 updateSlider(nil, input.Position.X)
             end
 
             library.Conn[#library.Conn + 1] = Slider.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     thisSlider.dragging = true
-                    thisSlider.isSliding = false
-                    
-                    disconnectInputChanged()
-                    
-                    inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
-                        if (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                    if thisSlider.inputChangedConnection then
+                        thisSlider.inputChangedConnection:Disconnect()
+                    end
+                    thisSlider.inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
+                        if changedInput.UserInputType == Enum.UserInputType.MouseMovement then
                             moveSlider(changedInput)
                         end
                     end)
-                    
                     moveSlider(input)
                 end
             end)
 
             library.Conn[#library.Conn + 1] = Slider.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     thisSlider.dragging = false
-                    thisSlider.isSliding = false
-                    
-                    disconnectInputChanged()
+                    if thisSlider.inputChangedConnection then
+                        thisSlider.inputChangedConnection:Disconnect()
+                        thisSlider.inputChangedConnection = nil
+                    end
                 end
             end)
 
@@ -2161,13 +2126,10 @@ function library:Window(title, version, info, preset, closebind)
             end)
 
             library.Conn[#library.Conn + 1] = Slider.AncestryChanged:Connect(function(_, parent)
-                if parent == nil then
-                    disconnectInputChanged()
+                if parent == nil and thisSlider.inputChangedConnection then
+                    thisSlider.inputChangedConnection:Disconnect()
+                    thisSlider.inputChangedConnection = nil
                 end
-            end)
-            
-            library.Conn[#library.Conn + 1] = Slider.Destroying:Connect(function()
-                disconnectInputChanged()
             end)
 
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
@@ -3620,72 +3582,73 @@ function library:ConfigSystem(tab, name)
     
     cfg.sync = sync
 
-local function pack(val)
-    local typ = typeof(val)
-    if typ == "Color3" then
-        return {__type="Color3", r=val.R, g=val.G, b=val.B}
-    elseif typ == "EnumItem" then
-        return {__type="EnumItem", enumType=tostring(val.EnumType), value=val.Name}
-    elseif typ == "table" then
-        -- Handle basic values like toggles and textboxes
-        if val.value ~= nil then
-            if type(val.value) == "number" or type(val.value) == "string" or type(val.value) == "boolean" then 
-                return val.value
-            elseif typeof(val.value) == "Color3" then
-                local t = {__type="Color3", r=val.value.R, g=val.value.G, b=val.value.B}
-                if val.rainbow ~= nil then t.__rainbow = val.rainbow end
-                return t
+    local function pack(val)
+        local typ = typeof(val)
+        if typ == "Color3" then
+            return {__type="Color3", r=val.R, g=val.G, b=val.B}
+        elseif typ == "EnumItem" then
+            return {__type="EnumItem", enumType=tostring(val.EnumType), value=val.Name}
+        elseif typ == "table" then
+            if val.value ~= nil then
+                if type(val.value) == "number" or type(val.value) == "string" or type(val.value) == "boolean" then 
+                    return val.value
+                elseif typeof(val.value) == "Color3" then
+                    local t = {__type="Color3", r=val.value.R, g=val.value.G, b=val.value.B}
+                    if val.rainbow ~= nil then t.__rainbow = val.rainbow end
+                    return t
+                end
             end
+            
+            if type(val.getValue) == "function" and val:getValue() ~= nil then
+                return val:getValue()
+            end
+            
+            if type(val.set) == "function" and val.options and val.value then
+                return {selected = val.value, options = val.options}
+            end
+            
+            if val.keyCode or (val.value and typeof(val.value) == "EnumItem") then
+                local keyData = {
+                    __type = "Keybind",
+                    keyName = val.keyName or (val.keyCode and val.keyCode.Name) or (val.value and val.value.Name) or "Unknown"
+                }
+                keyData.value = {__type="EnumItem", enumType="Enum.KeyCode", value=(val.keyCode or val.value).Name}
+                if val.mode then keyData.mode = val.mode end
+                if type(val.value) == "boolean" then keyData.toggleState = val.value end
+                return keyData
+            end
+            
+            local out = {}
+            for k, v in pairs(val) do
+                if type(v) ~= "function" then 
+                    out[k] = pack(v)
+                end
+            end
+            return out
         end
-        
-        -- Handle dropdowns
-        if type(val.set) == "function" and val.options and val.value then
-            return {selected = val.value, options = val.options}
-        end
-        
-        -- Handle keybinds
-        if val.keyCode or (val.value and typeof(val.value) == "EnumItem") then
-            local keyData = {
-                __type = "Keybind",
-                keyName = val.keyName or (val.keyCode and val.keyCode.Name) or (val.value and val.value.Name) or "Unknown"
-            }
-            keyData.value = {__type="EnumItem", enumType="Enum.KeyCode", value=(val.keyCode or val.value).Name}
-            if val.mode then keyData.mode = val.mode end
-            if type(val.value) == "boolean" then keyData.toggleState = val.value end
-            return keyData
+        return val
+    end
+
+    local function unpack(val)
+        if type(val) ~= "table" then return val end
+        if val.__type == "Color3" then
+            local color = Color3.new(val.r, val.g, val.b)
+            return val.__rainbow and {value=color, rainbow=val.__rainbow} or color
+        elseif val.__type == "EnumItem" then
+            local enumName = val.enumType:match("Enum%.([^%s]+)$") or val.enumType:match("Enum%.([^%s]+)")
+            return enumName and Enum[enumName] and Enum[enumName][val.value]
+        elseif val.__type == "Keybind" then
+            local keyEnum = type(val.value) == "table" and val.value.__type == "EnumItem" and Enum.KeyCode[val.value.value] or Enum.KeyCode[val.keyName]
+            local result = {keyName=val.keyName, keyCode=keyEnum or Enum.KeyCode.Unknown}
+            if val.mode then result.mode = val.mode end
+            if val.toggleState ~= nil then result.value = val.toggleState end
+            return result
         end
         
         local out = {}
-        for k, v in pairs(val) do
-            if type(v) ~= "function" then 
-                out[k] = pack(v)
-            end
-        end
+        for k, v in pairs(val) do out[k] = unpack(v) end
         return out
     end
-    return val
-end
-
-local function unpack(val)
-    if type(val) ~= "table" then return val end
-    if val.__type == "Color3" then
-        local color = Color3.new(val.r, val.g, val.b)
-        return val.__rainbow and {value=color, rainbow=val.__rainbow} or color
-    elseif val.__type == "EnumItem" then
-        local enumName = val.enumType:match("Enum%.([^%s]+)$") or val.enumType:match("Enum%.([^%s]+)")
-        return enumName and Enum[enumName] and Enum[enumName][val.value]
-    elseif val.__type == "Keybind" then
-        local keyEnum = type(val.value) == "table" and val.value.__type == "EnumItem" and Enum.KeyCode[val.value.value] or Enum.KeyCode[val.keyName]
-        local result = {keyName=val.keyName, keyCode=keyEnum or Enum.KeyCode.Unknown}
-        if val.mode then result.mode = val.mode end
-        if val.toggleState ~= nil then result.value = val.toggleState end
-        return result
-    end
-    
-    local out = {}
-    for k, v in pairs(val) do out[k] = unpack(v) end
-    return out
-end
     
     local function diff(old, new)
         local added, removed, changed, same = 0, 0, 0, 0
@@ -3824,7 +3787,7 @@ end
                 if type(elem.rainbow) == "boolean" then
                     data.values[flag.."_rainbow"] = elem.rainbow
                 end
-            elseif elem ~= nil then -- Handle simple values (toggles, textboxes, etc)
+            elseif elem ~= nil then
                 data.values[flag] = elem
                 count = count + 1
             end
@@ -3928,11 +3891,12 @@ end
                             end
                         elseif type(val) == "table" and (val.selected or val.options) then
                             element:set(val.selected or val)
+                        elseif type(val) == "number" then
+                            element:set(val)
                         else
-                            element:set(unpack(val))
+                            element:set(val)
                         end
                     else
-                        -- Handle simple values (toggles, textboxes, etc)
                         library.flags[flag] = val
                         if type(element) == "table" and type(element.set) == "function" then
                             element:set(val)
@@ -4035,11 +3999,12 @@ end
                             end
                         elseif type(val) == "table" and (val.selected or val.options) then
                             element:set(val.selected or val)
+                        elseif type(val) == "number" then
+                            element:set(val)
                         else
-                            element:set(unpack(val))
+                            element:set(val)
                         end
                     else
-                        -- Handle simple values (toggles, textboxes, etc)
                         library.flags[flag] = val
                         if type(element) == "table" and type(element.set) == "function" then
                             element:set(val)
