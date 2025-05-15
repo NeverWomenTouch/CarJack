@@ -2025,13 +2025,56 @@ function library:Window(title, version, info, preset, closebind)
                 isSliding = false,
                 realValue = defvalue,
                 value = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue)),
-                isSettingFromConfig = false,
-                inputChangedConnection = nil
+                isSettingFromConfig = false
             }
 
-            local slider = {}
+            local slider = {
+                value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
+                set = function(self, val)
+                    if type(val) == "number" or type(val) == "string" then
+                        local num = tonumber(val)
+                        if num == nil then
+                            return self
+                        end
+                        num = math.clamp(num, min, max)
+
+                        thisSlider.isSettingFromConfig = true
+                        updateSlider(num)
+                        thisSlider.isSettingFromConfig = false
+                        
+                        self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
+                        
+                        if UserFunc then
+                            UserFunc(self.value)
+                        end
+                    end
+                    return self
+                end,
+                setMin = function(self, newMin)
+                    if type(newMin) == "number" then
+                        min = newMin
+                        self:set(self.value)
+                    end
+                    return self
+                end,
+                setMax = function(self, newMax)
+                    if type(newMax) == "number" then
+                        max = newMax
+                        self:set(self.value)
+                    end
+                    return self
+                end,
+                getValue = function(self)
+                    return self.value
+                end
+            }
+
+            if not library.flags then 
+                library.flags = {} 
+            end
+            library.flags[flag] = slider
             
-            local function updateSlider(val, mouseX)
+            function updateSlider(val, mouseX)
                 local percent
                 
                 if val then
@@ -2061,56 +2104,20 @@ function library:Window(title, version, info, preset, closebind)
                 slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
                 
                 if UserFunc and not thisSlider.isSettingFromConfig then
-                    pcall(UserFunc, slider.value)
+                    UserFunc(slider.value)
                 end
             end
-
-            slider = {
-                value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
-                set = function(self, val)
-                    if type(val) == "number" or type(val) == "string" then
-                        local num = tonumber(val)
-                        if num == nil then
-                            return self
-                        end
-                        num = math.clamp(num, min, max)
-
-                        thisSlider.isSettingFromConfig = true
-
-                        updateSlider(num)
-                        
-                        thisSlider.isSettingFromConfig = false
-                        
-                        self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
-                        if UserFunc then
-                            pcall(UserFunc, self.value)
-                        end
-                    end
-                    return self
-                end,
-                setMin = function(self, newMin)
-                    if type(newMin) == "number" then
-                        min = newMin
-                        self:set(self.value)
-                    end
-                    return self
-                end,
-                setMax = function(self, newMax)
-                    if type(newMax) == "number" then
-                        max = newMax
-                        self:set(self.value)
-                    end
-                    return self
-                end,
-                getValue = function(self)
-                    return self.value
-                end
-            }
-
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = slider
             
             updateSlider(defvalue)
+            
+            local inputChangedConnection = nil
+            local function disconnectInputChanged()
+                if inputChangedConnection then
+                    inputChangedConnection:Disconnect()
+                    inputChangedConnection = nil
+                end
+            end
+            
             function moveSlider(input)
                 if not thisSlider.dragging then return end
                 thisSlider.isSliding = true
@@ -2122,12 +2129,10 @@ function library:Window(title, version, info, preset, closebind)
                     thisSlider.dragging = true
                     thisSlider.isSliding = false
                     
-                    if thisSlider.inputChangedConnection then
-                        thisSlider.inputChangedConnection:Disconnect()
-                    end
+                    disconnectInputChanged()
                     
-                    thisSlider.inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
-                        if thisSlider.dragging and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                    inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
+                        if (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
                             moveSlider(changedInput)
                         end
                     end)
@@ -2141,10 +2146,7 @@ function library:Window(title, version, info, preset, closebind)
                     thisSlider.dragging = false
                     thisSlider.isSliding = false
                     
-                    if thisSlider.inputChangedConnection then
-                        thisSlider.inputChangedConnection:Disconnect()
-                        thisSlider.inputChangedConnection = nil
-                    end
+                    disconnectInputChanged()
                 end
             end)
 
@@ -2159,10 +2161,13 @@ function library:Window(title, version, info, preset, closebind)
             end)
 
             library.Conn[#library.Conn + 1] = Slider.AncestryChanged:Connect(function(_, parent)
-                if parent == nil and thisSlider.inputChangedConnection then
-                    thisSlider.inputChangedConnection:Disconnect()
-                    thisSlider.inputChangedConnection = nil
+                if parent == nil then
+                    disconnectInputChanged()
                 end
+            end)
+            
+            library.Conn[#library.Conn + 1] = Slider.Destroying:Connect(function()
+                disconnectInputChanged()
             end)
 
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
@@ -3644,7 +3649,9 @@ function library:ConfigSystem(tab, name)
             
             local out = {}
             for k, v in pairs(val) do
-                if type(v) ~= "function" then out[k] = pack(v) end
+                if type(v) ~= "function" then 
+                    out[k] = pack(v)
+                end
             end
             return out
         end
@@ -3670,6 +3677,42 @@ function library:ConfigSystem(tab, name)
         local out = {}
         for k, v in pairs(val) do out[k] = unpack(v) end
         return out
+    end
+    
+    local function diff(old, new)
+        local added, removed, changed, same = 0, 0, 0, 0
+        local oldMap, newMap = {}, {}
+        
+        for flag, val in pairs(old or {}) do
+            if not flag:match("_rainbow$") then
+                oldMap[flag] = game:GetService("HttpService"):JSONEncode(val)
+            end
+        end
+        
+        for flag, val in pairs(new or {}) do
+            if not flag:match("_rainbow$") then
+                local newVal = game:GetService("HttpService"):JSONEncode(val)
+                newMap[flag] = newVal
+                
+                if oldMap[flag] then
+                    if oldMap[flag] ~= newVal then
+                        changed = changed + 1
+                    else
+                        same = same + 1
+                    end
+                else
+                    added = added + 1
+                end
+            end
+        end
+        
+        for flag in pairs(oldMap) do
+            if not newMap[flag] then
+                removed = removed + 1
+            end
+        end
+        
+        return added, removed, changed, same
     end
     
     sync()
@@ -3773,6 +3816,9 @@ function library:ConfigSystem(tab, name)
                 if type(elem.rainbow) == "boolean" then
                     data.values[flag.."_rainbow"] = elem.rainbow
                 end
+            elseif elem ~= nil then -- Handle simple values (toggles, textboxes, etc)
+                data.values[flag] = elem
+                count = count + 1
             end
         end
         
@@ -3809,28 +3855,37 @@ function library:ConfigSystem(tab, name)
         data.metadata.autoLoad = isAutoLoad
         data.values = {}
         
+        local count = 0
         for flag, elem in pairs(library.flags) do
-            if elem and type(elem) == "table" then
-                if not flag:match("_rainbow$") then
-                    data.values[flag] = pack(elem)
-                end
-                if type(elem.rainbow) == "boolean" then
-                    data.values[flag.."_rainbow"] = elem.rainbow
+            if elem ~= nil then
+                if type(elem) == "table" then
+                    if not flag:match("_rainbow$") then
+                        data.values[flag] = pack(elem)
+                        count = count + 1
+                    end
+                    if type(elem.rainbow) == "boolean" then
+                        data.values[flag.."_rainbow"] = elem.rainbow
+                    end
+                else -- Handle simple values (toggles, textboxes, etc)
+                    data.values[flag] = elem
+                    count = count + 1
                 end
             end
         end
         
-        local add, del, changed, same = diff(old, data.values)
+        local added, removed, changed, same = diff(old, data.values)
         ok = pcall(writefile, path, game:GetService("HttpService"):JSONEncode(data))
         if not ok then return library:Notification("Error", "Failed to save config file.", "OK", "rbxassetid://83065037218239") end
         
         local msg = ""
-        if add > 0 then msg = msg..add.." new setting"..(add > 1 and "s" or "").." added" end
+        if added > 0 then msg = msg..added.." new setting"..(added > 1 and "s" or "").." added" end
         if changed > 0 then msg = (msg ~= "" and msg..", " or msg)..changed.." setting"..(changed > 1 and "s" or "").." changed" end
-        if del > 0 then msg = (msg ~= "" and msg..", " or msg)..del.." setting"..(del > 1 and "s" or "").." removed" end
+        if removed > 0 then msg = (msg ~= "" and msg..", " or msg)..removed.." setting"..(removed > 1 and "s" or "").." removed" end
         if msg == "" then msg = "No settings have been modified" end
         
-        library:Notification("Config Saved", "\""..cfg.pick.."\": "..msg, "OK", "rbxassetid://83065037218239")
+        msg = msg.." (Total: "..count.." settings)"
+        
+        library:Notification("Config Saved", "\""..cfg.pick.."\": "..msg, "OK", "rbxassetid://83065037218239", 8)
     end)
 
     tab:Button("Load Config", function()
@@ -3847,10 +3902,11 @@ function library:ConfigSystem(tab, name)
         local loaded = 0
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") or flag == "config_autoload" then continue end
+            
             if library.flags[flag] then
                 local element = library.flags[flag]
-                if type(element) == "table" and type(element.set) == "function" then
-                    local success, result = pcall(function()
+                local success, result = pcall(function()
+                    if type(element) == "table" and type(element.set) == "function" then
                         if type(val) == "table" and val.__type == "Color3" then
                             element:set(Color3.new(val.r, val.g, val.b))
                         elseif type(val) == "table" and val.__type == "Keybind" then
@@ -3862,16 +3918,20 @@ function library:ConfigSystem(tab, name)
                                     element:set(keyEnum)
                                 end
                             end
-                        elseif type(val) == "number" or type(val) == "boolean" or type(val) == "string" then
-                            element:set(val)
                         elseif type(val) == "table" and (val.selected or val.options) then
                             element:set(val.selected or val)
                         else
                             element:set(unpack(val))
                         end
-                    end)
-                    if success then loaded = loaded + 1 end
-                end
+                    else
+                        -- Handle simple values (toggles, textboxes, etc)
+                        library.flags[flag] = val
+                        if type(element) == "table" and type(element.set) == "function" then
+                            element:set(val)
+                        end
+                    end
+                end)
+                if success then loaded = loaded + 1 end
             end
         end
         
@@ -3952,8 +4012,8 @@ function library:ConfigSystem(tab, name)
             if flag:match("_rainbow$") or flag == "config_autoload" then continue end
             if library.flags[flag] then
                 local element = library.flags[flag]
-                if type(element) == "table" and type(element.set) == "function" then
-                    local success, result = pcall(function()
+                local success, result = pcall(function()
+                    if type(element) == "table" and type(element.set) == "function" then
                         if type(val) == "table" and val.__type == "Color3" then
                             element:set(Color3.new(val.r, val.g, val.b))
                         elseif type(val) == "table" and val.__type == "Keybind" then
@@ -3965,16 +4025,20 @@ function library:ConfigSystem(tab, name)
                                     element:set(keyEnum)
                                 end
                             end
-                        elseif type(val) == "number" or type(val) == "boolean" or type(val) == "string" then
-                            element:set(val)
                         elseif type(val) == "table" and (val.selected or val.options) then
                             element:set(val.selected or val)
                         else
                             element:set(unpack(val))
                         end
-                    end)
-                    if success then loaded = loaded + 1 end
-                end
+                    else
+                        -- Handle simple values (toggles, textboxes, etc)
+                        library.flags[flag] = val
+                        if type(element) == "table" and type(element.set) == "function" then
+                            element:set(val)
+                        end
+                    end
+                end)
+                if success then loaded = loaded + 1 end
             end
         end
         
