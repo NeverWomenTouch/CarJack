@@ -2022,42 +2022,31 @@ function library:Window(title, version, info, preset, closebind)
 
             local thisSlider = {
                 dragging = false,
-                inputChangedConnection = nil
+                isSliding = false,
+                realValue = defvalue,
+                value = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue)),
+                isSettingFromConfig = false
             }
 
-            local slider = {}
-            
-            local function updateSlider(val, mouseX)
-                local percent
-                
-                if val then
-                    val = tonumber(val)
-                    if val == nil then 
-                        val = defvalue
-                    end
-                    percent = math.clamp((val - min) / (max - min), 0, 1)
-                elseif mouseX then
-                    percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-                end
-                
-                percent = math.clamp(percent, 0, 1)
-                Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
-                
-                thisSlider.realValue = min + (max - min) * percent
-                thisSlider.value = precise and string.format("%.1f", tostring(thisSlider.realValue))) or math.floor(thisSlider.realValue)
-                ValueLabel.Text = tostring(thisSlider.value)
-                slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
-                
-                if UserFunc then
-                    pcall(UserFunc, slider.value)
-                end
-            end
-
-            slider = {
+            local slider = {
                 value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
                 set = function(self, val)
                     if type(val) == "number" or type(val) == "string" then
-                        updateSlider(val)
+                        local num = tonumber(val)
+                        if num == nil then
+                            return self
+                        end
+                        num = math.clamp(num, min, max)
+
+                        thisSlider.isSettingFromConfig = true
+                        updateSlider(num)
+                        thisSlider.isSettingFromConfig = false
+                        
+                        self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
+                        
+                        if UserFunc then
+                            UserFunc(self.value)
+                        end
                     end
                     return self
                 end,
@@ -2080,38 +2069,84 @@ function library:Window(title, version, info, preset, closebind)
                 end
             }
 
-            if not library.flags then library.flags = {} end
+            if not library.flags then 
+                library.flags = {} 
+            end
             library.flags[flag] = slider
             
-            updateSlider(defvalue)
+            function updateSlider(val, mouseX)
+                local percent
+                
+                if val then
+                    val = tonumber(val)
+                    if val == nil then 
+                        val = defvalue
+                    end
+                    percent = math.clamp((val - min) / (max - min), 0, 1)
+                elseif mouseX then
+                    percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
+                else
+                    percent = math.clamp((ms.X - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
+                end
 
-            local function moveSlider(input)
+                percent = math.clamp(percent, 0, 1)
+                
+                if thisSlider.isSettingFromConfig then
+                    Progress.Size = UDim2.new(percent, 0, 1, 0)
+                else
+                    Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
+                end
+                
+                thisSlider.realValue = min + (max - min) * percent
+                thisSlider.value = precise and string.format("%.1f", tostring(thisSlider.realValue)) or math.floor(thisSlider.realValue)
+                ValueLabel.Text = tostring(thisSlider.value)
+
+                slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
+                
+                if UserFunc and not thisSlider.isSettingFromConfig then
+                    UserFunc(slider.value)
+                end
+            end
+            
+            updateSlider(defvalue)
+            
+            local inputChangedConnection = nil
+            local function disconnectInputChanged()
+                if inputChangedConnection then
+                    inputChangedConnection:Disconnect()
+                    inputChangedConnection = nil
+                end
+            end
+            
+            function moveSlider(input)
                 if not thisSlider.dragging then return end
+                thisSlider.isSliding = true
                 updateSlider(nil, input.Position.X)
             end
 
             library.Conn[#library.Conn + 1] = Slider.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     thisSlider.dragging = true
-                    if thisSlider.inputChangedConnection then
-                        thisSlider.inputChangedConnection:Disconnect()
-                    end
-                    thisSlider.inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
-                        if changedInput.UserInputType == Enum.UserInputType.MouseMovement then
+                    thisSlider.isSliding = false
+                    
+                    disconnectInputChanged()
+                    
+                    inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
+                        if (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
                             moveSlider(changedInput)
                         end
                     end)
+                    
                     moveSlider(input)
                 end
             end)
 
             library.Conn[#library.Conn + 1] = Slider.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     thisSlider.dragging = false
-                    if thisSlider.inputChangedConnection then
-                        thisSlider.inputChangedConnection:Disconnect()
-                        thisSlider.inputChangedConnection = nil
-                    end
+                    thisSlider.isSliding = false
+                    
+                    disconnectInputChanged()
                 end
             end)
 
@@ -2126,10 +2161,13 @@ function library:Window(title, version, info, preset, closebind)
             end)
 
             library.Conn[#library.Conn + 1] = Slider.AncestryChanged:Connect(function(_, parent)
-                if parent == nil and thisSlider.inputChangedConnection then
-                    thisSlider.inputChangedConnection:Disconnect()
-                    thisSlider.inputChangedConnection = nil
+                if parent == nil then
+                    disconnectInputChanged()
                 end
+            end)
+            
+            library.Conn[#library.Conn + 1] = Slider.Destroying:Connect(function()
+                disconnectInputChanged()
             end)
 
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
