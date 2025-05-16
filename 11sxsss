@@ -1901,278 +1901,225 @@ function library:Window(title, version, info, preset, closebind)
             return keybindT
         end
 
-        function tabcontent:NewSlider(SliderText, min, max, precise, UserFunc, defvalue, flag)
-            local flag = flag or SliderText
-            local Slider = Instance.new("TextButton")
-            local SliderLabel = Instance.new("TextLabel")
-            local SliderCorner = Instance.new("UICorner")
-            local Sliding = Instance.new("Frame")
-            local SlidingCorner = Instance.new("UICorner")
-            local Circle = Instance.new("Frame")
-            local HideColor = Instance.new("Frame")
-            local HideColorCorner = Instance.new("UICorner")
-            local CircleCorner = Instance.new("UICorner")
-            local Progress = Instance.new("Frame")
-            local ProgressCorner = Instance.new("UICorner")
-            local CircleStroke = Instance.new("UIStroke")
-            local ValueLabel = Instance.new("TextLabel")
-            
-            Slider.Name = SliderText
-            Slider.Parent = Tab
-            Slider.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
-            Slider.BorderSizePixel = 0
-            Slider.Position = UDim2.new(0.286780387, 0, 0, 0)
-            Slider.Size = UDim2.new(0, 363, 0, 40)
-            Slider.AutoButtonColor = false
-            Slider.Font = Enum.Font.SourceSans
-            Slider.Text = ""
-            Slider.TextColor3 = Color3.fromRGB(0, 0, 0)
-            Slider.TextSize = 14.000
+function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
+    local ui = game:GetService("UserInputService")
+    local flag = flag or text
+    local btn = Instance.new("TextButton")
+    local lbl = Instance.new("TextLabel")
+    local crn = Instance.new("UICorner")
+    local bar = Instance.new("Frame")
+    local bcrn = Instance.new("UICorner")
+    local dot = Instance.new("Frame")
+    local hid = Instance.new("Frame")
+    local hcrn = Instance.new("UICorner")
+    local dcrn = Instance.new("UICorner")
+    local fill = Instance.new("Frame")
+    local fcrn = Instance.new("UICorner")
+    local stroke = Instance.new("UIStroke")
+    local val = Instance.new("TextLabel")
+    
+    btn.Name = text
+    btn.Parent = Tab
+    btn.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
+    btn.BorderSizePixel = 0
+    btn.Position = UDim2.new(0.286, 0, 0, 0)
+    btn.Size = UDim2.new(0, 363, 0, 40)
+    btn.AutoButtonColor = false
+    btn.Font = Enum.Font.SourceSans
+    btn.Text = ""
+    btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    btn.TextSize = 14
 
-            SliderLabel.Name = "SliderLabel"
-            SliderLabel.Parent = Slider
-            SliderLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            SliderLabel.BackgroundTransparency = 1.000
-            SliderLabel.BorderColor3 = Color3.fromRGB(27, 42, 53)
-            SliderLabel.BorderSizePixel = 0
-            SliderLabel.Position = UDim2.new(0.0500000007, 0, 0, 0)
-            SliderLabel.Size = UDim2.new(0.949999988, 0, 1, 0)
-            SliderLabel.Font = Enum.Font.Gotham
-            SliderLabel.Text = SliderText
-            SliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            SliderLabel.TextSize = 16.000
-            SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Name = "Label"
+    lbl.Parent = btn
+    lbl.BackgroundTransparency = 1
+    lbl.Position = UDim2.new(0.05, 0, 0, 0)
+    lbl.Size = UDim2.new(0.95, 0, 1, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.Text = text
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextSize = 16
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
 
-            SliderCorner.CornerRadius = UDim.new(0, 5)
-            SliderCorner.Name = "SliderCorner"
-            SliderCorner.Parent = Slider
+    crn.CornerRadius = UDim.new(0, 5)
+    crn.Parent = btn
 
-            Sliding.Name = "Sliding"
-            Sliding.Parent = Slider
-            Sliding.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
-            Sliding.BorderSizePixel = 0
-            Sliding.Position = UDim2.new(0.58, 0, 0.421052635, 0)
-            Sliding.Size = UDim2.new(0, 140, 0, 5)
+    bar.Name = "Bar"
+    bar.Parent = btn
+    bar.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
+    bar.BorderSizePixel = 0
+    bar.Position = UDim2.new(0.58, 0, 0.421, 0)
+    bar.Size = UDim2.new(0, 140, 0, 5)
 
-            SlidingCorner.CornerRadius = UDim.new(0, 15)
-            SlidingCorner.Name = "SlidingCorner"
-            SlidingCorner.Parent = Sliding
+    bcrn.CornerRadius = UDim.new(0, 15)
+    bcrn.Parent = bar
 
-            Progress.Name = "Progress"
-            Progress.Parent = Sliding
-            Progress.BackgroundColor3 = Color3.fromRGB(0, 123, 255)
-            Progress.BorderSizePixel = 0
-            Progress.Size = UDim2.new(0.5, 0, 1, 0)
+    fill.Name = "Fill"
+    fill.Parent = bar
+    fill.BackgroundColor3 = Color3.fromRGB(0, 123, 255)
+    fill.BorderSizePixel = 0
+    fill.Size = UDim2.new(0.5, 0, 1, 0)
 
-            ProgressCorner.CornerRadius = UDim.new(0, 15)
-            ProgressCorner.Name = "ProgressCorner"
-            ProgressCorner.Parent = Progress
+    fcrn.CornerRadius = UDim.new(0, 15)
+    fcrn.Parent = fill
 
-            Circle.Name = "Circle"
-            Circle.Parent = Progress
-            Circle.AnchorPoint = Vector2.new(0, 0.5)
-            Circle.BackgroundColor3 = Color3.fromRGB(0, 123, 255)
-            Circle.BorderSizePixel = 0
-            Circle.Position = UDim2.new(1, 0, 0.5, 0)
-            Circle.Size = UDim2.new(0, 12, 0, 12)
-            Circle.ZIndex = 2
+    dot.Name = "Dot"
+    dot.Parent = fill
+    dot.AnchorPoint = Vector2.new(0, 0.5)
+    dot.BackgroundColor3 = Color3.fromRGB(0, 123, 255)
+    dot.BorderSizePixel = 0
+    dot.Position = UDim2.new(1, 0, 0.5, 0)
+    dot.Size = UDim2.new(0, 12, 0, 12)
+    dot.ZIndex = 2
 
-            CircleStroke.Parent = Circle
-            CircleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            CircleStroke.Thickness = 2
-            CircleStroke.Color = Color3.fromRGB(43,43,43)
+    stroke.Parent = dot
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(43,43,43)
 
-            ValueLabel.Name = "ValueLabel"
-            ValueLabel.Parent = Circle
-            ValueLabel.AnchorPoint = Vector2.new(0.5, 0)
-            ValueLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            ValueLabel.BackgroundTransparency = 1.000
-            ValueLabel.BorderSizePixel = 0
-            ValueLabel.Position = UDim2.new(0.5, 0, -1.49128079, 0)
-            ValueLabel.Size = UDim2.new(0, 25, 0, 18)
-            ValueLabel.Font = Enum.Font.GothamSemibold
-            ValueLabel.Text = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue))
-            ValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            ValueLabel.TextSize = 14.000
+    val.Name = "Value"
+    val.Parent = dot
+    val.AnchorPoint = Vector2.new(0.5, 0)
+    val.BackgroundTransparency = 1
+    val.Position = UDim2.new(0.5, 0, -1.491, 0)
+    val.Size = UDim2.new(0, 25, 0, 18)
+    val.Font = Enum.Font.GothamSemibold
+    val.Text = (precise and string.format("%.1f", default)) or (math.floor(default))
+    val.TextColor3 = Color3.fromRGB(255, 255, 255)
+    val.TextSize = 14
 
-            HideColor.Name = "HideColor"
-            HideColor.Parent = Circle
-            HideColor.AnchorPoint = Vector2.new(0.5, 0.5)
-            HideColor.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
-            HideColor.BorderSizePixel = 0
-            HideColor.Position = UDim2.new(0.5, 0, 0.5, 0)
-            HideColor.Size = UDim2.new(1, 1, 1, 1)
-            HideColor.ZIndex = 2
+    hid.Name = "Hide"
+    hid.Parent = dot
+    hid.AnchorPoint = Vector2.new(0.5, 0.5)
+    hid.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
+    hid.BorderSizePixel = 0
+    hid.Position = UDim2.new(0.5, 0, 0.5, 0)
+    hid.Size = UDim2.new(1, 1, 1, 1)
+    hid.ZIndex = 2
 
-            HideColorCorner.CornerRadius = UDim.new(0, 100)
-            HideColorCorner.Name = "HideColorCorner"
-            HideColorCorner.Parent = HideColor
+    hcrn.CornerRadius = UDim.new(0, 100)
+    hcrn.Parent = hid
 
-            CircleCorner.CornerRadius = UDim.new(0, 100)
-            CircleCorner.Name = "CircleCorner"
-            CircleCorner.Parent = Circle
+    dcrn.CornerRadius = UDim.new(0, 100)
+    dcrn.Parent = dot
 
-            task.spawn(function()
-                while getgenv().libloaded do
-                    Circle.BackgroundColor3 = PresetColor
-                    Progress.BackgroundColor3 = PresetColor
-                    task.wait()
-                end
-            end)
+    local state = {
+        active = false,
+        conn = nil,
+        real = default or low,
+        show = precise and string.format("%.1f", default or low) or math.floor(default or low),
+        fromConfig = false
+    }
 
-            local thisSlider = {
-                dragging = false,
-                isSliding = false,
-                realValue = defvalue,
-                value = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue)),
-                isSettingFromConfig = false
-            }
-
-            local slider = {
-                value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
-                set = function(self, val)
-                    if type(val) == "number" or type(val) == "string" then
-                        local num = tonumber(val)
-                        if num == nil then
-                            return self
-                        end
-                        num = math.clamp(num, min, max)
-
-                        thisSlider.isSettingFromConfig = true
-                        updateSlider(num)
-                        thisSlider.isSettingFromConfig = false
-                        
-                        self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
-                        
-                        if UserFunc then
-                            UserFunc(self.value)
-                        end
-                    end
-                    return self
-                end,
-                setMin = function(self, newMin)
-                    if type(newMin) == "number" then
-                        min = newMin
-                        self:set(self.value)
-                    end
-                    return self
-                end,
-                setMax = function(self, newMax)
-                    if type(newMax) == "number" then
-                        max = newMax
-                        self:set(self.value)
-                    end
-                    return self
-                end,
-                getValue = function(self)
-                    return self.value
-                end
-            }
-
-            if not library.flags then 
-                library.flags = {} 
-            end
-            library.flags[flag] = slider
-            
-            function updateSlider(val, mouseX)
-                local percent
-                
-                if val then
-                    val = tonumber(val)
-                    if val == nil then 
-                        val = defvalue
-                    end
-                    percent = math.clamp((val - min) / (max - min), 0, 1)
-                elseif mouseX then
-                    percent = math.clamp((mouseX - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-                else
-                    percent = math.clamp((ms.X - Sliding.AbsolutePosition.X) / Sliding.AbsoluteSize.X, 0, 1)
-                end
-
-                percent = math.clamp(percent, 0, 1)
-                
-                if thisSlider.isSettingFromConfig then
-                    Progress.Size = UDim2.new(percent, 0, 1, 0)
-                else
-                    Progress:TweenSize(UDim2.new(percent, 0, 1, 0), "Out", "Sine", 0.2, true)
-                end
-                
-                thisSlider.realValue = min + (max - min) * percent
-                thisSlider.value = precise and string.format("%.1f", tostring(thisSlider.realValue)) or math.floor(thisSlider.realValue)
-                ValueLabel.Text = tostring(thisSlider.value)
-
-                slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
-                
-                if UserFunc and not thisSlider.isSettingFromConfig then
-                    UserFunc(slider.value)
-                end
-            end
-            
-            updateSlider(defvalue)
-            
-            local inputChangedConnection = nil
-            local function disconnectInputChanged()
-                if inputChangedConnection then
-                    inputChangedConnection:Disconnect()
-                    inputChangedConnection = nil
-                end
-            end
-            
-            function moveSlider(input)
-                if not thisSlider.dragging then return end
-                thisSlider.isSliding = true
-                updateSlider(nil, input.Position.X)
-            end
-
-            library.Conn[#library.Conn + 1] = Slider.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    thisSlider.dragging = true
-                    thisSlider.isSliding = false
-                    
-                    disconnectInputChanged()
-                    
-                    inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
-                        if (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
-                            moveSlider(changedInput)
-                        end
-                    end)
-                    
-                    moveSlider(input)
-                end
-            end)
-
-            library.Conn[#library.Conn + 1] = Slider.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    thisSlider.dragging = false
-                    thisSlider.isSliding = false
-                    
-                    disconnectInputChanged()
-                end
-            end)
-
-            library.Conn[#library.Conn + 1] = Slider.MouseEnter:Connect(function()
-                HideColor:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
-            end)
-
-            library.Conn[#library.Conn + 1] = Slider.MouseLeave:Connect(function()
-                if not thisSlider.dragging then
-                    HideColor:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
-                end
-            end)
-
-            library.Conn[#library.Conn + 1] = Slider.AncestryChanged:Connect(function(_, parent)
-                if parent == nil then
-                    disconnectInputChanged()
-                end
-            end)
-            
-            library.Conn[#library.Conn + 1] = Slider.Destroying:Connect(function()
-                disconnectInputChanged()
-            end)
-
-            Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
-            return slider
+    local function update(val, mouseX)
+        local pct
+        
+        if val then
+            val = tonumber(val) or state.real
+            pct = math.clamp((val - low) / (high - low), 0, 1)
+        elseif mouseX then
+            pct = math.clamp((mouseX - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
         end
+        
+        if state.fromConfig then
+            fill.Size = UDim2.new(pct, 0, 1, 0)
+        else
+            fill:TweenSize(UDim2.new(pct, 0, 1, 0), "Out", "Sine", 0.2, true)
+        end
+        
+        state.real = low + (high - low) * pct
+        state.show = precise and string.format("%.1f", state.real) or math.floor(state.real)
+        val.Text = tostring(state.show)
+        
+        if callback and not state.fromConfig then
+            pcall(callback, precise and tonumber(state.show) or math.floor(state.real))
+        end
+    end
+
+    local slider = {
+        value = precise and tonumber(state.show) or math.floor(state.real),
+        set = function(s, val)
+            if type(val) == "number" or type(val) == "string" then
+                local num = tonumber(val)
+                if num then
+                    state.fromConfig = true
+                    update(num)
+                    state.fromConfig = false
+                    s.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
+                    if callback then
+                        pcall(callback, s.value)
+                    end
+                end
+            end
+            return s
+        end,
+        setMin = function(s, newLow)
+            if type(newLow) == "number" then
+                low = newLow
+                s:set(s.value)
+            end
+            return s
+        end,
+        setMax = function(s, newHigh)
+            if type(newHigh) == "number" then
+                high = newHigh
+                s:set(s.value)
+            end
+            return s
+        end,
+        getValue = function(s)
+            return s.value
+        end
+    }
+
+    library.flags = library.flags or {}
+    library.flags[flag] = slider
+    
+    update(default or low)
+
+    local function move(input)
+        if not state.active then return end
+        update(nil, input.Position.X)
+    end
+
+    library.Conn[#library.Conn + 1] = btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            state.active = true
+            if state.conn then
+                state.conn:Disconnect()
+            end
+            state.conn = ui.InputChanged:Connect(function(changed)
+                if changed.UserInputType == Enum.UserInputType.MouseMovement then
+                    move(changed)
+                end
+            end)
+            move(input)
+        end
+    end)
+
+    library.Conn[#library.Conn + 1] = btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            state.active = false
+            if state.conn then
+                state.conn:Disconnect()
+                state.conn = nil
+            end
+        end
+    end)
+
+    library.Conn[#library.Conn + 1] = btn.MouseEnter:Connect(function()
+        hid:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
+    end)
+
+    library.Conn[#library.Conn + 1] = btn.MouseLeave:Connect(function()
+        if not state.active then
+            hid:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
+        end
+    end)
+
+    Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
+    return slider
+end
 
         function tabcontent:NewDropdown(placeholder, Selectables, func, IsMulti, flag)
             local flag = flag or placeholder
