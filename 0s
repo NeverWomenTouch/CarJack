@@ -3577,6 +3577,17 @@ function library:ConfigSystem(tab, name)
             return {__type="EnumItem", enumType=tostring(val.EnumType), value=val.Name}
         
         elseif typ == "table" then
+            -- Handle simple getter objects (sliders, etc)
+            if type(val.getValue) == "function" then
+                local value = val:getValue()
+                if type(value) == "number" then
+                    return {__type="Slider", value=value}
+                elseif value ~= nil then
+                    return value
+                end
+            end
+            
+            -- Handle objects with value property
             if val.value ~= nil and type(val.set) == "function" then
                 if type(val.value) == "number" then
                     return {__type="Slider", value=val.value}
@@ -3586,33 +3597,37 @@ function library:ConfigSystem(tab, name)
                     local t = {__type="Color3", r=val.value.R, g=val.value.G, b=val.value.B}
                     if val.rainbow ~= nil then t.__rainbow = val.rainbow end
                     return t
+                elseif typeof(val.value) == "EnumItem" and val.value.EnumType == Enum.KeyCode then
+                    return {
+                        __type = "Keybind",
+                        keyName = val.value.Name,
+                        keyCode = {__type="EnumItem", enumType="Enum.KeyCode", value=val.value.Name}
+                    }
                 end
             end
             
+            -- Handle keybind objects
             if (val.keyCode or val.keyName) and type(val.set) == "function" then
                 local keyData = {
                     __type = "Keybind",
                     keyName = val.keyName or (val.keyCode and val.keyCode.Name) or "Unknown",
                     keyCode = val.keyCode and {__type="EnumItem", enumType="Enum.KeyCode", value=val.keyCode.Name} or nil
                 }
+                
+                -- Save additional keybind properties
                 if val.mode then keyData.mode = val.mode end
                 if type(val.value) == "boolean" then keyData.toggleState = val.value end
                 if val.keyState ~= nil then keyData.keyState = val.keyState end
+                
                 return keyData
             end
             
-            if type(val.getValue) == "function" and val:getValue() ~= nil then
-                local value = val:getValue()
-                if type(value) == "number" then
-                    return {__type="Slider", value=value}
-                end
-                return value
-            end
-            
+            -- Handle dropdown objects
             if type(val.set) == "function" and val.options and val.value then
                 return {__type="Dropdown", selected=val.value, options=val.options}
             end
             
+            -- For other table types, recursively pack all non-function values
             local out = {}
             for k, v in pairs(val) do
                 if type(v) ~= "function" then 
