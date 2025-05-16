@@ -2025,13 +2025,56 @@ function library:Window(title, version, info, preset, closebind)
                 isSliding = false,
                 realValue = defvalue,
                 value = (precise and string.format("%.1f", tostring(defvalue))) or (math.floor(defvalue)),
-                isSettingFromConfig = false,
-                inputChangedConnection = nil
+                isSettingFromConfig = false
             }
 
-            local slider = {}
+            local slider = {
+                value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
+                set = function(self, val)
+                    if type(val) == "number" or type(val) == "string" then
+                        local num = tonumber(val)
+                        if num == nil then
+                            return self
+                        end
+                        num = math.clamp(num, min, max)
+
+                        thisSlider.isSettingFromConfig = true
+                        updateSlider(num)
+                        thisSlider.isSettingFromConfig = false
+                        
+                        self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
+                        
+                        if UserFunc then
+                            UserFunc(self.value)
+                        end
+                    end
+                    return self
+                end,
+                setMin = function(self, newMin)
+                    if type(newMin) == "number" then
+                        min = newMin
+                        self:set(self.value)
+                    end
+                    return self
+                end,
+                setMax = function(self, newMax)
+                    if type(newMax) == "number" then
+                        max = newMax
+                        self:set(self.value)
+                    end
+                    return self
+                end,
+                getValue = function(self)
+                    return self.value
+                end
+            }
+
+            if not library.flags then 
+                library.flags = {} 
+            end
+            library.flags[flag] = slider
             
-            local function updateSlider(val, mouseX)
+            function updateSlider(val, mouseX)
                 local percent
                 
                 if val then
@@ -2061,56 +2104,20 @@ function library:Window(title, version, info, preset, closebind)
                 slider.value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue)
                 
                 if UserFunc and not thisSlider.isSettingFromConfig then
-                    pcall(UserFunc, slider.value)
+                    UserFunc(slider.value)
                 end
             end
-
-            slider = {
-                value = precise and tonumber(thisSlider.value) or math.floor(thisSlider.realValue),
-                set = function(self, val)
-                    if type(val) == "number" or type(val) == "string" then
-                        local num = tonumber(val)
-                        if num == nil then
-                            return self
-                        end
-                        num = math.clamp(num, min, max)
-
-                        thisSlider.isSettingFromConfig = true
-
-                        updateSlider(num)
-                        
-                        thisSlider.isSettingFromConfig = false
-                        
-                        self.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
-                        if UserFunc then
-                            pcall(UserFunc, self.value)
-                        end
-                    end
-                    return self
-                end,
-                setMin = function(self, newMin)
-                    if type(newMin) == "number" then
-                        min = newMin
-                        self:set(self.value)
-                    end
-                    return self
-                end,
-                setMax = function(self, newMax)
-                    if type(newMax) == "number" then
-                        max = newMax
-                        self:set(self.value)
-                    end
-                    return self
-                end,
-                getValue = function(self)
-                    return self.value
-                end
-            }
-
-            if not library.flags then library.flags = {} end
-            library.flags[flag] = slider
             
             updateSlider(defvalue)
+            
+            local inputChangedConnection = nil
+            local function disconnectInputChanged()
+                if inputChangedConnection then
+                    inputChangedConnection:Disconnect()
+                    inputChangedConnection = nil
+                end
+            end
+            
             function moveSlider(input)
                 if not thisSlider.dragging then return end
                 thisSlider.isSliding = true
@@ -2122,12 +2129,10 @@ function library:Window(title, version, info, preset, closebind)
                     thisSlider.dragging = true
                     thisSlider.isSliding = false
                     
-                    if thisSlider.inputChangedConnection then
-                        thisSlider.inputChangedConnection:Disconnect()
-                    end
+                    disconnectInputChanged()
                     
-                    thisSlider.inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
-                        if thisSlider.dragging and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                    inputChangedConnection = uis.InputChanged:Connect(function(changedInput)
+                        if (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
                             moveSlider(changedInput)
                         end
                     end)
@@ -2141,10 +2146,7 @@ function library:Window(title, version, info, preset, closebind)
                     thisSlider.dragging = false
                     thisSlider.isSliding = false
                     
-                    if thisSlider.inputChangedConnection then
-                        thisSlider.inputChangedConnection:Disconnect()
-                        thisSlider.inputChangedConnection = nil
-                    end
+                    disconnectInputChanged()
                 end
             end)
 
@@ -2159,10 +2161,13 @@ function library:Window(title, version, info, preset, closebind)
             end)
 
             library.Conn[#library.Conn + 1] = Slider.AncestryChanged:Connect(function(_, parent)
-                if parent == nil and thisSlider.inputChangedConnection then
-                    thisSlider.inputChangedConnection:Disconnect()
-                    thisSlider.inputChangedConnection = nil
+                if parent == nil then
+                    disconnectInputChanged()
                 end
+            end)
+            
+            library.Conn[#library.Conn + 1] = Slider.Destroying:Connect(function()
+                disconnectInputChanged()
             end)
 
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
@@ -4087,7 +4092,7 @@ function library:ConfigSystem(tab, name)
         end
     end)
 
-     tab:Button("Load Config", function()
+    tab:Button("Load Config", function()
         if not cfg.pick then
             return library:Notification("Error", "No config selected.", "OK", "rbxassetid://83065037218239")
         end
@@ -4118,11 +4123,7 @@ function library:ConfigSystem(tab, name)
                 task.spawn(function()
                     pcall(function()
                         if type(element) == "table" and type(element.set) == "function" then
-                            -- Special handling for sliders
-                            if element._updateInternals then -- Check if it's a slider
-                                element:_updateInternals(val) -- Use internal update method
-                                loaded = loaded + 1
-                            elseif type(val) == "table" and val.__type == "Color3" then
+                            if type(val) == "table" and val.__type == "Color3" then
                                 local color = Color3.new(val.r, val.g, val.b)
                                 element:set(color)
                                 loaded = loaded + 1 
@@ -4260,11 +4261,7 @@ function library:ConfigSystem(tab, name)
                 local element = library.flags[flag]
                 pcall(function()
                     if type(element) == "table" and type(element.set) == "function" then
-                        -- Special handling for sliders in auto-load
-                        if element._updateInternals then
-                            element:_updateInternals(val)
-                            loaded = loaded + 1
-                        elseif type(val) == "table" and val.__type == "Color3" then
+                        if type(val) == "table" and val.__type == "Color3" then
                             local color = Color3.new(val.r, val.g, val.b)
                             element:set(color)
                             loaded = loaded + 1
