@@ -2011,67 +2011,67 @@ function library:Window(title, version, info, preset, closebind)
                 fromConfig = false
             }
 
+            local slider = {}
+
             local function update(value, mouseX)
                 local pct
-                
+
                 if value then
                     value = tonumber(value) or state.real
                     pct = math.clamp((value - low) / (high - low), 0, 1)
                 elseif mouseX then
                     pct = math.clamp((mouseX - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
                 end
-                
+
                 if state.fromConfig then
                     fill.Size = UDim2.new(pct, 0, 1, 0)
                 else
                     fill:TweenSize(UDim2.new(pct, 0, 1, 0), "Out", "Sine", 0.2, true)
                 end
-                
+
                 state.real = low + (high - low) * pct
                 state.show = precise and string.format("%.1f", state.real) or math.floor(state.real)
                 val.Text = tostring(state.show)
                 slider.value = precise and tonumber(state.show) or math.floor(state.real)
-                
+
                 if callback and not state.fromConfig then
                     pcall(callback, precise and tonumber(state.show) or math.floor(state.real))
                 end
             end
 
-            local slider = {
-                value = precise and tonumber(state.show) or math.floor(state.real),
-                set = function(s, value)
-                    if type(value) == "number" or type(value) == "string" then
-                        local num = tonumber(value)
-                        if num then
-                            state.fromConfig = true
-                            update(num)
-                            state.fromConfig = false
-                            s.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
-                            if callback then
-                                pcall(callback, s.value)
-                            end
+            slider.value = precise and tonumber(state.show) or math.floor(state.real)
+            slider.set = function(s, value)
+                if type(value) == "number" or type(value) == "string" then
+                    local num = tonumber(value)
+                    if num then
+                        state.fromConfig = true
+                        update(num)
+                        state.fromConfig = false
+                        s.value = precise and tonumber(string.format("%.1f", num)) or math.floor(num)
+                        if callback then
+                            pcall(callback, s.value)
                         end
                     end
-                    return s
-                end,
-                setMin = function(s, newLow)
-                    if type(newLow) == "number" then
-                        low = newLow
-                        s:set(s.value)
-                    end
-                    return s
-                end,
-                setMax = function(s, newHigh)
-                    if type(newHigh) == "number" then
-                        high = newHigh
-                        s:set(s.value)
-                    end
-                    return s
-                end,
-                getValue = function(s)
-                    return state.real
                 end
-            }
+                return s
+            end
+            slider.setMin = function(s, newLow)
+                if type(newLow) == "number" then
+                    low = newLow
+                    s:set(s.value)
+                end
+                return s
+            end
+            slider.setMax = function(s, newHigh)
+                if type(newHigh) == "number" then
+                    high = newHigh
+                    s:set(s.value)
+                end
+                return s
+            end
+            slider.getValue = function(s)
+                return state.real
+            end
 
             library.flags = library.flags or {}
             library.flags[flag] = slider
