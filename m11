@@ -3567,7 +3567,7 @@ function library:ConfigSystem(tab, name)
     
     cfg.sync = sync
 
-    local function pack(val)
+   local function pack(val)
         local typ = typeof(val)
         if typ == "Color3" then
             return {__type="Color3", r=val.R, g=val.G, b=val.B}
@@ -3836,12 +3836,12 @@ function library:ConfigSystem(tab, name)
         local loaded = 0
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") or flag == "config_autoload" then continue end
-            
+
             if library.flags[flag] then
                 local element = library.flags[flag]
                 local success, result = pcall(function()
                     if type(element) == "table" and type(element.set) == "function" then
-                        if type(val) == "table" and val.__type == "Color3" then
+                                               if type(val) == "table" and val.__type == "Color3" then
                             element:set(Color3.new(val.r, val.g, val.b))
                         elseif type(val) == "table" and val.__type == "Keybind" then
                             local keyEnum
@@ -3850,7 +3850,6 @@ function library:ConfigSystem(tab, name)
                             else
                                 keyEnum = Enum.KeyCode[val.keyName]
                             end
-                            
                             if keyEnum then
                                 local data = {keyCode = keyEnum}
                                 if val.mode then data.mode = val.mode end
@@ -3860,6 +3859,8 @@ function library:ConfigSystem(tab, name)
                             end
                         elseif type(val) == "table" and val.__type == "Slider" then
                             element:set(val.value)
+                        elseif type(val) == "table" and val.__type == "Bind" then
+                            element:set(Enum.KeyCode[val.key] or Enum.KeyCode.Unknown)
                         elseif type(val) == "table" and val.__type == "Dropdown" then
                             element:set(val.selected)
                         elseif type(val) == "table" and (val.selected or val.options) then
@@ -3954,7 +3955,7 @@ function library:ConfigSystem(tab, name)
         
         for flag, val in pairs(data.values) do
             if flag:match("_rainbow$") or flag == "config_autoload" then continue end
-            
+
             if library.flags[flag] then
                 local element = library.flags[flag]
                 local success, result = pcall(function()
@@ -3987,13 +3988,13 @@ function library:ConfigSystem(tab, name)
                         else
                             element:set(val)
                         end
-                    else
-                        library.flags[flag] = val
-                    end
-                end)
-                if success then loaded = loaded + 1 end
+                        else
+                            library.flags[flag] = val
+                        end
+                    end)
+                    if success then loaded = loaded + 1 end
+                end
             end
-        end
         
         for flag, val in pairs(data.values) do
             if not flag:match("_rainbow$") then continue end
