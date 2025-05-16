@@ -3567,112 +3567,146 @@ function library:ConfigSystem(tab, name)
     
     cfg.sync = sync
 
-    local function pack(val)
+    function pack(val)
         local typ = typeof(val)
         
-        -- Color3 values from colorpickers
         if typ == "Color3" then
-            return {__type="Color3", r=val.R, g=val.G, b=val.B}
-        
-        -- Enum items (KeyCodes, etc)
+            return {
+                __type = "Color3",
+                r = val.R,
+                g = val.G,
+                b = val.B
+            }
         elseif typ == "EnumItem" then
-            return {__type="EnumItem", enumType=tostring(val.EnumType), value=val.Name}
-        
-        -- Tables (UI elements and complex structures)
+            return {
+                __type = "EnumItem",
+                enumType = tostring(val.EnumType),
+                value = val.Name
+            }
         elseif typ == "table" then
-            
-            -- Slider values
-            if val.value ~= nil and type(val.set) == "function" then
-                if type(val.value) == "number" then
-                    return {__type="Slider", value=val.value}
-                elseif type(val.value) == "string" or type(val.value) == "boolean" then 
-                    return val.value
-                elseif typeof(val.value) == "Color3" then
-                    local t = {__type="Color3", r=val.value.R, g=val.value.G, b=val.value.B}
-                    if val.rainbow ~= nil then t.__rainbow = val.rainbow end
-                    return t
+            if type(val.value) == "number" then
+                return val.value
+            elseif typeof(val.value) == "Color3" then
+                local colorData = {
+                    __type = "Color3",
+                    r = val.value.R,
+                    g = val.value.G,
+                    b = val.value.B
+                }
+                
+                if val.rainbow ~= nil then
+                    colorData.__rainbow = val.rainbow
                 end
+                
+                return colorData
             end
             
-            -- Keybind objects
-            if (val.keyCode or val.keyName) and type(val.set) == "function" then
+            if val.keyCode then
                 local keyData = {
                     __type = "Keybind",
                     keyName = val.keyName or (val.keyCode and val.keyCode.Name) or "Unknown"
                 }
-                keyData.value = {__type="EnumItem", enumType="Enum.KeyCode", value=val.keyName or (val.keyCode and val.keyCode.Name) or "Unknown"}
-                if val.mode then keyData.mode = val.mode end
-                if type(val.value) == "boolean" then keyData.toggleState = val.value end
-                if val.keyState ~= nil then keyData.keyState = val.keyState end
+                
+                keyData.value = {
+                    __type = "EnumItem",
+                    enumType = "Enum.KeyCode",
+                    value = val.keyCode.Name
+                }
+                
+                if val.mode then
+                    keyData.mode = val.mode
+                end
+                
+                if type(val.value) == "boolean" then
+                    keyData.toggleState = val.value
+                end
+                
+                return keyData
+            elseif val.value ~= nil and typeof(val.value) == "EnumItem" then
+                local keyData = {
+                    __type = "Keybind",
+                    keyName = val.value.Name
+                }
+                
+                keyData.value = {
+                    __type = "EnumItem",
+                    enumType = "Enum.KeyCode",
+                    value = val.value.Name
+                }
+                
+                if val.mode then
+                    keyData.mode = val.mode
+                end
+                
+                if type(val.value) == "boolean" then
+                    keyData.toggleState = val.value
+                end
+                
                 return keyData
             end
             
-            -- Objects with getValue method
-            if type(val.getValue) == "function" and val:getValue() ~= nil then
-                local value = val:getValue()
-                if type(value) == "number" then
-                    return {__type="Slider", value=value}
-                end
-                return value
-            end
-            
-            -- Dropdown selections
-            if type(val.set) == "function" and val.options and val.value then
-                return {__type="Dropdown", selected=val.value, options=val.options}
-            end
-            
-            -- Recursive handling for nested tables
             local out = {}
             for k, v in pairs(val) do
-                if type(v) ~= "function" then 
+                if type(v) ~= "function" then
                     out[k] = pack(v)
                 end
             end
             return out
+        else
+            return val
         end
-        
-        -- Default case - primitive values
-        return val
     end
 
-    local function unpack(val)
-        if type(val) ~= "table" then return val end
-        
-        -- Color3 values
-        if val.__type == "Color3" then
-            local color = Color3.new(val.r, val.g, val.b)
-            return val.__rainbow and {value=color, rainbow=val.__rainbow} or color
-        
-        -- Enum items
-        elseif val.__type == "EnumItem" then
-            local enumName = val.enumType:match("Enum%.([^%s]+)$") or val.enumType:match("Enum%.([^%s]+)")
-            return enumName and Enum[enumName] and Enum[enumName][val.value]
-        
-        -- Keybind objects
-        elseif val.__type == "Keybind" then
-            local keyEnum = type(val.value) == "table" and val.value.__type == "EnumItem" and Enum.KeyCode[val.value.value] or Enum.KeyCode[val.keyName]
-            local result = {
-                keyName = val.keyName,
-                keyCode = keyEnum or Enum.KeyCode.Unknown
-            }
-            if val.mode then result.mode = val.mode end
-            if val.toggleState ~= nil then result.value = val.toggleState end
-            if val.keyState ~= nil then result.keyState = val.keyState end
-            return result
-        
-        -- Slider values
-        elseif val.__type == "Slider" then
-            return val.value
-        
-        -- Dropdown selections
-        elseif val.__type == "Dropdown" then
-            return val.selected
+    function unpack(val)
+        if type(val) ~= "table" then 
+            return val
         end
         
-        -- Recursive unpacking for nested tables
-        local out = {}
-        for k, v in pairs(val) do out[k] = unpack(v) end
-        return out
+        if val.__type == "Color3" then
+            if val.__rainbow then
+                return {
+                    value = Color3.new(val.r, val.g, val.b),
+                    rainbow = val.__rainbow
+                }
+            end
+            return Color3.new(val.r, val.g, val.b)
+        elseif val.__type == "EnumItem" then
+            local typ = val.enumType
+            local name = typ:match("Enum%.([^%s]+)")
+            
+            if name and Enum[name] then
+                return Enum[name][val.value]
+            end
+            return nil
+        elseif val.__type == "Keybind" then
+            local keyEnum
+            if type(val.value) == "table" and val.value.__type == "EnumItem" then
+                keyEnum = Enum.KeyCode[val.value.value]
+            else
+                keyEnum = Enum.KeyCode[val.keyName]
+            end
+            
+            local result = {
+                keyName = val.keyName,
+                keyCode = keyEnum or Enum.KeyCode[val.keyName]
+            }
+            
+            if val.mode then
+                result.mode = val.mode
+            end
+            
+            if val.toggleState ~= nil then
+                result.value = val.toggleState
+            end
+            
+            return result
+        else
+            local out = {}
+            for k, v in pairs(val) do
+                out[k] = unpack(v)
+            end
+            return out
+        end
     end
     
     sync()
