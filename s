@@ -2626,6 +2626,7 @@ function library:Window(title, version, info, preset, closebind)
             
             return dropdown
         end
+-- ...existing code...
 function tabcontent:Colorpicker(text, preset, callback, flag)
     local flag = flag or text
     local ColorPickerToggled = false
@@ -2670,6 +2671,8 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
     local HueCorner = Instance.new("UICorner")
     local HueGradient = Instance.new("UIGradient")
     local HueSelection = Instance.new("ImageLabel")
+
+    -- Old style slider
     local RainbowSpeedSlider = Instance.new("Frame")
     local RainbowSpeedSliderCorner = Instance.new("UICorner")
     local RainbowSpeedSliderBar = Instance.new("Frame")
@@ -2677,8 +2680,6 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
     local RainbowSpeedSliderCircle = Instance.new("Frame")
     local RainbowSpeedSliderCircleCorner = Instance.new("UICorner")
     local RainbowSpeedLabel = Instance.new("TextLabel")
-    local RainbowSpeedValue = Instance.new("TextLabel")
-    local RainbowSpeedBarGradient = Instance.new("UIGradient")
 
     Colorpicker.Name = "Colorpicker"
     Colorpicker.Parent = Tab
@@ -2868,193 +2869,83 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
     HueSelection.Image = "http://www.roblox.com/asset/?id=4805639000"
     HueSelection.Visible = false
 
+    -- Old style slider
     RainbowSpeedSlider.Name = "RainbowSpeedSlider"
     RainbowSpeedSlider.Parent = ColorpickerTitle
-    RainbowSpeedSlider.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+    RainbowSpeedSlider.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
     RainbowSpeedSlider.Position = UDim2.new(1.26349044, 0, 3.15, 0)
-    RainbowSpeedSlider.Size = UDim2.new(0, 120, 0, 44)
+    RainbowSpeedSlider.Size = UDim2.new(0, 104, 0, 32)
     RainbowSpeedSlider.Visible = false
-    RainbowSpeedSlider.ZIndex = 20
 
-    RainbowSpeedSliderCorner.CornerRadius = UDim.new(0, 8)
+    RainbowSpeedSliderCorner.CornerRadius = UDim.new(0, 5)
     RainbowSpeedSliderCorner.Name = "RainbowSpeedSliderCorner"
     RainbowSpeedSliderCorner.Parent = RainbowSpeedSlider
 
     RainbowSpeedLabel.Name = "RainbowSpeedLabel"
     RainbowSpeedLabel.Parent = RainbowSpeedSlider
+    RainbowSpeedLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     RainbowSpeedLabel.BackgroundTransparency = 1.000
     RainbowSpeedLabel.Position = UDim2.new(0, 0, 0, 0)
-    RainbowSpeedLabel.Size = UDim2.new(1, 0, 0, 18)
+    RainbowSpeedLabel.Size = UDim2.new(0, 104, 0, 15)
     RainbowSpeedLabel.Font = Enum.Font.Gotham
-    RainbowSpeedLabel.Text = "Speed"
-    RainbowSpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    RainbowSpeedLabel.TextSize = 13
-    RainbowSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-    RainbowSpeedLabel.ZIndex = 21
-
-    RainbowSpeedSliderBar.Name = "RainbowSpeedSliderBar"
-    RainbowSpeedSliderBar.Parent = RainbowSpeedSlider
-    RainbowSpeedSliderBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    RainbowSpeedSliderBar.Position = UDim2.new(0.08, 0, 0.55, 0)
-    RainbowSpeedSliderBar.Size = UDim2.new(0, 100, 0, 8)
-    RainbowSpeedSliderBar.ZIndex = 21
-
-    RainbowSpeedSliderBarCorner.CornerRadius = UDim.new(1, 0)
-    RainbowSpeedSliderBarCorner.Name = "RainbowSpeedSliderBarCorner"
-    RainbowSpeedSliderBarCorner.Parent = RainbowSpeedSliderBar
-
-    RainbowSpeedBarGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 170, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 170))
-    }
-    RainbowSpeedBarGradient.Rotation = 0
-    RainbowSpeedBarGradient.Parent = RainbowSpeedSliderBar
-
-    RainbowSpeedSliderCircle.Name = "RainbowSpeedSliderCircle"
-    RainbowSpeedSliderCircle.Parent = RainbowSpeedSliderBar
-    RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
-    RainbowSpeedSliderCircle.Position = UDim2.new(0.069, -7, 0.5, -7)
-    RainbowSpeedSliderCircle.Size = UDim2.new(0, 18, 0, 18)
-    RainbowSpeedSliderCircle.ZIndex = 22
-
-    RainbowSpeedSliderCircleCorner.CornerRadius = UDim.new(1, 0)
-    RainbowSpeedSliderCircleCorner.Name = "RainbowSpeedSliderCircleCorner"
-    RainbowSpeedSliderCircleCorner.Parent = RainbowSpeedSliderCircle
-
-    RainbowSpeedValue.Name = "RainbowSpeedValue"
-    RainbowSpeedValue.Parent = RainbowSpeedSlider
-    RainbowSpeedValue.BackgroundTransparency = 1
-    RainbowSpeedValue.Position = UDim2.new(0, 0, 0.85, 0)
-    RainbowSpeedValue.Size = UDim2.new(1, 0, 0, 16)
-    RainbowSpeedValue.Font = Enum.Font.GothamBold
-    RainbowSpeedValue.Text = "0.3x"
-    RainbowSpeedValue.TextColor3 = Color3.fromRGB(255, 255, 255)
-    RainbowSpeedValue.TextSize = 13
-    RainbowSpeedValue.TextXAlignment = Enum.TextXAlignment.Right
-    RainbowSpeedValue.ZIndex = 21
+    RainbowSpeedLabel.Text = "Speed: 0.3x"
+    RainbowSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    RainbowSpeedLabel.TextSize = 12.000
 
     local RainbowSpeedHitbox = Instance.new("Frame")
     RainbowSpeedHitbox.Name = "RainbowSpeedHitbox"
     RainbowSpeedHitbox.Parent = RainbowSpeedSlider
     RainbowSpeedHitbox.BackgroundTransparency = 1
-    RainbowSpeedHitbox.Position = UDim2.new(0.08, 0, 0.55, 0)
-    RainbowSpeedHitbox.Size = UDim2.new(0, 100, 0, 18)
-    RainbowSpeedHitbox.ZIndex = 23
+    RainbowSpeedHitbox.Position = UDim2.new(0.05, -5, 0.5, -10)
+    RainbowSpeedHitbox.Size = UDim2.new(0, 104, 0, 24)
+    RainbowSpeedHitbox.ZIndex = 15
 
-    local RainbowModeFrame = Instance.new("Frame")
-    RainbowModeFrame.Name = "RainbowModeFrame"
-    RainbowModeFrame.Parent = ColorpickerTitle
-    RainbowModeFrame.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
-    RainbowModeFrame.Position = UDim2.new(0, 0, 3.15, 0)
-    RainbowModeFrame.Size = UDim2.new(0, 120, 0, 32)
-    RainbowModeFrame.Visible = false
-    RainbowModeFrame.ZIndex = 20
-    RainbowModeFrame.BorderSizePixel = 0 -- Remove outline
+    RainbowSpeedSliderBar.Name = "RainbowSpeedSliderBar"
+    RainbowSpeedSliderBar.Parent = RainbowSpeedSlider
+    RainbowSpeedSliderBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    RainbowSpeedSliderBar.Position = UDim2.new(0.05, 0, 0.65, 0)
+    RainbowSpeedSliderBar.Size = UDim2.new(0, 94, 0, 4)
 
-    local RainbowModeLabel = Instance.new("TextLabel")
-    RainbowModeLabel.Name = "RainbowModeLabel"
-    RainbowModeLabel.Parent = RainbowModeFrame
-    RainbowModeLabel.BackgroundTransparency = 1
-    RainbowModeLabel.Position = UDim2.new(0, 0, 0, 0)
-    RainbowModeLabel.Size = UDim2.new(0, 45, 1, 0)
-    RainbowModeLabel.Font = Enum.Font.Gotham
-    RainbowModeLabel.Text = "Mode:"
-    RainbowModeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    RainbowModeLabel.TextSize = 13
-    RainbowModeLabel.TextXAlignment = Enum.TextXAlignment.Left
-    RainbowModeLabel.ZIndex = 21
+    RainbowSpeedSliderBarCorner.CornerRadius = UDim.new(1, 0)
+    RainbowSpeedSliderBarCorner.Name = "RainbowSpeedSliderBarCorner"
+    RainbowSpeedSliderBarCorner.Parent = RainbowSpeedSliderBar
 
-    local RainbowModeHolder = Instance.new("Frame")
-    RainbowModeHolder.Name = "RainbowModeHolder"
-    RainbowModeHolder.Parent = RainbowModeFrame
-    RainbowModeHolder.BackgroundTransparency = 1
-    RainbowModeHolder.Position = UDim2.new(0, 45, 0, 0)
-    RainbowModeHolder.Size = UDim2.new(1, -45, 1, 0)
-    RainbowModeHolder.ZIndex = 21
+    RainbowSpeedSliderCircle.Name = "RainbowSpeedSliderCircle"
+    RainbowSpeedSliderCircle.Parent = RainbowSpeedSliderBar
+    RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
+    RainbowSpeedSliderCircle.Position = UDim2.new(0.069, -5, 0.5, -5)
+    RainbowSpeedSliderCircle.Size = UDim2.new(0, 10, 0, 10)
+    RainbowSpeedSliderCircle.ZIndex = 16
 
-    local RainbowModeLayout = Instance.new("UIListLayout")
-    RainbowModeLayout.Parent = RainbowModeHolder
-    RainbowModeLayout.FillDirection = Enum.FillDirection.Horizontal
-    RainbowModeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    RainbowModeLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    RainbowModeLayout.Padding = UDim.new(0, 5)
-
-    local function createModeButton(name, order)
-        local btn = Instance.new("TextButton")
-        btn.Name = "RainbowMode" .. name
-        btn.Parent = RainbowModeHolder
-        btn.BackgroundColor3 = RainbowMode == name and PresetColor or Color3.fromRGB(45, 45, 45)
-        btn.BackgroundTransparency = RainbowMode == name and 0 or 0.3
-        btn.Size = UDim2.new(0, 45, 1, 0)
-        btn.Font = Enum.Font.Gotham
-        btn.Text = name
-        btn.TextColor3 = RainbowMode == name and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(255, 255, 255)
-        btn.TextSize = 12
-        btn.LayoutOrder = order
-        btn.ZIndex = 22
-        btn.AutoButtonColor = false
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 6)
-        corner.Parent = btn
-        return btn
-    end
-
-    local RainbowModeFade = createModeButton("Fade", 1)
-    local RainbowModeWave = createModeButton("Wave", 2)
-    local RainbowModePulse = createModeButton("Pulse", 3)
-
-    RainbowModeFade.MouseButton1Click:Connect(function() RainbowMode = "Fade" end)
-    RainbowModeWave.MouseButton1Click:Connect(function() RainbowMode = "Wave" end)
-    RainbowModePulse.MouseButton1Click:Connect(function() RainbowMode = "Pulse" end)
+    RainbowSpeedSliderCircleCorner.CornerRadius = UDim.new(1, 0)
+    RainbowSpeedSliderCircleCorner.Name = "RainbowSpeedSliderCircleCorner"
+    RainbowSpeedSliderCircleCorner.Parent = RainbowSpeedSliderCircle
 
     coroutine.wrap(function()
         while getgenv().libloaded do
-            RainbowModeFade.BackgroundColor3 = RainbowMode == "Fade" and PresetColor or Color3.fromRGB(45,45,45)
-            RainbowModeWave.BackgroundColor3 = RainbowMode == "Wave" and PresetColor or Color3.fromRGB(45,45,45)
-            RainbowModePulse.BackgroundColor3 = RainbowMode == "Pulse" and PresetColor or Color3.fromRGB(45,45,45)
-            RainbowModeFade.TextColor3 = RainbowMode == "Fade" and Color3.fromRGB(35,35,35) or Color3.fromRGB(255,255,255)
-            RainbowModeWave.TextColor3 = RainbowMode == "Wave" and Color3.fromRGB(35,35,35) or Color3.fromRGB(255,255,255)
-            RainbowModePulse.TextColor3 = RainbowMode == "Pulse" and Color3.fromRGB(35,35,35) or Color3.fromRGB(255,255,255)
-            RainbowModeFade.BackgroundTransparency = RainbowMode == "Fade" and 0 or 0.3
-            RainbowModeWave.BackgroundTransparency = RainbowMode == "Wave" and 0 or 0.3
-            RainbowModePulse.BackgroundTransparency = RainbowMode == "Pulse" and 0 or 0.3
+            FrameRainbowToggle3.BackgroundColor3 = PresetColor
             RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
             task.wait()
         end
     end)()
 
-    local function getRainbowColor(mode, t)
-        if mode == "Fade" then
-            local hue = (math.sin(t) + 1) / 2
-            return Color3.fromHSV(hue, 1, 1)
-        elseif mode == "Wave" then
-            local hue = (t * 0.5) % 1
-            return Color3.fromHSV(hue, 1, 1)
-        elseif mode == "Pulse" then
-            local pulse = (math.sin(t * 2) + 1) / 2
-            local base = Color3.fromHSV((t * 0.15) % 1, 1, 1)
-            return base:Lerp(Color3.new(1,1,1), 0.5 + 0.5 * math.sin(t * 2))
-        end
-        return Color3.fromHSV((math.sin(t) + 1) / 2, 1, 1)
-    end
-
     local function updateSpeedSlider(speed)
         speed = math.clamp(speed, 0.1, 3)
         rainbowSpeed = speed
         local position = (speed - 0.1) / 2.9
-        RainbowSpeedSliderCircle.Position = UDim2.new(position, -7, 0.5, -7)
-        RainbowSpeedValue.Text = string.format("%.1fx", speed)
-        if RainbowColorPicker then
-            if RainbowConnection then RainbowConnection:Disconnect() end
+        RainbowSpeedSliderCircle.Position = UDim2.new(position, -5, 0.5, -5)
+        RainbowSpeedLabel.Text = "Speed: " .. string.format("%.1f", speed) .. "x"
+        if RainbowConnection then
+            RainbowConnection:Disconnect()
             local startTime = tick()
             RainbowConnection = rs.RenderStepped:Connect(function()
                 local t = (tick() - startTime) * rainbowSpeed
-                local color = getRainbowColor(RainbowMode, t)
-                BoxColor.BackgroundColor3 = color
-                Color.BackgroundColor3 = color
+                local hue = (math.sin(t) + 1) / 2
+                BoxColor.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                Color.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
                 colorpicker.value = BoxColor.BackgroundColor3
                 ColorSelection.Position = UDim2.new(1, 0, 0, 0)
-                HueSelection.Position = UDim2.new(0.48, 0, 1 - select(1, Color3.toHSV(color)))
+                HueSelection.Position = UDim2.new(0.48, 0, 1 - hue, 0)
                 pcall(callback, BoxColor.BackgroundColor3)
             end)
         end
@@ -3106,10 +2997,9 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
         if ColorPickerToggled == false then
             ColorSelection.Visible = true
             HueSelection.Visible = true
-            Colorpicker.Size = UDim2.new(0, 363, 0, RainbowColorPicker and 204 or 164)
+            Colorpicker.Size = UDim2.new(0, 363, 0, RainbowColorPicker and 172 or 132)
             if RainbowColorPicker then
                 RainbowSpeedSlider.Visible = true
-                RainbowModeFrame.Visible = true
             end
             wait(.2)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
@@ -3117,7 +3007,6 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
             ColorSelection.Visible = false
             HueSelection.Visible = false
             RainbowSpeedSlider.Visible = false
-            RainbowModeFrame.Visible = false
             Colorpicker.Size = UDim2.new(0, 363, 0, 42)
             wait(.2)
             Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
@@ -3129,7 +3018,6 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
         value = preset or Color3.fromRGB(255, 0, 4),
         rainbow = false,
         rainbowSpeed = rainbowSpeed,
-        rainbowMode = RainbowMode,
         set = function(self, color)
             if typeof(color) ~= "Color3" then return end
             if self.rainbow then
@@ -3142,9 +3030,8 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
                 tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
                 FrameRainbowToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
                 RainbowSpeedSlider.Visible = false
-                RainbowModeFrame.Visible = false
                 if ColorPickerToggled then
-                    Colorpicker.Size = UDim2.new(0, 363, 0, 164)
+                    Colorpicker.Size = UDim2.new(0, 363, 0, 132)
                     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
                 end
             end
@@ -3176,21 +3063,20 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
                 tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
                 FrameRainbowToggleCircle.Position = UDim2.new(0.587, 0, 0.222000003, 0)
                 RainbowSpeedSlider.Visible = ColorPickerToggled
-                RainbowModeFrame.Visible = ColorPickerToggled
                 if ColorPickerToggled then
-                    Colorpicker.Size = UDim2.new(0, 363, 0, 204)
+                    Colorpicker.Size = UDim2.new(0, 363, 0, 172)
                     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
                 end
                 if RainbowConnection then RainbowConnection:Disconnect() end
                 local startTime = tick()
                 RainbowConnection = rs.RenderStepped:Connect(function()
                     local t = (tick() - startTime) * rainbowSpeed
-                    local color = getRainbowColor(RainbowMode, t)
-                    BoxColor.BackgroundColor3 = color
-                    Color.BackgroundColor3 = color
+                    local hue = (math.sin(t) + 1) / 2
+                    BoxColor.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                    Color.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
                     self.value = BoxColor.BackgroundColor3
                     ColorSelection.Position = UDim2.new(1, 0, 0, 0)
-                    HueSelection.Position = UDim2.new(0.48, 0, 1 - select(1, Color3.toHSV(color)))
+                    HueSelection.Position = UDim2.new(0.48, 0, 1 - hue, 0)
                     pcall(callback, BoxColor.BackgroundColor3)
                 end)
             else
@@ -3200,9 +3086,8 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
                 tweensv:Create(FrameRainbowToggleCircle, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
                 FrameRainbowToggleCircle.Position = UDim2.new(0.127000004, 0, 0.222000003, 0)
                 RainbowSpeedSlider.Visible = false
-                RainbowModeFrame.Visible = false
                 if ColorPickerToggled then
-                    Colorpicker.Size = UDim2.new(0, 363, 0, 164)
+                    Colorpicker.Size = UDim2.new(0, 363, 0, 132)
                     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
                 end
                 if RainbowConnection then RainbowConnection:Disconnect() RainbowConnection = nil end
@@ -3218,29 +3103,11 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
         setRainbowSpeed = function(self, speed)
             updateSpeedSlider(speed)
             return self
-        end,
-        setRainbowMode = function(self, mode)
-            RainbowMode = mode
-            self.rainbowMode = mode
-            if self.rainbow and RainbowConnection then
-                updateSpeedSlider(rainbowSpeed)
-            end
-            return self
         end
     }
 
     if not library.flags then library.flags = {} end
     library.flags[flag] = colorpicker
-    library.flags[flag .. "_rainbowmode"] = {
-        getValue = function() return RainbowMode end,
-        set = function(_, v)
-            RainbowMode = v
-            colorpicker.rainbowMode = v
-            if colorpicker.rainbow and RainbowConnection then
-                updateSpeedSlider(rainbowSpeed)
-            end
-        end
-    }
 
     local function UpdateColorPicker()
         BoxColor.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
@@ -3314,7 +3181,6 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
         ColorSelection.Visible = false
         HueSelection.Visible = false
         RainbowSpeedSlider.Visible = false
-        RainbowModeFrame.Visible = false
         Colorpicker.Size = UDim2.new(0, 363, 0, 42)
         wait(.2)
         Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
@@ -3330,6 +3196,7 @@ function tabcontent:Colorpicker(text, preset, callback, flag)
     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
     return colorpicker
 end
+
 
         function tabcontent:Label(text)
             local Label = Instance.new("TextLabel")
