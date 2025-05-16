@@ -1984,7 +1984,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     val.Position = UDim2.new(0.5, 0, -1.491, 0)
     val.Size = UDim2.new(0, 25, 0, 18)
     val.Font = Enum.Font.GothamSemibold
-    val.Text = (precise and string.format("%.1f", default)) or (math.floor(default))
+    val.Text = (precise and string.format("%.1f", default or low)) or math.floor(default or low)
     val.TextColor3 = Color3.fromRGB(255, 255, 255)
     val.TextSize = 14
 
@@ -2011,12 +2011,12 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
         fromConfig = false
     }
 
-    local function update(val, mouseX)
+    local function update(value, mouseX)
         local pct
         
-        if val then
-            val = tonumber(val) or state.real
-            pct = math.clamp((val - low) / (high - low), 0, 1)
+        if value then
+            value = tonumber(value) or state.real
+            pct = math.clamp((value - low) / (high - low), 0, 1)
         elseif mouseX then
             pct = math.clamp((mouseX - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
         end
@@ -2038,9 +2038,9 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
 
     local slider = {
         value = precise and tonumber(state.show) or math.floor(state.real),
-        set = function(s, val)
-            if type(val) == "number" or type(val) == "string" then
-                local num = tonumber(val)
+        set = function(s, value)
+            if type(value) == "number" or type(value) == "string" then
+                local num = tonumber(value)
                 if num then
                     state.fromConfig = true
                     update(num)
