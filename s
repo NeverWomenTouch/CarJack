@@ -1979,7 +1979,8 @@ function SubTabFunction:AddSection(SectionConfig)
     local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
         Size = UDim2.new(1, 0, 0, 26),
         Parent = SubTabContainer,
-        BackgroundTransparency = 1
+        BackgroundTransparency = 1,
+        Name = "Section_" .. SectionConfig.Name
     }), {
         AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
             Size = UDim2.new(1, -12, 0, 16),
