@@ -1970,39 +1970,42 @@ function ElementFunction:AddSubTab(SubTabConfig)
         SubTabFunction[i] = v
     end
     
-    function SubTabFunction:AddSection(SectionConfig)
-        SectionConfig.Name = SectionConfig.Name or "Section"
+function SubTabFunction:AddSection(SectionConfig)
+    SectionConfig.Name = SectionConfig.Name or "Section"
 
-        local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
-            Size = UDim2.new(1, 0, 0, 26),
-            Parent = SubTabContainer
+    local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
+        Size = UDim2.new(1, 0, 0, 26),
+        Parent = SubTabContainer,
+        BackgroundTransparency = 1
+    }), {
+        AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+            Size = UDim2.new(1, -12, 0, 16),
+            Position = UDim2.new(0, 0, 0, 3),
+            Font = Enum.Font.GothamSemibold,
+            BackgroundTransparency = 1
+        }), "TextDark"),
+        SetChildren(SetProps(MakeElement("TFrame"), {
+            AnchorPoint = Vector2.new(0, 0),
+            Size = UDim2.new(1, 0, 1, -24),
+            Position = UDim2.new(0, 0, 0, 23),
+            Name = "Holder",
+            BackgroundTransparency = 1
         }), {
-            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
-                Size = UDim2.new(1, -12, 0, 16),
-                Position = UDim2.new(0, 0, 0, 3),
-                Font = Enum.Font.GothamSemibold
-            }), "TextDark"),
-            SetChildren(SetProps(MakeElement("TFrame"), {
-                AnchorPoint = Vector2.new(0, 0),
-                Size = UDim2.new(1, 0, 1, -24),
-                Position = UDim2.new(0, 0, 0, 23),
-                Name = "Holder"
-            }), {
-                MakeElement("List", 0, 6)
-            }),
-        })
+            MakeElement("List", 0, 6)
+        }),
+    })
 
-        AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-            SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
-            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
-        end)
+    AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
+        SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
+    end)
 
-        local SectionFunction = {}
-        for i, v in next, GetElements(SectionFrame.Holder) do
-            SectionFunction[i] = v 
-        end
-        return SectionFunction
+    local SectionFunction = {}
+    for i, v in next, GetElements(SectionFrame.Holder) do
+        SectionFunction[i] = v 
     end
+    return SectionFunction
+end
     
     return SubTabFunction
 end
