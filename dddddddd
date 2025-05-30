@@ -1889,33 +1889,42 @@ function ElementFunction:AddSubTab(SubTabConfig)
     end
     
     local function SelectSubTab()
+        -- Make other buttons' indicators fade out
         for _, Button in pairs(SubTabsHolder.ButtonHolder:GetChildren()) do
-            if Button:IsA("TextButton") then
+            if Button:IsA("TextButton") and Button ~= SubTabButton then
                 TweenService:Create(Button.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
+                -- Don't change the size of indicators for non-selected tabs to avoid jumping
                 TweenService:Create(Button.Indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(0, 0, 0, 2)
+                    BackgroundTransparency = 1
                 }):Play()
             end
         end
         
+        -- Hide other containers
         for _, Item in pairs(Container:GetChildren()) do
-            if Item.Name:find("SubTabContainer_") then
+            if Item.Name:find("SubTabContainer_") and Item ~= SubTabContainer then
                 Item.Visible = false
             end
         end
         
         PlayRippleEffect()
         
+        -- Make this button's text fully visible
         TweenService:Create(SubTabButton.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
         
-        local indicatorExpand = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        SubTabButton.Indicator.Size = UDim2.new(0, 0, 0, 2)
-        SubTabButton.Indicator.BackgroundTransparency = 0
-        TweenService:Create(SubTabButton.Indicator, indicatorExpand, {Size = UDim2.new(0.6, 0, 0, 2)}):Play()
+        -- If the indicator isn't already visible, show it with a nice animation
+        if SubTabButton.Indicator.BackgroundTransparency > 0 then
+            -- Grow the indicator
+            TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                BackgroundTransparency = 0,
+                Size = UDim2.new(0.6, 0, 0, 2)
+            }):Play()
+        end
         
+        -- Show this tab's container
         SubTabContainer.Visible = true
         
+        -- Fade in content
         SubTabContainer.BackgroundTransparency = 1
         for _, child in pairs(SubTabContainer:GetChildren()) do
             if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
@@ -1941,11 +1950,13 @@ function ElementFunction:AddSubTab(SubTabConfig)
         if SubTabButton.Title.TextTransparency ~= 0 then
             TweenService:Create(SubTabButton.Title, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextTransparency = 0.2}):Play()
             
-            SubTabButton.Indicator.Size = UDim2.new(0, 0, 0, 2)
-            SubTabButton.Indicator.BackgroundTransparency = 0.6
-            TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
-                Size = UDim2.new(0.4, 0, 0, 2)
-            }):Play()
+            -- Don't change size if already selected
+            if SubTabButton.Title.TextTransparency ~= 0 then
+                TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
+                    BackgroundTransparency = 0.6,
+                    Size = UDim2.new(0.4, 0, 0, 2)
+                }):Play()
+            end
         end
     end)
     
