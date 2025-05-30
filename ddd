@@ -1785,26 +1785,20 @@ function OrionLib:MakeWindow(WindowConfig)
 				}), "Text")
 			})
 		end
-        -- Find the ElementFunction in TabFunction:MakeTab and add this code before the "return ElementFunction" line
-
 function ElementFunction:AddSubTab(SubTabConfig)
     SubTabConfig = SubTabConfig or {}
     SubTabConfig.Name = SubTabConfig.Name or "SubTab"
     
-    -- Store whether this is the first subtab to select it by default
-    local isFirstSubTab = #Container:GetChildren() <= 2 -- Only UIListLayout and UIPadding exist
+    local isFirstSubTab = #Container:GetChildren() <= 2
     
-    -- Create subtab button container if it doesn't exist yet
     local SubTabsHolder
     if not Container:FindFirstChild("SubTabsHolder") then
-        -- Create the subtabs buttons container frame
         SubTabsHolder = SetChildren(SetProps(MakeElement("TFrame"), {
             Size = UDim2.new(1, 0, 0, 36),
             Name = "SubTabsHolder",
             Parent = Container,
-            LayoutOrder = -999 -- Make sure it appears at the top
+            LayoutOrder = -999
         }), {
-            -- Create the scrolling frame for buttons
             SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 0, 255), 4), {
                 Size = UDim2.new(1, 0, 1, 0),
                 ScrollBarThickness = 0,
@@ -1814,7 +1808,6 @@ function ElementFunction:AddSubTab(SubTabConfig)
                 MakeElement("List", 0, 4),
                 MakeElement("Padding", 0, 8, 8, 0)
             }),
-            -- Add bottom line/divider
             AddThemeObject(SetProps(MakeElement("Frame"), {
                 Size = UDim2.new(1, 0, 0, 1),
                 Position = UDim2.new(0, 0, 1, -1),
@@ -1822,12 +1815,10 @@ function ElementFunction:AddSubTab(SubTabConfig)
             }), "Stroke")
         })
         
-        -- Configure the list layout
         SubTabsHolder.ButtonHolder.UIListLayout.FillDirection = Enum.FillDirection.Horizontal
         SubTabsHolder.ButtonHolder.UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
         SubTabsHolder.ButtonHolder.UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
         
-        -- Auto-adjust canvas size when elements are added
         AddConnection(SubTabsHolder.ButtonHolder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
             SubTabsHolder.ButtonHolder.CanvasSize = UDim2.new(0, SubTabsHolder.ButtonHolder.UIListLayout.AbsoluteContentSize.X + 16, 0, 0)
         end)
@@ -1835,55 +1826,46 @@ function ElementFunction:AddSubTab(SubTabConfig)
         SubTabsHolder = Container:FindFirstChild("SubTabsHolder")
     end
     
-    -- Create the content container for this subtab
     local SubTabContainer = SetChildren(SetProps(MakeElement("TFrame"), {
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         Parent = Container,
         Name = "SubTabContainer_" .. SubTabConfig.Name,
-        Visible = isFirstSubTab, -- Only show the first subtab by default
+        Visible = isFirstSubTab,
         LayoutOrder = 0
     }), {
         MakeElement("List", 0, 6),
         MakeElement("Padding", 0, 0, 0, 5)
     })
     
-    -- Create the subtab button
     local SubTabButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
         Size = UDim2.new(0, 120, 0, 30),
         Parent = SubTabsHolder.ButtonHolder,
         Name = "SubTab_" .. SubTabConfig.Name
     }), {
         AddThemeObject(SetProps(MakeElement("Label", SubTabConfig.Name, 14), {
-            Size = UDim2.new(1, 0, 1, 0),
-            Position = UDim2.new(0, 0, 0, 0),
+            Size = UDim2.new(1, -12, 1, 0),
+            Position = UDim2.new(0, 6, 0, 0),
             Font = Enum.Font.GothamSemibold,
             Name = "Title",
             TextTransparency = isFirstSubTab and 0 or 0.4
         }), "Text"),
         AddThemeObject(SetProps(MakeElement("Frame"), {
-            Size = UDim2.new(1, 0, 0, 2),
-            Position = UDim2.new(0, 0, 1, -2),
+            Size = UDim2.new(0.6, 0, 0, 2),
+            Position = UDim2.new(0.2, 0, 1, -2),
             Name = "Indicator",
             BackgroundTransparency = isFirstSubTab and 0 or 1
         }), "Stroke"),
         MakeElement("Corner", 0, 4)
     }), "Divider")
     
-    -- Adjust button width based on text
-    SubTabButton.Title.Size = UDim2.new(1, -12, 1, 0)
-    SubTabButton.Title.Position = UDim2.new(0, 6, 0, 0)
-    
-    -- Function to update button width based on text
     local function UpdateButtonSize()
         local textSize = SubTabButton.Title.TextBounds.X + 24
         SubTabButton.Size = UDim2.new(0, math.max(textSize, 70), 0, 30)
     end
     UpdateButtonSize()
     
-    -- Function to select this subtab
     local function SelectSubTab()
-        -- Update all buttons to deselected state
         for _, Button in pairs(SubTabsHolder.ButtonHolder:GetChildren()) do
             if Button:IsA("TextButton") then
                 TweenService:Create(Button.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
@@ -1891,30 +1873,24 @@ function ElementFunction:AddSubTab(SubTabConfig)
             end
         end
         
-        -- Hide all subtab containers
         for _, Item in pairs(Container:GetChildren()) do
             if Item.Name:find("SubTabContainer_") then
                 Item.Visible = false
             end
         end
         
-        -- Update selected button visual state
         TweenService:Create(SubTabButton.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
         TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
         
-        -- Show this subtab's container
         SubTabContainer.Visible = true
     end
     
-    -- Connect button click to selection
     AddConnection(SubTabButton.MouseButton1Click, SelectSubTab)
     
-    -- If this is the first subtab, select it by default
     if isFirstSubTab then
         SelectSubTab()
     end
     
-    -- Create element functions for this subtab
     local SubTabFunction = {}
     for i, v in next, GetElements(SubTabContainer) do
         SubTabFunction[i] = v
