@@ -1852,7 +1852,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
             TextTransparency = isFirstSubTab and 0 or 0.4
         }), "Text"),
         AddThemeObject(SetProps(MakeElement("Frame"), {
-            Size = UDim2.new(0, 0, 0, 2),
+            Size = UDim2.new(0.8, 0, 0, 2),
             Position = UDim2.new(0.5, 0, 1, -2),
             AnchorPoint = Vector2.new(0.5, 0),
             Name = "Indicator",
@@ -1890,14 +1890,8 @@ function ElementFunction:AddSubTab(SubTabConfig)
     end
     
     local function SelectSubTab()
-        local previousSelectedButton
-        local lastActiveContainer
-        
         for _, Button in pairs(SubTabsHolder.ButtonHolder:GetChildren()) do
             if Button:IsA("TextButton") then
-                if Button.Title.TextTransparency == 0 then
-                    previousSelectedButton = Button
-                end
                 TweenService:Create(Button.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
                 TweenService:Create(Button.Indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
                     BackgroundTransparency = 1,
@@ -1908,9 +1902,6 @@ function ElementFunction:AddSubTab(SubTabConfig)
         
         for _, Item in pairs(Container:GetChildren()) do
             if Item.Name:find("SubTabContainer_") then
-                if Item.Visible then
-                    lastActiveContainer = Item
-                end
                 Item.Visible = false
             end
         end
@@ -1918,44 +1909,43 @@ function ElementFunction:AddSubTab(SubTabConfig)
         PlayRippleEffect()
         
         TweenService:Create(SubTabButton.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-        TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            BackgroundTransparency = 0,
-            Size = UDim2.new(0.6, 0, 0, 2)
-        }):Play()
         
-        if lastActiveContainer then
-            SubTabContainer.BackgroundTransparency = 1
-            SubTabContainer.Visible = true
-            
-            for _, child in pairs(SubTabContainer:GetChildren()) do
-                if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
-                    child.BackgroundTransparency = 1
-                    if child:FindFirstChild("Content") then
-                        child.Content.TextTransparency = 1
-                    end
+        local indicatorExpand = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        SubTabButton.Indicator.Size = UDim2.new(0, 0, 0, 2)
+        SubTabButton.Indicator.BackgroundTransparency = 0
+        TweenService:Create(SubTabButton.Indicator, indicatorExpand, {Size = UDim2.new(0.8, 0, 0, 2)}):Play()
+        
+        SubTabContainer.Visible = true
+        
+        SubTabContainer.BackgroundTransparency = 1
+        for _, child in pairs(SubTabContainer:GetChildren()) do
+            if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
+                child.BackgroundTransparency = 1
+                if child:FindFirstChild("Content") then
+                    child.Content.TextTransparency = 1
                 end
             end
-            
-            wait(0.05)
-            for _, child in pairs(SubTabContainer:GetChildren()) do
-                if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
-                    TweenService:Create(child, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
-                    if child:FindFirstChild("Content") then
-                        TweenService:Create(child.Content, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
-                    end
+        end
+        
+        wait(0.05)
+        for _, child in pairs(SubTabContainer:GetChildren()) do
+            if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
+                TweenService:Create(child, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
+                if child:FindFirstChild("Content") then
+                    TweenService:Create(child.Content, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
                 end
             end
-        else
-            SubTabContainer.Visible = true
         end
     end
     
     AddConnection(SubTabButton.MouseEnter, function()
         if SubTabButton.Title.TextTransparency ~= 0 then
             TweenService:Create(SubTabButton.Title, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextTransparency = 0.2}):Play()
+            
+            SubTabButton.Indicator.Size = UDim2.new(0, 0, 0, 2)
+            SubTabButton.Indicator.BackgroundTransparency = 0.6
             TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
-                BackgroundTransparency = 0.7,
-                Size = UDim2.new(0.4, 0, 0, 2)
+                Size = UDim2.new(0.5, 0, 0, 2)
             }):Play()
         end
     end)
@@ -1970,6 +1960,20 @@ function ElementFunction:AddSubTab(SubTabConfig)
         end
     end)
     
+    local buttonDownEffect = function()
+        TweenService:Create(SubTabButton, TweenInfo.new(0.08, Enum.EasingStyle.Quart), {
+            Size = UDim2.new(0, SubTabButton.Size.X.Offset, 0, 28)
+        }):Play()
+    end
+    
+    local buttonUpEffect = function()
+        TweenService:Create(SubTabButton, TweenInfo.new(0.08, Enum.EasingStyle.Quart), {
+            Size = UDim2.new(0, SubTabButton.Size.X.Offset, 0, 30)
+        }):Play()
+    end
+    
+    AddConnection(SubTabButton.MouseButton1Down, buttonDownEffect)
+    AddConnection(SubTabButton.MouseButton1Up, buttonUpEffect)
     AddConnection(SubTabButton.MouseButton1Click, SelectSubTab)
     
     if isFirstSubTab then
