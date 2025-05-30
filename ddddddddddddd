@@ -1839,6 +1839,8 @@ function ElementFunction:AddSubTab(SubTabConfig)
         MakeElement("Padding", 0, 0, 0, 5)
     })
     
+    local isSelected = isFirstSubTab
+    
     local SubTabButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
         Size = UDim2.new(0, 120, 0, 30),
         Parent = SubTabsHolder.ButtonHolder,
@@ -1897,6 +1899,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
                 TweenService:Create(Button.Indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
                     BackgroundTransparency = 1
                 }):Play()
+                Button:SetAttribute("Selected", false)
             end
         end
         
@@ -1907,6 +1910,9 @@ function ElementFunction:AddSubTab(SubTabConfig)
         end
         
         PlayRippleEffect()
+        
+        isSelected = true
+        SubTabButton:SetAttribute("Selected", true)
         
         TweenService:Create(SubTabButton.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
         
@@ -1939,7 +1945,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
     end
     
     AddConnection(SubTabButton.MouseEnter, function()
-        if SubTabButton.Title.TextTransparency ~= 0 then
+        if not isSelected then
             TweenService:Create(SubTabButton.Title, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextTransparency = 0.2}):Play()
             
             TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
@@ -1950,7 +1956,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
     end)
     
     AddConnection(SubTabButton.MouseLeave, function()
-        if SubTabButton.Title.TextTransparency ~= 0 then
+        if not isSelected then
             TweenService:Create(SubTabButton.Title, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextTransparency = 0.4}):Play()
             TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
                 BackgroundTransparency = 1,
@@ -1976,6 +1982,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
     AddConnection(SubTabButton.MouseButton1Click, SelectSubTab)
     
     if isFirstSubTab then
+        SubTabButton:SetAttribute("Selected", true)
         SelectSubTab()
     end
     
