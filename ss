@@ -77,7 +77,25 @@ function GetColor(colorName)
     end
     return color
 end
---Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
+function ResizeTextForElement(TextElement, Container)
+    if not TextElement or not Container then return end
+    
+    local originalSize = TextElement.TextSize
+    local minSize = math.max(originalSize * 0.7, 8) -- Don't go smaller than 8pt
+    
+    local function updateTextSize()
+        local containerWidth = Container.AbsoluteSize.X
+        if containerWidth < 250 then
+            local scaleFactor = math.max(containerWidth / 250, 0.7)
+            TextElement.TextSize = math.max(originalSize * scaleFactor, minSize)
+        else
+            TextElement.TextSize = originalSize
+        end
+    end
+    
+    AddConnection(Container:GetPropertyChangedSignal("AbsoluteSize"), updateTextSize)
+    updateTextSize() -- Initial update
+end
 local Icons = {}
 
 local Success, Response = pcall(function()
@@ -418,17 +436,19 @@ CreateElement("ImageButton", function(ImageID)
 end)
 
 CreateElement("Label", function(Text, TextSize, Transparency)
-	local Label = Create("TextLabel", {
-		Text = Text or "",
-		TextColor3 = Color3.fromRGB(240, 240, 240),
-		TextTransparency = Transparency or 0,
-		TextSize = TextSize or 15,
-		Font = Enum.Font.Gotham,
-		RichText = true,
-		BackgroundTransparency = 1,
-		TextXAlignment = Enum.TextXAlignment.Left
-	})
-	return Label
+    local Label = Create("TextLabel", {
+        Text = Text or "",
+        TextColor3 = Color3.fromRGB(240, 240, 240),
+        TextTransparency = Transparency or 0,
+        TextSize = TextSize or 15,
+        Font = Enum.Font.Gotham,
+        RichText = true,
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextWrapped = true,
+        ClipsDescendants = true
+    })
+    return Label
 end)
 
 local NotificationHolder = SetProps(SetChildren(MakeElement("TFrame"), {
@@ -742,23 +762,38 @@ function OrionLib:MakeWindow(WindowConfig)
 		Minimized = not Minimized    
 	end)
 
-	spawn(function()
-		local lastWidth = getgenv().WindowWidth
-		local lastHeight = getgenv().WindowHeight
-		
-		while wait(0.1) do
-			pcall(function()
-				local mainWin = Orion:FindFirstChild("MainWindow") 
-				if mainWin then
-					if lastWidth ~= getgenv().WindowWidth or lastHeight ~= getgenv().WindowHeight then
-						mainWin.Size = UDim2.new(0, getgenv().WindowWidth, 0, getgenv().WindowHeight)
-						lastWidth = getgenv().WindowWidth
-						lastHeight = getgenv().WindowHeight
-					end
-				end
-			end)
-		end
-	end)
+    spawn(function()
+        local lastWidth = getgenv().WindowWidth
+        local lastHeight = getgenv().WindowHeight
+        
+        while wait(0.1) do
+            pcall(function()
+                local mainWin = Orion:FindFirstChild("MainWindow") 
+                if mainWin then
+                    if lastWidth ~= getgenv().WindowWidth or lastHeight ~= getgenv().WindowHeight then
+                        mainWin.Size = UDim2.new(0, getgenv().WindowWidth, 0, getgenv().WindowHeight)
+                        
+                        for _, descendant in pairs(mainWin:GetDescendants()) do
+                            if descendant:IsA("Frame") or descendant:IsA("ScrollingFrame") then
+                                descendant.ClipsDescendants = true
+                            end
+                            
+                            if descendant:IsA("TextLabel") then
+                                if not descendant:GetAttribute("TextSizeHandled") then
+                                    descendant:SetAttribute("TextSizeHandled", true)
+                                    descendant.TextWrapped = true
+                                    ResizeTextForElement(descendant, descendant.Parent)
+                                end
+                            end
+                        end
+                        
+                        lastWidth = getgenv().WindowWidth
+                        lastHeight = getgenv().WindowHeight
+                    end
+                end
+            end)
+        end
+    end)
 
 	local function LoadSequence()
 		MainWindow.Visible = false
@@ -1973,46 +2008,46 @@ end
         SubTabFunction[i] = v
     end
     
-function SubTabFunction:AddSection(SectionConfig)
-    SectionConfig.Name = SectionConfig.Name or "Section"
+        function SubTabFunction:AddSection(SectionConfig)
+            SectionConfig.Name = SectionConfig.Name or "Section"
 
-    local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
-        Size = UDim2.new(1, 0, 0, 26),
-        Parent = SubTabContainer,
-        BackgroundTransparency = 1,
-        Name = "Section_" .. SectionConfig.Name
-    }), {
-        AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
-            Size = UDim2.new(1, -12, 0, 16),
-            Position = UDim2.new(0, 0, 0, 3),
-            Font = Enum.Font.GothamSemibold,
-            BackgroundTransparency = 1
-        }), "TextDark"),
-        SetChildren(SetProps(MakeElement("TFrame"), {
-            AnchorPoint = Vector2.new(0, 0),
-            Size = UDim2.new(1, 0, 1, -24),
-            Position = UDim2.new(0, 0, 0, 23),
-            Name = "Holder",
-            BackgroundTransparency = 1
-        }), {
-            MakeElement("List", 0, 6)
-        }),
-    })
+            local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
+                Size = UDim2.new(1, 0, 0, 26),
+                Parent = SubTabContainer,
+                BackgroundTransparency = 1,
+                Name = "Section_" .. SectionConfig.Name
+            }), {
+                AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+                    Size = UDim2.new(1, -12, 0, 16),
+                    Position = UDim2.new(0, 0, 0, 3),
+                    Font = Enum.Font.GothamSemibold,
+                    BackgroundTransparency = 1
+                }), "TextDark"),
+                SetChildren(SetProps(MakeElement("TFrame"), {
+                    AnchorPoint = Vector2.new(0, 0),
+                    Size = UDim2.new(1, 0, 1, -24),
+                    Position = UDim2.new(0, 0, 0, 23),
+                    Name = "Holder",
+                    BackgroundTransparency = 1
+                }), {
+                    MakeElement("List", 0, 6)
+                }),
+            })
 
-    AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-        SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
-        SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
-    end)
+            AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+                SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
+                SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
+            end)
 
-    local SectionFunction = {}
-    for i, v in next, GetElements(SectionFrame.Holder) do
-        SectionFunction[i] = v 
-    end
-    return SectionFunction
-end
-    
-    return SubTabFunction
-end
+            local SectionFunction = {}
+            for i, v in next, GetElements(SectionFrame.Holder) do
+                SectionFunction[i] = v 
+            end
+            return SectionFunction
+        end
+            
+            return SubTabFunction
+        end
 		return ElementFunction   
 	end  
 	return TabFunction
