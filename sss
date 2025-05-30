@@ -77,25 +77,7 @@ function GetColor(colorName)
     end
     return color
 end
-function ResizeTextForElement(TextElement, Container)
-    if not TextElement or not Container then return end
-    
-    local originalSize = TextElement.TextSize
-    local minSize = math.max(originalSize * 0.7, 8) -- Don't go smaller than 8pt
-    
-    local function updateTextSize()
-        local containerWidth = Container.AbsoluteSize.X
-        if containerWidth < 250 then
-            local scaleFactor = math.max(containerWidth / 250, 0.7)
-            TextElement.TextSize = math.max(originalSize * scaleFactor, minSize)
-        else
-            TextElement.TextSize = originalSize
-        end
-    end
-    
-    AddConnection(Container:GetPropertyChangedSignal("AbsoluteSize"), updateTextSize)
-    updateTextSize() -- Initial update
-end
+--Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
 local Icons = {}
 
 local Success, Response = pcall(function()
@@ -164,37 +146,47 @@ task.spawn(function()
 		Connection:Disconnect()
 	end
 end)
+function AddDraggingFunctionality(DragPoint, Main)
+    pcall(function()
+        local Dragging, DragInput, MousePos, FramePos = false
 
-local function AddDraggingFunctionality(DragPoint, Main)
-	pcall(function()
-		local Dragging, DragInput, MousePos, FramePos = false
-		DragPoint.InputBegan:Connect(function(Input)
-			if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-				Dragging = true
-				MousePos = Input.Position
-				FramePos = Main.Position
+        DragPoint.InputBegan:Connect(function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                Dragging = true
+                MousePos = Input.Position
+                FramePos = Main.Position
 
-				Input.Changed:Connect(function()
-					if Input.UserInputState == Enum.UserInputState.End then
-						Dragging = false
-					end
-				end)
-			end
-		end)
-		DragPoint.InputChanged:Connect(function(Input)
-			if Input.UserInputType == Enum.UserInputType.MouseMovement then
-				DragInput = Input
-			end
-		end)
-		UserInputService.InputChanged:Connect(function(Input)
-			if Input == DragInput and Dragging then
-				local Delta = Input.Position - MousePos
-				TweenService:Create(Main, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position  = UDim2.new(FramePos.X.Scale,FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)}):Play()
-			end
-		end)
-	end)
-end   
+                Input.Changed:Connect(function()
+                    if Input.UserInputState == Enum.UserInputState.End then
+                        Dragging = false
+                    end
+                end)
+            end
+        end)
 
+        DragPoint.InputChanged:Connect(function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
+                DragInput = Input
+            end
+        end)
+
+        DragPoint.InputEnded:Connect(function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                Dragging = false
+                DragInput = nil
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(Input)
+            if (Input == DragInput or Input.UserInputType == Enum.UserInputType.Touch) and Dragging then
+                local Delta = Input.Position - MousePos
+                TweenService:Create(Main, TweenInfo.new(0.15, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                    Position = UDim2.new(FramePos.X.Scale, FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)
+                }):Play()
+            end
+        end)
+    end)
+end
 local function Create(Name, Properties, Children)
 	local Object = Instance.new(Name)
 	for i, v in next, Properties or {} do
@@ -436,19 +428,17 @@ CreateElement("ImageButton", function(ImageID)
 end)
 
 CreateElement("Label", function(Text, TextSize, Transparency)
-    local Label = Create("TextLabel", {
-        Text = Text or "",
-        TextColor3 = Color3.fromRGB(240, 240, 240),
-        TextTransparency = Transparency or 0,
-        TextSize = TextSize or 15,
-        Font = Enum.Font.Gotham,
-        RichText = true,
-        BackgroundTransparency = 1,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextWrapped = true,
-        ClipsDescendants = true
-    })
-    return Label
+	local Label = Create("TextLabel", {
+		Text = Text or "",
+		TextColor3 = Color3.fromRGB(240, 240, 240),
+		TextTransparency = Transparency or 0,
+		TextSize = TextSize or 15,
+		Font = Enum.Font.Gotham,
+		RichText = true,
+		BackgroundTransparency = 1,
+		TextXAlignment = Enum.TextXAlignment.Left
+	})
+	return Label
 end)
 
 local NotificationHolder = SetProps(SetChildren(MakeElement("TFrame"), {
@@ -762,38 +752,23 @@ function OrionLib:MakeWindow(WindowConfig)
 		Minimized = not Minimized    
 	end)
 
-    spawn(function()
-        local lastWidth = getgenv().WindowWidth
-        local lastHeight = getgenv().WindowHeight
-        
-        while wait(0.1) do
-            pcall(function()
-                local mainWin = Orion:FindFirstChild("MainWindow") 
-                if mainWin then
-                    if lastWidth ~= getgenv().WindowWidth or lastHeight ~= getgenv().WindowHeight then
-                        mainWin.Size = UDim2.new(0, getgenv().WindowWidth, 0, getgenv().WindowHeight)
-                        
-                        for _, descendant in pairs(mainWin:GetDescendants()) do
-                            if descendant:IsA("Frame") or descendant:IsA("ScrollingFrame") then
-                                descendant.ClipsDescendants = true
-                            end
-                            
-                            if descendant:IsA("TextLabel") then
-                                if not descendant:GetAttribute("TextSizeHandled") then
-                                    descendant:SetAttribute("TextSizeHandled", true)
-                                    descendant.TextWrapped = true
-                                    ResizeTextForElement(descendant, descendant.Parent)
-                                end
-                            end
-                        end
-                        
-                        lastWidth = getgenv().WindowWidth
-                        lastHeight = getgenv().WindowHeight
-                    end
-                end
-            end)
-        end
-    end)
+	spawn(function()
+		local lastWidth = getgenv().WindowWidth
+		local lastHeight = getgenv().WindowHeight
+		
+		while wait(0.1) do
+			pcall(function()
+				local mainWin = Orion:FindFirstChild("MainWindow") 
+				if mainWin then
+					if lastWidth ~= getgenv().WindowWidth or lastHeight ~= getgenv().WindowHeight then
+						mainWin.Size = UDim2.new(0, getgenv().WindowWidth, 0, getgenv().WindowHeight)
+						lastWidth = getgenv().WindowWidth
+						lastHeight = getgenv().WindowHeight
+					end
+				end
+			end)
+		end
+	end)
 
 	local function LoadSequence()
 		MainWindow.Visible = false
