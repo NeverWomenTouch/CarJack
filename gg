@@ -1802,7 +1802,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
     local SubTabsHolder
     
     if not Container:FindFirstChild("SubTabsHolder") then
-        -- Create SubTabsHolder if it doesn't exist (existing code)
+        -- Create SubTabsHolder if it doesn't exist
         SubTabsHolder = SetChildren(SetProps(MakeElement("TFrame"), {
             Size = UDim2.new(1, 0, 0, 36),
             Name = "SubTabsHolder",
@@ -1846,23 +1846,12 @@ function ElementFunction:AddSubTab(SubTabConfig)
         BackgroundTransparency = 1
     })
     
-    -- Create columns layout for left and right sections
-    local ColumnsLayout = SetChildren(SetProps(MakeElement("TFrame"), {
-        Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = SubTabContainer,
-        Name = "ColumnsLayout",
-        BackgroundTransparency = 1
-    }), {
-        MakeElement("List", 0, 6),
-        MakeElement("Padding", 0, 0, 0, 5)
-    })
-    
-    -- Create left column
+    -- IMPROVED LAYOUT: Create two separate frames for left and right content
     local LeftColumn = SetChildren(SetProps(MakeElement("TFrame"), {
         Size = UDim2.new(0.5, -5, 0, 0),
+        Position = UDim2.new(0, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = ColumnsLayout,
+        Parent = SubTabContainer,
         Name = "LeftColumn",
         BackgroundTransparency = 1
     }), {
@@ -1870,20 +1859,17 @@ function ElementFunction:AddSubTab(SubTabConfig)
         MakeElement("Padding", 0, 0, 0, 5)
     })
     
-    -- Create right column
     local RightColumn = SetChildren(SetProps(MakeElement("TFrame"), {
         Size = UDim2.new(0.5, -5, 0, 0),
+        Position = UDim2.new(0.5, 5, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = ColumnsLayout,
+        Parent = SubTabContainer,
         Name = "RightColumn",
         BackgroundTransparency = 1
     }), {
         MakeElement("List", 0, 6),
         MakeElement("Padding", 0, 0, 0, 5)
     })
-    
-    -- Position right column to the right
-    RightColumn.Position = UDim2.new(0.5, 5, 0, 0)
     
     -- The rest of your existing SubTab code (button creation, etc.)
     local SubTabButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
@@ -1990,7 +1976,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
             
             for _, child in pairs(SubTabContainer:GetDescendants()) do
                 if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) and child:IsA("Frame") then
-                    if not (child.Name:find("Section") or child.Name:find("Column") or child.Name:find("Layout")) then
+                    if not (child.Name:find("Section") or child.Name:find("Column")) then
                         TweenService:Create(child, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
                     end
                     if child:FindFirstChild("Content") then
@@ -2001,7 +1987,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
         end)
     end
     
-    -- Add button event handlers (same as your existing code)
+    -- Add button event handlers
     AddConnection(SubTabButton.MouseEnter, function()
         if not SubTabButton:GetAttribute("Selected") then
             TweenService:Create(SubTabButton.Title, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextTransparency = 0.2}):Play()
@@ -2127,42 +2113,8 @@ function ElementFunction:AddSubTab(SubTabConfig)
     
     -- Keep the existing AddSection function for backward compatibility
     function SubTabFunction:AddSection(SectionConfig)
-        SectionConfig = SectionConfig or {}
-        SectionConfig.Name = SectionConfig.Name or "Section"
-
-        local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
-            Size = UDim2.new(1, 0, 0, 26),
-            Parent = ColumnsLayout,
-            BackgroundTransparency = 1,
-            Name = "Section_" .. SectionConfig.Name
-        }), {
-            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
-                Size = UDim2.new(1, -12, 0, 16),
-                Position = UDim2.new(0, 0, 0, 3),
-                Font = Enum.Font.GothamSemibold,
-                BackgroundTransparency = 1
-            }), "TextDark"),
-            SetChildren(SetProps(MakeElement("TFrame"), {
-                AnchorPoint = Vector2.new(0, 0),
-                Size = UDim2.new(1, 0, 1, -24),
-                Position = UDim2.new(0, 0, 0, 23),
-                Name = "Holder",
-                BackgroundTransparency = 1
-            }), {
-                MakeElement("List", 0, 6)
-            }),
-        })
-
-        AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-            SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
-            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
-        end)
-
-        local SectionFunction = {}
-        for i, v in next, GetElements(SectionFrame.Holder) do
-            SectionFunction[i] = v 
-        end
-        return SectionFunction
+        -- For compatibility, now we'll make sections added with AddSection go to the left column
+        return self:AddSubSectionLeft(SectionConfig)
     end
     
     return SubTabFunction
