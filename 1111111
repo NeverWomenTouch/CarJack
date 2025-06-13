@@ -1213,12 +1213,14 @@ function ElementFunction:AddDropdown(DropdownConfig)
         DropdownContainer,
         SetProps(SetChildren(MakeElement("TFrame"), {
             AddThemeObject(SetProps(MakeElement("Label", DropdownConfig.Name, 15), {
-                Size = UDim2.new(0.6, -12, 1, 0), -- Changed from 1 to 0.6
+                Size = UDim2.new(0.6, -12, 1, 0),
                 Position = UDim2.new(0, 12, 0, 0),
                 Font = Enum.Font.GothamBold,
                 Name = "Content",
-                TextTruncate = Enum.TextTruncate.AtEnd, -- Added truncation
-                ClipsDescendants = true -- Added to prevent overflow
+                TextSize = 15,
+                ClipsDescendants = true,
+                TextScaled = false,
+                TextXAlignment = Enum.TextXAlignment.Left
             }), "Text"),
             AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
                 Size = UDim2.new(0, 20, 0, 20),
@@ -1228,13 +1230,14 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 Name = "Ico"
             }), "OtherText"),
             AddThemeObject(SetProps(MakeElement("Label", "Selected", 13), {
-                Size = UDim2.new(0.4, -40, 1, 0), -- Changed from 1 to 0.4
-                Position = UDim2.new(0.6, 0, 0, 0), -- Position after the content label
+                Size = UDim2.new(0.4, -40, 1, 0),
+                Position = UDim2.new(0.6, 0, 0, 0),
                 Font = Enum.Font.Gotham,
                 Name = "Selected",
                 TextXAlignment = Enum.TextXAlignment.Right,
-                TextTruncate = Enum.TextTruncate.AtEnd, -- Added truncation
-                ClipsDescendants = true -- Added to prevent overflow
+                TextSize = 13,
+                ClipsDescendants = true,
+                TextScaled = false
             }), "OtherText"),
             AddThemeObject(SetProps(MakeElement("Frame"), {
                 Size = UDim2.new(1, 0, 0, 1),
@@ -1256,6 +1259,29 @@ function ElementFunction:AddDropdown(DropdownConfig)
         DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
     end)  
 
+    local function ScaleText(textLabel, maxSize)
+        local textSize = textLabel.TextBounds.X
+        if textSize > maxSize then
+            local scale = maxSize / textSize
+            local newSize = math.max(8, math.floor(textLabel.TextSize * scale))
+            textLabel.TextSize = newSize
+        end
+    end
+
+    local function UpdateTextSizes()
+        local contentLabel = DropdownFrame.F.Content
+        local selectedLabel = DropdownFrame.F.Selected
+        
+        contentLabel.TextSize = 15
+        selectedLabel.TextSize = 13
+        
+        local contentMaxWidth = contentLabel.AbsoluteSize.X
+        local selectedMaxWidth = selectedLabel.AbsoluteSize.X
+        
+        ScaleText(contentLabel, contentMaxWidth)
+        ScaleText(selectedLabel, selectedMaxWidth)
+    end
+
     local function AddOptions(Options)
         for _, Option in pairs(Options) do
             local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(255, 0, 255)), {
@@ -1264,8 +1290,9 @@ function ElementFunction:AddDropdown(DropdownConfig)
                     Position = UDim2.new(0, 8, 0, 0),
                     Size = UDim2.new(1, -8, 1, 0),
                     Name = "Title",
-                    TextTruncate = Enum.TextTruncate.AtEnd, -- Added truncation
-                    ClipsDescendants = true -- Added to prevent overflow
+                    TextSize = 13,
+                    TextScaled = false,
+                    ClipsDescendants = true
                 }), "Text")
             }), {
                 Parent = DropdownContainer,
@@ -1273,6 +1300,16 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 BackgroundTransparency = 1,
                 ClipsDescendants = true
             }), "Divider")
+
+            local function UpdateOptionTextSize()
+                local titleLabel = OptionBtn.Title
+                titleLabel.TextSize = 13
+                local maxWidth = titleLabel.AbsoluteSize.X
+                ScaleText(titleLabel, maxWidth)
+            end
+
+            task.spawn(UpdateOptionTextSize)
+            AddConnection(OptionBtn:GetPropertyChangedSignal("AbsoluteSize"), UpdateOptionTextSize)
 
             AddConnection(OptionBtn.MouseButton1Click, function()
                 Dropdown:Set(Option)
@@ -1308,6 +1345,8 @@ function ElementFunction:AddDropdown(DropdownConfig)
 
         Dropdown.Value = Value
         DropdownFrame.F.Selected.Text = Dropdown.Value
+        
+        task.spawn(UpdateTextSizes)
 
         for _, v in pairs(Dropdown.Buttons) do
             TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
@@ -1317,6 +1356,10 @@ function ElementFunction:AddDropdown(DropdownConfig)
         TweenService:Create(Dropdown.Buttons[Value].Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0}):Play()
         return DropdownConfig.Callback(Dropdown.Value)
     end
+
+    AddConnection(DropdownFrame:GetPropertyChangedSignal("AbsoluteSize"), UpdateTextSizes)
+    AddConnection(DropdownFrame.F.Content:GetPropertyChangedSignal("Text"), UpdateTextSizes)
+    AddConnection(DropdownFrame.F.Selected:GetPropertyChangedSignal("Text"), UpdateTextSizes)
 
     AddConnection(Click.MouseButton1Click, function()
         Dropdown.Toggled = not Dropdown.Toggled
@@ -1331,6 +1374,9 @@ function ElementFunction:AddDropdown(DropdownConfig)
 
     Dropdown:Refresh(Dropdown.Options, false)
     Dropdown:Set(Dropdown.Value)
+    
+    task.spawn(UpdateTextSizes)
+    
     if DropdownConfig.Flag then                
         OrionLib.Flags[DropdownConfig.Flag] = Dropdown
     end
