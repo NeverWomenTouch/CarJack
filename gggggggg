@@ -1844,7 +1844,6 @@ function ElementFunction:AddSubTab(SubTabConfig)
         BackgroundTransparency = 1
     })
     
-    -- Improved columns with better sizing
     local LeftColumn = SetChildren(SetProps(MakeElement("TFrame"), {
         Size = UDim2.new(0.5, -5, 0, 0),
         Position = UDim2.new(0, 0, 0, 0),
@@ -1853,7 +1852,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
         Name = "LeftColumn",
         BackgroundTransparency = 1
     }), {
-        MakeElement("List", 0, 10), -- Increased spacing between sections
+        MakeElement("List", 0, 8),
         MakeElement("Padding", 0, 0, 0, 0)
     })
     
@@ -1865,7 +1864,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
         Name = "RightColumn",
         BackgroundTransparency = 1
     }), {
-        MakeElement("List", 0, 10), -- Increased spacing between sections
+        MakeElement("List", 0, 8),
         MakeElement("Padding", 0, 0, 0, 0)
     })
     
@@ -2005,7 +2004,6 @@ function ElementFunction:AddSubTab(SubTabConfig)
         SectionConfig = SectionConfig or {}
         SectionConfig.Name = SectionConfig.Name or "Section"
 
-        -- Improved section frame with better sizing and appearance
         local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", OrionLib.Themes[OrionLib.SelectedTheme].Main, 0, 6), {
             Size = UDim2.new(1, 0, 0, 36),
             Parent = LeftColumn,
@@ -2014,11 +2012,12 @@ function ElementFunction:AddSubTab(SubTabConfig)
             ClipsDescendants = true
         }), {
             AddThemeObject(MakeElement("Stroke"), "Stroke"),
-            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 13), {
                 Size = UDim2.new(1, -16, 0, 26),
                 Position = UDim2.new(0, 10, 0, 5),
                 Font = Enum.Font.GothamBold,
-                BackgroundTransparency = 1
+                BackgroundTransparency = 1,
+                TextTruncate = Enum.TextTruncate.AtEnd
             }), "Text"),
             SetChildren(SetProps(MakeElement("TFrame"), {
                 AnchorPoint = Vector2.new(0, 0),
@@ -2027,15 +2026,14 @@ function ElementFunction:AddSubTab(SubTabConfig)
                 Name = "Holder",
                 BackgroundTransparency = 1
             }), {
-                MakeElement("List", 0, 8),
-                MakeElement("Padding", 12, 12, 12, 12) -- Increased padding for better element containment
+                MakeElement("List", 0, 6),
+                MakeElement("Padding", 8, 8, 8, 8)
             }),
         })
 
-        -- Improved size calculation with additional buffer space
         AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
             local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
-            local paddingHeight = 50 -- Increased padding for better appearance
+            local paddingHeight = 38
             SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
             SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
         end)
@@ -2045,15 +2043,40 @@ function ElementFunction:AddSubTab(SubTabConfig)
             SectionFunction[i] = v 
         end
         
-        SectionFunction.Element = SectionFrame
-        SectionFunction.Holder = SectionFrame.Holder
-        
-        -- Update color pickers and other elements to fit properly
-        for _, child in pairs(SectionFrame.Holder:GetDescendants()) do
-            if child:IsA("Frame") or child:IsA("ScrollingFrame") then
-                child.ClipsDescendants = true
+        -- Process all elements to ensure text fits
+        local originalAddLabel = SectionFunction.AddLabel
+        if originalAddLabel then
+            SectionFunction.AddLabel = function(self, Text)
+                local label = originalAddLabel(self, Text)
+                if label and label.Set then
+                    local originalSet = label.Set
+                    label.Set = function(self, NewText)
+                        originalSet(self, NewText)
+                        if label.Content then
+                            label.Content.TextWrapped = true
+                            label.Content.TextScaled = false
+                            label.Content.TextTruncate = Enum.TextTruncate.AtEnd
+                            label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                            label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                            label.Content.TextSize = 13
+                        end
+                    end
+                    -- Apply settings to initial text too
+                    if label.Content then
+                        label.Content.TextWrapped = true
+                        label.Content.TextScaled = false
+                        label.Content.TextTruncate = Enum.TextTruncate.AtEnd
+                        label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                        label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                        label.Content.TextSize = 13
+                    end
+                end
+                return label
             end
         end
+        
+        SectionFunction.Element = SectionFrame
+        SectionFunction.Holder = SectionFrame.Holder
         
         return SectionFunction
     end
@@ -2062,7 +2085,6 @@ function ElementFunction:AddSubTab(SubTabConfig)
         SectionConfig = SectionConfig or {}
         SectionConfig.Name = SectionConfig.Name or "Section"
 
-        -- Improved section frame with better sizing and appearance
         local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", OrionLib.Themes[OrionLib.SelectedTheme].Main, 0, 6), {
             Size = UDim2.new(1, 0, 0, 36),
             Parent = RightColumn,
@@ -2071,11 +2093,12 @@ function ElementFunction:AddSubTab(SubTabConfig)
             ClipsDescendants = true
         }), {
             AddThemeObject(MakeElement("Stroke"), "Stroke"),
-            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 13), {
                 Size = UDim2.new(1, -16, 0, 26),
                 Position = UDim2.new(0, 10, 0, 5),
                 Font = Enum.Font.GothamBold,
-                BackgroundTransparency = 1
+                BackgroundTransparency = 1,
+                TextTruncate = Enum.TextTruncate.AtEnd
             }), "Text"),
             SetChildren(SetProps(MakeElement("TFrame"), {
                 AnchorPoint = Vector2.new(0, 0),
@@ -2084,15 +2107,14 @@ function ElementFunction:AddSubTab(SubTabConfig)
                 Name = "Holder",
                 BackgroundTransparency = 1
             }), {
-                MakeElement("List", 0, 8),
-                MakeElement("Padding", 12, 12, 12, 12) -- Increased padding for better element containment
+                MakeElement("List", 0, 6),
+                MakeElement("Padding", 8, 8, 8, 8)
             }),
         })
 
-        -- Improved size calculation with additional buffer space
         AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
             local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
-            local paddingHeight = 50 -- Increased padding for better appearance
+            local paddingHeight = 38
             SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
             SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
         end)
@@ -2102,15 +2124,40 @@ function ElementFunction:AddSubTab(SubTabConfig)
             SectionFunction[i] = v 
         end
         
-        SectionFunction.Element = SectionFrame
-        SectionFunction.Holder = SectionFrame.Holder
-        
-        -- Update color pickers and other elements to fit properly
-        for _, child in pairs(SectionFrame.Holder:GetDescendants()) do
-            if child:IsA("Frame") or child:IsA("ScrollingFrame") then
-                child.ClipsDescendants = true
+        -- Process all elements to ensure text fits
+        local originalAddLabel = SectionFunction.AddLabel
+        if originalAddLabel then
+            SectionFunction.AddLabel = function(self, Text)
+                local label = originalAddLabel(self, Text)
+                if label and label.Set then
+                    local originalSet = label.Set
+                    label.Set = function(self, NewText)
+                        originalSet(self, NewText)
+                        if label.Content then
+                            label.Content.TextWrapped = true
+                            label.Content.TextScaled = false
+                            label.Content.TextTruncate = Enum.TextTruncate.AtEnd
+                            label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                            label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                            label.Content.TextSize = 13
+                        end
+                    end
+                    -- Apply settings to initial text too
+                    if label.Content then
+                        label.Content.TextWrapped = true
+                        label.Content.TextScaled = false
+                        label.Content.TextTruncate = Enum.TextTruncate.AtEnd
+                        label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                        label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                        label.Content.TextSize = 13
+                    end
+                end
+                return label
             end
         end
+        
+        SectionFunction.Element = SectionFrame
+        SectionFunction.Holder = SectionFrame.Holder
         
         return SectionFunction
     end
