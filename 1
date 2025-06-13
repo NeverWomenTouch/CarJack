@@ -1795,396 +1795,164 @@ function OrionLib:MakeWindow(WindowConfig)
 				}), "Text")
 			})
 		end
-function ElementFunction:AddSubTab(SubTabConfig)
-    SubTabConfig = SubTabConfig or {}
-    SubTabConfig.Name = SubTabConfig.Name or "SubTab"
-    local isFirstSubTab = #Container:GetChildren() <= 2
-    local SubTabsHolder
-    
-    if not Container:FindFirstChild("SubTabsHolder") then
-        SubTabsHolder = SetChildren(SetProps(MakeElement("TFrame"), {
-            Size = UDim2.new(1, 0, 0, 36),
-            Name = "SubTabsHolder",
-            Parent = Container,
-            LayoutOrder = -999
-        }), {
-            SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(25, 25, 25), 4), {
-                Size = UDim2.new(1, 0, 1, 0),
-                ScrollBarThickness = 0,
-                ScrollingDirection = Enum.ScrollingDirection.X,
-                Name = "ButtonHolder"
-            }), {
-                MakeElement("List", 0, 4),
-                MakeElement("Padding", 0, 8, 8, 0)
-            }),
-            AddThemeObject(SetProps(MakeElement("Frame"), {
-                Size = UDim2.new(1, 0, 0, 1),
-                Position = UDim2.new(0, 0, 1, -1),
-                Name = "Divider"
-            }), "Stroke")
-        })
-        
-        SubTabsHolder.ButtonHolder.UIListLayout.FillDirection = Enum.FillDirection.Horizontal
-        SubTabsHolder.ButtonHolder.UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-        SubTabsHolder.ButtonHolder.UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        AddConnection(SubTabsHolder.ButtonHolder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-            SubTabsHolder.ButtonHolder.CanvasSize = UDim2.new(0, SubTabsHolder.ButtonHolder.UIListLayout.AbsoluteContentSize.X + 16, 0, 0)
-        end)
-    else
-        SubTabsHolder = Container:FindFirstChild("SubTabsHolder")
-    end
-    
-    local SubTabContainer = SetProps(MakeElement("TFrame"), {
-        Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = Container,
-        Name = "SubTabContainer_" .. SubTabConfig.Name,
-        Visible = isFirstSubTab,
-        LayoutOrder = 0,
-        BackgroundTransparency = 1
-    })
-    
-    local LeftColumn = SetChildren(SetProps(MakeElement("TFrame"), {
-        Size = UDim2.new(0.5, -5, 0, 0),
-        Position = UDim2.new(0, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = SubTabContainer,
-        Name = "LeftColumn",
-        BackgroundTransparency = 1
+function SubTabFunction:AddSubSectionLeft(SectionConfig)
+    SectionConfig = SectionConfig or {}
+    SectionConfig.Name = SectionConfig.Name or "Section"
+
+    local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", OrionLib.Themes[OrionLib.SelectedTheme].Main, 0, 6), {
+        Size = UDim2.new(1, 0, 0, 36),
+        Parent = LeftColumn,
+        BackgroundTransparency = 0.1,
+        Name = "Section_" .. SectionConfig.Name,
+        ClipsDescendants = true
     }), {
-        MakeElement("List", 0, 10),
-        MakeElement("Padding", 0, 0, 0, 0)
-    })
-    
-    local RightColumn = SetChildren(SetProps(MakeElement("TFrame"), {
-        Size = UDim2.new(0.5, -5, 0, 0),
-        Position = UDim2.new(0.5, 5, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = SubTabContainer,
-        Name = "RightColumn",
-        BackgroundTransparency = 1
-    }), {
-        MakeElement("List", 0, 10),
-        MakeElement("Padding", 0, 0, 0, 0)
-    })
-    
-    local SubTabButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
-        Size = UDim2.new(0, 120, 0, 30),
-        Parent = SubTabsHolder.ButtonHolder,
-        Name = "SubTab_" .. SubTabConfig.Name
-    }), {
-        AddThemeObject(SetProps(MakeElement("Label", SubTabConfig.Name, 14), {
-            Size = UDim2.new(1, 0, 1, 0),
-            Position = UDim2.new(0, 0, 0, 0),
-            Font = Enum.Font.GothamSemibold,
-            Name = "Title",
-            TextTransparency = isFirstSubTab and 0 or 0.4,
-            TextXAlignment = Enum.TextXAlignment.Center
+        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+        AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+            Size = UDim2.new(1, -12, 0, 26),
+            Position = UDim2.new(0, 6, 0, 5),
+            Font = Enum.Font.GothamBold,
+            BackgroundTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            AnchorPoint = Vector2.new(0, 0)
         }), "Text"),
-        AddThemeObject(SetProps(MakeElement("Frame"), {
-            Size = UDim2.new(0.4, 0, 0, 2),
-            Position = UDim2.new(0.5, 0, 1, -2),
-            AnchorPoint = Vector2.new(0.5, 0),
-            Name = "Indicator",
-            BackgroundTransparency = isFirstSubTab and 0 or 1
-        }), "Stroke"),
-        MakeElement("Corner", 0, 4)
-    }), "Divider")
-    
-    local RippleEffect = SetProps(MakeElement("Image", "rbxassetid://2708891598"), {
-        ImageTransparency = 0.7,
-        ImageColor3 = Color3.fromRGB(255, 255, 255),
-        ScaleType = Enum.ScaleType.Fit,
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(0, 0, 0, 0),
-        Parent = SubTabButton,
-        ZIndex = 2,
-        Name = "Ripple"
+        SetChildren(SetProps(MakeElement("TFrame"), {
+            AnchorPoint = Vector2.new(0, 0),
+            Size = UDim2.new(1, 0, 1, -30),
+            Position = UDim2.new(0, 0, 0, 30),
+            Name = "Holder",
+            BackgroundTransparency = 1
+        }), {
+            MakeElement("List", 0, 6),
+            MakeElement("Padding", 10, 10, 10, 10)
+        }),
     })
-    
-    local isSelected = isFirstSubTab
-    
-    local function UpdateButtonSize()
-        local textSize = SubTabButton.Title.TextBounds.X + 24
-        SubTabButton.Size = UDim2.new(0, math.max(textSize, 70), 0, 30)
-    end
-    
-    UpdateButtonSize()
-    
-    local function PlayRippleEffect(targetButton)
-        local ripple = targetButton:FindFirstChild("Ripple")
-        if ripple then
-            ripple.ImageTransparency = 0.7
-            ripple.Size = UDim2.new(0, 0, 0, 0)
-            TweenService:Create(ripple, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1.5, 0, 1.5, 0),
-                ImageTransparency = 1
-            }):Play()
-        end
-    end
-    
-    local function SelectSubTab()
-        for _, Button in pairs(SubTabsHolder.ButtonHolder:GetChildren()) do
-            if Button:IsA("TextButton") and Button ~= SubTabButton then
-                TweenService:Create(Button.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
-                TweenService:Create(Button.Indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(0, 0, 0, 2)
-                }):Play()
-                Button:SetAttribute("Selected", false)
-            end
-        end
-        
-        for _, Item in pairs(Container:GetChildren()) do
-            if Item.Name:find("SubTabContainer_") and Item ~= SubTabContainer then
-                Item.Visible = false
-            end
-        end
-        
-        isSelected = true
-        SubTabButton:SetAttribute("Selected", true)
-        
-        PlayRippleEffect(SubTabButton)
-        
-        TweenService:Create(SubTabButton.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-        TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            BackgroundTransparency = 0,
-            Size = UDim2.new(0.4, 0, 0, 2)
-        }):Play()
-        
-        SubTabContainer.Visible = true
-    end
-    
-    AddConnection(SubTabButton.MouseEnter, function()
-        if not SubTabButton:GetAttribute("Selected") then
-            TweenService:Create(SubTabButton.Title, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextTransparency = 0.2}):Play()
-            TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
-                BackgroundTransparency = 0.6,
-                Size = UDim2.new(0.4, 0, 0, 2)
-            }):Play()
-        end
-    end)
-    
-    AddConnection(SubTabButton.MouseLeave, function()
-        if not SubTabButton:GetAttribute("Selected") then
-            TweenService:Create(SubTabButton.Title, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextTransparency = 0.4}):Play()
-            TweenService:Create(SubTabButton.Indicator, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(0, 0, 0, 2)
-            }):Play()
-        end
-    end)
-    
-    AddConnection(SubTabButton.MouseButton1Down, function()
-        TweenService:Create(SubTabButton, TweenInfo.new(0.08, Enum.EasingStyle.Quart), {
-            Size = UDim2.new(0, SubTabButton.Size.X.Offset, 0, 28)
-        }):Play()
-    end)
-    
-    AddConnection(SubTabButton.MouseButton1Up, function()
-        TweenService:Create(SubTabButton, TweenInfo.new(0.08, Enum.EasingStyle.Quart), {
-            Size = UDim2.new(0, SubTabButton.Size.X.Offset, 0, 30)
-        }):Play()
-    end)
-    
-    AddConnection(SubTabButton.MouseButton1Click, function()
-        SelectSubTab()
-    end)
-    
-    if isFirstSubTab then
-        SubTabButton:SetAttribute("Selected", true)
-        SelectSubTab()
-    end
-    
-    local SubTabFunction = {}
-    
-    function SubTabFunction:AddSubSectionLeft(SectionConfig)
-        SectionConfig = SectionConfig or {}
-        SectionConfig.Name = SectionConfig.Name or "Section"
 
-        local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", OrionLib.Themes[OrionLib.SelectedTheme].Main, 0, 6), {
-            Size = UDim2.new(1, 0, 0, 36),
-            Parent = LeftColumn,
-            BackgroundTransparency = 0.1,
-            Name = "Section_" .. SectionConfig.Name,
-            ClipsDescendants = true
-        }), {
-            AddThemeObject(MakeElement("Stroke"), "Stroke"),
-            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 12), {
-                Size = UDim2.new(1, 0, 0, 26),
-                Position = UDim2.new(0, 0, 0, 5),
-                Font = Enum.Font.GothamBold,
-                BackgroundTransparency = 1,
-                TextXAlignment = Enum.TextXAlignment.Center,
-                AnchorPoint = Vector2.new(0, 0)
-            }), "Text"),
-            SetChildren(SetProps(MakeElement("TFrame"), {
-                AnchorPoint = Vector2.new(0, 0),
-                Size = UDim2.new(1, 0, 1, -30),
-                Position = UDim2.new(0, 0, 0, 30),
-                Name = "Holder",
-                BackgroundTransparency = 1
-            }), {
-                MakeElement("List", 0, 6),
-                MakeElement("Padding", 8, 8, 8, 8)
-            }),
-        })
+    AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
+        local paddingHeight = 40
+        SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
+        SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
+    end)
 
-        AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-            local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
-            local paddingHeight = 50
-            SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
-            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
-        end)
-
-        local SectionFunction = {}
-        for i, v in next, GetElements(SectionFrame.Holder) do
-            SectionFunction[i] = v 
-        end
-        
-        local originalAddLabel = SectionFunction.AddLabel
-        if originalAddLabel then
-            SectionFunction.AddLabel = function(self, Text)
-                local label = originalAddLabel(self, Text)
-                if label and label.Set then
-                    local originalSet = label.Set
-                    label.Set = function(self, NewText)
-                        originalSet(self, NewText)
-                        if label.Content then
-                            label.Content.TextWrapped = true
-                            label.Content.TextScaled = false
-                            label.Content.TextXAlignment = Enum.TextXAlignment.Center
-                            label.Content.TextYAlignment = Enum.TextYAlignment.Center
-                            label.Content.TextSize = 11
-                            label.Content.Font = Enum.Font.GothamMedium
-                        end
-                    end
+    local SectionFunction = {}
+    for i, v in next, GetElements(SectionFrame.Holder) do
+        SectionFunction[i] = v 
+    end
+    
+    local originalAddLabel = SectionFunction.AddLabel
+    if originalAddLabel then
+        SectionFunction.AddLabel = function(self, Text)
+            local label = originalAddLabel(self, Text)
+            if label and label.Set then
+                local originalSet = label.Set
+                label.Set = function(self, NewText)
+                    originalSet(self, NewText)
                     if label.Content then
                         label.Content.TextWrapped = true
                         label.Content.TextScaled = false
-                        label.Content.TextXAlignment = Enum.TextXAlignment.Center
+                        label.Content.TextXAlignment = Enum.TextXAlignment.Left
                         label.Content.TextYAlignment = Enum.TextYAlignment.Center
-                        label.Content.TextSize = 11
+                        label.Content.TextSize = 13
                         label.Content.Font = Enum.Font.GothamMedium
                     end
                 end
-                return label
+                if label.Content then
+                    label.Content.TextWrapped = true
+                    label.Content.TextScaled = false
+                    label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                    label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                    label.Content.TextSize = 13
+                    label.Content.Font = Enum.Font.GothamMedium
+                end
             end
+            return label
         end
-        
-        -- Process all text elements to ensure proper centering
-        for _, element in pairs(SectionFrame.Holder:GetChildren()) do
-            if element:IsA("TextLabel") then
-                element.TextXAlignment = Enum.TextXAlignment.Center
-                element.TextYAlignment = Enum.TextYAlignment.Center
-                element.TextSize = 11
-                element.Font = Enum.Font.GothamMedium
-            end
-        end
-        
-        SectionFunction.Element = SectionFrame
-        SectionFunction.Holder = SectionFrame.Holder
-        
-        return SectionFunction
     end
     
-    function SubTabFunction:AddSubSectionRight(SectionConfig)
-        SectionConfig = SectionConfig or {}
-        SectionConfig.Name = SectionConfig.Name or "Section"
+    SectionFunction.Element = SectionFrame
+    SectionFunction.Holder = SectionFrame.Holder
+    
+    return SectionFunction
+end
 
-        local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", OrionLib.Themes[OrionLib.SelectedTheme].Main, 0, 6), {
-            Size = UDim2.new(1, 0, 0, 36),
-            Parent = RightColumn,
-            BackgroundTransparency = 0.1,
-            Name = "Section_" .. SectionConfig.Name,
-            ClipsDescendants = true
+function SubTabFunction:AddSubSectionRight(SectionConfig)
+    SectionConfig = SectionConfig or {}
+    SectionConfig.Name = SectionConfig.Name or "Section"
+
+    local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", OrionLib.Themes[OrionLib.SelectedTheme].Main, 0, 6), {
+        Size = UDim2.new(1, 0, 0, 36),
+        Parent = RightColumn,
+        BackgroundTransparency = 0.1,
+        Name = "Section_" .. SectionConfig.Name,
+        ClipsDescendants = true
+    }), {
+        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+        AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+            Size = UDim2.new(1, -12, 0, 26),
+            Position = UDim2.new(0, 6, 0, 5),
+            Font = Enum.Font.GothamBold,
+            BackgroundTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            AnchorPoint = Vector2.new(0, 0)
+        }), "Text"),
+        SetChildren(SetProps(MakeElement("TFrame"), {
+            AnchorPoint = Vector2.new(0, 0),
+            Size = UDim2.new(1, 0, 1, -30),
+            Position = UDim2.new(0, 0, 0, 30),
+            Name = "Holder",
+            BackgroundTransparency = 1
         }), {
-            AddThemeObject(MakeElement("Stroke"), "Stroke"),
-            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 12), {
-                Size = UDim2.new(1, 0, 0, 26),
-                Position = UDim2.new(0, 0, 0, 5),
-                Font = Enum.Font.GothamBold,
-                BackgroundTransparency = 1,
-                TextXAlignment = Enum.TextXAlignment.Center,
-                AnchorPoint = Vector2.new(0, 0)
-            }), "Text"),
-            SetChildren(SetProps(MakeElement("TFrame"), {
-                AnchorPoint = Vector2.new(0, 0),
-                Size = UDim2.new(1, 0, 1, -30),
-                Position = UDim2.new(0, 0, 0, 30),
-                Name = "Holder",
-                BackgroundTransparency = 1
-            }), {
-                MakeElement("List", 0, 6),
-                MakeElement("Padding", 8, 8, 8, 8)
-            }),
-        })
+            MakeElement("List", 0, 6),
+            MakeElement("Padding", 10, 10, 10, 10)
+        }),
+    })
 
-        AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-            local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
-            local paddingHeight = 50
-            SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
-            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
-        end)
+    AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
+        local paddingHeight = 40
+        SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
+        SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
+    end)
 
-        local SectionFunction = {}
-        for i, v in next, GetElements(SectionFrame.Holder) do
-            SectionFunction[i] = v 
-        end
-        
-        local originalAddLabel = SectionFunction.AddLabel
-        if originalAddLabel then
-            SectionFunction.AddLabel = function(self, Text)
-                local label = originalAddLabel(self, Text)
-                if label and label.Set then
-                    local originalSet = label.Set
-                    label.Set = function(self, NewText)
-                        originalSet(self, NewText)
-                        if label.Content then
-                            label.Content.TextWrapped = true
-                            label.Content.TextScaled = false
-                            label.Content.TextXAlignment = Enum.TextXAlignment.Center
-                            label.Content.TextYAlignment = Enum.TextYAlignment.Center
-                            label.Content.TextSize = 11
-                            label.Content.Font = Enum.Font.GothamMedium
-                        end
-                    end
+    local SectionFunction = {}
+    for i, v in next, GetElements(SectionFrame.Holder) do
+        SectionFunction[i] = v 
+    end
+    
+    local originalAddLabel = SectionFunction.AddLabel
+    if originalAddLabel then
+        SectionFunction.AddLabel = function(self, Text)
+            local label = originalAddLabel(self, Text)
+            if label and label.Set then
+                local originalSet = label.Set
+                label.Set = function(self, NewText)
+                    originalSet(self, NewText)
                     if label.Content then
                         label.Content.TextWrapped = true
                         label.Content.TextScaled = false
-                        label.Content.TextXAlignment = Enum.TextXAlignment.Center
+                        label.Content.TextXAlignment = Enum.TextXAlignment.Left
                         label.Content.TextYAlignment = Enum.TextYAlignment.Center
-                        label.Content.TextSize = 11
+                        label.Content.TextSize = 13
                         label.Content.Font = Enum.Font.GothamMedium
                     end
                 end
-                return label
+                if label.Content then
+                    label.Content.TextWrapped = true
+                    label.Content.TextScaled = false
+                    label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                    label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                    label.Content.TextSize = 13
+                    label.Content.Font = Enum.Font.GothamMedium
+                end
             end
+            return label
         end
-        
-        -- Process all text elements to ensure proper centering
-        for _, element in pairs(SectionFrame.Holder:GetChildren()) do
-            if element:IsA("TextLabel") then
-                element.TextXAlignment = Enum.TextXAlignment.Center
-                element.TextYAlignment = Enum.TextYAlignment.Center
-                element.TextSize = 11
-                element.Font = Enum.Font.GothamMedium
-            end
-        end
-        
-        SectionFunction.Element = SectionFrame
-        SectionFunction.Holder = SectionFrame.Holder
-        
-        return SectionFunction
     end
     
-    function SubTabFunction:AddSection(SectionConfig)
-        return self:AddSubSectionLeft(SectionConfig)
-    end
+    SectionFunction.Element = SectionFrame
+    SectionFunction.Holder = SectionFrame.Holder
     
-    return SubTabFunction
+    return SectionFunction
 end
 		return ElementFunction   
 	end  
