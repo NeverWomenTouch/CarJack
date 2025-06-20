@@ -2153,19 +2153,20 @@ function OrionLib:MakeWindow(WindowConfig)
 				ToggleColorPicker:SetColor(ToggleColorPicker.ColorValue)
 				if ToggleColorPickerConfig.Flag then				
 					OrionLib.Flags[ToggleColorPickerConfig.Flag] = ToggleColorPicker
-				end				return ToggleColorPicker
+				end			
+                return ToggleColorPicker
 			end
+
 			function ElementFunction:AddColorpicker(ColorpickerConfig)
+				ColorpickerConfig = ColorpickerConfig or {}
 				ColorpickerConfig.Name = ColorpickerConfig.Name or "Colorpicker"
 				ColorpickerConfig.Default = ColorpickerConfig.Default or Color3.fromRGB(255,255,255)
 				ColorpickerConfig.Callback = ColorpickerConfig.Callback or function() end
 				ColorpickerConfig.Flag = ColorpickerConfig.Flag or nil
 				ColorpickerConfig.Save = ColorpickerConfig.Save or false
-				ColorpickerConfig.ToggleDefault = ColorpickerConfig.ToggleDefault or false
-				ColorpickerConfig.ToggleCallback = ColorpickerConfig.ToggleCallback or function() end
 
 				local ColorH, ColorS, ColorV = 1, 1, 1
-				local Colorpicker = {Value = ColorpickerConfig.Default, Toggled = false, Type = "Colorpicker", Save = ColorpickerConfig.Save, ToggleValue = ColorpickerConfig.ToggleDefault}
+				local Colorpicker = {Value = ColorpickerConfig.Default, Toggled = false, Type = "Colorpicker", Save = ColorpickerConfig.Save}
 
 				local ColorSelection = Create("ImageLabel", {
 					Size = UDim2.new(0, 18, 0, 18),
@@ -2218,75 +2219,15 @@ function OrionLib:MakeWindow(WindowConfig)
 						PaddingBottom = UDim.new(0, 10),
 						PaddingTop = UDim.new(0, 17)
 					})
-				})				local Click = SetProps(MakeElement("Button"), {
+				})
+
+				local Click = SetProps(MakeElement("Button"), {
 					Size = UDim2.new(1, 0, 1, 0)
 				})
 
-				local SWITCH_WIDTH = 46
-				local SWITCH_HEIGHT = 24
-				local CIRCLE_SIZE = 18
-				local PADDING = 3
-
-				local ToggleSwitch = Create("Frame", {
-					Size = UDim2.new(0, SWITCH_WIDTH, 0, SWITCH_HEIGHT),
-					Position = UDim2.new(1, -SWITCH_WIDTH - 12, 0.5, 0),
-					AnchorPoint = Vector2.new(0, 0.5),
-					BackgroundColor3 = Colorpicker.ToggleValue and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15),
-					BorderSizePixel = 0,
-					Name = "Switch"
-				})
-
-				local switchClickDetector = Create("TextButton", {
-					Size = UDim2.new(1, 0, 1, 0),
-					Position = UDim2.new(0, 0, 0, 0),
-					BackgroundTransparency = 1,
-					Text = "",
-					Parent = ToggleSwitch
-				})
-
-				Create("UICorner", {
-					CornerRadius = UDim.new(1, 0),
-					Parent = ToggleSwitch
-				})
-
-				local switchStroke = Create("UIStroke", {
-					Color = Color3.fromRGB(255, 0, 255),
-					Thickness = 1,
-					Transparency = Colorpicker.ToggleValue and 1 or 0.3,
-					Parent = ToggleSwitch
-				})
-
-				local ToggleCircle = Create("Frame", {
-					Size = UDim2.new(0, CIRCLE_SIZE, 0, CIRCLE_SIZE),
-					Position = UDim2.new(0, PADDING, 0, PADDING),
-					BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-					BorderSizePixel = 0,
-					ZIndex = 2,
-					Parent = ToggleSwitch,
-					Name = "Circle"
-				})
-
-				Create("UICorner", {
-					CornerRadius = UDim.new(1, 0),
-					Parent = ToggleCircle
-				})
-
-				local circleShadow = Create("UIStroke", {
-					Color = Color3.fromRGB(0, 0, 0),
-					Thickness = 1,
-					Transparency = 0.8,
-					Parent = ToggleCircle
-				})
-
-				if Colorpicker.ToggleValue then
-					ToggleCircle.Position = UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING)
-				else
-					ToggleCircle.Position = UDim2.new(0, PADDING, 0, PADDING)
-				end
-
 				local ColorpickerBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
 					Size = UDim2.new(0, 24, 0, 24),
-					Position = UDim2.new(1, -SWITCH_WIDTH - 24 - 24, 0.5, 0),
+					Position = UDim2.new(1, -12, 0.5, 0),
 					AnchorPoint = Vector2.new(1, 0.5)
 				}), {
 					AddThemeObject(MakeElement("Stroke"), "Stroke")
@@ -2302,9 +2243,9 @@ function OrionLib:MakeWindow(WindowConfig)
 							Position = UDim2.new(0, 12, 0, 0),
 							Font = Enum.Font.GothamBold,
 							Name = "Content"
-						}), "Text"),						ColorpickerBox,
+						}), "Text"),
+						ColorpickerBox,
 						Click,
-						ToggleSwitch,
 						AddThemeObject(SetProps(MakeElement("Frame"), {
 							Size = UDim2.new(1, 0, 0, 1),
 							Position = UDim2.new(0, 0, 1, -1),
@@ -2319,67 +2260,6 @@ function OrionLib:MakeWindow(WindowConfig)
 					ColorpickerContainer,
 					AddThemeObject(MakeElement("Stroke"), "Stroke"),
 				}), "Second")
-
-				local function updateToggle(animate)
-					local targetColor = Colorpicker.ToggleValue and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15)
-					local targetPos = Colorpicker.ToggleValue and 
-						UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING) or 
-						UDim2.new(0, PADDING, 0, PADDING)
-					local targetStrokeTransparency = Colorpicker.ToggleValue and 1 or 0.3
-
-					if animate then
-						local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-						
-						TweenService:Create(ToggleSwitch, tweenInfo, {
-							BackgroundColor3 = targetColor
-						}):Play()
-						
-						TweenService:Create(ToggleCircle, tweenInfo, {
-							Position = targetPos
-						}):Play()
-						
-						TweenService:Create(switchStroke, tweenInfo, {
-							Transparency = targetStrokeTransparency
-						}):Play()
-					else
-						ToggleSwitch.BackgroundColor3 = targetColor
-						ToggleCircle.Position = targetPos
-						switchStroke.Transparency = targetStrokeTransparency
-					end
-					
-					ColorpickerConfig.ToggleCallback(Colorpicker.ToggleValue)
-				end
-
-				local function doToggle()
-					Colorpicker.ToggleValue = not Colorpicker.ToggleValue
-					updateToggle(true)
-				end
-
-				AddConnection(switchClickDetector.MouseButton1Click, function()
-					doToggle()
-				end)
-
-				AddConnection(switchClickDetector.MouseEnter, function()
-					TweenService:Create(ToggleSwitch, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-						BackgroundColor3 = ToggleSwitch.BackgroundColor3:Lerp(Color3.fromRGB(255, 255, 255), 0.15)
-					}):Play()
-					
-					if not Colorpicker.ToggleValue then
-						TweenService:Create(switchStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-							Transparency = 0.1
-						}):Play()
-					end
-				end)
-
-				AddConnection(switchClickDetector.MouseLeave, function()
-					TweenService:Create(ToggleSwitch, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-						BackgroundColor3 = Colorpicker.ToggleValue and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15)
-					}):Play()
-					
-					TweenService:Create(switchStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-						Transparency = Colorpicker.ToggleValue and 1 or 0.3
-					}):Play()
-				end)
 
 				AddConnection(Click.MouseButton1Click, function()
 					Colorpicker.Toggled = not Colorpicker.Toggled
@@ -2448,25 +2328,20 @@ function OrionLib:MakeWindow(WindowConfig)
 							HueInput:Disconnect()
 						end
 					end
-				end)				function Colorpicker:Set(Value)
+				end)
+
+				function Colorpicker:Set(Value)
 					Colorpicker.Value = Value
 					ColorpickerBox.BackgroundColor3 = Colorpicker.Value
 					ColorpickerConfig.Callback(Colorpicker.Value)
 				end
 
-				function Colorpicker:SetToggle(Value)
-					Colorpicker.ToggleValue = Value
-					updateToggle(true)
-				end
-
-				updateToggle(false)
 				Colorpicker:Set(Colorpicker.Value)
 				if ColorpickerConfig.Flag then				
 					OrionLib.Flags[ColorpickerConfig.Flag] = Colorpicker
-				end
-				return Colorpicker
-			end
-			return ElementFunction   
+				end				return Colorpicker
+			end  
+			return ElementFunction
 		end	
 
 		local ElementFunction = {}
