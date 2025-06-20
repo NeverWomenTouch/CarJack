@@ -995,102 +995,101 @@ function OrionLib:MakeWindow(WindowConfig)
 				end	
 
 				return Button
-			end            function ElementFunction:AddToggle(ToggleConfig)
+			end          function ElementFunction:AddToggle(ToggleConfig)
+				            function ElementFunction:AddToggle(ToggleConfig)
 				ToggleConfig = ToggleConfig or {}
 				ToggleConfig.Name = ToggleConfig.Name or "Toggle"
 				ToggleConfig.Default = ToggleConfig.Default or false
 				ToggleConfig.Callback = ToggleConfig.Callback or function() end
 				ToggleConfig.Color = Color3.fromRGB(255, 0, 255)
-				ToggleConfig.ColorOff = Color3.fromRGB(20, 20, 20)
+				ToggleConfig.ColorOff = Color3.fromRGB(40, 40, 40)
 				ToggleConfig.Flag = ToggleConfig.Flag or nil
 				ToggleConfig.Save = ToggleConfig.Save or false
 
 				local Toggle = {Value = ToggleConfig.Default, Save = ToggleConfig.Save, Animating = false, Type = "Toggle"}
 
-				-- Smaller, menu-appropriate dimensions
-				local vars = {
-					buttonWidth = 40,
-					buttonHeight = 22,
-					toggleDiameter = 18,
-					buttonToggleOffset = (22 - 18) / 2,
-					colorGrey = ToggleConfig.ColorOff,
-					colorPurple = ToggleConfig.Color
-				}
+				-- Proper compact dimensions
+				local SWITCH_WIDTH = 46
+				local SWITCH_HEIGHT = 24
+				local CIRCLE_SIZE = 18
+				local PADDING = 3
 
 				local Click = SetProps(MakeElement("Button"), {
 					Size = UDim2.new(1, 0, 1, 0)
 				})
 
-				-- Smaller toggle switch for menu
-				local ToggleSwitch = Instance.new("TextButton")
-				ToggleSwitch.Size = UDim2.new(0, vars.buttonWidth, 0, vars.buttonHeight)
-				ToggleSwitch.Position = UDim2.new(1, -vars.buttonWidth - 12, 0.5, 0)
-				ToggleSwitch.AnchorPoint = Vector2.new(0, 0.5)
-				ToggleSwitch.BackgroundColor3 = Toggle.Value and vars.colorPurple or vars.colorGrey
-				ToggleSwitch.BackgroundTransparency = 0
-				ToggleSwitch.Text = ""
-				ToggleSwitch.AutoButtonColor = false
-				ToggleSwitch.Name = "Switch"
-				ToggleSwitch.Parent = nil
+				-- Create the toggle switch frame
+				local ToggleSwitch = Create("Frame", {
+					Size = UDim2.new(0, SWITCH_WIDTH, 0, SWITCH_HEIGHT),
+					Position = UDim2.new(1, -SWITCH_WIDTH - 12, 0.5, 0),
+					AnchorPoint = Vector2.new(0, 0.5),
+					BackgroundColor3 = Toggle.Value and ToggleConfig.Color or ToggleConfig.ColorOff,
+					BorderSizePixel = 0,
+					Name = "Switch"
+				})
 
-				local cornerRadius = Instance.new("UICorner", ToggleSwitch)
-				cornerRadius.CornerRadius = UDim.new(1, 0)
+				-- Make switch clickable
+				local switchClickDetector = Create("TextButton", {
+					Size = UDim2.new(1, 0, 1, 0),
+					Position = UDim2.new(0, 0, 0, 0),
+					BackgroundTransparency = 1,
+					Text = "",
+					Parent = ToggleSwitch
+				})
 
-				-- UIStroke
-				local uiStroke = Instance.new("UIStroke")
-				uiStroke.Color = vars.colorPurple
-				uiStroke.Thickness = 0.5
-				uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-				uiStroke.Enabled = not Toggle.Value
-				uiStroke.Parent = ToggleSwitch
+				-- Rounded corners
+				Create("UICorner", {
+					CornerRadius = UDim.new(1, 0),
+					Parent = ToggleSwitch
+				})
 
-				-- Gradient
-				local gradient = Instance.new("UIGradient")
-				gradient.Color = ColorSequence.new{
-					ColorSequenceKeypoint.new(0, Color3.fromRGB(200, 0, 200)),
-					ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 150)),
-				}
-				gradient.Rotation = 90
-				gradient.Parent = ToggleSwitch
-
-				-- Toggle shadow
-				local toggleShadow = Instance.new("Frame")
-				toggleShadow.Size = UDim2.new(0, vars.toggleDiameter + 2, 0, vars.toggleDiameter + 2)
-				toggleShadow.BackgroundColor3 = Color3.fromRGB(210, 160, 210)
-				toggleShadow.BackgroundTransparency = 0.6
-				toggleShadow.ZIndex = ToggleSwitch.ZIndex - 1
-				toggleShadow.BorderSizePixel = 0
-				toggleShadow.Parent = ToggleSwitch
-
-				local shadowCorner = Instance.new("UICorner", toggleShadow)
-				shadowCorner.CornerRadius = UDim.new(1, 0)
+				-- Border stroke
+				local switchStroke = Create("UIStroke", {
+					Color = ToggleConfig.Color,
+					Thickness = 1,
+					Transparency = Toggle.Value and 1 or 0.3,
+					Parent = ToggleSwitch
+				})
 
 				-- Toggle circle
-				local toggle = Instance.new("Frame")
-				toggle.Size = UDim2.new(0, vars.toggleDiameter, 0, vars.toggleDiameter)
-				toggle.BackgroundColor3 = Color3.new(1, 1, 1)
-				toggle.BorderSizePixel = 0
-				toggle.ZIndex = ToggleSwitch.ZIndex + 1
-				toggle.Parent = ToggleSwitch
+				local ToggleCircle = Create("Frame", {
+					Size = UDim2.new(0, CIRCLE_SIZE, 0, CIRCLE_SIZE),
+					Position = UDim2.new(0, PADDING, 0, PADDING),
+					BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+					BorderSizePixel = 0,
+					ZIndex = 2,
+					Parent = ToggleSwitch,
+					Name = "Circle"
+				})
 
-				local toggleCorner = Instance.new("UICorner", toggle)
-				toggleCorner.CornerRadius = UDim.new(1, 0)
+				-- Circle corners
+				Create("UICorner", {
+					CornerRadius = UDim.new(1, 0),
+					Parent = ToggleCircle
+				})
 
-				-- Set initial positions
+				-- Circle shadow/stroke
+				Create("UIStroke", {
+					Color = Color3.fromRGB(0, 0, 0),
+					Thickness = 1,
+					Transparency = 0.8,
+					Parent = ToggleCircle
+				})
+
+				-- Set initial position based on default value
 				if Toggle.Value then
-					toggle.Position = UDim2.new(0, vars.buttonWidth - vars.toggleDiameter - vars.buttonToggleOffset, 0, vars.buttonToggleOffset)
-					toggleShadow.Position = UDim2.new(0, vars.buttonWidth - vars.toggleDiameter - vars.buttonToggleOffset - 1, 0, vars.buttonToggleOffset - 1)
+					ToggleCircle.Position = UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING)
 				else
-					toggle.Position = UDim2.new(0, vars.buttonToggleOffset, 0, vars.buttonToggleOffset)
-					toggleShadow.Position = UDim2.new(0, vars.buttonToggleOffset - 1, 0, vars.buttonToggleOffset - 1)
+					ToggleCircle.Position = UDim2.new(0, PADDING, 0, PADDING)
 				end
 
+				-- Main toggle frame
 				local ToggleFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
 					Size = UDim2.new(1, 0, 0, 38),
 					Parent = ItemParent
 				}), {
 					AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.Name, 15), {
-						Size = UDim2.new(1, -12, 1, 0),
+						Size = UDim2.new(1, -70, 1, 0),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
 						Name = "Content"
@@ -1100,76 +1099,104 @@ function OrionLib:MakeWindow(WindowConfig)
 					Click
 				}), "Second")
 
-				-- Animation function
-				local function animateToggle()
-					if Toggle.Animating then return end
-					Toggle.Animating = true
-					Toggle.Value = not Toggle.Value
+				-- Update toggle appearance
+				local function updateToggle(animate)
+					local targetColor = Toggle.Value and ToggleConfig.Color or ToggleConfig.ColorOff
+					local targetPos = Toggle.Value and 
+						UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING) or 
+						UDim2.new(0, PADDING, 0, PADDING)
+					local targetStrokeTransparency = Toggle.Value and 1 or 0.3
 
-					local newBG = Toggle.Value and vars.colorPurple or vars.colorGrey
-					local newPos = Toggle.Value and 
-						UDim2.new(0, vars.buttonWidth - vars.toggleDiameter - vars.buttonToggleOffset, 0, vars.buttonToggleOffset) or
-						UDim2.new(0, vars.buttonToggleOffset, 0, vars.buttonToggleOffset)
+					if animate and not Toggle.Animating then
+						Toggle.Animating = true
+						
+						-- Animate background color
+						TweenService:Create(ToggleSwitch, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+							BackgroundColor3 = targetColor
+						}):Play()
+						
+						-- Animate circle position
+						local moveTween = TweenService:Create(ToggleCircle, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+							Position = targetPos
+						})
+						moveTween:Play()
+						
+						-- Animate stroke
+						TweenService:Create(switchStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+							Transparency = targetStrokeTransparency
+						}):Play()
 
-					local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+						-- Small bounce effect
+						TweenService:Create(ToggleCircle, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+							Size = UDim2.new(0, CIRCLE_SIZE + 2, 0, CIRCLE_SIZE + 2)
+						}):Play()
+						
+						spawn(function()
+							wait(0.1)
+							TweenService:Create(ToggleCircle, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+								Size = UDim2.new(0, CIRCLE_SIZE, 0, CIRCLE_SIZE)
+							}):Play()
+						end)
 
-					-- Create tweens
-					local moveTween = TweenService:Create(toggle, tweenInfo, {Position = newPos})
-					local shadowTween = TweenService:Create(toggleShadow, tweenInfo, {Position = newPos - UDim2.new(0, 1, 0, 1)})
-					local colorTween = TweenService:Create(ToggleSwitch, tweenInfo, {BackgroundColor3 = newBG})
-
-					-- Play tweens
-					moveTween:Play()
-					shadowTween:Play()
-					colorTween:Play()
-
-					-- Rotation animation
-					local rotateTween1 = TweenService:Create(toggle, TweenInfo.new(0.12, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = 15})
-					rotateTween1:Play()
-					
-					rotateTween1.Completed:Connect(function()
-						local rotateTween2 = TweenService:Create(toggle, TweenInfo.new(0.12, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Rotation = 0})
-						rotateTween2:Play()
-					end)
-
-					-- Wait for main animation
-					moveTween.Completed:Connect(function()
-						uiStroke.Enabled = not Toggle.Value
-						Toggle.Animating = false
-						ToggleConfig.Callback(Toggle.Value)
-					end)
+						moveTween.Completed:Connect(function()
+							Toggle.Animating = false
+							ToggleConfig.Callback(Toggle.Value)
+						end)
+					else
+						-- Set immediately without animation
+						ToggleSwitch.BackgroundColor3 = targetColor
+						ToggleCircle.Position = targetPos
+						switchStroke.Transparency = targetStrokeTransparency
+						if not animate then
+							ToggleConfig.Callback(Toggle.Value)
+						end
+					end
 				end
 
+				-- Toggle function
+				local function doToggle()
+					if Toggle.Animating then return end
+					Toggle.Value = not Toggle.Value
+					updateToggle(true)
+					
+					if ToggleConfig.Save then
+						SaveCfg(game.GameId)
+					end
+				end
+
+				-- Set function
 				function Toggle:Set(Value)
 					if Toggle.Animating then return end
 					if Toggle.Value == Value then return end
 					
-					animateToggle()
+					Toggle.Value = Value
+					updateToggle(true)
 				end
 
+				-- Click handlers
+				AddConnection(switchClickDetector.MouseButton1Click, function()
+					doToggle()
+				end)
+
+				AddConnection(Click.MouseButton1Click, function()
+					doToggle()
+				end)
+
 				-- Hover effects
-				AddConnection(ToggleSwitch.MouseEnter, function()
+				AddConnection(switchClickDetector.MouseEnter, function()
 					if not Toggle.Animating then
-						local currentColor = Toggle.Value and vars.colorPurple or vars.colorGrey
-						TweenService:Create(ToggleSwitch, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
-							BackgroundColor3 = currentColor:Lerp(Color3.fromRGB(230, 50, 230), 0.3)
+						TweenService:Create(ToggleSwitch, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
+							BackgroundColor3 = ToggleSwitch.BackgroundColor3:Lerp(Color3.fromRGB(255, 255, 255), 0.1)
 						}):Play()
 					end
 				end)
 
-				AddConnection(ToggleSwitch.MouseLeave, function()
+				AddConnection(switchClickDetector.MouseLeave, function()
 					if not Toggle.Animating then
-						TweenService:Create(ToggleSwitch, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
-							BackgroundColor3 = Toggle.Value and vars.colorPurple or vars.colorGrey
+						TweenService:Create(ToggleSwitch, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
+							BackgroundColor3 = Toggle.Value and ToggleConfig.Color or ToggleConfig.ColorOff
 						}):Play()
 					end
-				end)
-
-				AddConnection(ToggleSwitch.MouseButton1Click, function()
-					if ToggleConfig.Save then
-						SaveCfg(game.GameId)
-					end
-					animateToggle()
 				end)
 
 				-- Frame hover effects
@@ -1181,9 +1208,11 @@ function OrionLib:MakeWindow(WindowConfig)
 					TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
 				end)
 
-				if ToggleConfig.Flag then
+				-- Initialize the toggle with current state
+				updateToggle(false)				if ToggleConfig.Flag then
 					OrionLib.Flags[ToggleConfig.Flag] = Toggle
-				end	
+				end
+				
 				return Toggle
 			end
             function ElementFunction:AddSlider(SliderConfig)
