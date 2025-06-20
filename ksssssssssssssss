@@ -1095,9 +1095,15 @@ function ElementFunction:AddSlider(SliderConfig)
     local Slider = {Value = SliderConfig.Default, Save = SliderConfig.Save, Type = "Slider"}
     local Dragging = false
     local ValueScale = (Slider.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min)
-    local Editing = false    local ValueDisplay = AddThemeObject(SetProps(MakeElement("Label", Slider.Value .. " " .. SliderConfig.ValueName, 14), {
-        Size = UDim2.new(0, 100, 0, 18),
-        Position = UDim2.new(1, -110, 0, 24),
+    local Editing = false
+
+    -- Calculate initial text width
+    local valueText = tostring(Slider.Value) .. " " .. SliderConfig.ValueName
+    local textWidth = math.max(60, game:GetService("TextService"):GetTextSize(valueText, 14, Enum.Font.GothamBold, Vector2.new(math.huge, 18)).X + 15)
+
+    local ValueDisplay = AddThemeObject(SetProps(MakeElement("Label", valueText, 14), {
+        Size = UDim2.new(0, textWidth, 0, 18),
+        Position = UDim2.new(1, -textWidth - 10, 0, 24),
         Font = Enum.Font.GothamBold,
         Name = "Value",
         TextXAlignment = Enum.TextXAlignment.Right,
@@ -1106,6 +1112,7 @@ function ElementFunction:AddSlider(SliderConfig)
     
     local ValueTextbox = Create("TextBox", {
         Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundTransparency = 1,
         Text = tostring(Slider.Value),
         Font = Enum.Font.GothamBold,
@@ -1115,24 +1122,24 @@ function ElementFunction:AddSlider(SliderConfig)
         Name = "ValueInput",
         Parent = ValueDisplay,
         TextXAlignment = Enum.TextXAlignment.Right,
-        ClearTextOnFocus = false
+        ClearTextOnFocus = false,
+        ZIndex = 10
     })
     
-    local function UpdateSliderLayout()
-        local valueText = tostring(Slider.Value) .. " " .. SliderConfig.ValueName
-        local textWidth = math.max(70, game:GetService("TextService"):GetTextSize(valueText, 14, Enum.Font.GothamBold, Vector2.new(math.huge, 18)).X + 20)
-        
-        ValueDisplay.Size = UDim2.new(0, textWidth, 0, 18)
-        ValueDisplay.Position = UDim2.new(1, -textWidth - 10, 0, 24)
-        
-        SliderBar.Size = UDim2.new(1, -textWidth - 30, 0, 6)
-    end
-    
     local SliderBar = AddThemeObject(SetProps(MakeElement("RoundFrame", Color3.fromRGB(40, 40, 45), 0, 5), {
-        Size = UDim2.new(1, -100, 0, 6),
+        Size = UDim2.new(1, -textWidth - 25, 0, 6),
         Position = UDim2.new(0, 12, 0, 30),
         BackgroundTransparency = 0
     }), "Divider")
+    
+    local function UpdateSliderLayout()
+        local newValueText = tostring(Slider.Value) .. " " .. SliderConfig.ValueName
+        local newTextWidth = math.max(60, game:GetService("TextService"):GetTextSize(newValueText, 14, Enum.Font.GothamBold, Vector2.new(math.huge, 18)).X + 15)
+        
+        ValueDisplay.Size = UDim2.new(0, newTextWidth, 0, 18)
+        ValueDisplay.Position = UDim2.new(1, -newTextWidth - 10, 0, 24)
+        SliderBar.Size = UDim2.new(1, -newTextWidth - 25, 0, 6)
+    end
     
     local SliderStroke = SetProps(MakeElement("Stroke"), {
         Color = SliderConfig.Color,
@@ -1197,25 +1204,26 @@ function ElementFunction:AddSlider(SliderConfig)
     
     local TweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     
+    -- Fixed input handling
     ValueDisplay.InputBegan:Connect(function(Input)
-        if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Editing then
             Editing = true
-            ValueDisplay.Visible = false
+            ValueDisplay.Text = ""
             ValueTextbox.Text = tostring(Slider.Value)
             ValueTextbox.Visible = true
+            wait(0.1)
             ValueTextbox:CaptureFocus()
-            ValueTextbox.TextEditable = true
         end
     end)
     
     ValueTextbox.Focused:Connect(function()
         Editing = true
+        ValueTextbox.Text = tostring(Slider.Value)
     end)
     
     ValueTextbox.FocusLost:Connect(function(enterPressed)
         Editing = false
         ValueTextbox.Visible = false
-        ValueDisplay.Visible = true
         
         local inputValue = tonumber(ValueTextbox.Text)
         if inputValue then
@@ -1223,9 +1231,12 @@ function ElementFunction:AddSlider(SliderConfig)
             if SliderConfig.Save then
                 SaveCfg(game.GameId)
             end
+        else
+            ValueDisplay.Text = tostring(Slider.Value) .. " " .. SliderConfig.ValueName
         end
     end)
-      function Slider:Set(Value)
+    
+    function Slider:Set(Value)
         self.Value = math.clamp(Round(Value, SliderConfig.Increment), SliderConfig.Min, SliderConfig.Max)
         
         local ValueScale = (self.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min)
@@ -1243,6 +1254,7 @@ function ElementFunction:AddSlider(SliderConfig)
     
     SliderBar.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+            if Editing then return end
             Dragging = true
             
             local SizeScale = math.clamp((Input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
@@ -1259,6 +1271,7 @@ function ElementFunction:AddSlider(SliderConfig)
     
     SliderDot.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+            if Editing then return end
             Dragging = true
             
             TweenService:Create(SliderDot, TweenInfo, {Size = UDim2.new(0, 14, 0, 14)}):Play()
@@ -1267,7 +1280,7 @@ function ElementFunction:AddSlider(SliderConfig)
     end)
     
     UserInputService.InputChanged:Connect(function(Input)
-        if Dragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
+        if Dragging and not Editing and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
             local SizeScale = math.clamp((Input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
             Slider:Set(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale))
             
@@ -1285,8 +1298,8 @@ function ElementFunction:AddSlider(SliderConfig)
             TweenService:Create(SliderDot.Rim, TweenInfo, {Thickness = 1.5}):Play()
         end
     end)
-      Slider:Set(Slider.Value)
-    UpdateSliderLayout()
+    
+    Slider:Set(Slider.Value)
     
     if SliderConfig.Flag then
         OrionLib.Flags[SliderConfig.Flag] = Slider
