@@ -1088,7 +1088,7 @@ function ElementFunction:AddSlider(SliderConfig)
     SliderConfig.Default = SliderConfig.Default or 50
     SliderConfig.Callback = SliderConfig.Callback or function() end
     SliderConfig.ValueName = SliderConfig.ValueName or ""
-    SliderConfig.Color = SliderConfig.Color or Color3.fromRGB(180, 0, 180)
+    SliderConfig.Color = SliderConfig.Color or Color3.fromRGB(255, 0, 255)
     SliderConfig.Flag = SliderConfig.Flag or nil
     SliderConfig.Save = SliderConfig.Save or false
 
@@ -1096,175 +1096,136 @@ function ElementFunction:AddSlider(SliderConfig)
     local Dragging = false
     local ValueScale = (Slider.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min)
     
-    -- Create the slider bar
-    local SliderBar = AddThemeObject(SetProps(MakeElement("RoundFrame", Color3.fromRGB(40, 40, 45), 0, 5), {
-        Size = UDim2.new(1, -24, 0, 6),
-        Position = UDim2.new(0, 12, 0, 30),
-        BackgroundTransparency = 0
-    }), "Divider")
-    
-    -- Add stroke to slider bar
-    local SliderStroke = SetProps(MakeElement("Stroke"), {
-        Color = SliderConfig.Color,
-        Transparency = 0.2,
-        Parent = SliderBar
-    })
-    
-    -- Create the slider fill
-    local SliderFill = SetChildren(SetProps(MakeElement("RoundFrame", SliderConfig.Color, 0, 5), {
-        Size = UDim2.new(ValueScale, 0, 1, 0),
-        BackgroundTransparency = 0,
-        ClipsDescendants = true,
-        Name = "Fill"
-    }), {
-        -- Add gradient to fill
-        SetProps(Create("UIGradient", {
-            Rotation = 90,
-            Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(210, 80, 210)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 150))
-            })
-        }), {Name = "Gradient"})
-    })
-    SliderFill.Parent = SliderBar
-    
-    -- Create the slider handle/dot
-    local SliderDot = SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 10), {
-        Size = UDim2.new(0, 16, 0, 16),
-        Position = UDim2.new(ValueScale, 0, 0.5, 0),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 0,
-        ZIndex = 3,
-        Name = "Dot"
-    }), {
-        -- Add stroke to dot
-        SetProps(MakeElement("Stroke"), {
-            Color = SliderConfig.Color,
-            Thickness = 1.5,
-            Transparency = 0,
-            Name = "Rim"
-        }),
-        -- Add gradient to dot
-        SetProps(Create("UIGradient", {
-            Rotation = 135,
-            Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(250, 250, 255)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(240, 220, 240))
-            })
-        }), {Name = "Gradient"})
-    })
-    SliderDot.Parent = SliderBar
-    
-    -- Create the value display
-    local ValueDisplay = AddThemeObject(SetProps(MakeElement("Label", Slider.Value .. " " .. SliderConfig.ValueName, 14), {
-        Size = UDim2.new(1, -12, 0, 14),
-        Position = UDim2.new(0, 12, 0, 52),
-        Font = Enum.Font.GothamSemibold,
-        Name = "Value",
-        TextXAlignment = Enum.TextXAlignment.Left
-    }), "Text")
-    
-    -- Create the main slider frame
     local SliderFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
         Size = UDim2.new(1, 0, 0, 70),
         Parent = ItemParent
     }), {
-        -- Title label
         AddThemeObject(SetProps(MakeElement("Label", SliderConfig.Name, 15), {
             Size = UDim2.new(1, -12, 0, 14),
             Position = UDim2.new(0, 12, 0, 10),
             Font = Enum.Font.GothamBold,
             Name = "Title"
         }), "Text"),
-        -- Border stroke
-        AddThemeObject(MakeElement("Stroke"), "Stroke"),
-        -- Add elements
-        SliderBar,
-        ValueDisplay
+        AddThemeObject(MakeElement("Stroke"), "Stroke")
     }), "Second")
     
-    -- Animation tweening info
+    local SliderBar = SetProps(MakeElement("RoundFrame", Color3.fromRGB(20, 20, 20), 0, 7), {
+        Size = UDim2.new(1, -60, 0, 14),
+        Position = UDim2.new(0, 12, 0, 40),
+        BackgroundTransparency = 0,
+        Name = "SliderBar"
+    })
+    
+    local SliderStroke = SetProps(MakeElement("Stroke"), {
+        Color = SliderConfig.Color,
+        Thickness = 0.5,
+        Transparency = 0,
+        Parent = SliderBar
+    })
+    
+    local SliderFill = SetProps(MakeElement("RoundFrame", SliderConfig.Color, 0, 7), {
+        Size = UDim2.new(ValueScale, 0, 1, 0),
+        BackgroundTransparency = 0,
+        Name = "Fill"
+    })
+    SliderFill.Parent = SliderBar
+    
+    local SliderDot = SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 8), {
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(ValueScale, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 0,
+        ZIndex = 3,
+        Name = "Dot"
+    })
+    SliderDot.Parent = SliderBar
+    
+    local ValueDisplay = AddThemeObject(SetProps(Create("TextBox", {
+        Size = UDim2.new(0, 55, 0, 14),
+        Position = UDim2.new(1, -60, 0, 40),
+        BackgroundTransparency = 1,
+        Text = string.format("%.1f%%", (ValueScale * 100)),
+        TextColor3 = Color3.fromRGB(200, 200, 200),
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Font = Enum.Font.SourceSans,
+        Name = "Value",
+        Parent = SliderFrame
+    })), "Text")
+    
+    SliderBar.Parent = SliderFrame
+    
     local TweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     
-    -- Update slider function
     function Slider:Set(Value)
-        -- Clamp and round the value
         self.Value = math.clamp(Round(Value, SliderConfig.Increment), SliderConfig.Min, SliderConfig.Max)
-        
-        -- Calculate the position scale
         local ValueScale = (self.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min)
         
-        -- Update the UI
         TweenService:Create(SliderFill, TweenInfo, {Size = UDim2.new(ValueScale, 0, 1, 0)}):Play()
         TweenService:Create(SliderDot, TweenInfo, {Position = UDim2.new(ValueScale, 0, 0.5, 0)}):Play()
         
-        -- Update text
-        ValueDisplay.Text = tostring(self.Value) .. " " .. SliderConfig.ValueName
+        ValueDisplay.Text = string.format("%.1f%%", (ValueScale * 100))
         
-        -- Call the callback
         SliderConfig.Callback(self.Value)
     end
     
-    -- Input handling for the slider bar
     SliderBar.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
             Dragging = true
             
-            -- Calculate the value based on input position
             local SizeScale = math.clamp((Input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
             Slider:Set(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale))
             
-            -- Visual feedback
-            TweenService:Create(SliderDot, TweenInfo, {Size = UDim2.new(0, 14, 0, 14)}):Play()
-            TweenService:Create(SliderDot.Rim, TweenInfo, {Thickness = 2}):Play()
-            
-            -- Save configuration if enabled
             if SliderConfig.Save then
                 SaveCfg(game.GameId)
             end
         end
     end)
     
-    -- Input handling for the dot
     SliderDot.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
             Dragging = true
-            
-            -- Visual feedback
-            TweenService:Create(SliderDot, TweenInfo, {Size = UDim2.new(0, 14, 0, 14)}):Play()
-            TweenService:Create(SliderDot.Rim, TweenInfo, {Thickness = 2}):Play()
         end
     end)
     
-    -- Handle drag movements
     UserInputService.InputChanged:Connect(function(Input)
-        if Dragging and Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
-            -- Calculate the value based on input position
+        if Dragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
             local SizeScale = math.clamp((Input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
             Slider:Set(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale))
             
-            -- Save configuration if enabled
             if SliderConfig.Save then
                 SaveCfg(game.GameId)
             end
         end
     end)
     
-    -- Handle input ending
     UserInputService.InputEnded:Connect(function(Input)
         if Dragging and (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) then
             Dragging = false
-            
-            -- Reset visual feedback
-            TweenService:Create(SliderDot, TweenInfo, {Size = UDim2.new(0, 16, 0, 16)}):Play()
-            TweenService:Create(SliderDot.Rim, TweenInfo, {Thickness = 1.5}):Play()
         end
     end)
     
-    -- Initialize the slider value
+    ValueDisplay.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local text = ValueDisplay.Text:gsub("%%", "")
+            local num = tonumber(text)
+            if num then
+                num = math.clamp(num, 0, 100)
+                local targetValue = SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * (num/100))
+                Slider:Set(targetValue)
+                
+                if SliderConfig.Save then
+                    SaveCfg(game.GameId)
+                end
+            else
+                local ValueScale = (Slider.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min)
+                ValueDisplay.Text = string.format("%.1f%%", (ValueScale * 100))
+            end
+        end
+    end)
+    
     Slider:Set(Slider.Value)
     
-    -- Set up flag if specified
     if SliderConfig.Flag then
         OrionLib.Flags[SliderConfig.Flag] = Slider
     end
