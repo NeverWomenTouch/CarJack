@@ -1169,7 +1169,8 @@ function ElementFunction:AddSlider(SliderConfig)
         SliderConfig.Callback(self.Value)
     end
     
-    SliderBar.InputBegan:Connect(function(Input)
+    local SliderBarMouseConnection
+    SliderBarMouseConnection = SliderBar.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
             Dragging = true
             
@@ -1182,13 +1183,15 @@ function ElementFunction:AddSlider(SliderConfig)
         end
     end)
     
-    SliderDot.InputBegan:Connect(function(Input)
+    local SliderDotMouseConnection
+    SliderDotMouseConnection = SliderDot.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
             Dragging = true
         end
     end)
     
-    UserInputService.InputChanged:Connect(function(Input)
+    local InputChangedConnection
+    InputChangedConnection = UserInputService.InputChanged:Connect(function(Input)
         if Dragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
             local SizeScale = math.clamp((Input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
             Slider:Set(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale))
@@ -1199,13 +1202,15 @@ function ElementFunction:AddSlider(SliderConfig)
         end
     end)
     
-    UserInputService.InputEnded:Connect(function(Input)
+    local InputEndedConnection
+    InputEndedConnection = UserInputService.InputEnded:Connect(function(Input)
         if Dragging and (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) then
             Dragging = false
         end
     end)
     
-    ValueDisplay.FocusLost:Connect(function(enterPressed)
+    local ValueDisplayFocusLostConnection
+    ValueDisplayFocusLostConnection = ValueDisplay.FocusLost:Connect(function(enterPressed)
         if enterPressed then
             local text = ValueDisplay.Text:gsub("%%", "")
             local num = tonumber(text)
@@ -1221,6 +1226,17 @@ function ElementFunction:AddSlider(SliderConfig)
                 local ValueScale = (Slider.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min)
                 ValueDisplay.Text = string.format("%.1f%%", (ValueScale * 100))
             end
+        end
+    end)
+    
+    -- Clean up connections when the element is destroyed
+    SliderFrame.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            SliderBarMouseConnection:Disconnect()
+            SliderDotMouseConnection:Disconnect()
+            InputChangedConnection:Disconnect()
+            InputEndedConnection:Disconnect()
+            ValueDisplayFocusLostConnection:Disconnect()
         end
     end)
     
