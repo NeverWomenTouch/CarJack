@@ -1,0 +1,201 @@
+local lp = game.Players.LocalPlayer
+local camera = game.Workspace.CurrentCamera
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = game:GetService("Workspace").CurrentCamera
+local ESPInstances = {}
+function CPESP(Player)
+    if ESPInstances[Player] then
+        if ESPInstances[Player].connection then
+            ESPInstances[Player].connection:Disconnect()
+        end
+        for _, drawing in ipairs(ESPInstances[Player].drawings) do
+            if drawing then drawing:Remove() end
+        end
+        ESPInstances[Player] = nil
+    end
+end
+function ThanosTheCreatorEspNigger(Player)
+    if not Player then return end
+    CPESP(Player)
+    local Box, BoxOutline, BoxFilled, Name, Distance, Weapon, HealthBar, HealthBarOutline, HealthText, Tracer = 
+    Drawing.new("Square"), Drawing.new("Square"), Drawing.new("Square"), 
+    Drawing.new("Text"), Drawing.new("Text"), Drawing.new("Text"), 
+    Drawing.new("Square"), Drawing.new("Square"), Drawing.new("Text"),
+    Drawing.new("Line")
+    ESPInstances[Player] = {
+        drawings = {Box, BoxOutline, BoxFilled, Name, Distance, Weapon, HealthBar, HealthBarOutline, HealthText, Tracer},
+        connection = nil
+    }
+    local Updater = RunService.RenderStepped:Connect(function()
+        local char = Player
+        if not char then return end
+        local humanoid = char:FindFirstChild("Humanoid")
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        if char and char.Parent and rootPart and humanoid then
+            local Target2dPosition, IsVisible = Camera:WorldToViewportPoint(rootPart.Position)
+            local scale_factor = 1 / (Target2dPosition.Z * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
+            local width, height = math.floor(Config.Esp.BoxSize * scale_factor), math.floor(Config.Esp.BoxSize * 1.5 * scale_factor)
+            local distance = math.floor((rootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
+            if Config.Esp.Names then
+                Name.Visible = IsVisible
+                Name.Text = char.Name
+                Name.Color = Config.Esp.NamesColor
+                Name.Center = true
+                Name.Outline = Config.Esp.NamesOutline
+                Name.OutlineColor = Config.Esp.NamesOutlineColor
+                Name.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height/2 - 15)
+                Name.Font = Config.Esp.NamesFont
+                Name.Size = Config.Esp.NamesSize
+            else
+                Name.Visible = false
+            end
+            if Config.Esp.Distance then
+                Distance.Visible = IsVisible
+                Distance.Text = tostring(distance) .. " studs"
+                Distance.Color = Config.Esp.DistanceColor
+                Distance.Center = true
+                Distance.Outline = Config.Esp.DistanceOutline
+                Distance.OutlineColor = Config.Esp.DistanceOutlineColor
+                Distance.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height/2 - 25)
+                Distance.Font = 2
+                Distance.Size = Config.Esp.DistanceSize
+            else
+                Distance.Visible = false
+            end
+            if Config.Esp.Weapon then
+                Weapon.Visible = IsVisible
+                Weapon.Color = Config.Esp.WeaponColor
+                local tool = char:FindFirstChildOfClass("Tool")
+                Weapon.Text = tool and "[ " .. tool.Name .. " ]" or "[ None ]"
+                Weapon.Center = true
+                Weapon.Outline = Config.Esp.WeaponOutline
+                Weapon.OutlineColor = Config.Esp.WeaponOutlineColor
+                Weapon.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y + height/2 + 3)
+                Weapon.Font = Config.Esp.WeaponFont
+                Weapon.Size = Config.Esp.WeaponSize
+            else
+                Weapon.Visible = false
+            end
+            if Config.Esp.Tracers then
+                Tracer.Visible = IsVisible
+                Tracer.Color = Config.Esp.TracerColor
+                Tracer.Thickness = Config.Esp.TracerThickness
+                Tracer.Transparency = Config.Esp.TracerTransparency
+                Tracer.ZIndex = 1
+                local viewportSize = Camera.ViewportSize
+                local startPos = 
+                    Config.Esp.TracerOrigin == "Bottom" and Vector2.new(viewportSize.X/2, viewportSize.Y) or
+                    Config.Esp.TracerOrigin == "Top" and Vector2.new(viewportSize.X/2, 0) or
+                    Vector2.new(viewportSize.X/2, viewportSize.Y/2)
+                Tracer.From = startPos
+                Tracer.To = Vector2.new(Target2dPosition.X, Target2dPosition.Y + height/2)
+            else
+                Tracer.Visible = false
+            end
+            if Config.Esp.Box then
+                Box.Visible = IsVisible
+                Box.Color = Config.Esp.BoxColor
+                Box.Size = Vector2.new(width, height)
+                Box.Position = Vector2.new(Target2dPosition.X - width/2, Target2dPosition.Y - height/2)
+                Box.Filled = false
+                Box.Thickness = 1
+                Box.ZIndex = 69
+                if Config.Esp.BoxFilled then
+                    BoxFilled.Visible = IsVisible
+                    BoxFilled.Color = Config.Esp.BoxFilledColor
+                    BoxFilled.Size = Box.Size
+                    BoxFilled.Position = Box.Position
+                    BoxFilled.Filled = true
+                    BoxFilled.Transparency = Config.Esp.BoxTransparency
+                    BoxFilled.ZIndex = 2
+                else
+                    BoxFilled.Visible = false
+                end
+                if Config.Esp.BoxOutline then
+                    BoxOutline.Visible = IsVisible
+                    BoxOutline.Color = Config.Esp.BoxOutlineColor
+                    BoxOutline.Size = Box.Size
+                    BoxOutline.Position = Box.Position
+                    BoxOutline.Filled = false
+                    BoxOutline.Thickness = 3
+                    BoxOutline.ZIndex = 1
+                else
+                    BoxOutline.Visible = false
+                end
+            else
+                Box.Visible = false
+                BoxOutline.Visible = false
+                BoxFilled.Visible = false
+            end
+            if Config.Esp.HealthBar then
+                HealthBarOutline.Visible = IsVisible
+                HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
+                HealthBarOutline.Filled = true
+                HealthBarOutline.ZIndex = 1
+                HealthBar.Visible = IsVisible
+                HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), humanoid.Health / humanoid.MaxHealth)
+                HealthBar.Thickness = 1
+                HealthBar.Filled = true
+                HealthBar.ZIndex = 69
+                if Config.Esp.HealthBarSide == "Left" then
+                    HealthBarOutline.Size = Vector2.new(2, height)
+                    HealthBarOutline.Position = Vector2.new(Target2dPosition.X - width/2 - 5, Target2dPosition.Y - height/2)
+                    HealthBar.Size = Vector2.new(1, -(height - 2) * (humanoid.Health / humanoid.MaxHealth))
+                    HealthBar.Position = HealthBarOutline.Position + Vector2.new(1, height - 1)
+                end
+                if Config.Esp.HealthText then
+                    HealthText.Visible = IsVisible
+                    HealthText.Text = math.floor((humanoid.Health / humanoid.MaxHealth) * 100) .. "%"
+                    HealthText.Position = HealthBarOutline.Position + Vector2.new(-15, -3)
+                    HealthText.Color = Config.Esp.HealthTextColor
+                    HealthText.Size = Config.Esp.HealthTextSize
+                    HealthText.Center = true
+                    HealthText.Outline = Config.Esp.HealthTextOutline
+                    HealthText.OutlineColor = Config.Esp.HealthTextColorOutline
+                else
+                    HealthText.Visible = false
+                end
+            else
+                HealthBar.Visible = false
+                HealthBarOutline.Visible = false
+                HealthText.Visible = false
+            end
+        else
+            Box.Visible = false
+            BoxOutline.Visible = false
+            BoxFilled.Visible = false
+            Name.Visible = false
+            Distance.Visible = false
+            Weapon.Visible = false
+            HealthBar.Visible = false
+            HealthBarOutline.Visible = false
+            HealthText.Visible = false
+            Tracer.Visible = false
+        end
+    end)
+    ESPInstances[Player].connection = Updater
+end
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= Players.LocalPlayer then
+        if plr.Character then
+            ThanosTheCreatorEspNigger(plr.Character)
+        end
+        plr.CharacterAdded:Connect(ThanosTheCreatorEspNigger)
+        plr.CharacterRemoving:Connect(CPESP)
+    end
+end
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= Players.LocalPlayer then
+        if plr.Character then
+            ThanosTheCreatorEspNigger(plr.Character)
+        end
+        plr.CharacterAdded:Connect(ThanosTheCreatorEspNigger)
+        plr.CharacterRemoving:Connect(CPESP)
+    end
+end)
+Players.PlayerRemoving:Connect(function(plr)
+    if plr.Character then
+        CPESP(plr.Character)
+    end
+end)
