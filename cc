@@ -540,46 +540,59 @@ local function CreateTooltip()
     TooltipFrame = Create("Frame", {
         Name = "Tooltip",
         Parent = Orion,
-        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
         BorderSizePixel = 0,
         Size = UDim2.new(0, 200, 0, 30),
         Position = UDim2.new(0, 0, 0, 0),
         Visible = false,
-        ZIndex = 1000
-    }, {
-        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
-        Create("UIStroke", {
-            Color = Color3.fromRGB(255, 0, 255),
-            Thickness = 1.5,
-            Transparency = 0
-        }),
-        Create("TextLabel", {
-            Name = "TooltipText",
-            Size = UDim2.new(1, -12, 1, -6),
-            Position = UDim2.new(0, 6, 0, 3),
-            BackgroundTransparency = 1,
-            Text = "",
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 13,
-            Font = Enum.Font.Gotham,
-            TextWrapped = true,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Center,
-            RichText = false,
-            TextScaled = false,
-            TextTransparency = 0
-        }),
-        Create("Frame", {
-            Name = "Shadow",
-            Size = UDim2.new(1, 4, 1, 4),
-            Position = UDim2.new(0, -2, 0, -2),
-            BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-            BackgroundTransparency = 0.7,
-            BorderSizePixel = 0,
-            ZIndex = -1
-        }, {
-            Create("UICorner", {CornerRadius = UDim.new(0, 8)})
-        })
+        ZIndex = 10000
+    })
+
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 6),
+        Parent = TooltipFrame
+    })
+
+    Create("UIStroke", {
+        Color = Color3.fromRGB(255, 0, 255),
+        Thickness = 1,
+        Transparency = 0,
+        Parent = TooltipFrame
+    })
+
+    local TooltipText = Create("TextLabel", {
+        Name = "TooltipText",
+        Size = UDim2.new(1, -16, 1, -8),
+        Position = UDim2.new(0, 8, 0, 4),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 13,
+        Font = Enum.Font.Gotham,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        RichText = false,
+        TextScaled = false,
+        TextTransparency = 0,
+        ZIndex = 10001,
+        Parent = TooltipFrame
+    })
+
+    local Shadow = Create("Frame", {
+        Name = "Shadow",
+        Size = UDim2.new(1, 4, 1, 4),
+        Position = UDim2.new(0, -2, 0, -2),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.8,
+        BorderSizePixel = 0,
+        ZIndex = 9999,
+        Parent = TooltipFrame
+    })
+
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 8),
+        Parent = Shadow
     })
     
     return TooltipFrame
@@ -593,20 +606,25 @@ local function ShowTooltip(text, targetFrame)
     end
     
     local tooltipText = TooltipFrame:FindFirstChild("TooltipText")
-    if not tooltipText then return end
+    if not tooltipText then 
+        CreateTooltip()
+        tooltipText = TooltipFrame:FindFirstChild("TooltipText")
+    end
     
     tooltipText.Text = tostring(text)
+    tooltipText.TextTransparency = 0
+    tooltipText.Visible = true
     
     local textService = game:GetService("TextService")
     local textBounds = textService:GetTextSize(
         tostring(text), 
         13, 
         Enum.Font.Gotham, 
-        Vector2.new(300, math.huge)
+        Vector2.new(280, math.huge)
     )
     
-    local tooltipWidth = math.min(math.max(textBounds.X + 16, 120), 350)
-    local tooltipHeight = math.max(textBounds.Y + 10, 28)
+    local tooltipWidth = math.min(math.max(textBounds.X + 20, 100), 320)
+    local tooltipHeight = math.max(textBounds.Y + 12, 26)
     
     TooltipFrame.Size = UDim2.new(0, tooltipWidth, 0, tooltipHeight)
     
@@ -630,41 +648,40 @@ local function ShowTooltip(text, targetFrame)
     TooltipFrame.Visible = true
     
     TooltipFrame.BackgroundTransparency = 1
-    tooltipText.TextTransparency = 1
     TooltipFrame.UIStroke.Transparency = 1
     TooltipFrame.Shadow.BackgroundTransparency = 1
     
-    TweenService:Create(TooltipFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    TweenService:Create(TooltipFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         BackgroundTransparency = 0
     }):Play()
-    TweenService:Create(tooltipText, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        TextTransparency = 0
-    }):Play()
-    TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    
+    TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         Transparency = 0.2
     }):Play()
-    TweenService:Create(TooltipFrame.Shadow, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 0.8
+    
+    TweenService:Create(TooltipFrame.Shadow, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0.85
     }):Play()
 end
 
 local function HideTooltip()
     if TooltipFrame and TooltipFrame.Visible then
-        TweenService:Create(TooltipFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quart), {
+        local tooltipText = TooltipFrame:FindFirstChild("TooltipText")
+        
+        TweenService:Create(TooltipFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
             BackgroundTransparency = 1
         }):Play()
-        TweenService:Create(TooltipFrame.TooltipText, TweenInfo.new(0.12, Enum.EasingStyle.Quart), {
-            TextTransparency = 1
-        }):Play()
-        TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quart), {
+        
+        TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
             Transparency = 1
         }):Play()
-        TweenService:Create(TooltipFrame.Shadow, TweenInfo.new(0.12, Enum.EasingStyle.Quart), {
+        
+        TweenService:Create(TooltipFrame.Shadow, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
             BackgroundTransparency = 1
         }):Play()
         
         spawn(function()
-            wait(0.12)
+            wait(0.15)
             if TooltipFrame then
                 TooltipFrame.Visible = false
             end
@@ -677,13 +694,13 @@ local function AddTooltipToElement(element, tooltipText)
     
     local updateConnection
     local isHovering = false
-    local tooltipDelayConnection
+    local tooltipThread
     
     AddConnection(element.MouseEnter, function()
         isHovering = true
         
-        tooltipDelayConnection = spawn(function()
-            wait(0.5)
+        tooltipThread = spawn(function()
+            wait(0.6)
             if isHovering then
                 ShowTooltip(tooltipText, element)
                 
@@ -718,13 +735,15 @@ local function AddTooltipToElement(element, tooltipText)
     AddConnection(element.MouseLeave, function()
         isHovering = false
         HideTooltip()
+        
         if updateConnection then
             updateConnection:Disconnect()
             updateConnection = nil
         end
-        if tooltipDelayConnection then
-            pcall(function()
-                tooltipDelayConnection:Disconnect()
+        
+        if tooltipThread then
+            spawn(function()
+                tooltipThread = nil
             end)
         end
     end)
