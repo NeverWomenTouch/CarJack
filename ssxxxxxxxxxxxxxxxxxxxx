@@ -1906,15 +1906,14 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         HueSelection
     })
 
-    -- Rainbow checkbox positioned on the right side
     local RainbowCheckbox = Create("Frame", {
         Size = UDim2.new(0, CHECKBOX_SIZE, 0, CHECKBOX_SIZE),
-        Position = UDim2.new(1, -32, 0, 155), -- Positioned on the right side
+        Position = UDim2.new(1, -54, 0, 155),
         AnchorPoint = Vector2.new(0, 0),
         BackgroundColor3 = Color3.fromRGB(20, 20, 20),
         BorderSizePixel = 0,
         Name = "RainbowCheckbox",
-        Visible = false -- Will show when expanded
+        Visible = false
     })
 
     local RainbowCheck = Create("ImageLabel", {
@@ -1923,7 +1922,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundTransparency = 1,
         Image = "rbxassetid://7072716612",
-        ImageColor3 = Color3.fromRGB(255, 0, 255),
+        ImageColor3 = ToggleColorPicker.ColorValue,
         Visible = false,
         Parent = RainbowCheckbox
     })
@@ -1941,7 +1940,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     })
 
     local RainbowStroke = Create("UIStroke", {
-        Color = Color3.fromRGB(255, 0, 255),
+        Color = ToggleColorPicker.ColorValue,
         Thickness = 1,
         Transparency = 0.5,
         Parent = RainbowCheckbox
@@ -1949,18 +1948,17 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
     local RainbowLabel = Create("TextLabel", {
         Size = UDim2.new(0, 100, 0, 20),
-        Position = UDim2.new(0, -108, 0.5, 0), -- To the left of the checkbox
+        Position = UDim2.new(0, -108, 0.5, 0),
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundTransparency = 1,
         Text = "Rainbow Mode",
         TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextXAlignment = Enum.TextXAlignment.Right, -- Right aligned text
+        TextXAlignment = Enum.TextXAlignment.Right,
         Font = Enum.Font.Gotham,
         TextSize = 14,
         Parent = RainbowCheckbox
     })
 
-    -- Color picker container WITHOUT the rainbow checkbox
     local ColorpickerContainer = Create("Frame", {
         Position = UDim2.new(0, 0, 0, 32),
         Size = UDim2.new(1, 0, 0, TOTAL_EXPANDED_HEIGHT - 38),
@@ -2065,7 +2063,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
             Name = "F"
         }),
         ColorpickerContainer,
-        RainbowCheckbox, -- Now directly in the main frame, positioned on the right
+        RainbowCheckbox,
         AddThemeObject(MakeElement("Stroke"), "Stroke"),
     }), "Second")
 
@@ -2100,23 +2098,22 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     local function updateRainbowCheckbox()
         RainbowCheck.Visible = RainbowMode
         
-        -- Enhanced visual feedback for when it's enabled
-        local targetBgColor = RainbowMode and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(20, 20, 20)
+        local targetBgColor = RainbowMode and ToggleColorPicker.ColorValue or Color3.fromRGB(20, 20, 20)
         local targetStrokeTransparency = RainbowMode and 0 or 0.5
-        local targetCheckScale = RainbowMode and 1 or 0.8
         
         TweenService:Create(RainbowCheckbox, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
             BackgroundColor3 = targetBgColor
         }):Play()
         
         TweenService:Create(RainbowStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            Transparency = targetStrokeTransparency
+            Transparency = targetStrokeTransparency,
+            Color = ToggleColorPicker.ColorValue
         }):Play()
         
-        -- Scale animation for the checkmark
         if RainbowMode then
             RainbowCheck.Size = UDim2.new(0, 0, 0, 0)
             RainbowCheck.Visible = true
+            RainbowCheck.ImageColor3 = ToggleColorPicker.ColorValue
             TweenService:Create(RainbowCheck, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
                 Size = UDim2.new(1, -4, 1, -4)
             }):Play()
@@ -2199,7 +2196,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
     AddConnection(RainbowClick.MouseLeave, function()
         TweenService:Create(RainbowCheckbox, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = RainbowMode and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(20, 20, 20)
+            BackgroundColor3 = RainbowMode and ToggleColorPicker.ColorValue or Color3.fromRGB(20, 20, 20)
         }):Play()
         TweenService:Create(RainbowStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
             Transparency = RainbowMode and 0 or 0.5
@@ -2211,7 +2208,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         TweenService:Create(ToggleColorPickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleColorPicker.Toggled and UDim2.new(1, 0, 0, TOTAL_EXPANDED_HEIGHT) or UDim2.new(1, 0, 0, 38)}):Play()
         Color.Visible = ToggleColorPicker.Toggled
         Hue.Visible = ToggleColorPicker.Toggled
-        RainbowCheckbox.Visible = ToggleColorPicker.Toggled -- Show/hide rainbow checkbox when toggled
+        RainbowCheckbox.Visible = ToggleColorPicker.Toggled
         ToggleColorPickerFrame.F.Line.Visible = ToggleColorPicker.Toggled
     end)
 
@@ -2219,6 +2216,13 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         ColorpickerBox.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
         Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
         ToggleColorPicker:SetColor(ColorpickerBox.BackgroundColor3)
+        
+        RainbowStroke.Color = ToggleColorPicker.ColorValue
+        RainbowCheck.ImageColor3 = ToggleColorPicker.ColorValue
+        if RainbowMode then
+            RainbowCheckbox.BackgroundColor3 = ToggleColorPicker.ColorValue
+        end
+        
         ToggleColorPickerConfig.Callback(ToggleColorPicker.ColorValue, ToggleColorPicker.Value)
         SaveCfg(game.GameId)
     end
@@ -2296,6 +2300,11 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     function ToggleColorPicker:SetColor(Value)
         ToggleColorPicker.ColorValue = Value
         ColorpickerBox.BackgroundColor3 = ToggleColorPicker.ColorValue
+        RainbowStroke.Color = ToggleColorPicker.ColorValue
+        RainbowCheck.ImageColor3 = ToggleColorPicker.ColorValue
+        if RainbowMode then
+            RainbowCheckbox.BackgroundColor3 = ToggleColorPicker.ColorValue
+        end
     end
 
     updateToggle(false)
