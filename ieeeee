@@ -1885,7 +1885,8 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
                 })
 
                 local Color = Create("ImageLabel", {
-                    Size = UDim2.new(1, -25, 1, 0),
+                    Size = UDim2.new(1, -25, 1, -40),
+                    Position = UDim2.new(0, 0, 0, 0),
                     Visible = false,
                     Image = "rbxassetid://4155801252"
                 }, {
@@ -1894,7 +1895,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
                 })
 
                 local Hue = Create("Frame", {
-                    Size = UDim2.new(0, 20, 1, 0),
+                    Size = UDim2.new(0, 20, 1, -40),
                     Position = UDim2.new(1, -20, 0, 0),
                     Visible = false
                 }, {
@@ -2182,7 +2183,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
                 AddConnection(Click.MouseButton1Click, function()
                     ToggleColorPicker.Toggled = not ToggleColorPicker.Toggled
-                    TweenService:Create(ToggleColorPickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleColorPicker.Toggled and UDim2.new(1, 0, 0, 170) or UDim2.new(1, 0, 0, 38)}):Play()
+                    TweenService:Create(ToggleColorPickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleColorPicker.Toggled and UDim2.new(1, 0, 0, 190) or UDim2.new(1, 0, 0, 38)}):Play()
                     Color.Visible = ToggleColorPicker.Toggled
                     Hue.Visible = ToggleColorPicker.Toggled
                     RainbowToggle.Visible = ToggleColorPicker.Toggled
@@ -2192,11 +2193,14 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
                 local function UpdateColorPicker()
                     if not RainbowEnabled then
-                        ColorpickerBox.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
+                        local newColor = Color3.fromHSV(ColorH, ColorS, ColorV)
+                        ColorpickerBox.BackgroundColor3 = newColor
                         Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
-                        ToggleColorPicker:SetColor(ColorpickerBox.BackgroundColor3)
+                        ToggleColorPicker:SetColor(newColor)
                         ToggleColorPickerConfig.Callback(ToggleColorPicker.ColorValue, ToggleColorPicker.Value)
-                        SaveCfg(game.GameId)
+                        if ToggleColorPickerConfig.Save then
+                            SaveCfg(game.GameId)
+                        end
                     end
                 end
 
@@ -2209,10 +2213,6 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
                     ColorSelection.Position = UDim2.new(s, 0, 1 - v, 0)
                 end
 
-                ColorH = 1 - (math.clamp(HueSelection.AbsolutePosition.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
-                ColorS = (math.clamp(ColorSelection.AbsolutePosition.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
-                ColorV = 1 - (math.clamp(ColorSelection.AbsolutePosition.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
-                
                 UpdateHSV()
 
                 AddConnection(Color.InputBegan, function(input)
@@ -2243,14 +2243,12 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 and not RainbowEnabled then
                         if HueInput then
                             HueInput:Disconnect()
-                        end;
+                        end
 
                         HueInput = AddConnection(RunService.RenderStepped, function()
                             local HueY = (math.clamp(Mouse.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
-
                             HueSelection.Position = UDim2.new(0.5, 0, HueY, 0)
                             ColorH = 1 - HueY
-
                             UpdateColorPicker()
                         end)
                     end
@@ -2273,6 +2271,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
                 function ToggleColorPicker:SetColor(Value)
                     ToggleColorPicker.ColorValue = Value
                     ColorpickerBox.BackgroundColor3 = ToggleColorPicker.ColorValue
+                    UpdateHSV()
                 end
 
                 updateToggle(false)
