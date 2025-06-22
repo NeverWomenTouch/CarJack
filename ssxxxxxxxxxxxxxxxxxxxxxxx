@@ -530,7 +530,179 @@ function OrionLib:Init()
 		end)		
 	end	
 end	
+local TooltipFrame = nil
 
+local function CreateTooltip()
+    if TooltipFrame then
+        TooltipFrame:Destroy()
+    end
+    
+    TooltipFrame = Create("Frame", {
+        Name = "Tooltip",
+        Parent = Orion,
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 200, 0, 30),
+        Position = UDim2.new(0, 0, 0, 0),
+        Visible = false,
+        ZIndex = 1000
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+        Create("UIStroke", {
+            Color = Color3.fromRGB(255, 0, 255),
+            Thickness = 1,
+            Transparency = 0.3
+        }),
+        Create("TextLabel", {
+            Name = "TooltipText",
+            Size = UDim2.new(1, -12, 1, 0),
+            Position = UDim2.new(0, 6, 0, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = 13,
+            Font = Enum.Font.Gotham,
+            TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Center
+        }),
+        Create("UIPadding", {
+            PaddingLeft = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 8),
+            PaddingTop = UDim.new(0, 4),
+            PaddingBottom = UDim.new(0, 4)
+        })
+    })
+    
+    return TooltipFrame
+end
+
+local function ShowTooltip(text, targetFrame)
+    if not text or text == "" then return end
+    
+    if not TooltipFrame then
+        CreateTooltip()
+    end
+    
+    local tooltipText = TooltipFrame:FindFirstChild("TooltipText")
+    tooltipText.Text = text
+    
+    local textBounds = game:GetService("TextService"):GetTextSize(
+        text, 
+        13, 
+        Enum.Font.Gotham, 
+        Vector2.new(250, math.huge)
+    )
+    
+    local tooltipWidth = math.min(math.max(textBounds.X + 16, 120), 300)
+    local tooltipHeight = math.max(textBounds.Y + 8, 26)
+    
+    TooltipFrame.Size = UDim2.new(0, tooltipWidth, 0, tooltipHeight)
+    
+    local mouse = game.Players.LocalPlayer:GetMouse()
+    local screenSize = workspace.CurrentCamera.ViewportSize
+    
+    local tooltipX = mouse.X + 15
+    local tooltipY = mouse.Y - tooltipHeight - 15
+    
+    if tooltipX + tooltipWidth > screenSize.X then
+        tooltipX = mouse.X - tooltipWidth - 15
+    end
+    if tooltipY < 0 then
+        tooltipY = mouse.Y + 25
+    end
+    
+    TooltipFrame.Position = UDim2.new(0, tooltipX, 0, tooltipY)
+    TooltipFrame.Visible = true
+    
+    TooltipFrame.BackgroundTransparency = 1
+    tooltipText.TextTransparency = 1
+    TooltipFrame.UIStroke.Transparency = 1
+    
+    TweenService:Create(TooltipFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
+        BackgroundTransparency = 0
+    }):Play()
+    TweenService:Create(tooltipText, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
+        TextTransparency = 0
+    }):Play()
+    TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
+        Transparency = 0.3
+    }):Play()
+end
+
+local function HideTooltip()
+    if TooltipFrame and TooltipFrame.Visible then
+        TweenService:Create(TooltipFrame, TweenInfo.new(0.1, Enum.EasingStyle.Quart), {
+            BackgroundTransparency = 1
+        }):Play()
+        TweenService:Create(TooltipFrame.TooltipText, TweenInfo.new(0.1, Enum.EasingStyle.Quart), {
+            TextTransparency = 1
+        }):Play()
+        TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.1, Enum.EasingStyle.Quart), {
+            Transparency = 1
+        }):Play()
+        
+        spawn(function()
+            wait(0.1)
+            if TooltipFrame then
+                TooltipFrame.Visible = false
+            end
+        end)
+    end
+end
+
+local function AddTooltipToElement(element, tooltipText)
+    if not tooltipText or tooltipText == "" then return end
+    
+    local updateConnection
+    local isHovering = false
+    local tooltipDelayConnection
+    
+    AddConnection(element.MouseEnter, function()
+        isHovering = true
+        
+        -- Add a small delay before showing tooltip
+        tooltipDelayConnection = task.wait(0.5)
+        
+        if isHovering then
+            ShowTooltip(tooltipText, element)
+            
+            updateConnection = AddConnection(RunService.Heartbeat, function()
+                if TooltipFrame and TooltipFrame.Visible and isHovering then
+                    local mouse = game.Players.LocalPlayer:GetMouse()
+                    local screenSize = workspace.CurrentCamera.ViewportSize
+                    
+                    local tooltipWidth = TooltipFrame.Size.X.Offset
+                    local tooltipHeight = TooltipFrame.Size.Y.Offset
+                    
+                    local tooltipX = mouse.X + 15
+                    local tooltipY = mouse.Y - tooltipHeight - 15
+                    
+                    if tooltipX + tooltipWidth > screenSize.X then
+                        tooltipX = mouse.X - tooltipWidth - 15
+                    end
+                    if tooltipY < 0 then
+                        tooltipY = mouse.Y + 25
+                    end
+                    
+                    TooltipFrame.Position = UDim2.new(0, tooltipX, 0, tooltipY)
+                end
+            end)
+        end
+    end)
+    
+    AddConnection(element.MouseLeave, function()
+        isHovering = false
+        HideTooltip()
+        if updateConnection then
+            updateConnection:Disconnect()
+            updateConnection = nil
+        end
+        if tooltipDelayConnection then
+            task.cancel(tooltipDelayConnection)
+        end
+    end)
+end
 function OrionLib:MakeWindow(WindowConfig)
 	local FirstTab = true
 	local Minimized = false
@@ -903,173 +1075,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 				return LabelFunction
 			end
-
-local TooltipFrame = nil
-function CreateTooltip()
-    if TooltipFrame then
-        TooltipFrame:Destroy()
-    end
-    TooltipFrame = Create("Frame", {
-        Name = "Tooltip",
-        Parent = Orion,
-        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
-        BorderSizePixel = 0,
-        Size = UDim2.new(0, 200, 0, 30),
-        Position = UDim2.new(0, 0, 0, 0),
-        Visible = false,
-        ZIndex = 1000
-    }, {
-        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
-        Create("UIStroke", {
-            Color = Color3.fromRGB(255, 0, 255),
-            Thickness = 1,
-            Transparency = 0.3
-        }),
-        Create("TextLabel", {
-            Name = "TooltipText",
-            Size = UDim2.new(1, -12, 1, 0),
-            Position = UDim2.new(0, 6, 0, 0),
-            BackgroundTransparency = 1,
-            Text = "",
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 13,
-            Font = Enum.Font.Gotham,
-            TextWrapped = true,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Center
-        }),
-        Create("UIPadding", {
-            PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 8),
-            PaddingTop = UDim.new(0, 4),
-            PaddingBottom = UDim.new(0, 4)
-        })
-    })
-    
-    return TooltipFrame
-end
-
-local function ShowTooltip(text, targetFrame)
-    if not text or text == "" then return end
-    
-    if not TooltipFrame then
-        CreateTooltip()
-    end
-    local tooltipText = TooltipFrame:FindFirstChild("TooltipText")
-    tooltipText.Text = text
-    local textBounds = game:GetService("TextService"):GetTextSize(
-        text, 
-        13, 
-        Enum.Font.Gotham, 
-        Vector2.new(250, math.huge)
-    )
-    
-    local tooltipWidth = math.min(math.max(textBounds.X + 16, 120), 300)
-    local tooltipHeight = math.max(textBounds.Y + 8, 26)
-    
-    TooltipFrame.Size = UDim2.new(0, tooltipWidth, 0, tooltipHeight)
-    local mouse = game.Players.LocalPlayer:GetMouse()
-    local screenSize = workspace.CurrentCamera.ViewportSize
-    
-    local tooltipX = mouse.X + 10
-    local tooltipY = mouse.Y - tooltipHeight - 10
-    
-    -- Keep tooltip on screen
-    if tooltipX + tooltipWidth > screenSize.X then
-        tooltipX = mouse.X - tooltipWidth - 10
-    end
-    if tooltipY < 0 then
-        tooltipY = mouse.Y + 10
-    end
-    
-    TooltipFrame.Position = UDim2.new(0, tooltipX, 0, tooltipY)
-    TooltipFrame.Visible = true
-    
-    -- Smooth fade in
-    TooltipFrame.BackgroundTransparency = 1
-    tooltipText.TextTransparency = 1
-    TooltipFrame.UIStroke.Transparency = 1
-    
-    TweenService:Create(TooltipFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-        BackgroundTransparency = 0
-    }):Play()
-    TweenService:Create(tooltipText, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-        TextTransparency = 0
-    }):Play()
-    TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-        Transparency = 0.3
-    }):Play()
-end
-
-local function HideTooltip()
-    if TooltipFrame and TooltipFrame.Visible then
-        TweenService:Create(TooltipFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
-            BackgroundTransparency = 1
-        }):Play()
-        TweenService:Create(TooltipFrame.TooltipText, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
-            TextTransparency = 1
-        }):Play()
-        TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
-            Transparency = 1
-        }):Play()
-        
-        spawn(function()
-            wait(0.15)
-            if TooltipFrame then
-                TooltipFrame.Visible = false
-            end
-        end)
-    end
-end
-
-local function AddTooltipToElement(element, tooltipText)
-    if not tooltipText or tooltipText == "" then return end
-    
-    local showConnection
-    local hideConnection
-    local updateConnection
-    
-    showConnection = AddConnection(element.MouseEnter, function()
-        ShowTooltip(tooltipText, element)
-        
-        -- Update tooltip position while hovering
-        updateConnection = AddConnection(RunService.Heartbeat, function()
-            if TooltipFrame and TooltipFrame.Visible then
-                local mouse = game.Players.LocalPlayer:GetMouse()
-                local screenSize = workspace.CurrentCamera.ViewportSize
-                
-                local tooltipWidth = TooltipFrame.Size.X.Offset
-                local tooltipHeight = TooltipFrame.Size.Y.Offset
-                
-                local tooltipX = mouse.X + 10
-                local tooltipY = mouse.Y - tooltipHeight - 10
-                
-                if tooltipX + tooltipWidth > screenSize.X then
-                    tooltipX = mouse.X - tooltipWidth - 10
-                end
-                if tooltipY < 0 then
-                    tooltipY = mouse.Y + 10
-                end
-                
-                TooltipFrame.Position = UDim2.new(0, tooltipX, 0, tooltipY)
-            end
-        end)
-    end)
-    
-    hideConnection = AddConnection(element.MouseLeave, function()
-        HideTooltip()
-        if updateConnection then
-            updateConnection:Disconnect()
-        end
-    end)
-end
-
-
-
-
-
-
-
+			
 			function ElementFunction:AddParagraph(Text, Content)
 				Text = Text or "Text"
 				Content = Content or "Content"
@@ -1108,11 +1114,13 @@ end
 				end
 				return ParagraphFunction
 			end    
+
 			function ElementFunction:AddButton(ButtonConfig)
 				ButtonConfig = ButtonConfig or {}
 				ButtonConfig.Name = ButtonConfig.Name or "Button"
 				ButtonConfig.Callback = ButtonConfig.Callback or function() end
 				ButtonConfig.Icon = ButtonConfig.Icon or "rbxassetid://3944703587"
+				ButtonConfig.ToolTip = ButtonConfig.ToolTip or ""
 
 				local Button = {}
 
@@ -1161,8 +1169,13 @@ end
 					ButtonFrame.Content.Text = ButtonText
 				end	
 
+				-- Add tooltip functionality here
+				if ButtonConfig.ToolTip and ButtonConfig.ToolTip ~= "" then
+					AddTooltipToElement(Click, ButtonConfig.ToolTip)
+				end
+
 				return Button
-			end			
+			end
 			function ElementFunction:AddToggle(ToggleConfig)
 				ToggleConfig = ToggleConfig or {}
 				ToggleConfig.Name = ToggleConfig.Name or "Toggle"
@@ -1660,16 +1673,13 @@ end
             end
 
 			function ElementFunction:AddMultiDropdown(MultiDropdownConfig)
-			MultiDropdownConfig = MultiDropdownConfig or {}
-			MultiDropdownConfig.Name = MultiDropdownConfig.Name or "Multi Dropdown"
-			MultiDropdownConfig.Options = MultiDropdownConfig.Options or {}
-			MultiDropdownConfig.Default = MultiDropdownConfig.Default or {}
-			MultiDropdownConfig.Callback = MultiDropdownConfig.Callback or function() end
-			MultiDropdownConfig.Flag = MultiDropdownConfig.Flag or nil
-			MultiDropdownConfig.Save = MultiDropdownConfig.Save or false
-			MultiDropdownConfig.ToolTip = MultiDropdownConfig.ToolTip or ""
-
-
+				MultiDropdownConfig = MultiDropdownConfig or {}
+				MultiDropdownConfig.Name = MultiDropdownConfig.Name or "Multi Dropdown"
+				MultiDropdownConfig.Options = MultiDropdownConfig.Options or {}
+				MultiDropdownConfig.Default = MultiDropdownConfig.Default or {}
+				MultiDropdownConfig.Callback = MultiDropdownConfig.Callback or function() end
+				MultiDropdownConfig.Flag = MultiDropdownConfig.Flag or nil
+				MultiDropdownConfig.Save = MultiDropdownConfig.Save or false
 
 				local MultiDropdown = {Value = {}, Options = MultiDropdownConfig.Options, Buttons = {}, Toggled = false, Type = "MultiDropdown", Save = MultiDropdownConfig.Save}
 				local MaxElements = 5
@@ -1914,16 +1924,12 @@ end
 				MultiDropdown:Refresh(MultiDropdown.Options, false)
 				MultiDropdown:Set(MultiDropdown.Value)
 				
-				if MultiDropdownConfig.ToolTip and MultiDropdownConfig.ToolTip ~= "" then
-						AddTooltipToElement(MultiDropdownFrame, MultiDropdownConfig.ToolTip)
-					end
-
-					if MultiDropdownConfig.Flag then				
-						OrionLib.Flags[MultiDropdownConfig.Flag] = MultiDropdown
-					end
-					
-					return MultiDropdown
+				if MultiDropdownConfig.Flag then				
+					OrionLib.Flags[MultiDropdownConfig.Flag] = MultiDropdown
 				end
+				
+				return MultiDropdown
+			end
 
 			function ElementFunction:AddDropdown(DropdownConfig)
 				DropdownConfig = DropdownConfig or {}
