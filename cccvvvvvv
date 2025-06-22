@@ -3152,22 +3152,18 @@ function ElementFunction:AddSubTab(SubTabConfig)
     SubTabConfig.Name = SubTabConfig.Name or "SubTab"
     local isFirstSubTab = #Container:GetChildren() <= 2
     local SubTabsHolder
-    
     if not Container:FindFirstChild("SubTabsHolder") then
         SubTabsHolder = SetChildren(SetProps(MakeElement("TFrame"), {
             Size = UDim2.new(1, 0, 0, 36),
             Name = "SubTabsHolder",
             Parent = Container,
-            LayoutOrder = -999,
-            BackgroundTransparency = 1
+            LayoutOrder = -999
         }), {
             SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 0, 255), 4), {
                 Size = UDim2.new(1, 0, 1, 0),
                 ScrollBarThickness = 0,
                 ScrollingDirection = Enum.ScrollingDirection.X,
-                Name = "ButtonHolder",
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0
+                Name = "ButtonHolder"
             }), {
                 MakeElement("List", 0, 4),
                 MakeElement("Padding", 0, 8, 8, 0)
@@ -3202,11 +3198,35 @@ function ElementFunction:AddSubTab(SubTabConfig)
         MakeElement("Padding", 0, 0, 0, 5)
     })
     
+    -- Create Left and Right Columns
+    local LeftColumn = SetChildren(SetProps(MakeElement("TFrame"), {
+        Size = UDim2.new(0.5, -5, 0, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Parent = SubTabContainer,
+        Name = "LeftColumn",
+        BackgroundTransparency = 1
+    }), {
+        MakeElement("List", 0, 10),
+        MakeElement("Padding", 0, 0, 0, 0)
+    })
+    
+    local RightColumn = SetChildren(SetProps(MakeElement("TFrame"), {
+        Size = UDim2.new(0.5, -5, 0, 0),
+        Position = UDim2.new(0.5, 5, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Parent = SubTabContainer,
+        Name = "RightColumn",
+        BackgroundTransparency = 1
+    }), {
+        MakeElement("List", 0, 10),
+        MakeElement("Padding", 0, 0, 0, 0)
+    })
+    
     local SubTabButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
         Size = UDim2.new(0, 120, 0, 30),
         Parent = SubTabsHolder.ButtonHolder,
-        Name = "SubTab_" .. SubTabConfig.Name,
-        BackgroundTransparency = 1
+        Name = "SubTab_" .. SubTabConfig.Name
     }), {
         AddThemeObject(SetProps(MakeElement("Label", SubTabConfig.Name, 14), {
             Size = UDim2.new(1, 0, 1, 0),
@@ -3290,6 +3310,16 @@ function ElementFunction:AddSubTab(SubTabConfig)
         }):Play()
         
         SubTabContainer.Visible = true
+        SubTabContainer.BackgroundTransparency = 1
+        
+        for _, child in pairs(SubTabContainer:GetChildren()) do
+            if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
+                child.BackgroundTransparency = 1
+                if child:FindFirstChild("Content") then
+                    child.Content.TextTransparency = 1
+                end
+            end
+        end
         
         task.spawn(function()
             task.wait(0.05)
@@ -3297,6 +3327,9 @@ function ElementFunction:AddSubTab(SubTabConfig)
             
             for _, child in pairs(SubTabContainer:GetChildren()) do
                 if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
+                    if not child.Name:find("Section") then
+                        TweenService:Create(child, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
+                    end
                     if child:FindFirstChild("Content") then
                         TweenService:Create(child.Content, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
                     end
@@ -3343,7 +3376,6 @@ function ElementFunction:AddSubTab(SubTabConfig)
     
     if isFirstSubTab then
         SubTabButton:SetAttribute("Selected", true)
-        task.wait()
         SelectSubTab()
     end
     
@@ -3352,142 +3384,76 @@ function ElementFunction:AddSubTab(SubTabConfig)
         SubTabFunction[i] = v
     end
     
-    function SubTabFunction:AddSubSection(SectionConfig)
+    function SubTabFunction:AddSection(SectionConfig)
         SectionConfig = SectionConfig or {}
-        SectionConfig.Name = SectionConfig.Name or "SubSection Layout"
-        
-        local SubSectionContainer = SetChildren(SetProps(MakeElement("TFrame"), {
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
+        SectionConfig.Name = SectionConfig.Name or "Section"
+
+        local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
+            Size = UDim2.new(1, 0, 0, 26),
             Parent = SubTabContainer,
-            Name = "SubSection_" .. SectionConfig.Name,
-            BackgroundTransparency = 1
+            BackgroundTransparency = 1,
+            Name = "Section_" .. SectionConfig.Name
         }), {
             AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
                 Size = UDim2.new(1, -12, 0, 16),
                 Position = UDim2.new(0, 0, 0, 3),
                 Font = Enum.Font.GothamSemibold,
-                BackgroundTransparency = 1,
-                Name = "SectionTitle"
+                BackgroundTransparency = 1
             }), "TextDark"),
             SetChildren(SetProps(MakeElement("TFrame"), {
-                Size = UDim2.new(1, 0, 0, 0),
-                AutomaticSize = Enum.AutomaticSize.Y,
-                Position = UDim2.new(0, 0, 0, 25),
-                Name = "ColumnsContainer",
+                AnchorPoint = Vector2.new(0, 0),
+                Size = UDim2.new(1, 0, 1, -24),
+                Position = UDim2.new(0, 0, 0, 23),
+                Name = "Holder",
                 BackgroundTransparency = 1
             }), {
-                MakeElement("List", 0, 8)
-            })
+                MakeElement("List", 0, 6)
+            }),
         })
-        
-        local LeftColumn = SetChildren(SetProps(MakeElement("TFrame"), {
-            Size = UDim2.new(0.5, -4, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Parent = SubSectionContainer.ColumnsContainer,
-            Name = "LeftColumn",
-            BackgroundTransparency = 1,
-            LayoutOrder = 1
-        }), {
-            MakeElement("List", 0, 8)
-        })
-        
-        local RightColumn = SetChildren(SetProps(MakeElement("TFrame"), {
-            Size = UDim2.new(0.5, -4, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Parent = SubSectionContainer.ColumnsContainer,
-            Name = "RightColumn",
-            BackgroundTransparency = 1,
-            LayoutOrder = 2
-        }), {
-            MakeElement("List", 0, 8)
-        })
-        
-        SubSectionContainer.ColumnsContainer.UIListLayout.FillDirection = Enum.FillDirection.Horizontal
-        SubSectionContainer.ColumnsContainer.UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-        SubSectionContainer.ColumnsContainer.UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        
-        local SubSectionFunction = {}
-        
-        function SubSectionFunction:AddSubSectionLeft(SectionConfig)
-            SectionConfig = SectionConfig or {}
-            SectionConfig.Name = SectionConfig.Name or "Section"
 
-            local SectionFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 6), {
-                Size = UDim2.new(1, 0, 0, 36),
-                Parent = LeftColumn,
-                Name = "Section_" .. SectionConfig.Name,
-                ClipsDescendants = true
-            }), {
-                AddThemeObject(MakeElement("Stroke"), "Stroke"),
-                AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
-                    Size = UDim2.new(1, -12, 0, 26),
-                    Position = UDim2.new(0, 6, 0, 5),
-                    Font = Enum.Font.GothamBold,
-                    BackgroundTransparency = 1,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    AnchorPoint = Vector2.new(0, 0)
-                }), "Text"),
-                SetChildren(SetProps(MakeElement("TFrame"), {
-                    AnchorPoint = Vector2.new(0, 0),
-                    Size = UDim2.new(1, 0, 1, -30),
-                    Position = UDim2.new(0, 0, 0, 30),
-                    Name = "Holder",
-                    BackgroundTransparency = 1
-                }), {
-                    MakeElement("List", 0, 8),
-                    MakeElement("Padding", 12, 12, 12, 12)
-                }),
-            }), "Main")
+        AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+            SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
+            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
+        end)
 
-            AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-                local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
-                local paddingHeight = 54
-                SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
-                SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
-            end)
-
-            local SectionFunction = {}
-            for i, v in next, GetElements(SectionFrame.Holder) do
-                SectionFunction[i] = v 
-            end
-            
-            SectionFunction.Element = SectionFrame
-            SectionFunction.Holder = SectionFrame.Holder
-            
-            return SectionFunction
+        local SectionFunction = {}
+        for i, v in next, GetElements(SectionFrame.Holder) do
+            SectionFunction[i] = v 
         end
+        return SectionFunction
+    end
+    
+    function SubTabFunction:AddSubSectionLeft(SectionConfig)
+        SectionConfig = SectionConfig or {}
+        SectionConfig.Name = SectionConfig.Name or "Section"
 
-        function SubSectionFunction:AddSubSectionRight(SectionConfig)
-            SectionConfig = SectionConfig or {}
-            SectionConfig.Name = SectionConfig.Name or "Section"
-
-            local SectionFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 6), {
-                Size = UDim2.new(1, 0, 0, 36),
-                Parent = RightColumn,
-                Name = "Section_" .. SectionConfig.Name,
-                ClipsDescendants = true
+        local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", OrionLib.Themes[OrionLib.SelectedTheme].Main, 0, 6), {
+            Size = UDim2.new(1, 0, 0, 36),
+            Parent = LeftColumn,
+            BackgroundTransparency = 0.1,
+            Name = "Section_" .. SectionConfig.Name,
+            ClipsDescendants = true
+        }), {
+            AddThemeObject(MakeElement("Stroke"), "Stroke"),
+            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+                Size = UDim2.new(1, -12, 0, 26),
+                Position = UDim2.new(0, 6, 0, 5),
+                Font = Enum.Font.GothamBold,
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AnchorPoint = Vector2.new(0, 0)
+            }), "Text"),
+            SetChildren(SetProps(MakeElement("TFrame"), {
+                AnchorPoint = Vector2.new(0, 0),
+                Size = UDim2.new(1, 0, 1, -30),
+                Position = UDim2.new(0, 0, 0, 30),
+                Name = "Holder",
+                BackgroundTransparency = 1
             }), {
-                AddThemeObject(MakeElement("Stroke"), "Stroke"),
-                AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
-                    Size = UDim2.new(1, -12, 0, 26),
-                    Position = UDim2.new(0, 6, 0, 5),
-                    Font = Enum.Font.GothamBold,
-                    BackgroundTransparency = 1,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    AnchorPoint = Vector2.new(0, 0)
-                }), "Text"),
-                SetChildren(SetProps(MakeElement("TFrame"), {
-                    AnchorPoint = Vector2.new(0, 0),
-                    Size = UDim2.new(1, 0, 1, -30),
-                    Position = UDim2.new(0, 0, 0, 30),
-                    Name = "Holder",
-                    BackgroundTransparency = 1
-                }), {
                 MakeElement("List", 0, 8),
                 MakeElement("Padding", 12, 12, 12, 12)
             }),
-        }), "Main")
+        })
 
         AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
             local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
@@ -3501,23 +3467,126 @@ function ElementFunction:AddSubTab(SubTabConfig)
             SectionFunction[i] = v 
         end
         
+        local originalAddLabel = SectionFunction.AddLabel
+        if originalAddLabel then
+            SectionFunction.AddLabel = function(self, Text)
+                local label = originalAddLabel(self, Text)
+                if label and label.Set then
+                    local originalSet = label.Set
+                    label.Set = function(self, NewText)
+                        originalSet(self, NewText)
+                        if label.Content then
+                            label.Content.TextWrapped = true
+                            label.Content.TextScaled = false
+                            label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                            label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                            label.Content.TextSize = 13
+                            label.Content.Font = Enum.Font.GothamMedium
+                        end
+                    end
+                    if label.Content then
+                        label.Content.TextWrapped = true
+                        label.Content.TextScaled = false
+                        label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                        label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                        label.Content.TextSize = 13
+                        label.Content.Font = Enum.Font.GothamMedium
+                    end
+                end
+                return label
+            end
+        end
+        
+        SectionFunction.Element = SectionFrame
+        SectionFunction.Holder = SectionFrame.Holder
+        
+        return SectionFunction
+    end
+
+    function SubTabFunction:AddSubSectionRight(SectionConfig)
+        SectionConfig = SectionConfig or {}
+        SectionConfig.Name = SectionConfig.Name or "Section"
+
+        local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", OrionLib.Themes[OrionLib.SelectedTheme].Main, 0, 6), {
+            Size = UDim2.new(1, 0, 0, 36),
+            Parent = RightColumn,
+            BackgroundTransparency = 0.1,
+            Name = "Section_" .. SectionConfig.Name,
+            ClipsDescendants = true
+        }), {
+            AddThemeObject(MakeElement("Stroke"), "Stroke"),
+            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+                Size = UDim2.new(1, -12, 0, 26),
+                Position = UDim2.new(0, 6, 0, 5),
+                Font = Enum.Font.GothamBold,
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AnchorPoint = Vector2.new(0, 0)
+            }), "Text"),
+            SetChildren(SetProps(MakeElement("TFrame"), {
+                AnchorPoint = Vector2.new(0, 0),
+                Size = UDim2.new(1, 0, 1, -30),
+                Position = UDim2.new(0, 0, 0, 30),
+                Name = "Holder",
+                BackgroundTransparency = 1
+            }), {
+                MakeElement("List", 0, 8),
+                MakeElement("Padding", 12, 12, 12, 12)
+            }),
+        })
+
+        AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+            local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
+            local paddingHeight = 54
+            SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
+            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
+        end)
+
+        local SectionFunction = {}
+        for i, v in next, GetElements(SectionFrame.Holder) do
+            SectionFunction[i] = v 
+        end
+        
+        local originalAddLabel = SectionFunction.AddLabel
+        if originalAddLabel then
+            SectionFunction.AddLabel = function(self, Text)
+                local label = originalAddLabel(self, Text)
+                if label and label.Set then
+                    local originalSet = label.Set
+                    label.Set = function(self, NewText)
+                        originalSet(self, NewText)
+                        if label.Content then
+                            label.Content.TextWrapped = true
+                            label.Content.TextScaled = false
+                            label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                            label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                            label.Content.TextSize = 13
+                            label.Content.Font = Enum.Font.GothamMedium
+                        end
+                    end
+                    if label.Content then
+                        label.Content.TextWrapped = true
+                        label.Content.TextScaled = false
+                        label.Content.TextXAlignment = Enum.TextXAlignment.Left
+                        label.Content.TextYAlignment = Enum.TextYAlignment.Center
+                        label.Content.TextSize = 13
+                        label.Content.Font = Enum.Font.GothamMedium
+                    end
+                end
+                return label
+            end
+        end
+        
         SectionFunction.Element = SectionFrame
         SectionFunction.Holder = SectionFrame.Holder
         
         return SectionFunction
     end
     
-    return SubSectionFunction
+    return SubTabFunction
 end
-
-return SubTabFunction
-end
-
-return ElementFunction
-end
-
 function OrionLib:Destroy()
-    Orion:Destroy()
+	Orion:Destroy()
 end
 function OrionLib:AddConfigurationSystem(Parent)
     local Container
@@ -3708,5 +3777,5 @@ function OrionLib:AddConfigurationSystem(Parent)
             })
         end
     })
-end end
+end end end
 return OrionLib
