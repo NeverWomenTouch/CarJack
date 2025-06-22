@@ -540,7 +540,7 @@ local function CreateTooltip()
     TooltipFrame = Create("Frame", {
         Name = "Tooltip",
         Parent = Orion,
-        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        BackgroundColor3 = Color3.fromRGB(18, 18, 18),
         BorderSizePixel = 0,
         Size = UDim2.new(0, 200, 0, 30),
         Position = UDim2.new(0, 0, 0, 0),
@@ -549,21 +549,21 @@ local function CreateTooltip()
     })
 
     Create("UICorner", {
-        CornerRadius = UDim.new(0, 6),
+        CornerRadius = UDim.new(0, 8),
         Parent = TooltipFrame
     })
 
     Create("UIStroke", {
         Color = Color3.fromRGB(255, 0, 255),
-        Thickness = 1,
+        Thickness = 2,
         Transparency = 0,
         Parent = TooltipFrame
     })
 
     local TooltipText = Create("TextLabel", {
         Name = "TooltipText",
-        Size = UDim2.new(1, -16, 1, -8),
-        Position = UDim2.new(0, 8, 0, 4),
+        Size = UDim2.new(1, -20, 1, -12),
+        Position = UDim2.new(0, 10, 0, 6),
         BackgroundTransparency = 1,
         Text = "",
         TextColor3 = Color3.fromRGB(255, 255, 255),
@@ -581,18 +581,34 @@ local function CreateTooltip()
 
     local Shadow = Create("Frame", {
         Name = "Shadow",
-        Size = UDim2.new(1, 4, 1, 4),
-        Position = UDim2.new(0, -2, 0, -2),
+        Size = UDim2.new(1, 8, 1, 8),
+        Position = UDim2.new(0, -4, 0, -4),
         BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BackgroundTransparency = 0.8,
+        BackgroundTransparency = 0.75,
+        BorderSizePixel = 0,
+        ZIndex = 9998,
+        Parent = TooltipFrame
+    })
+
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 12),
+        Parent = Shadow
+    })
+
+    local InnerGlow = Create("Frame", {
+        Name = "InnerGlow",
+        Size = UDim2.new(1, -4, 1, -4),
+        Position = UDim2.new(0, 2, 0, 2),
+        BackgroundColor3 = Color3.fromRGB(255, 0, 255),
+        BackgroundTransparency = 0.9,
         BorderSizePixel = 0,
         ZIndex = 9999,
         Parent = TooltipFrame
     })
 
     Create("UICorner", {
-        CornerRadius = UDim.new(0, 8),
-        Parent = Shadow
+        CornerRadius = UDim.new(0, 6),
+        Parent = InnerGlow
     })
     
     return TooltipFrame
@@ -612,7 +628,7 @@ local function ShowTooltip(text, targetFrame)
     end
     
     tooltipText.Text = tostring(text)
-    tooltipText.TextTransparency = 0
+    tooltipText.TextTransparency = 1
     tooltipText.Visible = true
     
     local textService = game:GetService("TextService")
@@ -620,29 +636,29 @@ local function ShowTooltip(text, targetFrame)
         tostring(text), 
         13, 
         Enum.Font.Gotham, 
-        Vector2.new(280, math.huge)
+        Vector2.new(300, math.huge)
     )
     
-    local tooltipWidth = math.min(math.max(textBounds.X + 20, 100), 320)
-    local tooltipHeight = math.max(textBounds.Y + 12, 26)
+    local tooltipWidth = math.min(math.max(textBounds.X + 24, 120), 350)
+    local tooltipHeight = math.max(textBounds.Y + 16, 32)
     
     TooltipFrame.Size = UDim2.new(0, tooltipWidth, 0, tooltipHeight)
     
     local mouse = game.Players.LocalPlayer:GetMouse()
     local screenSize = workspace.CurrentCamera.ViewportSize
     
-    local tooltipX = mouse.X + 15
-    local tooltipY = mouse.Y + 10
+    local tooltipX = mouse.X + 18
+    local tooltipY = mouse.Y + 12
     
-    if tooltipX + tooltipWidth > screenSize.X - 10 then
-        tooltipX = mouse.X - tooltipWidth - 15
+    if tooltipX + tooltipWidth > screenSize.X - 15 then
+        tooltipX = mouse.X - tooltipWidth - 18
     end
-    if tooltipY + tooltipHeight > screenSize.Y - 10 then
-        tooltipY = mouse.Y - tooltipHeight - 10
+    if tooltipY + tooltipHeight > screenSize.Y - 15 then
+        tooltipY = mouse.Y - tooltipHeight - 12
     end
     
-    tooltipX = math.max(10, math.min(tooltipX, screenSize.X - tooltipWidth - 10))
-    tooltipY = math.max(10, math.min(tooltipY, screenSize.Y - tooltipHeight - 10))
+    tooltipX = math.max(15, math.min(tooltipX, screenSize.X - tooltipWidth - 15))
+    tooltipY = math.max(15, math.min(tooltipY, screenSize.Y - tooltipHeight - 15))
     
     TooltipFrame.Position = UDim2.new(0, tooltipX, 0, tooltipY)
     TooltipFrame.Visible = true
@@ -650,17 +666,31 @@ local function ShowTooltip(text, targetFrame)
     TooltipFrame.BackgroundTransparency = 1
     TooltipFrame.UIStroke.Transparency = 1
     TooltipFrame.Shadow.BackgroundTransparency = 1
+    TooltipFrame.InnerGlow.BackgroundTransparency = 1
+    tooltipText.TextTransparency = 1
     
-    TweenService:Create(TooltipFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    TooltipFrame.Size = UDim2.new(0, tooltipWidth * 0.8, 0, tooltipHeight * 0.8)
+    
+    TweenService:Create(TooltipFrame, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, tooltipWidth, 0, tooltipHeight),
         BackgroundTransparency = 0
     }):Play()
     
-    TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Transparency = 0.2
+    TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Transparency = 0.1
     }):Play()
     
-    TweenService:Create(TooltipFrame.Shadow, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    TweenService:Create(TooltipFrame.Shadow, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0.7
+    }):Play()
+    
+    TweenService:Create(TooltipFrame.InnerGlow, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         BackgroundTransparency = 0.85
+    }):Play()
+    
+    task.wait(0.15)
+    TweenService:Create(tooltipText, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        TextTransparency = 0
     }):Play()
 end
 
@@ -668,11 +698,18 @@ local function HideTooltip()
     if TooltipFrame and TooltipFrame.Visible then
         local tooltipText = TooltipFrame:FindFirstChild("TooltipText")
         
-        TweenService:Create(TooltipFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
-            BackgroundTransparency = 1
+        if tooltipText then
+            TweenService:Create(tooltipText, TweenInfo.new(0.12, Enum.EasingStyle.Quart), {
+                TextTransparency = 1
+            }):Play()
+        end
+        
+        TweenService:Create(TooltipFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0, TooltipFrame.Size.X.Offset * 0.7, 0, TooltipFrame.Size.Y.Offset * 0.7)
         }):Play()
         
-        TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
+        TweenService:Create(TooltipFrame.UIStroke, TweenInfo.new(0.18, Enum.EasingStyle.Quart), {
             Transparency = 1
         }):Play()
         
@@ -680,8 +717,12 @@ local function HideTooltip()
             BackgroundTransparency = 1
         }):Play()
         
+        TweenService:Create(TooltipFrame.InnerGlow, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {
+            BackgroundTransparency = 1
+        }):Play()
+        
         spawn(function()
-            wait(0.15)
+            wait(0.2)
             if TooltipFrame then
                 TooltipFrame.Visible = false
             end
@@ -694,14 +735,16 @@ local function AddTooltipToElement(element, tooltipText)
     
     local updateConnection
     local isHovering = false
-    local tooltipThread
+    local tooltipDelayConnection
+    local hoverStartTime = 0
     
     AddConnection(element.MouseEnter, function()
         isHovering = true
+        hoverStartTime = tick()
         
-        tooltipThread = spawn(function()
-            wait(0.6)
-            if isHovering then
+        tooltipDelayConnection = spawn(function()
+            wait(0.5)
+            if isHovering and (tick() - hoverStartTime) >= 0.5 then
                 ShowTooltip(tooltipText, element)
                 
                 updateConnection = AddConnection(RunService.Heartbeat, function()
@@ -712,20 +755,22 @@ local function AddTooltipToElement(element, tooltipText)
                         local tooltipWidth = TooltipFrame.Size.X.Offset
                         local tooltipHeight = TooltipFrame.Size.Y.Offset
                         
-                        local tooltipX = mouse.X + 15
-                        local tooltipY = mouse.Y + 10
+                        local tooltipX = mouse.X + 18
+                        local tooltipY = mouse.Y + 12
                         
-                        if tooltipX + tooltipWidth > screenSize.X - 10 then
-                            tooltipX = mouse.X - tooltipWidth - 15
+                        if tooltipX + tooltipWidth > screenSize.X - 15 then
+                            tooltipX = mouse.X - tooltipWidth - 18
                         end
-                        if tooltipY + tooltipHeight > screenSize.Y - 10 then
-                            tooltipY = mouse.Y - tooltipHeight - 10
+                        if tooltipY + tooltipHeight > screenSize.Y - 15 then
+                            tooltipY = mouse.Y - tooltipHeight - 12
                         end
                         
-                        tooltipX = math.max(10, math.min(tooltipX, screenSize.X - tooltipWidth - 10))
-                        tooltipY = math.max(10, math.min(tooltipY, screenSize.Y - tooltipHeight - 10))
+                        tooltipX = math.max(15, math.min(tooltipX, screenSize.X - tooltipWidth - 15))
+                        tooltipY = math.max(15, math.min(tooltipY, screenSize.Y - tooltipHeight - 15))
                         
-                        TooltipFrame.Position = UDim2.new(0, tooltipX, 0, tooltipY)
+                        TweenService:Create(TooltipFrame, TweenInfo.new(0.08, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                            Position = UDim2.new(0, tooltipX, 0, tooltipY)
+                        }):Play()
                     end
                 end)
             end
@@ -741,9 +786,9 @@ local function AddTooltipToElement(element, tooltipText)
             updateConnection = nil
         end
         
-        if tooltipThread then
-            spawn(function()
-                tooltipThread = nil
+        if tooltipDelayConnection then
+            pcall(function()
+                tooltipDelayConnection:Disconnect()
             end)
         end
     end)
