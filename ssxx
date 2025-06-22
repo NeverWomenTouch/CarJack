@@ -1873,7 +1873,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
     local ColorSelection = Create("ImageLabel", {
         Size = UDim2.new(0, 18, 0, 18),
-        Position = UDim2.new(select(3, Color3.toHSV(ToggleColorPicker.ColorValue))),
+        Position = UDim2.new(0, 0, 0, 0),
         ScaleType = Enum.ScaleType.Fit,
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundTransparency = 1,
@@ -1882,7 +1882,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
     local HueSelection = Create("ImageLabel", {
         Size = UDim2.new(0, 18, 0, 18),
-        Position = UDim2.new(0.5, 0, 1 - select(1, Color3.toHSV(ToggleColorPicker.ColorValue))),
+        Position = UDim2.new(0.5, 0, 0, 0),
         ScaleType = Enum.ScaleType.Fit,
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundTransparency = 1,
@@ -2172,10 +2172,13 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         ColorSelection.Position = UDim2.new(s, 0, 1 - v, 0)
     end
 
-    ColorH = 1 - (math.clamp(HueSelection.AbsolutePosition.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
-    ColorS = (math.clamp(ColorSelection.AbsolutePosition.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
-    ColorV = 1 - (math.clamp(ColorSelection.AbsolutePosition.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
-    
+    local function SafeClamp(value, min, max)
+        if max < min then
+            max = min
+        end
+        return math.clamp(value, min, max)
+    end
+
     UpdateHSV()
 
     AddConnection(Color.InputBegan, function(input)
@@ -2184,12 +2187,14 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
                 ColorInput:Disconnect()
             end
             ColorInput = AddConnection(RunService.RenderStepped, function()
-                local ColorX = (math.clamp(Mouse.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
-                local ColorY = (math.clamp(Mouse.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
-                ColorSelection.Position = UDim2.new(ColorX, 0, ColorY, 0)
-                ColorS = ColorX
-                ColorV = 1 - ColorY
-                UpdateColorPicker()
+                if Color.AbsoluteSize.X > 0 and Color.AbsoluteSize.Y > 0 then
+                    local ColorX = SafeClamp((Mouse.X - Color.AbsolutePosition.X) / Color.AbsoluteSize.X, 0, 1)
+                    local ColorY = SafeClamp((Mouse.Y - Color.AbsolutePosition.Y) / Color.AbsoluteSize.Y, 0, 1)
+                    ColorSelection.Position = UDim2.new(ColorX, 0, ColorY, 0)
+                    ColorS = ColorX
+                    ColorV = 1 - ColorY
+                    UpdateColorPicker()
+                end
             end)
         end
     end)
@@ -2206,15 +2211,15 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             if HueInput then
                 HueInput:Disconnect()
-            end;
+            end
 
             HueInput = AddConnection(RunService.RenderStepped, function()
-                local HueY = (math.clamp(Mouse.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
-
-                HueSelection.Position = UDim2.new(0.5, 0, HueY, 0)
-                ColorH = 1 - HueY
-
-                UpdateColorPicker()
+                if Hue.AbsoluteSize.Y > 0 then
+                    local HueY = SafeClamp((Mouse.Y - Hue.AbsolutePosition.Y) / Hue.AbsoluteSize.Y, 0, 1)
+                    HueSelection.Position = UDim2.new(0.5, 0, HueY, 0)
+                    ColorH = 1 - HueY
+                    UpdateColorPicker()
+                end
             end)
         end
     end)
@@ -2236,6 +2241,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     function ToggleColorPicker:SetColor(Value)
         ToggleColorPicker.ColorValue = Value
         ColorpickerBox.BackgroundColor3 = ToggleColorPicker.ColorValue
+        UpdateHSV()
     end
 
     ToggleColorPicker.Config = ToggleColorPickerConfig
