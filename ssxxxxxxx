@@ -1861,10 +1861,9 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     local RainbowMode = false
     local RainbowConnection = nil
 
-    local SWITCH_WIDTH = 46
-    local SWITCH_HEIGHT = 24
-    local CIRCLE_SIZE = 18
+    local CHECKBOX_SIZE = 18
     local PADDING = 3
+    local TOTAL_EXPANDED_HEIGHT = 180
 
     local ColorSelection = Create("ImageLabel", {
         Size = UDim2.new(0, 18, 0, 18),
@@ -1903,51 +1902,47 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         HueSelection
     })
 
-    local RainbowToggle = Create("Frame", {
-        Size = UDim2.new(0, SWITCH_WIDTH, 0, SWITCH_HEIGHT),
-        Position = UDim2.new(1, -12, 1, -10),
+    local RainbowCheckbox = Create("Frame", {
+        Size = UDim2.new(0, CHECKBOX_SIZE, 0, CHECKBOX_SIZE),
+        Position = UDim2.new(1, -25, 1, -25),
         AnchorPoint = Vector2.new(1, 1),
         BackgroundColor3 = Color3.fromRGB(15, 15, 15),
         BorderSizePixel = 0,
-        Name = "RainbowSwitch"
+        Name = "RainbowCheckbox"
+    })
+
+    local RainbowCheck = Create("ImageLabel", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Image = "rbxassetid://3926305904",
+        ImageRectOffset = Vector2.new(564, 284),
+        ImageRectSize = Vector2.new(36, 36),
+        Visible = false,
+        Parent = RainbowCheckbox
     })
 
     local RainbowClick = Create("TextButton", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Text = "",
-        Parent = RainbowToggle
+        Parent = RainbowCheckbox
     })
 
     Create("UICorner", {
-        CornerRadius = UDim.new(1, 0),
-        Parent = RainbowToggle
+        CornerRadius = UDim.new(0, 3),
+        Parent = RainbowCheckbox
     })
 
     local RainbowStroke = Create("UIStroke", {
         Color = Color3.fromRGB(255, 0, 255),
         Thickness = 1,
         Transparency = 0.3,
-        Parent = RainbowToggle
-    })
-
-    local RainbowCircle = Create("Frame", {
-        Size = UDim2.new(0, CIRCLE_SIZE, 0, CIRCLE_SIZE),
-        Position = UDim2.new(0, PADDING, 0, PADDING),
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BorderSizePixel = 0,
-        Parent = RainbowToggle,
-        Name = "RainbowCircle"
-    })
-
-    Create("UICorner", {
-        CornerRadius = UDim.new(1, 0),
-        Parent = RainbowCircle
+        Parent = RainbowCheckbox
     })
 
     local RainbowLabel = Create("TextLabel", {
         Size = UDim2.new(0, 100, 0, 20),
-        Position = UDim2.new(0, -110, 0.5, 0),
+        Position = UDim2.new(0, -105, 0.5, 0),
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundTransparency = 1,
         Text = "Rainbow Mode",
@@ -1955,18 +1950,18 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         TextXAlignment = Enum.TextXAlignment.Left,
         Font = Enum.Font.Gotham,
         TextSize = 14,
-        Parent = RainbowToggle
+        Parent = RainbowCheckbox
     })
 
     local ColorpickerContainer = Create("Frame", {
         Position = UDim2.new(0, 0, 0, 32),
-        Size = UDim2.new(1, 0, 0, 140),
+        Size = UDim2.new(1, 0, 0, TOTAL_EXPANDED_HEIGHT - 38),
         BackgroundTransparency = 1,
         ClipsDescendants = true
     }, {
         Hue,
         Color,
-        RainbowToggle,
+        RainbowCheckbox,
         Create("UIPadding", {
             PaddingLeft = UDim.new(0, 35),
             PaddingRight = UDim.new(0, 35),
@@ -1980,8 +1975,8 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     })
 
     local ToggleSwitch = Create("Frame", {
-        Size = UDim2.new(0, SWITCH_WIDTH, 0, SWITCH_HEIGHT),
-        Position = UDim2.new(1, -SWITCH_WIDTH - 12, 0.5, 0),
+        Size = UDim2.new(0, 46, 0, 24),
+        Position = UDim2.new(1, -46 - 12, 0.5, 0),
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundColor3 = ToggleColorPicker.Value and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15),
         BorderSizePixel = 0,
@@ -2009,7 +2004,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     })
 
     local ToggleCircle = Create("Frame", {
-        Size = UDim2.new(0, CIRCLE_SIZE, 0, CIRCLE_SIZE),
+        Size = UDim2.new(0, 18, 0, 18),
         Position = UDim2.new(0, PADDING, 0, PADDING),
         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         BorderSizePixel = 0,
@@ -2024,14 +2019,14 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     })
 
     if ToggleColorPicker.Value then
-        ToggleCircle.Position = UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING)
+        ToggleCircle.Position = UDim2.new(0, 46 - 18 - PADDING, 0, PADDING)
     else
         ToggleCircle.Position = UDim2.new(0, PADDING, 0, PADDING)
     end
 
     local ColorpickerBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
         Size = UDim2.new(0, 24, 0, 24),
-        Position = UDim2.new(1, -SWITCH_WIDTH - 20, 0.5, 0),
+        Position = UDim2.new(1, -46 - 20, 0.5, 0),
         AnchorPoint = Vector2.new(1, 0.5)
     }), {
         AddThemeObject(MakeElement("Stroke"), "Stroke")
@@ -2069,7 +2064,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     local function updateToggle(animate)
         local targetColor = ToggleColorPicker.Value and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15)
         local targetPos = ToggleColorPicker.Value and 
-            UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING) or 
+            UDim2.new(0, 46 - 18 - PADDING, 0, PADDING) or 
             UDim2.new(0, PADDING, 0, PADDING)
         local targetStrokeTransparency = ToggleColorPicker.Value and 1 or 0.3
 
@@ -2094,23 +2089,10 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         end
     end
 
-    local function updateRainbowToggle()
-        local targetColor = RainbowMode and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15)
-        local targetPos = RainbowMode and 
-            UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING) or 
-            UDim2.new(0, PADDING, 0, PADDING)
-        local targetStrokeTransparency = RainbowMode and 1 or 0.3
-
-        TweenService:Create(RainbowToggle, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-            BackgroundColor3 = targetColor
-        }):Play()
-        
-        TweenService:Create(RainbowCircle, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-            Position = targetPos
-        }):Play()
-        
-        TweenService:Create(RainbowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-            Transparency = targetStrokeTransparency
+    local function updateRainbowCheckbox()
+        RainbowCheck.Visible = RainbowMode
+        TweenService:Create(RainbowStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+            Transparency = RainbowMode and 0 or 0.3
         }):Play()
     end
 
@@ -2122,7 +2104,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
     local function toggleRainbow()
         RainbowMode = not RainbowMode
-        updateRainbowToggle()
+        updateRainbowCheckbox()
         
         if RainbowMode then
             RainbowConnection = AddConnection(RunService.Heartbeat, function()
@@ -2170,8 +2152,8 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     end)
 
     AddConnection(RainbowClick.MouseEnter, function()
-        TweenService:Create(RainbowToggle, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-            BackgroundColor3 = RainbowToggle.BackgroundColor3:Lerp(Color3.fromRGB(255, 255, 255), 0.15)
+        TweenService:Create(RainbowCheckbox, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+            BackgroundColor3 = RainbowCheckbox.BackgroundColor3:Lerp(Color3.fromRGB(255, 255, 255), 0.15)
         }):Play()
         
         if not RainbowMode then
@@ -2182,18 +2164,18 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     end)
 
     AddConnection(RainbowClick.MouseLeave, function()
-        TweenService:Create(RainbowToggle, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-            BackgroundColor3 = RainbowMode and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15)
+        TweenService:Create(RainbowCheckbox, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+            BackgroundColor3 = Color3.fromRGB(15, 15, 15)
         }):Play()
         
         TweenService:Create(RainbowStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-            Transparency = RainbowMode and 1 or 0.3
+            Transparency = RainbowMode and 0 or 0.3
         }):Play()
     end)
 
     AddConnection(Click.MouseButton1Click, function()
         ToggleColorPicker.Toggled = not ToggleColorPicker.Toggled
-        TweenService:Create(ToggleColorPickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleColorPicker.Toggled and UDim2.new(1, 0, 0, 178) or UDim2.new(1, 0, 0, 38)}):Play()
+        TweenService:Create(ToggleColorPickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleColorPicker.Toggled and UDim2.new(1, 0, 0, TOTAL_EXPANDED_HEIGHT) or UDim2.new(1, 0, 0, 38)}):Play()
         Color.Visible = ToggleColorPicker.Toggled
         Hue.Visible = ToggleColorPicker.Toggled
         ToggleColorPickerFrame.F.Line.Visible = ToggleColorPicker.Toggled
