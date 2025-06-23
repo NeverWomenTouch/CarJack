@@ -1576,10 +1576,13 @@ function OrionLib:MakeWindow(WindowConfig)
                     Size = UDim2.new(1, 0, 1, 0),
                     Position = UDim2.new(0, 0, 0, 0),
                     BackgroundTransparency = 1,
-                    Text = tostring(Slider.Value),
-                    Font = Enum.Font.GothamBold,
-                    TextSize = 14,
                     TextColor3 = Color3.fromRGB(255, 255, 255),
+                    PlaceholderColor3 = Color3.fromRGB(210,210,210),
+                    PlaceholderText = "Input",
+                    Font = Enum.Font.GothamSemibold,
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                    TextSize = 14,
+                    ClearTextOnFocus = false,
                     Visible = false,
                     Name = "ValueInput",
                     Parent = ValueDisplay,
@@ -1653,15 +1656,15 @@ function OrionLib:MakeWindow(WindowConfig)
                     Size = UDim2.new(1, 0, 0, 55),
                     Parent = ItemParent
                 }), {
-                    AddThemeObject(SetProps(MakeElement("Label", SliderConfig.Name, 15), {
-                        Size = UDim2.new(1, -12, 0, 14),
-                        Position = UDim2.new(0, 12, 0, 10),
-                        Font = Enum.Font.GothamBold,
-                        Name = "Title"
-                    }), "Text"),
-                    AddThemeObject(MakeElement("Stroke"), "Stroke"),
-                    SliderBar,
-                    ValueDisplay    }), "Second")
+					AddThemeObject(SetProps(MakeElement("Label", SliderConfig.Name, 15), {
+						Size = UDim2.new(1, -12, 0, 14),
+						Position = UDim2.new(0, 12, 0, 10),
+						Font = Enum.Font.GothamBold,
+						Name = "Title"
+					}), "Text"),
+					AddThemeObject(MakeElement("Stroke"), "Stroke"),
+					SliderBar,
+					ValueDisplay    }), "Second")
                 
                 ValueDisplay.InputBegan:Connect(function(Input)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Editing then
@@ -1782,7 +1785,7 @@ function ElementFunction:AddDropdown(DropdownConfig)
     DropdownConfig.Multi = DropdownConfig.Multi or false
 
     local Dropdown = {
-        Value = DropdownConfig.Default, 
+        Value = DropdownConfig.Multi and {} or "", 
         Options = DropdownConfig.Options, 
         Buttons = {}, 
         Toggled = false, 
@@ -1791,7 +1794,9 @@ function ElementFunction:AddDropdown(DropdownConfig)
     }
     local MaxElements = 5
 
+    -- Properly initialize the value based on dropdown type
     if DropdownConfig.Multi then
+        Dropdown.Value = {}
         if type(DropdownConfig.Default) == "table" then
             for _, defaultValue in pairs(DropdownConfig.Default) do
                 if table.find(DropdownConfig.Options, defaultValue) then
@@ -1800,15 +1805,42 @@ function ElementFunction:AddDropdown(DropdownConfig)
                     end
                 end
             end
+        elseif type(DropdownConfig.Default) == "string" and DropdownConfig.Default ~= "" then
+            if table.find(Dropdown.Options, DropdownConfig.Default) then
+                table.insert(Dropdown.Value, DropdownConfig.Default)
+            end
         end
     else
-        if not table.find(Dropdown.Options, Dropdown.Value) then
+        Dropdown.Value = ""
+        if type(DropdownConfig.Default) == "string" then
+            if table.find(Dropdown.Options, DropdownConfig.Default) then
+                Dropdown.Value = DropdownConfig.Default
+            else
+                Dropdown.Value = "..."
+            end
+        elseif type(DropdownConfig.Default) == "table" and #DropdownConfig.Default > 0 then
+            -- If default is a table but this is a single dropdown, use first valid option
+            for _, defaultValue in pairs(DropdownConfig.Default) do
+                if table.find(Dropdown.Options, defaultValue) then
+                    Dropdown.Value = defaultValue
+                    break
+                end
+            end
+            if Dropdown.Value == "" then
+                Dropdown.Value = "..."
+            end
+        else
             Dropdown.Value = "..."
         end
     end
 
     local function GetSelectedText()
         if DropdownConfig.Multi then
+            -- Ensure Value is a table for multi-dropdown
+            if type(Dropdown.Value) ~= "table" then
+                Dropdown.Value = {}
+            end
+            
             if #Dropdown.Value == 0 then
                 return "None Selected"
             elseif #Dropdown.Value == 1 then
@@ -1817,75 +1849,20 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 return tostring(#Dropdown.Value) .. " Selected"
             end
         else
+            -- Ensure Value is a string for single dropdown
+            if type(Dropdown.Value) ~= "string" then
+                Dropdown.Value = "..."
+            end
             return Dropdown.Value
         end
     end
 
-    local DropdownList = MakeElement("List")
-
-    local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(255, 0, 255), 4), {
-        DropdownList
-    }), {
-        Parent = ItemParent,
-        Position = UDim2.new(0, 0, 0, 38),
-        Size = UDim2.new(1, 0, 1, -38),
-        ClipsDescendants = true
-    }), "Divider")
-
-    local Click = SetProps(MakeElement("Button"), {
-        Size = UDim2.new(1, 0, 1, 0)
-    })
-
-    local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 0, 255), 0, 5), {
-        Size = UDim2.new(1, 0, 0, 38),
-        Parent = ItemParent,
-        ClipsDescendants = true
-    }), {
-        DropdownContainer,
-        SetProps(SetChildren(MakeElement("TFrame"), {
-            AddThemeObject(SetProps(MakeElement("Label", DropdownConfig.Name, 15), {
-                Size = UDim2.new(1, -12, 1, 0),
-                Position = UDim2.new(0, 12, 0, 0),
-                Font = Enum.Font.GothamBold,
-                Name = "Content"
-            }), "Text"),
-            AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
-                Size = UDim2.new(0, 20, 0, 20),
-                AnchorPoint = Vector2.new(0, 0.5),
-                Position = UDim2.new(1, -30, 0.5, 0),
-                ImageColor3 = Color3.fromRGB(255, 0, 255),
-                Name = "Ico"
-            }), "OtherText"),
-            AddThemeObject(SetProps(MakeElement("Label", GetSelectedText(), 13), {
-                Size = UDim2.new(1, -40, 1, 0),
-                Font = Enum.Font.Gotham,
-                Name = "Selected",
-                TextXAlignment = Enum.TextXAlignment.Right
-            }), "OtherText"),
-            AddThemeObject(SetProps(MakeElement("Frame"), {
-                Size = UDim2.new(1, 0, 0, 1),
-                Position = UDim2.new(0, 0, 1, -1),
-                Name = "Line",
-                Visible = false
-            }), "Stroke"), 
-            Click
-        }), {
-            Size = UDim2.new(1, 0, 0, 38),
-            ClipsDescendants = true,
-            Name = "F"
-        }),
-        AddThemeObject(MakeElement("Stroke"), "Stroke"),
-        MakeElement("Corner")
-    }), "Second")
-
-    AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-        DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
-    end)  
+    -- ...existing code...
 
     local function AddOptions(Options)
         for _, Option in pairs(Options) do
             if DropdownConfig.Multi then
-                local isSelected = table.find(Dropdown.Value, Option) ~= nil
+                local isSelected = type(Dropdown.Value) == "table" and table.find(Dropdown.Value, Option) ~= nil
                 
                 local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(255, 0, 255)), {
                     MakeElement("Corner", 0, 6),
@@ -1927,6 +1904,11 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 }), "Divider")
 
                 AddConnection(OptionBtn.MouseButton1Click, function()
+                    -- Ensure Value is a table
+                    if type(Dropdown.Value) ~= "table" then
+                        Dropdown.Value = {}
+                    end
+                    
                     local valueIndex = table.find(Dropdown.Value, Option)
                     local isCurrentlySelected = valueIndex ~= nil
                     
@@ -1961,14 +1943,14 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 end)
 
                 AddConnection(OptionBtn.MouseEnter, function()
-                    if not table.find(Dropdown.Value, Option) then
+                    if type(Dropdown.Value) == "table" and not table.find(Dropdown.Value, Option) then
                         TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.7}):Play()
                         TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.2}):Play()
                     end
                 end)
 
                 AddConnection(OptionBtn.MouseLeave, function()
-                    if not table.find(Dropdown.Value, Option) then
+                    if type(Dropdown.Value) == "table" and not table.find(Dropdown.Value, Option) then
                         TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 1}):Play()
                         TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.4}):Play()
                     end
@@ -1976,7 +1958,7 @@ function ElementFunction:AddDropdown(DropdownConfig)
 
                 Dropdown.Buttons[Option] = OptionBtn
             else
-                local isSelected = Dropdown.Value == Option
+                local isSelected = type(Dropdown.Value) == "string" and Dropdown.Value == Option
                 
                 local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(255, 0, 255)), {
                     MakeElement("Corner", 0, 6),
@@ -2012,7 +1994,7 @@ function ElementFunction:AddDropdown(DropdownConfig)
             table.clear(Dropdown.Options)
             table.clear(Dropdown.Buttons)
             if DropdownConfig.Multi then
-                table.clear(Dropdown.Value)
+                Dropdown.Value = {}
             else
                 Dropdown.Value = ""
             end
@@ -2024,13 +2006,22 @@ function ElementFunction:AddDropdown(DropdownConfig)
 
     function Dropdown:Set(Value)
         if DropdownConfig.Multi then
-            table.clear(Dropdown.Value)
+            -- Ensure Value is a table for multi-dropdown
+            if type(Dropdown.Value) ~= "table" then
+                Dropdown.Value = {}
+            else
+                table.clear(Dropdown.Value)
+            end
             
             if type(Value) == "table" then
                 for _, Val in pairs(Value) do
                     if table.find(Dropdown.Options, Val) then
                         table.insert(Dropdown.Value, Val)
                     end
+                end
+            elseif type(Value) == "string" and Value ~= "" then
+                if table.find(Dropdown.Options, Value) then
+                    table.insert(Dropdown.Value, Value)
                 end
             end
 
@@ -2059,8 +2050,24 @@ function ElementFunction:AddDropdown(DropdownConfig)
             DropdownFrame.F.Selected.Text = GetSelectedText()
             DropdownConfig.Callback(Dropdown.Value)
         else
-            if not table.find(Dropdown.Options, Value) then
+            -- Handle single dropdown
+            local newValue = ""
+            
+            if type(Value) == "string" then
+                newValue = Value
+            elseif type(Value) == "table" and #Value > 0 then
+                -- If a table is passed to single dropdown, use first valid option
+                for _, Val in pairs(Value) do
+                    if table.find(Dropdown.Options, Val) then
+                        newValue = Val
+                        break
+                    end
+                end
+            end
+            
+            if not table.find(Dropdown.Options, newValue) then
                 Dropdown.Value = "..."
+
                 DropdownFrame.F.Selected.Text = Dropdown.Value
                 for _, v in pairs(Dropdown.Buttons) do
                     TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
@@ -2069,56 +2076,26 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 return
             end
 
-            Dropdown.Value = Value
+            Dropdown.Value = newValue
             DropdownFrame.F.Selected.Text = Dropdown.Value
 
             for _, v in pairs(Dropdown.Buttons) do
                 TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
                 TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
             end	
-            if Dropdown.Buttons[Value] then
-                TweenService:Create(Dropdown.Buttons[Value],TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 0}):Play()
-                TweenService:Create(Dropdown.Buttons[Value].Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0}):Play()
+            if Dropdown.Buttons[newValue] then
+                TweenService:Create(Dropdown.Buttons[newValue],TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 0}):Play()
+                TweenService:Create(Dropdown.Buttons[newValue].Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0}):Play()
             end
             DropdownConfig.Callback(Dropdown.Value)
         end
     end
 
-    if DropdownConfig.Multi then
-        function Dropdown:Clear()
-            Dropdown:Set({})
-        end
-
-        function Dropdown:SelectAll()
-            Dropdown:Set(Dropdown.Options)
-        end
-    end
-
-    AddConnection(Click.MouseButton1Click, function()
-        Dropdown.Toggled = not Dropdown.Toggled
-        DropdownFrame.F.Line.Visible = Dropdown.Toggled
-        TweenService:Create(DropdownFrame.F.Ico, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = Dropdown.Toggled and 180 or 0}):Play()
-        
-        if #Dropdown.Options > MaxElements then
-            TweenService:Create(DropdownFrame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = Dropdown.Toggled and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)}):Play()
-        else
-            TweenService:Create(DropdownFrame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = Dropdown.Toggled and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38) or UDim2.new(1, 0, 0, 38)}):Play()
-        end
-    end)
-
-    Dropdown:Refresh(Dropdown.Options, false)
-    Dropdown:Set(Dropdown.Value)
-    
-    if DropdownConfig.Flag then				
-        OrionLib.Flags[DropdownConfig.Flag] = Dropdown
-    end
-    
-    if DropdownConfig.ToolTip and DropdownConfig.ToolTip ~= "" then
-        AddTooltipToElement(DropdownFrame, DropdownConfig.ToolTip)
-    end
+    -- ...existing code...
     
     return Dropdown
 end
+
 			function ElementFunction:AddBind(BindConfig)
 				BindConfig.Name = BindConfig.Name or "Bind"
 				BindConfig.Default = BindConfig.Default or Enum.KeyCode.Unknown
@@ -2506,21 +2483,39 @@ end
 					Parent = ToggleCircle
 				})
 
-				if ToggleColorPicker.Value then
-					ToggleCircle.Position = UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING)
-				else
-					ToggleCircle.Position = UDim2.new(0, PADDING, 0, PADDING)
-				end
+				local circleShadow = Create("UIStroke", {
+					Color = Color3.fromRGB(0, 0, 0),
+					Thickness = 1,
+					Transparency = 0.8,
+					Parent = ToggleCircle
+				})
+
+				local circleGlow = Create("Frame", {
+					Size = UDim2.new(0, CIRCLE_SIZE + 8, 0, CIRCLE_SIZE + 8),
+					Position = UDim2.new(0.5, 0, 0.5, 0),
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					BackgroundColor3 = ToggleConfig.Color,
+					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
+					ZIndex = 1,
+					Parent = ToggleCircle,
+					Name = "Glow"
+				})
+
+				Create("UICorner", {
+					CornerRadius = UDim.new(1, 0),
+					Parent = circleGlow
+				})
 
 				local ColorpickerBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
 					Size = UDim2.new(0, 24, 0, 24),
-					Position = UDim2.new(1, -SWITCH_WIDTH - 20, 0.5, 0),
+					Position = UDim2.new(1, -12, 0.5, 0),
 					AnchorPoint = Vector2.new(1, 0.5)
 				}), {
 					AddThemeObject(MakeElement("Stroke"), "Stroke")
 				}), "Main")
 
-				local ToggleColorPickerFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+				local ColorpickerFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
 					Size = UDim2.new(1, 0, 0, 38),
 					Parent = ItemParent
 				}), {
@@ -2909,7 +2904,7 @@ end
 
 				AddConnection(Click.MouseButton1Click, function()
 					Colorpicker.Toggled = not Colorpicker.Toggled
-					TweenService:Create(ColorpickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = Colorpicker.Toggled and UDim2.new(1, 0, 0, 148) or UDim2.new(1, 0, 0, 38)}):Play()
+					TweenService:Create(ColorpickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = Colorpicker.Toggled and UDim2.new(1, 0, 0, TOTAL_EXPANDED_HEIGHT) or UDim2.new(1, 0, 0, 38)}):Play()
 					Color.Visible = Colorpicker.Toggled
 					Hue.Visible = Colorpicker.Toggled
 					ColorpickerFrame.F.Line.Visible = Colorpicker.Toggled
