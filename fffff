@@ -2046,71 +2046,74 @@ function ElementFunction:AddDropdown(DropdownConfig)
         DropdownFrame.F.Selected.Text = GetSelectedText()
     end
 
-    function Dropdown:Set(Value)
-        if DropdownConfig.Multi then
-            table.clear(Dropdown.Value)
+function Dropdown:Set(Value)
+    if DropdownConfig.Multi then
+        table.clear(Dropdown.Value)
+        
+        if type(Value) == "table" then
+            for _, v in pairs(Value) do
+                if table.find(Dropdown.Options, v) then
+                    table.insert(Dropdown.Value, v)
+                end
+            end
+        elseif type(Value) == "string" and Value ~= "" then
+            if table.find(Dropdown.Options, Value) then
+                table.insert(Dropdown.Value, Value)
+            end
+        end
+
+        for Option, Button in pairs(Dropdown.Buttons) do
+            local isSelected = table.find(Dropdown.Value, Option) ~= nil
             
-            if type(Value) == "table" then
-                for _, v in pairs(Value) do
-                    if table.find(Dropdown.Options, v) then
-                        table.insert(Dropdown.Value, v)
-                    end
+            if isSelected then
+                TweenService:Create(Button, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                TweenService:Create(Button.Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+                if Button:FindFirstChild("Checkbox") then
+                    TweenService:Create(Button.Checkbox, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 0, 255)}):Play()
+                    TweenService:Create(Button.Checkbox.UIStroke, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
+                    Button.Checkbox.Check.Visible = true
                 end
-            elseif type(Value) == "string" and Value ~= "" then
-                if table.find(Dropdown.Options, Value) then
-                    table.insert(Dropdown.Value, Value)
-                end
-            end
-
-            for Option, Button in pairs(Dropdown.Buttons) do
-                local isSelected = table.find(Dropdown.Value, Option) ~= nil
-                
-                if isSelected then
-                    TweenService:Create(Button, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                    TweenService:Create(Button.Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-                    if Button:FindFirstChild("Checkbox") then
-                        TweenService:Create(Button.Checkbox, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 0, 255)}):Play()
-                        TweenService:Create(Button.Checkbox.UIStroke, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
-                        Button.Checkbox.Check.Visible = true
-                    end
-                else
-                    TweenService:Create(Button, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                    TweenService:Create(Button.Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
-                    if Button:FindFirstChild("Checkbox") then
-                        TweenService:Create(Button.Checkbox, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
-                        TweenService:Create(Button.Checkbox.UIStroke, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.5}):Play()
-                        Button.Checkbox.Check.Visible = false
-                    end
+            else
+                TweenService:Create(Button, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+                TweenService:Create(Button.Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
+                if Button:FindFirstChild("Checkbox") then
+                    TweenService:Create(Button.Checkbox, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
+                    TweenService:Create(Button.Checkbox.UIStroke, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.5}):Play()
+                    Button.Checkbox.Check.Visible = false
                 end
             end
+        end
 
-            DropdownFrame.F.Selected.Text = GetSelectedText()
-            DropdownConfig.Callback(Dropdown.Value)
-        else
-            if not table.find(Dropdown.Options, Value) then
-                Dropdown.Value = "..."
-                DropdownFrame.F.Selected.Text = Dropdown.Value
-                for _, v in pairs(Dropdown.Buttons) do
-                    TweenService:Create(v, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                    TweenService:Create(v.Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
-                end    
-                return
-            end
-
-            Dropdown.Value = Value
+        DropdownFrame.F.Selected.Text = GetSelectedText()
+        DropdownConfig.Callback(Dropdown.Value)
+    else
+        if not table.find(Dropdown.Options, Value) then
+            Dropdown.Value = "..."
             DropdownFrame.F.Selected.Text = Dropdown.Value
-
             for _, v in pairs(Dropdown.Buttons) do
                 TweenService:Create(v, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
                 TweenService:Create(v.Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
             end    
-            if Dropdown.Buttons[Value] then
-                TweenService:Create(Dropdown.Buttons[Value], TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                TweenService:Create(Dropdown.Buttons[Value].Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-            end
-            DropdownConfig.Callback(Dropdown.Value)
+            return
         end
+
+        Dropdown.Value = Value
+        DropdownFrame.F.Selected.Text = Dropdown.Value
+
+        -- Clear ALL buttons first
+        for _, v in pairs(Dropdown.Buttons) do
+            TweenService:Create(v, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(v.Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
+        end    
+        
+        -- Then highlight ONLY the selected one
+        if Dropdown.Buttons[Value] then
+            TweenService:Create(Dropdown.Buttons[Value], TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+            TweenService:Create(Dropdown.Buttons[Value].Title, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        end
+        DropdownConfig.Callback(Dropdown.Value)
     end
+end
 
     if DropdownConfig.Multi then
         function Dropdown:Clear()
