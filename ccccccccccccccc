@@ -2177,19 +2177,14 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     ToggleColorPickerConfig = ToggleColorPickerConfig or {}
     ToggleColorPickerConfig.Name = ToggleColorPickerConfig.Name or "Toggle Color Picker"
     ToggleColorPickerConfig.Default = ToggleColorPickerConfig.Default or false
-    ToggleColorPickerConfig.ColorPickerDefault = ToggleColorPickerConfig.ColorPickerDefault or Color3.fromRGB(255, 0, 0)
+    ToggleColorPickerConfig.ColorPickerDefault = ToggleColorPickerConfig.ColorPickerDefault or Color3.fromRGB(255,0,0)
     ToggleColorPickerConfig.Callback = ToggleColorPickerConfig.Callback or function() end
     ToggleColorPickerConfig.Flag = ToggleColorPickerConfig.Flag or nil
     ToggleColorPickerConfig.Save = ToggleColorPickerConfig.Save or false
     ToggleColorPickerConfig.ToolTip = ToggleColorPickerConfig.ToolTip or ""
 
-    local ColorH, ColorS, ColorV = Color3.toHSV(ToggleColorPickerConfig.ColorPickerDefault)
-    local ToggleColorPicker = {
-        Value = ToggleColorPickerConfig.Default,
-        ColorValue = ToggleColorPickerConfig.ColorPickerDefault,
-        Type = "ToggleColorPicker",
-        Save = ToggleColorPickerConfig.Save
-    }
+    local ColorH, ColorS, ColorV = 1, 1, 1
+    local ToggleColorPicker = {Value = ToggleColorPickerConfig.Default, ColorValue = ToggleColorPickerConfig.ColorPickerDefault, Toggled = false, Type = "ToggleColorPicker", Save = ToggleColorPickerConfig.Save}
     local RainbowMode = false
     local RainbowConnection = nil
 
@@ -2197,14 +2192,12 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
     local SWITCH_HEIGHT = 24
     local CIRCLE_SIZE = 18
     local PADDING = 3
-    local CHECKBOX_SIZE = 20
-    local TOTAL_EXPANDED_HEIGHT = 190
-
-    -- UI Elements
+    local CHECKBOX_SIZE = 18
+    local TOTAL_EXPANDED_HEIGHT = 210
 
     local ColorSelection = Create("ImageLabel", {
         Size = UDim2.new(0, 18, 0, 18),
-        Position = UDim2.new(ColorS, 0, 1 - ColorV, 0),
+        Position = UDim2.new(select(3, Color3.toHSV(ToggleColorPicker.ColorValue))),
         ScaleType = Enum.ScaleType.Fit,
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundTransparency = 1,
@@ -2213,7 +2206,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
     local HueSelection = Create("ImageLabel", {
         Size = UDim2.new(0, 18, 0, 18),
-        Position = UDim2.new(0.5, 0, 1 - ColorH, 0),
+        Position = UDim2.new(0.5, 0, 1 - select(1, Color3.toHSV(ToggleColorPicker.ColorValue))),
         ScaleType = Enum.ScaleType.Fit,
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundTransparency = 1,
@@ -2234,40 +2227,41 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         Position = UDim2.new(1, -20, 0, 0),
         Visible = false
     }, {
-        Create("UIGradient", {
-            Rotation = 270,
-            Color = ColorSequence.new{
-                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 4)),
-                ColorSequenceKeypoint.new(0.20, Color3.fromRGB(234, 255, 0)),
-                ColorSequenceKeypoint.new(0.40, Color3.fromRGB(21, 255, 0)),
-                ColorSequenceKeypoint.new(0.60, Color3.fromRGB(0, 255, 255)),
-                ColorSequenceKeypoint.new(0.80, Color3.fromRGB(0, 17, 255)),
-                ColorSequenceKeypoint.new(0.90, Color3.fromRGB(255, 0, 251)),
-                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 4))
-            }
-        }),
+        Create("UIGradient", {Rotation = 270, Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 4)), ColorSequenceKeypoint.new(0.20, Color3.fromRGB(234, 255, 0)), ColorSequenceKeypoint.new(0.40, Color3.fromRGB(21, 255, 0)), ColorSequenceKeypoint.new(0.60, Color3.fromRGB(0, 255, 255)), ColorSequenceKeypoint.new(0.80, Color3.fromRGB(0, 17, 255)), ColorSequenceKeypoint.new(0.90, Color3.fromRGB(255, 0, 251)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 4))},}),
         Create("UICorner", {CornerRadius = UDim.new(0, 5)}),
         HueSelection
     })
 
     local RainbowCheckbox = Create("Frame", {
         Size = UDim2.new(0, CHECKBOX_SIZE, 0, CHECKBOX_SIZE),
-        Position = UDim2.new(1, -54, 0, 160),
+        Position = UDim2.new(1, -45, 0, 135),
         AnchorPoint = Vector2.new(0, 0),
-        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
         BorderSizePixel = 0,
         Name = "RainbowCheckbox",
         Visible = false
     })
 
+    local RainbowGlow = Create("Frame", {
+        Size = UDim2.new(1, 6, 1, 6),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = ToggleColorPicker.ColorValue,
+        BackgroundTransparency = 0.8,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+        Parent = RainbowCheckbox
+    })
+
     local RainbowCheck = Create("ImageLabel", {
-        Size = UDim2.new(1, -4, 1, -6),
-        Position = UDim2.new(0.5, 0, 0.6, 0),
+        Size = UDim2.new(0.8, 0, 0.8, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundTransparency = 1,
         Image = "rbxassetid://7072716612",
-        ImageColor3 = ToggleColorPicker.ColorValue,
+        ImageColor3 = Color3.fromRGB(255, 255, 255),
         Visible = false,
+        ZIndex = 3,
         Parent = RainbowCheckbox
     })
 
@@ -2275,31 +2269,37 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Text = "",
+        ZIndex = 4,
         Parent = RainbowCheckbox
     })
 
     Create("UICorner", {
-        CornerRadius = UDim.new(0, 4),
+        CornerRadius = UDim.new(0, 5),
         Parent = RainbowCheckbox
+    })
+
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 7),
+        Parent = RainbowGlow
     })
 
     local RainbowStroke = Create("UIStroke", {
         Color = ToggleColorPicker.ColorValue,
-        Thickness = 1,
-        Transparency = 0.5,
+        Thickness = 1.5,
+        Transparency = 0.3,
         Parent = RainbowCheckbox
     })
 
     local RainbowLabel = Create("TextLabel", {
-        Size = UDim2.new(0, 100, 0, 20),
-        Position = UDim2.new(0, -108, 0.5, 0),
+        Size = UDim2.new(0, 100, 0, 18),
+        Position = UDim2.new(0, -110, 0.5, 0),
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundTransparency = 1,
         Text = "Rainbow Mode",
-        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextColor3 = Color3.fromRGB(200, 200, 200),
         TextXAlignment = Enum.TextXAlignment.Right,
-        Font = Enum.Font.Gotham,
-        TextSize = 14,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
         Parent = RainbowCheckbox
     })
 
@@ -2307,8 +2307,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         Position = UDim2.new(0, 0, 0, 32),
         Size = UDim2.new(1, 0, 0, TOTAL_EXPANDED_HEIGHT - 38),
         BackgroundTransparency = 1,
-        ClipsDescendants = true,
-        Visible = false
+        ClipsDescendants = true
     }, {
         Hue,
         Color,
@@ -2318,6 +2317,10 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
             PaddingBottom = UDim.new(0, 15),
             PaddingTop = UDim.new(0, 17)
         })
+    })
+
+    local Click = SetProps(MakeElement("Button"), {
+        Size = UDim2.new(1, 0, 1, 0)
     })
 
     local ToggleSwitch = Create("Frame", {
@@ -2331,6 +2334,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
     local switchClickDetector = Create("TextButton", {
         Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundTransparency = 1,
         Text = "",
         Parent = ToggleSwitch
@@ -2350,12 +2354,12 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 
     local ToggleCircle = Create("Frame", {
         Size = UDim2.new(0, CIRCLE_SIZE, 0, CIRCLE_SIZE),
-        Position = ToggleColorPicker.Value and UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING) or UDim2.new(0, PADDING, 0, PADDING),
+        Position = UDim2.new(0, PADDING, 0, PADDING),
         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         BorderSizePixel = 0,
         ZIndex = 2,
-        Name = "Circle",
-        Parent = ToggleSwitch
+        Parent = ToggleSwitch,
+        Name = "Circle"
     })
 
     Create("UICorner", {
@@ -2363,106 +2367,307 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         Parent = ToggleCircle
     })
 
+    if ToggleColorPicker.Value then
+        ToggleCircle.Position = UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING)
+    else
+        ToggleCircle.Position = UDim2.new(0, PADDING, 0, PADDING)
+    end
+
     local ColorpickerBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
         Size = UDim2.new(0, 24, 0, 24),
-        Position = UDim2.new(1, -28, 0.5, 0),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Name = "ColorpickerBox",
-        BackgroundColor3 = ToggleColorPicker.ColorValue,
-        BorderSizePixel = 0,
-        ZIndex = 2
+        Position = UDim2.new(1, -SWITCH_WIDTH - 20, 0.5, 0),
+        AnchorPoint = Vector2.new(1, 0.5)
     }), {
-        Create("UICorner", {CornerRadius = UDim.new(1, 0)})
-    }), Color3.fromRGB(255, 255, 255), 0, 4)
+        AddThemeObject(MakeElement("Stroke"), "Stroke")
+    }), "Main")
 
-    local ColorpickerButton = Create("TextButton", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = "",
-        Parent = ColorpickerBox
-    })
+    local ToggleColorPickerFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+        Size = UDim2.new(1, 0, 0, 38),
+        Parent = ItemParent
+    }), {
+        SetProps(SetChildren(MakeElement("TFrame"), {
+            AddThemeObject(SetProps(MakeElement("Label", ToggleColorPickerConfig.Name, 15), {
+                Size = UDim2.new(1, -12, 1, 0),
+                Position = UDim2.new(0, 12, 0, 0),
+                Font = Enum.Font.GothamBold,
+                Name = "Content"
+            }), "Text"),
+            ColorpickerBox,
+            Click,
+            ToggleSwitch,
+            AddThemeObject(SetProps(MakeElement("Frame"), {
+                Size = UDim2.new(1, 0, 0, 1),
+                Position = UDim2.new(0, 0, 1, -1),
+                Name = "Line",
+                Visible = false
+            }), "Stroke"), 
+        }), {
+            Size = UDim2.new(1, 0, 0, 38),
+            ClipsDescendants = true,
+            Name = "F"
+        }),
+        ColorpickerContainer,
+        RainbowCheckbox,
+        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+    }), "Second")
 
-    local Tooltip = Create("TextLabel", {
-        Size = UDim2.new(1, 0, 0, 20),
-        Position = UDim2.new(0, 0, 0, -24),
-        BackgroundTransparency = 1,
-        Text = ToggleColorPickerConfig.ToolTip,
-        TextColor3 = Color3.fromRGB(200, 200, 200),
-        Font = Enum.Font.Gotham,
-        TextSize = 12,
-        Visible = ToggleColorPickerConfig.ToolTip ~= "",
-        Parent = ColorpickerBox
-    })
+    local function updateToggle(animate)
+        local targetColor = ToggleColorPicker.Value and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15)
+        local targetPos = ToggleColorPicker.Value and 
+            UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING) or 
+            UDim2.new(0, PADDING, 0, PADDING)
+        local targetStrokeTransparency = ToggleColorPicker.Value and 1 or 0.3
 
-    ColorpickerBox.Parent = self.Container
-    ToggleSwitch.Parent = self.Container
-    RainbowCheckbox.Parent = self.Container
+        if animate then
+            local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+            
+            TweenService:Create(ToggleSwitch, tweenInfo, {
+                BackgroundColor3 = targetColor
+            }):Play()
+            
+            TweenService:Create(ToggleCircle, tweenInfo, {
+                Position = targetPos
+            }):Play()
+            
+            TweenService:Create(switchStroke, tweenInfo, {
+                Transparency = targetStrokeTransparency
+            }):Play()
+        else
+            ToggleSwitch.BackgroundColor3 = targetColor
+            ToggleCircle.Position = targetPos
+            switchStroke.Transparency = targetStrokeTransparency
+        end
+    end
 
-    local function SetColorFromHSV(h, s, v)
-        ColorH, ColorS, ColorV = h, s, v
-        local newColor = Color3.fromHSV(h, s, v)
-        ColorpickerBox.BackgroundColor3 = newColor
-        RainbowCheck.ImageColor3 = newColor
+    local function updateRainbowCheckbox()
+        RainbowCheck.Visible = RainbowMode
+        
+        local targetBgColor = RainbowMode and Color3.fromRGB(45, 45, 45) or Color3.fromRGB(25, 25, 25)
+        local targetStrokeTransparency = RainbowMode and 0 or 0.3
+        local targetGlowTransparency = RainbowMode and 0.6 or 0.9
+        
+        TweenService:Create(RainbowCheckbox, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = targetBgColor
+        }):Play()
+        
+        TweenService:Create(RainbowStroke, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+            Transparency = targetStrokeTransparency,
+            Color = ToggleColorPicker.ColorValue,
+            Thickness = RainbowMode and 2 or 1.5
+        }):Play()
+
+        TweenService:Create(RainbowGlow, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+            BackgroundTransparency = targetGlowTransparency,
+            BackgroundColor3 = ToggleColorPicker.ColorValue
+        }):Play()
+        
+        if RainbowMode then
+            RainbowCheck.Size = UDim2.new(0, 0, 0, 0)
+            RainbowCheck.Visible = true
+            RainbowCheck.ImageColor3 = Color3.fromRGB(255, 255, 255)
+            TweenService:Create(RainbowCheck, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0.8, 0, 0.8, 0)
+            }):Play()
+        else
+            TweenService:Create(RainbowCheck, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+                Size = UDim2.new(0, 0, 0, 0)
+            }):Play()
+            spawn(function()
+                wait(0.2)
+                if not RainbowMode then
+                    RainbowCheck.Visible = false
+                end
+            end)
+        end
+    end
+
+    local function doToggle()
+        ToggleColorPicker.Value = not ToggleColorPicker.Value
+        updateToggle(true)
+        ToggleColorPickerConfig.Callback(ToggleColorPicker.ColorValue, ToggleColorPicker.Value)
+    end
+
+    local function toggleRainbow()
+        RainbowMode = not RainbowMode
+        updateRainbowCheckbox()
+        
+        if RainbowMode then
+            RainbowConnection = AddConnection(RunService.Heartbeat, function()
+                local hue = tick() % 5 / 5
+                local color = Color3.fromHSV(hue, 1, 1)
+                ToggleColorPicker:SetColor(color)
+                ToggleColorPickerConfig.Callback(color, ToggleColorPicker.Value)
+            end)
+        else
+            if RainbowConnection then
+                RainbowConnection:Disconnect()
+                RainbowConnection = nil
+            end
+        end
+    end
+
+    AddConnection(switchClickDetector.MouseButton1Click, function()
+        doToggle()
+    end)
+
+    AddConnection(RainbowClick.MouseButton1Click, function()
+        toggleRainbow()
+    end)
+
+    AddConnection(switchClickDetector.MouseEnter, function()
+        TweenService:Create(ToggleSwitch, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+            BackgroundColor3 = ToggleSwitch.BackgroundColor3:Lerp(Color3.fromRGB(255, 255, 255), 0.15)
+        }):Play()
+        
+        if not ToggleColorPicker.Value then
+            TweenService:Create(switchStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+                Transparency = 0.1
+            }):Play()
+        end
+    end)
+
+    AddConnection(switchClickDetector.MouseLeave, function()
+        TweenService:Create(ToggleSwitch, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+            BackgroundColor3 = ToggleColorPicker.Value and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15)
+        }):Play()
+        
+        TweenService:Create(switchStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+            Transparency = ToggleColorPicker.Value and 1 or 0.3
+        }):Play()
+    end)
+
+    AddConnection(RainbowClick.MouseEnter, function()
+        TweenService:Create(RainbowCheckbox, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = RainbowCheckbox.BackgroundColor3:Lerp(Color3.fromRGB(70, 70, 70), 0.6)
+        }):Play()
+        TweenService:Create(RainbowStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            Transparency = 0
+        }):Play()
+        TweenService:Create(RainbowGlow, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            BackgroundTransparency = 0.4
+        }):Play()
+    end)
+
+    AddConnection(RainbowClick.MouseLeave, function()
+        TweenService:Create(RainbowCheckbox, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = RainbowMode and Color3.fromRGB(45, 45, 45) or Color3.fromRGB(25, 25, 25)
+        }):Play()
+        TweenService:Create(RainbowStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            Transparency = RainbowMode and 0 or 0.3
+        }):Play()
+        TweenService:Create(RainbowGlow, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            BackgroundTransparency = RainbowMode and 0.6 : 0.9
+        }):Play()
+    end)
+
+    AddConnection(Click.MouseButton1Click, function()
+        ToggleColorPicker.Toggled = not ToggleColorPicker.Toggled
+        TweenService:Create(ToggleColorPickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleColorPicker.Toggled and UDim2.new(1, 0, 0, TOTAL_EXPANDED_HEIGHT) or UDim2.new(1, 0, 0, 38)}):Play()
+        Color.Visible = ToggleColorPicker.Toggled
+        Hue.Visible = ToggleColorPicker.Toggled
+        RainbowCheckbox.Visible = ToggleColorPicker.Toggled
+        ToggleColorPickerFrame.F.Line.Visible = ToggleColorPicker.Toggled
+    end)
+
+    local function UpdateColorPicker()
+        ColorpickerBox.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
+        Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
+        ToggleColorPicker:SetColor(ColorpickerBox.BackgroundColor3)
+        
+        RainbowStroke.Color = ToggleColorPicker.ColorValue
+        RainbowGlow.BackgroundColor3 = ToggleColorPicker.ColorValue
+        
+        ToggleColorPickerConfig.Callback(ToggleColorPicker.ColorValue, ToggleColorPicker.Value)
+        SaveCfg(game.GameId)
+    end
+
+    local function UpdateHSV()
+        local h, s, v = Color3.toHSV(ToggleColorPicker.ColorValue)
+        ColorH = h
+        ColorS = s
+        ColorV = v
         HueSelection.Position = UDim2.new(0.5, 0, 1 - h, 0)
         ColorSelection.Position = UDim2.new(s, 0, 1 - v, 0)
-        ToggleColorPicker.ColorValue = newColor
-        if ToggleColorPicker.Value and not RainbowMode then
-            ToggleColorPickerConfig.Callback(newColor)
-        end
     end
 
-    local function StartRainbow()
-        if RainbowConnection then
-            RainbowConnection:Disconnect()
-            RainbowConnection = nil
-        end
-        RainbowConnection = game:GetService("RunService").RenderStepped:Connect(function()
-            local hue = (tick() * 0.25) % 1
-            SetColorFromHSV(hue, 1, 1)
-        end)
-    end
+    ColorH = 1 - (math.clamp(HueSelection.AbsolutePosition.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
+    ColorS = (math.clamp(ColorSelection.AbsolutePosition.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
+    ColorV = 1 - (math.clamp(ColorSelection.AbsolutePosition.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
+    
+    UpdateHSV()
 
-    local function StopRainbow()
-        if RainbowConnection then
-            RainbowConnection:Disconnect()
-            RainbowConnection = nil
-        end
-    end
-
-    switchClickDetector.MouseButton1Click:Connect(function()
-        ToggleColorPicker.Value = not ToggleColorPicker.Value
-        ToggleSwitch.BackgroundColor3 = ToggleColorPicker.Value and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(15, 15, 15)
-        switchStroke.Transparency = ToggleColorPicker.Value and 1 or 0.3
-        ToggleCircle.Position = ToggleColorPicker.Value and UDim2.new(0, SWITCH_WIDTH - CIRCLE_SIZE - PADDING, 0, PADDING) or UDim2.new(0, PADDING, 0, PADDING)
-        ColorpickerContainer.Visible = ToggleColorPicker.Value
-        RainbowCheckbox.Visible = ToggleColorPicker.Value
-        if ToggleColorPicker.Value and not RainbowMode then
-            ToggleColorPickerConfig.Callback(ToggleColorPicker.ColorValue)
+    AddConnection(Color.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if ColorInput then
+                ColorInput:Disconnect()
+            end
+            ColorInput = AddConnection(RunService.RenderStepped, function()
+                local ColorX = (math.clamp(Mouse.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
+                local ColorY = (math.clamp(Mouse.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
+                ColorSelection.Position = UDim2.new(ColorX, 0, ColorY, 0)
+                ColorS = ColorX
+                ColorV = 1 - ColorY
+                UpdateColorPicker()
+            end)
         end
     end)
 
-    ColorpickerButton.MouseButton1Click:Connect(function()
-        if ToggleColorPicker.Value then
-            ColorpickerContainer.Visible = not ColorpickerContainer.Visible
-        end
-    end)
-
-    RainbowClick.MouseButton1Click:Connect(function()
-        if ToggleColorPicker.Value then
-            RainbowMode = not RainbowMode
-            RainbowCheck.Visible = RainbowMode
-            if RainbowMode then
-                StartRainbow()
-            else
-                StopRainbow()
-                -- Reset to current color when rainbow mode ends
-                ToggleColorPickerConfig.Callback(ToggleColorPicker.ColorValue)
+    AddConnection(Color.InputEnded, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if ColorInput then
+                ColorInput:Disconnect()
             end
         end
     end)
 
-    SetColorFromHSV(ColorH, ColorS, ColorV)
+    AddConnection(Hue.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if HueInput then
+                HueInput:Disconnect()
+            end;
 
+            HueInput = AddConnection(RunService.RenderStepped, function()
+                local HueY = (math.clamp(Mouse.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
+
+                HueSelection.Position = UDim2.new(0.5, 0, HueY, 0)
+                ColorH = 1 - HueY
+
+                UpdateColorPicker()
+            end)
+        end
+    end)
+
+    AddConnection(Hue.InputEnded, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if HueInput then
+                HueInput:Disconnect()
+            end
+        end
+    end)
+
+    function ToggleColorPicker:Set(Value)
+        ToggleColorPicker.Value = Value
+        updateToggle(true)
+        ToggleColorPickerConfig.Callback(ToggleColorPicker.ColorValue, ToggleColorPicker.Value)
+    end
+
+    function ToggleColorPicker:SetColor(Value)
+        ToggleColorPicker.ColorValue = Value
+        ColorpickerBox.BackgroundColor3 = ToggleColorPicker.ColorValue
+        RainbowStroke.Color = ToggleColorPicker.ColorValue
+        RainbowGlow.BackgroundColor3 = ToggleColorPicker.ColorValue
+    end
+
+    updateToggle(false)
+    updateRainbowCheckbox()
+    ToggleColorPicker:SetColor(ToggleColorPicker.ColorValue)
+    if ToggleColorPickerConfig.Flag then                
+        OrionLib.Flags[ToggleColorPickerConfig.Flag] = ToggleColorPicker
+    end            
+    if ToggleColorPickerConfig.ToolTip and ToggleColorPickerConfig.ToolTip ~= "" then
+        AddTooltipToElement(ToggleColorPickerFrame, ToggleColorPickerConfig.ToolTip)
+    end
+    
     return ToggleColorPicker
 end
 
