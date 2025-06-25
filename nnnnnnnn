@@ -1871,13 +1871,13 @@ function OrionLib:MakeWindow(WindowConfig)
 				DropdownContainer.CanvasSize = UDim2.new(0,0,0,DropdownList.AbsoluteContentSize.Y)
 			end)
 
-			local function UpdateButtonVisuals(button, option, isSelected, animate)
+			function UpdateButtonVisuals(button, option, isSelected, animate)
 				local t = animate and 0.15 or 0
 				TweenService:Create(button, TweenInfo.new(t), {BackgroundTransparency = isSelected and 0.2 or 1}):Play()
 				TweenService:Create(button.Title, TweenInfo.new(t), {TextTransparency = isSelected and 0 or 0.4}):Play()
 			end
 
-			local function AddOptions(options)
+			function AddOptions(options)
 				for _, option in ipairs(options) do
 					local isSelected = DropdownConfig.Multi and table.find(Dropdown.Value, option) or Dropdown.Value == option
 					local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(255,0,255)), {
@@ -1973,132 +1973,132 @@ function OrionLib:MakeWindow(WindowConfig)
 			return Dropdown
 		end
 
-function ElementFunction:AddBind(BindConfig)
-				BindConfig.Name = BindConfig.Name or "Bind"
-				BindConfig.Default = BindConfig.Default or Enum.KeyCode.Unknown
-				BindConfig.Hold = BindConfig.Hold or false
-				BindConfig.Callback = BindConfig.Callback or function() end
-				BindConfig.Flag = BindConfig.Flag or nil
-				BindConfig.Save = BindConfig.Save or false
-				BindConfig.ToolTip = BindConfig.ToolTip or ""
+	function ElementFunction:AddBind(BindConfig)
+					BindConfig.Name = BindConfig.Name or "Bind"
+					BindConfig.Default = BindConfig.Default or Enum.KeyCode.Unknown
+					BindConfig.Hold = BindConfig.Hold or false
+					BindConfig.Callback = BindConfig.Callback or function() end
+					BindConfig.Flag = BindConfig.Flag or nil
+					BindConfig.Save = BindConfig.Save or false
+					BindConfig.ToolTip = BindConfig.ToolTip or ""
 
-				local Bind = {Value, Binding = false, Type = "Bind", Save = BindConfig.Save}
-				local Holding = false
+					local Bind = {Value, Binding = false, Type = "Bind", Save = BindConfig.Save}
+					local Holding = false
 
-				local Click = SetProps(MakeElement("Button"), {
-					Size = UDim2.new(1, 0, 1, 0)
-				})
+					local Click = SetProps(MakeElement("Button"), {
+						Size = UDim2.new(1, 0, 1, 0)
+					})
 
-				local BindBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
-					Size = UDim2.new(0, 24, 0, 24),
-					Position = UDim2.new(1, -12, 0.5, 0),
-					AnchorPoint = Vector2.new(1, 0.5)
-				}), {
-					AddThemeObject(MakeElement("Stroke"), "Stroke"),
-					AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 14), {
-						Size = UDim2.new(1, 0, 1, 0),
-						Font = Enum.Font.GothamBold,
-						TextXAlignment = Enum.TextXAlignment.Center,
-						Name = "Value"
-					}), "Text")
-				}), "Main")
+					local BindBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
+						Size = UDim2.new(0, 24, 0, 24),
+						Position = UDim2.new(1, -12, 0.5, 0),
+						AnchorPoint = Vector2.new(1, 0.5)
+					}), {
+						AddThemeObject(MakeElement("Stroke"), "Stroke"),
+						AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 14), {
+							Size = UDim2.new(1, 0, 1, 0),
+							Font = Enum.Font.GothamBold,
+							TextXAlignment = Enum.TextXAlignment.Center,
+							Name = "Value"
+						}), "Text")
+					}), "Main")
 
-				local BindFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
-					Size = UDim2.new(1, 0, 0, 38),
-					Parent = ItemParent
-				}), {
-					AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 15), {
-						Size = UDim2.new(1, -12, 1, 0),
-						Position = UDim2.new(0, 12, 0, 0),
-						Font = Enum.Font.GothamBold,
-						Name = "Content"
-					}), "Text"),
-					AddThemeObject(MakeElement("Stroke"), "Stroke"),
-					BindBox,
-					Click
-				}), "Second")
+					local BindFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+						Size = UDim2.new(1, 0, 0, 38),
+						Parent = ItemParent
+					}), {
+						AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 15), {
+							Size = UDim2.new(1, -12, 1, 0),
+							Position = UDim2.new(0, 12, 0, 0),
+							Font = Enum.Font.GothamBold,
+							Name = "Content"
+						}), "Text"),
+						AddThemeObject(MakeElement("Stroke"), "Stroke"),
+						BindBox,
+						Click
+					}), "Second")
 
-				AddConnection(BindBox.Value:GetPropertyChangedSignal("Text"), function()
-					TweenService:Create(BindBox, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, BindBox.Value.TextBounds.X + 16, 0, 24)}):Play()
-				end)
+					AddConnection(BindBox.Value:GetPropertyChangedSignal("Text"), function()
+						TweenService:Create(BindBox, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, BindBox.Value.TextBounds.X + 16, 0, 24)}):Play()
+					end)
 
-				AddConnection(Click.InputEnded, function(Input)
-					if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-						if Bind.Binding then return end
-						Bind.Binding = true
-						BindBox.Value.Text = ""
-					end
-				end)
-
-				AddConnection(UserInputService.InputBegan, function(Input)
-					if UserInputService:GetFocusedTextBox() then return end
-					if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding then
-						if BindConfig.Hold then
-							Holding = true
-							BindConfig.Callback(Holding)
-						else
-							BindConfig.Callback()
+					AddConnection(Click.InputEnded, function(Input)
+						if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+							if Bind.Binding then return end
+							Bind.Binding = true
+							BindBox.Value.Text = ""
 						end
-					elseif Bind.Binding then
-						local Key
-						pcall(function()
-							if not CheckKey(BlacklistedKeys, Input.KeyCode) then
-								Key = Input.KeyCode
-							end
-						end)
-						pcall(function()
-							if CheckKey(WhitelistedMouse, Input.UserInputType) and not Key then
-								Key = Input.UserInputType
-							end
-						end)
-						Key = Key or Bind.Value
-						Bind:Set(Key)
-						SaveCfg(game.GameId)
-					end
-				end)
+					end)
 
-				AddConnection(UserInputService.InputEnded, function(Input)
-					if Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value then
-						if BindConfig.Hold and Holding then
-							Holding = false
-							BindConfig.Callback(Holding)
+					AddConnection(UserInputService.InputBegan, function(Input)
+						if UserInputService:GetFocusedTextBox() then return end
+						if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding then
+							if BindConfig.Hold then
+								Holding = true
+								BindConfig.Callback(Holding)
+							else
+								BindConfig.Callback()
+							end
+						elseif Bind.Binding then
+							local Key
+							pcall(function()
+								if not CheckKey(BlacklistedKeys, Input.KeyCode) then
+									Key = Input.KeyCode
+								end
+							end)
+							pcall(function()
+								if CheckKey(WhitelistedMouse, Input.UserInputType) and not Key then
+									Key = Input.UserInputType
+								end
+							end)
+							Key = Key or Bind.Value
+							Bind:Set(Key)
+							SaveCfg(game.GameId)
 						end
+					end)
+
+					AddConnection(UserInputService.InputEnded, function(Input)
+						if Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value then
+							if BindConfig.Hold and Holding then
+								Holding = false
+								BindConfig.Callback(Holding)
+							end
+						end
+					end)
+
+					AddConnection(Click.MouseEnter, function()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					end)
+
+					AddConnection(Click.MouseLeave, function()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
+					end)
+
+					AddConnection(Click.MouseButton1Up, function()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					end)
+
+					AddConnection(Click.MouseButton1Down, function()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
+					end)
+
+					function Bind:Set(Key)
+						Bind.Binding = false
+						Bind.Value = Key or Bind.Value
+						Bind.Value = Bind.Value.Name or Bind.Value
+						BindBox.Value.Text = Bind.Value
 					end
-				end)
 
-				AddConnection(Click.MouseEnter, function()
-					TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
-				end)
-
-				AddConnection(Click.MouseLeave, function()
-					TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
-				end)
-
-				AddConnection(Click.MouseButton1Up, function()
-					TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
-				end)
-
-				AddConnection(Click.MouseButton1Down, function()
-					TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
-				end)
-
-				function Bind:Set(Key)
-					Bind.Binding = false
-					Bind.Value = Key or Bind.Value
-					Bind.Value = Bind.Value.Name or Bind.Value
-					BindBox.Value.Text = Bind.Value
+					Bind:Set(BindConfig.Default)
+					if BindConfig.Flag then				
+						OrionLib.Flags[BindConfig.Flag] = Bind
+					end
+					if BindConfig.ToolTip and BindConfig.ToolTip ~= "" then
+						AddTooltipToElement(BindFrame, BindConfig.ToolTip)
+					end
+					
+					return Bind
 				end
-
-				Bind:Set(BindConfig.Default)
-				if BindConfig.Flag then				
-					OrionLib.Flags[BindConfig.Flag] = Bind
-				end
-				if BindConfig.ToolTip and BindConfig.ToolTip ~= "" then
-					AddTooltipToElement(BindFrame, BindConfig.ToolTip)
-				end
-				
-				return Bind
-			end
 			function ElementFunction:AddTextbox(TextboxConfig)
 				TextboxConfig = TextboxConfig or {}
 				TextboxConfig.Name = TextboxConfig.Name or "Textbox"
@@ -2149,7 +2149,6 @@ function ElementFunction:AddBind(BindConfig)
 				}), "Second")
 
 				AddConnection(TextboxActual:GetPropertyChangedSignal("Text"), function()
-					--TextContainer.Size = UDim2.new(0, TextboxActual.TextBounds.X + 16, 0, 24)
 					TweenService:Create(TextContainer, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, TextboxActual.TextBounds.X + 16, 0, 24)}):Play()
 				end)
 
@@ -3099,6 +3098,7 @@ function ElementFunction:AddSubTab(SubTabConfig)
     SubTabConfig.Name = SubTabConfig.Name or "SubTab"
     local isFirstSubTab = #Container:GetChildren() <= 2
     local SubTabsHolder
+    
     if not Container:FindFirstChild("SubTabsHolder") then
         SubTabsHolder = SetChildren(SetProps(MakeElement("TFrame"), {
             Size = UDim2.new(1, 0, 0, 36),
@@ -3143,6 +3143,30 @@ function ElementFunction:AddSubTab(SubTabConfig)
     }), {
         MakeElement("List", 0, 6),
         MakeElement("Padding", 0, 0, 0, 5)
+    })
+    
+    local LeftColumn = SetChildren(SetProps(MakeElement("TFrame"), {
+        Size = UDim2.new(0.5, -5, 0, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Parent = SubTabContainer,
+        Name = "LeftColumn",
+        BackgroundTransparency = 1
+    }), {
+        MakeElement("List", 0, 10),
+        MakeElement("Padding", 0, 0, 0, 0)
+    })
+    
+    local RightColumn = SetChildren(SetProps(MakeElement("TFrame"), {
+        Size = UDim2.new(0.5, -5, 0, 0),
+        Position = UDim2.new(0.5, 5, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Parent = SubTabContainer,
+        Name = "RightColumn",
+        BackgroundTransparency = 1
+    }), {
+        MakeElement("List", 0, 10),
+        MakeElement("Padding", 0, 0, 0, 0)
     })
     
     local SubTabButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
@@ -3232,32 +3256,6 @@ function ElementFunction:AddSubTab(SubTabConfig)
         }):Play()
         
         SubTabContainer.Visible = true
-        SubTabContainer.BackgroundTransparency = 1
-        
-        for _, child in pairs(SubTabContainer:GetChildren()) do
-            if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
-                child.BackgroundTransparency = 1
-                if child:FindFirstChild("Content") then
-                    child.Content.TextTransparency = 1
-                end
-            end
-        end
-        
-        task.spawn(function()
-            task.wait(0.05)
-            if not SubTabButton:GetAttribute("Selected") then return end
-            
-            for _, child in pairs(SubTabContainer:GetChildren()) do
-                if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) then
-                    if not child.Name:find("Section") then
-                        TweenService:Create(child, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
-                    end
-                    if child:FindFirstChild("Content") then
-                        TweenService:Create(child.Content, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
-                    end
-                end
-            end
-        end)
     end
     
     AddConnection(SubTabButton.MouseEnter, function()
@@ -3302,46 +3300,98 @@ function ElementFunction:AddSubTab(SubTabConfig)
     end
     
     local SubTabFunction = {}
-    for i, v in next, GetElements(SubTabContainer) do
-        SubTabFunction[i] = v
-    end
     
-    function SubTabFunction:AddSection(SectionConfig)
+    function SubTabFunction:AddSubSectionLeft(SectionConfig)
         SectionConfig = SectionConfig or {}
         SectionConfig.Name = SectionConfig.Name or "Section"
 
-        local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
-            Size = UDim2.new(1, 0, 0, 26),
-            Parent = SubTabContainer,
-            BackgroundTransparency = 1,
-            Name = "Section_" .. SectionConfig.Name
+        local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 6), {
+            Size = UDim2.new(1, 0, 0, 36),
+            Parent = LeftColumn,
+            BackgroundTransparency = 0.1,
+            Name = "Section_" .. SectionConfig.Name,
+            ClipsDescendants = true
         }), {
+            AddThemeObject(MakeElement("Stroke"), "Stroke"),
             AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
-                Size = UDim2.new(1, -12, 0, 16),
-                Position = UDim2.new(0, 0, 0, 3),
-                Font = Enum.Font.GothamSemibold,
-                BackgroundTransparency = 1
-            }), "TextDark"),
+                Size = UDim2.new(1, -12, 0, 26),
+                Position = UDim2.new(0, 6, 0, 5),
+                Font = Enum.Font.GothamBold,
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AnchorPoint = Vector2.new(0, 0)
+            }), "Text"),
             SetChildren(SetProps(MakeElement("TFrame"), {
                 AnchorPoint = Vector2.new(0, 0),
-                Size = UDim2.new(1, 0, 1, -24),
-                Position = UDim2.new(0, 0, 0, 23),
+                Size = UDim2.new(1, 0, 1, -30),
+                Position = UDim2.new(0, 0, 0, 30),
                 Name = "Holder",
                 BackgroundTransparency = 1
             }), {
-                MakeElement("List", 0, 6)
+                MakeElement("List", 0, 8),
+                MakeElement("Padding", 12, 12, 12, 12)
             }),
         })
 
         AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-            SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
-            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
+            local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
+            local paddingHeight = 54
+            SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
+            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
         end)
 
         local SectionFunction = {}
         for i, v in next, GetElements(SectionFrame.Holder) do
             SectionFunction[i] = v 
         end
+        
+        return SectionFunction
+    end
+
+    function SubTabFunction:AddSubSectionRight(SectionConfig)
+        SectionConfig = SectionConfig or {}
+        SectionConfig.Name = SectionConfig.Name or "Section"
+
+        local SectionFrame = SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 6), {
+            Size = UDim2.new(1, 0, 0, 36),
+            Parent = RightColumn,
+            BackgroundTransparency = 0.1,
+            Name = "Section_" .. SectionConfig.Name,
+            ClipsDescendants = true
+        }), {
+            AddThemeObject(MakeElement("Stroke"), "Stroke"),
+            AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+                Size = UDim2.new(1, -12, 0, 26),
+                Position = UDim2.new(0, 6, 0, 5),
+                Font = Enum.Font.GothamBold,
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AnchorPoint = Vector2.new(0, 0)
+            }), "Text"),
+            SetChildren(SetProps(MakeElement("TFrame"), {
+                AnchorPoint = Vector2.new(0, 0),
+                Size = UDim2.new(1, 0, 1, -30),
+                Position = UDim2.new(0, 0, 0, 30),
+                Name = "Holder",
+                BackgroundTransparency = 1
+            }), {
+                MakeElement("List", 0, 8),
+                MakeElement("Padding", 12, 12, 12, 12)
+            }),
+        })
+
+        AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+            local contentHeight = SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y
+            local paddingHeight = 54
+            SectionFrame.Size = UDim2.new(1, 0, 0, contentHeight + paddingHeight)
+            SectionFrame.Holder.Size = UDim2.new(1, 0, 0, contentHeight)
+        end)
+
+        local SectionFunction = {}
+        for i, v in next, GetElements(SectionFrame.Holder) do
+            SectionFunction[i] = v 
+        end
+        
         return SectionFunction
     end
     
