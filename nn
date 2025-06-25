@@ -224,9 +224,9 @@ local function SetChildren(Element, Children)
 end
 
 local function Round(Number, Factor)
-	local Result = math.floor(Number/Factor + (math.sign(Number) * 0.5)) * Factor
-	if Result < 0 then Result = Result + Factor end
-	return Result
+    if Factor == 0 then return Number end
+    local Result = math.floor((Number / Factor) + 0.5) * Factor
+    return tonumber(string.format("%.10g", Result))
 end
 
 local function ReturnProperty(Object)
@@ -1694,21 +1694,29 @@ function OrionLib:MakeWindow(WindowConfig)
                     end
                 end)
                 
-                function Slider:Set(Value)
-                    self.Value = math.clamp(Round(Value, SliderConfig.Increment), SliderConfig.Min, SliderConfig.Max)
-                    
-                    local ValueScale = (self.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min)
-                    
-                    TweenService:Create(SliderFill, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(ValueScale, 0, 1, 0)}):Play()
-                    TweenService:Create(SliderDot, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(ValueScale, 0, 0.5, 0)}):Play()
-                    
-                    ValueDisplay.Text = FormatValue()
-                    ValueTextbox.Text = tostring(self.Value)
-                    
-                    UpdateSliderLayout()
-                    
-                    SliderConfig.Callback(self.Value)
-                end
+				function Slider:Set(Value)
+					local clampedValue = math.clamp(Value, SliderConfig.Min, SliderConfig.Max)
+					
+					if SliderConfig.Increment > 0 then
+						local steps = math.floor((clampedValue - SliderConfig.Min) / SliderConfig.Increment + 0.5)
+						self.Value = SliderConfig.Min + (steps * SliderConfig.Increment)
+						self.Value = tonumber(string.format("%.10g", self.Value))
+					else
+						self.Value = clampedValue
+					end
+					
+					local ValueScale = (self.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min)
+					
+					TweenService:Create(SliderFill, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(ValueScale, 0, 1, 0)}):Play()
+					TweenService:Create(SliderDot, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(ValueScale, 0, 0.5, 0)}):Play()
+					
+					ValueDisplay.Text = FormatValue()
+					ValueTextbox.Text = tostring(self.Value)
+					
+					UpdateSliderLayout()
+					
+					SliderConfig.Callback(self.Value)
+				end
                 
                 SliderBar.InputBegan:Connect(function(Input)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
