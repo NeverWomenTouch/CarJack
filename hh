@@ -2548,7 +2548,7 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
         }):Play()
     end)
 
-    AddConnection(RainbowClick.MouseLeave, function()
+AddConnection(RainbowClick.MouseLeave, function()
         TweenService:Create(RainbowCheckbox, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
             BackgroundColor3 = RainbowMode and Color3.fromRGB(45, 45, 45) or Color3.fromRGB(25, 25, 25)
         }):Play()
@@ -2556,9 +2556,8 @@ function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
             Transparency = RainbowMode and 0 or 0.3
         }):Play()
         TweenService:Create(RainbowGlow, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            BackgroundTransparency = RainbowMode and 0.6 : 0.9
+            BackgroundTransparency = RainbowMode and 0.6 or 0.9
         }):Play()
-    end)
 
     AddConnection(Click.MouseButton1Click, function()
         ToggleColorPicker.Toggled = not ToggleColorPicker.Toggled
