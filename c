@@ -1963,6 +1963,7 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 end)
 
                 AddConnection(OptionBtn.MouseEnter, function()
+                    local isCurrentlySelected = table.find(Dropdown.Value, Option) ~= nil
                     if not isCurrentlySelected then
                         TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.7}):Play()
                         TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.2}):Play()
@@ -1972,6 +1973,7 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 end)
 
                 AddConnection(OptionBtn.MouseLeave, function()
+                    local isCurrentlySelected = table.find(Dropdown.Value, Option) ~= nil
                     if not isCurrentlySelected then
                         TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 1}):Play()
                         TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.4}):Play()
@@ -2004,22 +2006,18 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 end)
 
                 AddConnection(OptionBtn.MouseEnter, function()
-                    local isCurrentlySelected = Dropdown.Value == Option
-                    if not isCurrentlySelected then
-                        TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.7}):Play()
-                        TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.2}):Play()
-                    else
-                        TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.2}):Play()
-                    end
+                    TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.7}):Play()
+                    TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.2}):Play()
                 end)
 
                 AddConnection(OptionBtn.MouseLeave, function()
                     local isCurrentlySelected = Dropdown.Value == Option
-                    if not isCurrentlySelected then
+                    if isCurrentlySelected then
+                        TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0}):Play()
+                        TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0}):Play()
+                    else
                         TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 1}):Play()
                         TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.4}):Play()
-                    else
-                        TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0}):Play()
                     end
                 end)
             end
@@ -2085,6 +2083,7 @@ function ElementFunction:AddDropdown(DropdownConfig)
             DropdownFrame.F.Selected.Text = GetSelectedText()
             DropdownConfig.Callback(Dropdown.Value)
         else
+            local oldValue = Dropdown.Value
             Dropdown.Value = Value
             
             if not table.find(Dropdown.Options, Value) then
@@ -2104,7 +2103,9 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 }):Play()
             end
             
-            DropdownConfig.Callback(Dropdown.Value)
+            if oldValue ~= Dropdown.Value then
+                DropdownConfig.Callback(Dropdown.Value)
+            end
         end
     end
 
