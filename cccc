@@ -1782,24 +1782,25 @@ function ElementFunction:AddDropdown(DropdownConfig)
     DropdownConfig.ToolTip = DropdownConfig.ToolTip or ""
 
     local Dropdown = {
-        Value = DropdownConfig.Multi and {} or DropdownConfig.Default, 
-        Options = DropdownConfig.Options, 
-        Buttons = {}, 
-        Toggled = false, 
-        Type = DropdownConfig.Multi and "MultiDropdown" or "Dropdown", 
+        Value = DropdownConfig.Multi and {} or DropdownConfig.Default,
+        Options = DropdownConfig.Options,
+        Buttons = {},
+        Toggled = false,
+        Type = DropdownConfig.Multi and "MultiDropdown" or "Dropdown",
         Save = DropdownConfig.Save
     }
+
     local MaxElements = 5
 
     if DropdownConfig.Multi then
         if type(DropdownConfig.Default) == "table" then
-            for _, defaultValue in pairs(DropdownConfig.Default) do
-                if table.find(DropdownConfig.Options, defaultValue) then
-                    table.insert(Dropdown.Value, defaultValue)
+            for _, v in ipairs(DropdownConfig.Default) do
+                if table.find(Dropdown.Options, v) then
+                    table.insert(Dropdown.Value, v)
                 end
             end
         elseif type(DropdownConfig.Default) == "string" and DropdownConfig.Default ~= "" then
-            if table.find(DropdownConfig.Options, DropdownConfig.Default) then
+            if table.find(Dropdown.Options, DropdownConfig.Default) then
                 table.insert(Dropdown.Value, DropdownConfig.Default)
             end
         end
@@ -1869,7 +1870,7 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 Position = UDim2.new(0, 0, 1, -1),
                 Name = "Line",
                 Visible = false
-            }), "Stroke"), 
+            }), "Stroke"),
             Click
         }), {
             Size = UDim2.new(1, 0, 0, 38),
@@ -1885,187 +1886,115 @@ function ElementFunction:AddDropdown(DropdownConfig)
     end)
 
     local function UpdateButtonVisuals(button, option, isSelected, animate)
-        if animate == nil then animate = true end
-        
+        local tweenTime = (animate == nil or animate) and 0.15 or 0
         if DropdownConfig.Multi then
-            local tweenTime = animate and 0.15 or 0
-            
-            if isSelected then
-                TweenService:Create(button, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                TweenService:Create(button.Title, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-                if button:FindFirstChild("Checkbox") then
-                    TweenService:Create(button.Checkbox, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 0, 255)}):Play()
-                    TweenService:Create(button.Checkbox.UIStroke, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
-                    button.Checkbox.Check.Visible = true
-                end
-            else
-                TweenService:Create(button, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-                TweenService:Create(button.Title, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
-                if button:FindFirstChild("Checkbox") then
-                    TweenService:Create(button.Checkbox, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
-                    TweenService:Create(button.Checkbox.UIStroke, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.5}):Play()
-                    button.Checkbox.Check.Visible = false
-                end
+            TweenService:Create(button, TweenInfo.new(tweenTime), {BackgroundTransparency = isSelected and 0 or 1}):Play()
+            TweenService:Create(button.Title, TweenInfo.new(tweenTime), {TextTransparency = isSelected and 0 or 0.4}):Play()
+            if button:FindFirstChild("Checkbox") then
+                TweenService:Create(button.Checkbox, TweenInfo.new(tweenTime), {BackgroundColor3 = isSelected and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(30, 30, 30)}):Play()
+                TweenService:Create(button.Checkbox.UIStroke, TweenInfo.new(tweenTime), {Transparency = isSelected and 0 or 0.5}):Play()
+                button.Checkbox.Check.Visible = isSelected
             end
         else
-            local tweenTime = animate and 0.15 or 0
-            
-            TweenService:Create(button, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                BackgroundTransparency = isSelected and 0 or 1
-            }):Play()
-            TweenService:Create(button.Title, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                TextTransparency = isSelected and 0 or 0.4
-            }):Play()
+            TweenService:Create(button, TweenInfo.new(tweenTime), {BackgroundTransparency = isSelected and 0 or 1}):Play()
+            TweenService:Create(button.Title, TweenInfo.new(tweenTime), {TextTransparency = isSelected and 0 or 0.4}):Play()
         end
     end
 
     local function AddOptions(Options)
-        for _, Option in pairs(Options) do
+        for _, Option in ipairs(Options) do
+            local isSelected = DropdownConfig.Multi and table.find(Dropdown.Value, Option) or Dropdown.Value == Option
+            local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(255, 0, 255)), {
+                MakeElement("Corner", 0, 6),
+                AddThemeObject(SetProps(MakeElement("Label", Option, 13, isSelected and 0 or 0.4), {
+                    Position = UDim2.new(0, DropdownConfig.Multi and 30 or 8, 0, 0),
+                    Size = UDim2.new(1, DropdownConfig.Multi and -30 or -8, 1, 0),
+                    Name = "Title"
+                }), "Text")
+            }), {
+                Parent = DropdownContainer,
+                Size = UDim2.new(1, 0, 0, 28),
+                BackgroundTransparency = isSelected and 0 or 1,
+                ClipsDescendants = true
+            }), "Divider")
+
             if DropdownConfig.Multi then
-                local isSelected = table.find(Dropdown.Value, Option) ~= nil
-                
-                local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(255, 0, 255)), {
-                    MakeElement("Corner", 0, 6),
-                    AddThemeObject(SetProps(MakeElement("Label", Option, 13, isSelected and 0 or 0.4), {
-                        Position = UDim2.new(0, 30, 0, 0),
-                        Size = UDim2.new(1, -30, 1, 0),
-                        Name = "Title"
-                    }), "Text"),
-                    Create("Frame", {
-                        Size = UDim2.new(0, 16, 0, 16),
-                        Position = UDim2.new(0, 8, 0.5, 0),
-                        AnchorPoint = Vector2.new(0, 0.5),
-                        BackgroundColor3 = isSelected and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(30, 30, 30),
-                        BorderSizePixel = 0,
-                        Name = "Checkbox"
-                    }, {
-                        Create("UICorner", {CornerRadius = UDim.new(0, 3)}),
-                        Create("UIStroke", {
-                            Color = Color3.fromRGB(255, 0, 255),
-                            Thickness = 1,
-                            Transparency = isSelected and 0 or 0.5
-                        }),
-                        Create("ImageLabel", {
-                            Size = UDim2.new(1, -4, 1, -4),
-                            Position = UDim2.new(0.5, 0, 0.5, 0),
-                            AnchorPoint = Vector2.new(0.5, 0.5),
-                            BackgroundTransparency = 1,
-                            Image = "rbxassetid://7072716612",
-                            ImageColor3 = Color3.fromRGB(255, 255, 255),
-                            Visible = isSelected,
-                            Name = "Check"
-                        })
+                local checkbox = Create("Frame", {
+                    Size = UDim2.new(0, 16, 0, 16),
+                    Position = UDim2.new(0, 8, 0.5, 0),
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    BackgroundColor3 = isSelected and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(30, 30, 30),
+                    BorderSizePixel = 0,
+                    Name = "Checkbox"
+                }, {
+                    Create("UICorner", {CornerRadius = UDim.new(0, 3)}),
+                    Create("UIStroke", {
+                        Color = Color3.fromRGB(255, 0, 255),
+                        Thickness = 1,
+                        Transparency = isSelected and 0 or 0.5
+                    }),
+                    Create("ImageLabel", {
+                        Size = UDim2.new(1, -4, 1, -4),
+                        Position = UDim2.new(0.5, 0, 0.5, 0),
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        BackgroundTransparency = 1,
+                        Image = "rbxassetid://7072716612",
+                        ImageColor3 = Color3.fromRGB(255, 255, 255),
+                        Visible = isSelected,
+                        Name = "Check"
                     })
-                }), {
-                    Parent = DropdownContainer,
-                    Size = UDim2.new(1, 0, 0, 28),
-                    BackgroundTransparency = isSelected and 0 or 1,
-                    ClipsDescendants = true
-                }), "Divider")
-
-                AddConnection(OptionBtn.MouseButton1Click, function()
-                    local valueIndex = table.find(Dropdown.Value, Option)
-                    local isCurrentlySelected = valueIndex ~= nil
-                    
-                    if isCurrentlySelected then
-                        table.remove(Dropdown.Value, valueIndex)
-                    else
-                        table.insert(Dropdown.Value, Option)
-                        if OptionBtn.Checkbox and OptionBtn.Checkbox.Check then
-                            OptionBtn.Checkbox.Check.Size = UDim2.new(0, 0, 0, 0)
-                            TweenService:Create(OptionBtn.Checkbox.Check, TweenInfo.new(.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(1, -4, 1, -4)}):Play()
-                        end
-                    end
-                    
-                    UpdateButtonVisuals(OptionBtn, Option, not isCurrentlySelected, true)
-                    DropdownFrame.F.Selected.Text = GetSelectedText()
-                    DropdownConfig.Callback(Dropdown.Value)
-                    
-                    if DropdownConfig.Save then
-                        SaveCfg(game.GameId)
-                    end
-                end)
-
-                AddConnection(OptionBtn.MouseEnter, function()
-                    local isCurrentlySelected = table.find(Dropdown.Value, Option) ~= nil
-                    if not isCurrentlySelected then
-                        TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.7}):Play()
-                        TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.2}):Play()
-                    else
-                        TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.2}):Play()
-                    end
-                end)
-
-                AddConnection(OptionBtn.MouseLeave, function()
-                    local isCurrentlySelected = table.find(Dropdown.Value, Option) ~= nil
-                    UpdateButtonVisuals(OptionBtn, Option, isCurrentlySelected, true)
-                end)
-            else
-                local isSelected = Dropdown.Value == Option
-                
-                local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(255, 0, 255)), {
-                    MakeElement("Corner", 0, 6),
-                    AddThemeObject(SetProps(MakeElement("Label", Option, 13, isSelected and 0 or 0.4), {
-                        Position = UDim2.new(0, 8, 0, 0),
-                        Size = UDim2.new(1, -8, 1, 0),
-                        Name = "Title"
-                    }), "Text")
-                }), {
-                    Parent = DropdownContainer,
-                    Size = UDim2.new(1, 0, 0, 28),
-                    BackgroundTransparency = isSelected and 0 or 1,
-                    ClipsDescendants = true
-                }), "Divider")
-
-				AddConnection(OptionBtn.MouseButton1Click, function()
-					Dropdown:Set(Option)
-					for Opt, Btn in pairs(Dropdown.Buttons) do
-						UpdateButtonVisuals(Btn, Opt, Dropdown.Value == Opt, true)
-					end
-					if DropdownConfig.Save then
-						SaveCfg(game.GameId)
-					end
-				end)
-
-
-                AddConnection(OptionBtn.MouseEnter, function()
-                    if Dropdown.Value ~= Option then
-                        TweenService:Create(OptionBtn, TweenInfo.new(.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.7}):Play()
-                        TweenService:Create(OptionBtn.Title, TweenInfo.new(.1, Enum.EasingStyle.Quad), {TextTransparency = 0.2}):Play()
-                    end
-                end)
-
-                AddConnection(OptionBtn.MouseLeave, function()
-                    UpdateButtonVisuals(OptionBtn, Option, Dropdown.Value == Option, true)
-                end)
+                })
+                checkbox.Parent = OptionBtn
             end
 
             Dropdown.Buttons[Option] = OptionBtn
+
+            AddConnection(OptionBtn.MouseButton1Click, function()
+                if DropdownConfig.Multi then
+                    local i = table.find(Dropdown.Value, Option)
+                    if i then
+                        table.remove(Dropdown.Value, i)
+                    else
+                        table.insert(Dropdown.Value, Option)
+                    end
+                    DropdownConfig.Callback(Dropdown.Value)
+                else
+                    Dropdown:Set(Option)
+                end
+                UpdateButtonVisuals(OptionBtn, Option, DropdownConfig.Multi and table.find(Dropdown.Value, Option), true)
+                DropdownFrame.F.Selected.Text = GetSelectedText()
+                if DropdownConfig.Save then SaveCfg(game.GameId) end
+            end)
+
+            AddConnection(OptionBtn.MouseEnter, function()
+                local selected = DropdownConfig.Multi and table.find(Dropdown.Value, Option) or Dropdown.Value == Option
+                TweenService:Create(OptionBtn, TweenInfo.new(.1), {BackgroundTransparency = selected and 0.2 or 0.7}):Play()
+                TweenService:Create(OptionBtn.Title, TweenInfo.new(.1), {TextTransparency = selected and 0 or 0.2}):Play()
+            end)
+
+            AddConnection(OptionBtn.MouseLeave, function()
+                UpdateButtonVisuals(OptionBtn, Option, DropdownConfig.Multi and table.find(Dropdown.Value, Option), true)
+            end)
         end
     end
 
     function Dropdown:Refresh(Options, Delete)
         if Delete then
-            for _, v in pairs(Dropdown.Buttons) do
-                v:Destroy()
-            end    
+            for _, v in pairs(Dropdown.Buttons) do v:Destroy() end
             table.clear(Dropdown.Options)
             table.clear(Dropdown.Buttons)
-            if DropdownConfig.Multi then
-                table.clear(Dropdown.Value)
-            end
+            if DropdownConfig.Multi then table.clear(Dropdown.Value) end
         end
         Dropdown.Options = Options
-        AddOptions(Dropdown.Options)
+        AddOptions(Options)
         DropdownFrame.F.Selected.Text = GetSelectedText()
     end
 
     function Dropdown:Set(Value)
         if DropdownConfig.Multi then
             table.clear(Dropdown.Value)
-            
             if type(Value) == "table" then
-                for _, v in pairs(Value) do
+                for _, v in ipairs(Value) do
                     if table.find(Dropdown.Options, v) then
                         table.insert(Dropdown.Value, v)
                     end
@@ -2075,70 +2004,45 @@ function ElementFunction:AddDropdown(DropdownConfig)
                     table.insert(Dropdown.Value, Value)
                 end
             end
-
-            for Option, Button in pairs(Dropdown.Buttons) do
-                local isSelected = table.find(Dropdown.Value, Option) ~= nil
-                UpdateButtonVisuals(Button, Option, isSelected, true)
-            end
-
-            DropdownFrame.F.Selected.Text = GetSelectedText()
-            DropdownConfig.Callback(Dropdown.Value)
         else
-            local oldValue = Dropdown.Value
-            Dropdown.Value = Value
-            
-            if not table.find(Dropdown.Options, Value) then
-                Dropdown.Value = "..."
-            end
-            
-            DropdownFrame.F.Selected.Text = Dropdown.Value
-
-            for Option, Button in pairs(Dropdown.Buttons) do
-                local isSelected = Option == Dropdown.Value
-                UpdateButtonVisuals(Button, Option, isSelected, true)
-            end
-            
-            if oldValue ~= Dropdown.Value then
-                DropdownConfig.Callback(Dropdown.Value)
-            end
+            Dropdown.Value = table.find(Dropdown.Options, Value) and Value or "..."
         end
+
+        for Option, Btn in pairs(Dropdown.Buttons) do
+            UpdateButtonVisuals(Btn, Option, DropdownConfig.Multi and table.find(Dropdown.Value, Option) or Dropdown.Value == Option, true)
+        end
+
+        DropdownFrame.F.Selected.Text = GetSelectedText()
+        DropdownConfig.Callback(Dropdown.Value)
     end
 
     if DropdownConfig.Multi then
-        function Dropdown:Clear()
-            Dropdown:Set({})
-        end
-
-        function Dropdown:SelectAll()
-            Dropdown:Set(Dropdown.Options)
-        end
+        function Dropdown:Clear() Dropdown:Set({}) end
+        function Dropdown:SelectAll() Dropdown:Set(Dropdown.Options) end
     end
 
     AddConnection(Click.MouseButton1Click, function()
         Dropdown.Toggled = not Dropdown.Toggled
         DropdownFrame.F.Line.Visible = Dropdown.Toggled
-        TweenService:Create(DropdownFrame.F.Ico, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = Dropdown.Toggled and 180 or 0}):Play()
-        
-        if #Dropdown.Options > MaxElements then
-            TweenService:Create(DropdownFrame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = Dropdown.Toggled and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)}):Play()
-        else
-            TweenService:Create(DropdownFrame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = Dropdown.Toggled and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38) or UDim2.new(1, 0, 0, 38)}):Play()
-        end
+        TweenService:Create(DropdownFrame.F.Ico, TweenInfo.new(.15), {Rotation = Dropdown.Toggled and 180 or 0}):Play()
+        local targetSize = Dropdown.Toggled and (#Dropdown.Options > MaxElements and 38 + MaxElements * 28 or 38 + DropdownList.AbsoluteContentSize.Y) or 38
+        TweenService:Create(DropdownFrame, TweenInfo.new(.15), {Size = UDim2.new(1, 0, 0, targetSize)}):Play()
     end)
 
     Dropdown:Refresh(Dropdown.Options, false)
     Dropdown:Set(Dropdown.Value)
-    
-    if DropdownConfig.Flag then                
+
+    if DropdownConfig.Flag then
         OrionLib.Flags[DropdownConfig.Flag] = Dropdown
     end
-    
+
     if DropdownConfig.ToolTip and DropdownConfig.ToolTip ~= "" then
         AddTooltipToElement(DropdownFrame, DropdownConfig.ToolTip)
     end
-    
+
     return Dropdown
 end
+
 			function ElementFunction:AddBind(BindConfig)
 				BindConfig.Name = BindConfig.Name or "Bind"
 				BindConfig.Default = BindConfig.Default or Enum.KeyCode.Unknown
