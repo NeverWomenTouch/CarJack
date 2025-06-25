@@ -1793,15 +1793,9 @@ function ElementFunction:AddDropdown(DropdownConfig)
     local MaxElements = 5
 
     if DropdownConfig.Multi then
-        if type(DropdownConfig.Default) == "table" then
-            for _, v in ipairs(DropdownConfig.Default) do
-                if table.find(Dropdown.Options, v) then
-                    table.insert(Dropdown.Value, v)
-                end
-            end
-        elseif type(DropdownConfig.Default) == "string" and DropdownConfig.Default ~= "" then
-            if table.find(Dropdown.Options, DropdownConfig.Default) then
-                table.insert(Dropdown.Value, DropdownConfig.Default)
+        for _, v in ipairs(type(DropdownConfig.Default) == "table" and DropdownConfig.Default or {DropdownConfig.Default}) do
+            if table.find(Dropdown.Options, v) then
+                table.insert(Dropdown.Value, v)
             end
         end
     else
@@ -1812,20 +1806,14 @@ function ElementFunction:AddDropdown(DropdownConfig)
 
     local function GetSelectedText()
         if DropdownConfig.Multi then
-            if #Dropdown.Value == 0 then
-                return "None Selected"
-            elseif #Dropdown.Value == 1 then
-                return Dropdown.Value[1]
-            else
-                return tostring(#Dropdown.Value) .. " Selected"
-            end
+            local count = #Dropdown.Value
+            return count == 0 and "None Selected" or (count == 1 and Dropdown.Value[1] or tostring(count) .. " Selected")
         else
             return Dropdown.Value
         end
     end
 
     local DropdownList = MakeElement("List")
-
     local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(255, 0, 255), 4), {
         DropdownList
     }), {
@@ -1886,27 +1874,29 @@ function ElementFunction:AddDropdown(DropdownConfig)
     end)
 
     local function UpdateButtonVisuals(button, option, isSelected, animate)
-        local tweenTime = (animate == nil or animate) and 0.15 or 0
-        if DropdownConfig.Multi then
-            TweenService:Create(button, TweenInfo.new(tweenTime), {BackgroundTransparency = isSelected and 0.2 or 1}):Play()
-            TweenService:Create(button.Title, TweenInfo.new(tweenTime), {TextTransparency = isSelected and 0 or 0.4}):Play()
-            if button:FindFirstChild("Checkbox") then
-                TweenService:Create(button.Checkbox, TweenInfo.new(tweenTime), {BackgroundColor3 = isSelected and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(30, 30, 30)}):Play()
-                TweenService:Create(button.Checkbox.UIStroke, TweenInfo.new(tweenTime), {Transparency = isSelected and 0 or 0.5}):Play()
-                button.Checkbox.Check.Visible = isSelected
-            end
-        else
-            TweenService:Create(button, TweenInfo.new(tweenTime), {BackgroundTransparency = isSelected and 0.2 or 1}):Play()
-            TweenService:Create(button.Title, TweenInfo.new(tweenTime), {TextTransparency = isSelected and 0 or 0.4}):Play()
+        local t = (animate == nil or animate) and 0.15 or 0
+        local ts = TweenService
+        ts:Create(button, TweenInfo.new(t), {BackgroundTransparency = isSelected and 0.2 or 1}):Play()
+        ts:Create(button.Title, TweenInfo.new(t), {TextTransparency = isSelected and 0 or 0.4}):Play()
+
+        if DropdownConfig.Multi and button:FindFirstChild("Checkbox") then
+            ts:Create(button.Checkbox, TweenInfo.new(t), {
+                BackgroundColor3 = isSelected and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(30, 30, 30)
+            }):Play()
+            ts:Create(button.Checkbox.UIStroke, TweenInfo.new(t), {
+                Transparency = isSelected and 0 or 0.5
+            }):Play()
+            button.Checkbox.Check.Visible = isSelected
         end
     end
 
-    local function AddOptions(Options)
-        for _, Option in ipairs(Options) do
-            local isSelected = DropdownConfig.Multi and table.find(Dropdown.Value, Option) or Dropdown.Value == Option
+    local function AddOptions(options)
+        for _, option in ipairs(options) do
+            local isSelected = DropdownConfig.Multi and table.find(Dropdown.Value, option) or Dropdown.Value == option
+
             local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(255, 0, 255)), {
                 MakeElement("Corner", 0, 6),
-                AddThemeObject(SetProps(MakeElement("Label", Option, 13, isSelected and 0 or 0.4), {
+                AddThemeObject(SetProps(MakeElement("Label", option, 13, isSelected and 0 or 0.4), {
                     Position = UDim2.new(0, DropdownConfig.Multi and 30 or 8, 0, 0),
                     Size = UDim2.new(1, DropdownConfig.Multi and -30 or -8, 1, 0),
                     Name = "Title"
@@ -1947,40 +1937,40 @@ function ElementFunction:AddDropdown(DropdownConfig)
                 checkbox.Parent = OptionBtn
             end
 
-            Dropdown.Buttons[Option] = OptionBtn
+            Dropdown.Buttons[option] = OptionBtn
 
             AddConnection(OptionBtn.MouseButton1Click, function()
                 if DropdownConfig.Multi then
-                    local i = table.find(Dropdown.Value, Option)
+                    local i = table.find(Dropdown.Value, option)
                     if i then
                         table.remove(Dropdown.Value, i)
                     else
-                        table.insert(Dropdown.Value, Option)
+                        table.insert(Dropdown.Value, option)
                     end
                     DropdownConfig.Callback(Dropdown.Value)
                 else
-                    Dropdown:Set(Option)
+                    Dropdown:Set(option)
                 end
-                UpdateButtonVisuals(OptionBtn, Option, DropdownConfig.Multi and table.find(Dropdown.Value, Option), true)
+                UpdateButtonVisuals(OptionBtn, option, DropdownConfig.Multi and table.find(Dropdown.Value, option), true)
                 DropdownFrame.F.Selected.Text = GetSelectedText()
                 if DropdownConfig.Save then SaveCfg(game.GameId) end
             end)
 
             AddConnection(OptionBtn.MouseEnter, function()
-                local selected = DropdownConfig.Multi and table.find(Dropdown.Value, Option) or Dropdown.Value == Option
+                local selected = DropdownConfig.Multi and table.find(Dropdown.Value, option) or Dropdown.Value == option
                 TweenService:Create(OptionBtn, TweenInfo.new(.1), {BackgroundTransparency = selected and 0.2 or 0.7}):Play()
                 TweenService:Create(OptionBtn.Title, TweenInfo.new(.1), {TextTransparency = selected and 0 or 0.2}):Play()
             end)
 
             AddConnection(OptionBtn.MouseLeave, function()
-                UpdateButtonVisuals(OptionBtn, Option, DropdownConfig.Multi and table.find(Dropdown.Value, Option), true)
+                UpdateButtonVisuals(OptionBtn, option, DropdownConfig.Multi and table.find(Dropdown.Value, option), true)
             end)
         end
     end
 
     function Dropdown:Refresh(Options, Delete)
         if Delete then
-            for _, v in pairs(Dropdown.Buttons) do v:Destroy() end
+            for _, btn in pairs(Dropdown.Buttons) do btn:Destroy() end
             table.clear(Dropdown.Options)
             table.clear(Dropdown.Buttons)
             if DropdownConfig.Multi then table.clear(Dropdown.Value) end
@@ -1993,23 +1983,17 @@ function ElementFunction:AddDropdown(DropdownConfig)
     function Dropdown:Set(Value)
         if DropdownConfig.Multi then
             table.clear(Dropdown.Value)
-            if type(Value) == "table" then
-                for _, v in ipairs(Value) do
-                    if table.find(Dropdown.Options, v) then
-                        table.insert(Dropdown.Value, v)
-                    end
-                end
-            elseif type(Value) == "string" and Value ~= "" then
-                if table.find(Dropdown.Options, Value) then
-                    table.insert(Dropdown.Value, Value)
+            for _, v in ipairs(type(Value) == "table" and Value or {Value}) do
+                if table.find(Dropdown.Options, v) then
+                    table.insert(Dropdown.Value, v)
                 end
             end
         else
             Dropdown.Value = table.find(Dropdown.Options, Value) and Value or "..."
         end
 
-        for Option, Btn in pairs(Dropdown.Buttons) do
-            UpdateButtonVisuals(Btn, Option, DropdownConfig.Multi and table.find(Dropdown.Value, Option) or Dropdown.Value == Option, true)
+        for option, btn in pairs(Dropdown.Buttons) do
+            UpdateButtonVisuals(btn, option, DropdownConfig.Multi and table.find(Dropdown.Value, option) or Dropdown.Value == option, true)
         end
 
         DropdownFrame.F.Selected.Text = GetSelectedText()
@@ -2036,12 +2020,13 @@ function ElementFunction:AddDropdown(DropdownConfig)
         OrionLib.Flags[DropdownConfig.Flag] = Dropdown
     end
 
-    if DropdownConfig.ToolTip and DropdownConfig.ToolTip ~= "" then
+    if DropdownConfig.ToolTip ~= "" then
         AddTooltipToElement(DropdownFrame, DropdownConfig.ToolTip)
     end
 
     return Dropdown
 end
+
 
 			function ElementFunction:AddBind(BindConfig)
 				BindConfig.Name = BindConfig.Name or "Bind"
