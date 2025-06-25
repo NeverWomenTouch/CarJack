@@ -1980,25 +1980,32 @@ function ElementFunction:AddDropdown(DropdownConfig)
         DropdownFrame.F.Selected.Text = GetSelectedText()
     end
 
-    function Dropdown:Set(Value)
-        if DropdownConfig.Multi then
-            table.clear(Dropdown.Value)
-            for _, v in ipairs(type(Value) == "table" and Value or {Value}) do
-                if table.find(Dropdown.Options, v) then
-                    table.insert(Dropdown.Value, v)
-                end
-            end
-        else
-            Dropdown.Value = table.find(Dropdown.Options, Value) and Value or "..."
-        end
+	function Dropdown:Set(Value)
+		if DropdownConfig.Multi then
+			table.clear(Dropdown.Value)
+			if type(Value) == "table" then
+				for _, v in ipairs(Value) do
+					if table.find(Dropdown.Options, v) then
+						table.insert(Dropdown.Value, v)
+					end
+				end
+			elseif type(Value) == "string" and Value ~= "" then
+				if table.find(Dropdown.Options, Value) then
+					table.insert(Dropdown.Value, Value)
+				end
+			end
+		else
+			Dropdown.Value = table.find(Dropdown.Options, Value) and Value or "..."
+		end
 
-        for option, btn in pairs(Dropdown.Buttons) do
-            UpdateButtonVisuals(btn, option, DropdownConfig.Multi and table.find(Dropdown.Value, option) or Dropdown.Value == option, true)
-        end
+		for Option, Btn in pairs(Dropdown.Buttons) do
+			local isSelected = DropdownConfig.Multi and table.find(Dropdown.Value, Option) or Dropdown.Value == Option
+			UpdateButtonVisuals(Btn, Option, isSelected, true)
+		end
 
-        DropdownFrame.F.Selected.Text = GetSelectedText()
-        DropdownConfig.Callback(Dropdown.Value)
-    end
+		DropdownFrame.F.Selected.Text = GetSelectedText()
+		DropdownConfig.Callback(Dropdown.Value)
+	end
 
     if DropdownConfig.Multi then
         function Dropdown:Clear() Dropdown:Set({}) end
@@ -2074,7 +2081,6 @@ end
 				}), "Second")
 
 				AddConnection(BindBox.Value:GetPropertyChangedSignal("Text"), function()
-					--BindBox.Size = UDim2.new(0, BindBox.Value.TextBounds.X + 16, 0, 24)
 					TweenService:Create(BindBox, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, BindBox.Value.TextBounds.X + 16, 0, 24)}):Play()
 				end)
 
