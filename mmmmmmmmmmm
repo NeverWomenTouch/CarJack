@@ -333,13 +333,21 @@ function library:Window(title, version, info, preset, closebind)
 			ScreenGui.IgnoreGuiInset = true
 			ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 			
-			local MobileToggle = Instance.new("Frame", ScreenGui)
+			local MobileToggleContainer = Instance.new("Frame", ScreenGui)
+			MobileToggleContainer.Name = "MobileToggleContainer"
+			MobileToggleContainer.BackgroundTransparency = 1
+			MobileToggleContainer.Position = UDim2.new(1, -80, 0, 120)
+			MobileToggleContainer.Size = UDim2.new(0, 70, 0, 70)
+			MobileToggleContainer.ZIndex = 1
+			
+			local MobileToggle = Instance.new("Frame", MobileToggleContainer)
 			MobileToggle.Name = "MobileToggle"
 			MobileToggle.BackgroundColor3 = Color3.fromRGB(27, 27, 27)
 			MobileToggle.BorderSizePixel = 0
-			MobileToggle.Position = UDim2.new(1, -60, 0, 50)
+			MobileToggle.Position = UDim2.new(0, 10, 0, 10)
 			MobileToggle.Size = UDim2.new(0, 50, 0, 50)
 			MobileToggle.ClipsDescendants = false
+			MobileToggle.ZIndex = 2
 			
 			local MobileToggleCorner = Instance.new("UICorner")
 			MobileToggleCorner.CornerRadius = UDim.new(0, 12)
@@ -363,7 +371,7 @@ function library:Window(title, version, info, preset, closebind)
 			MobileToggleGlow.ImageTransparency = 0.7
 			MobileToggleGlow.ScaleType = Enum.ScaleType.Slice
 			MobileToggleGlow.SliceCenter = Rect.new(20, 20, 280, 280)
-			MobileToggleGlow.ZIndex = -1
+			MobileToggleGlow.ZIndex = 1
 			
 			local ToggleButton = Instance.new("TextButton", MobileToggle)
 			ToggleButton.Name = "ToggleButton"
@@ -373,12 +381,14 @@ function library:Window(title, version, info, preset, closebind)
 			ToggleButton.Text = ""
 			ToggleButton.TextTransparency = 1
 			ToggleButton.AutoButtonColor = false
+			ToggleButton.ZIndex = 3
 			
 			local IconContainer = Instance.new("Frame")
 			IconContainer.Name = "IconContainer"
 			IconContainer.Parent = ToggleButton
 			IconContainer.BackgroundTransparency = 1
 			IconContainer.Size = UDim2.new(1, 0, 1, 0)
+			IconContainer.ZIndex = 3
 			
 			local ToggleIcon = Instance.new("ImageLabel")
 			ToggleIcon.Name = "ToggleIcon"
@@ -388,36 +398,75 @@ function library:Window(title, version, info, preset, closebind)
 			ToggleIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
 			ToggleIcon.Size = UDim2.new(0, 24, 0, 24)
 			ToggleIcon.Image = "rbxassetid://3926305904"
-			ToggleIcon.ImageRectOffset = Vector2.new(644, 204)
-			ToggleIcon.ImageRectSize = Vector2.new(36, 36)
-			ToggleIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+			ToggleIcon.ImageRectOffset = Vector2.new(284, 4)
+			ToggleIcon.ImageRectSize = Vector2.new(24, 24)
+			ToggleIcon.ImageColor3 = Color3.fromRGB(255, 85, 85)
+			ToggleIcon.ZIndex = 3
 			
 			local StatusIndicator = Instance.new("Frame")
 			StatusIndicator.Name = "StatusIndicator"
 			StatusIndicator.Parent = MobileToggle
-			StatusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 127)
+			StatusIndicator.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
 			StatusIndicator.BorderSizePixel = 0
 			StatusIndicator.Position = UDim2.new(1, -12, 0, 4)
 			StatusIndicator.Size = UDim2.new(0, 8, 0, 8)
-			StatusIndicator.ZIndex = 2
+			StatusIndicator.ZIndex = 4
 			
 			local StatusIndicatorCorner = Instance.new("UICorner")
 			StatusIndicatorCorner.CornerRadius = UDim.new(1, 0)
 			StatusIndicatorCorner.Parent = StatusIndicator
 			
+			local ResizeCorners = {}
+			local cornerPositions = {
+				{UDim2.new(0, -5, 0, -5), "nw-resize"},
+				{UDim2.new(1, -5, 0, -5), "ne-resize"},
+				{UDim2.new(0, -5, 1, -5), "sw-resize"},
+				{UDim2.new(1, -5, 1, -5), "se-resize"}
+			}
+			
+			for i, data in ipairs(cornerPositions) do
+				local corner = Instance.new("Frame")
+				corner.Name = "ResizeCorner" .. i
+				corner.Parent = MobileToggleContainer
+				corner.BackgroundColor3 = PresetColor
+				corner.BackgroundTransparency = 0.7
+				corner.BorderSizePixel = 0
+				corner.Position = data[1]
+				corner.Size = UDim2.new(0, 10, 0, 10)
+				corner.ZIndex = 5
+				corner.Visible = false
+				
+				local cornerCorner = Instance.new("UICorner")
+				cornerCorner.CornerRadius = UDim.new(1, 0)
+				cornerCorner.Parent = corner
+				
+				ResizeCorners[i] = corner
+			end
+			
+			local isHolding = false
+			local isDragging = false
+			local isResizing = false
+			local holdStartTime = 0
+			local dragStartPos = nil
+			local resizeCorner = nil
+			local initialSize = nil
+			local initialPos = nil
+			
 			local function updateToggleState()
 				local isVisible = Main.Visible
 				if isVisible then
-					ToggleIcon.ImageRectOffset = Vector2.new(324, 204)
-					StatusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 127)
+					ToggleIcon.ImageRectOffset = Vector2.new(764, 244)
+					ToggleIcon.ImageColor3 = Color3.fromRGB(85, 255, 127)
+					StatusIndicator.BackgroundColor3 = Color3.fromRGB(85, 255, 127)
 					tweensv:Create(MobileToggle, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-						BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+						BackgroundColor3 = Color3.fromRGB(32, 42, 32)
 					}):Play()
 					tweensv:Create(MobileToggleStroke, TweenInfo.new(0.3), {
 						Transparency = 0.1
 					}):Play()
 				else
-					ToggleIcon.ImageRectOffset = Vector2.new(644, 204)
+					ToggleIcon.ImageRectOffset = Vector2.new(284, 4)
+					ToggleIcon.ImageColor3 = Color3.fromRGB(255, 85, 85)
 					StatusIndicator.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
 					tweensv:Create(MobileToggle, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
 						BackgroundColor3 = Color3.fromRGB(27, 27, 27)
@@ -428,8 +477,24 @@ function library:Window(title, version, info, preset, closebind)
 				end
 			end
 			
-			if library.OCbtn then
-				MobileToggle.Draggable = true
+			local function showResizeCorners()
+				for _, corner in ipairs(ResizeCorners) do
+					corner.Visible = true
+					tweensv:Create(corner, TweenInfo.new(0.2), {
+						BackgroundTransparency = 0.4
+					}):Play()
+				end
+			end
+			
+			local function hideResizeCorners()
+				for _, corner in ipairs(ResizeCorners) do
+					tweensv:Create(corner, TweenInfo.new(0.2), {
+						BackgroundTransparency = 1
+					}):Play()
+					task.delay(0.2, function()
+						corner.Visible = false
+					end)
+				end
 			end
 			
 			updateToggleState()
@@ -438,36 +503,129 @@ function library:Window(title, version, info, preset, closebind)
 				while getgenv().libloaded and MobileToggle.Parent do
 					MobileToggleStroke.Color = PresetColor
 					MobileToggleGlow.ImageColor3 = PresetColor
+					for _, corner in ipairs(ResizeCorners) do
+						corner.BackgroundColor3 = PresetColor
+					end
 					task.wait()
 				end
 			end)
 			
-			library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Click:Connect(function()
-				Main.Visible = not Main.Visible
-				updateToggleState()
-			end)
-			
 			library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Down:Connect(function()
+				isHolding = true
+				holdStartTime = tick()
+				
 				tweensv:Create(MobileToggle, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
-					Size = UDim2.new(0, 46, 0, 46)
+					Size = UDim2.new(0, 46, 0, 46),
+					Position = UDim2.new(0, 12, 0, 12)
 				}):Play()
 				tweensv:Create(ToggleIcon, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
 					Size = UDim2.new(0, 20, 0, 20)
 				}):Play()
+				
+				task.wait(0.5)
+				if isHolding then
+					isDragging = true
+					showResizeCorners()
+					MobileToggleContainer.Draggable = true
+				end
 			end)
 			
 			library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Up:Connect(function()
+				local holdTime = tick() - holdStartTime
+				local wasQuickTap = holdTime < 0.3
+				
+				isHolding = false
+				
 				tweensv:Create(MobileToggle, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-					Size = UDim2.new(0, 50, 0, 50)
+					Size = UDim2.new(0, 50, 0, 50),
+					Position = UDim2.new(0, 10, 0, 10)
 				}):Play()
 				tweensv:Create(ToggleIcon, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 					Size = UDim2.new(0, 24, 0, 24)
 				}):Play()
+				
+				if isDragging then
+					isDragging = false
+					hideResizeCorners()
+					MobileToggleContainer.Draggable = false
+				end
+				
+				if wasQuickTap then
+					Main.Visible = not Main.Visible
+					updateToggleState()
+				end
+			end)
+			
+			for i, corner in ipairs(ResizeCorners) do
+				library.Conn[#library.Conn + 1] = corner.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						isResizing = true
+						resizeCorner = i
+						initialSize = MobileToggleContainer.Size
+						initialPos = MobileToggleContainer.Position
+						
+						tweensv:Create(corner, TweenInfo.new(0.1), {
+							BackgroundTransparency = 0.2,
+							Size = UDim2.new(0, 12, 0, 12)
+						}):Play()
+					end
+				end)
+				
+				library.Conn[#library.Conn + 1] = corner.InputEnded:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						isResizing = false
+						resizeCorner = nil
+						
+						tweensv:Create(corner, TweenInfo.new(0.1), {
+							BackgroundTransparency = 0.4,
+							Size = UDim2.new(0, 10, 0, 10)
+						}):Play()
+					end
+				end)
+			end
+			
+			library.Conn[#library.Conn + 1] = uis.InputChanged:Connect(function(input)
+				if isResizing and resizeCorner and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					local mousePos = uis:GetMouseLocation()
+					local containerPos = MobileToggleContainer.AbsolutePosition
+					local screenSize = MobileToggleContainer.Parent.AbsoluteSize
+					
+					local newSize = initialSize
+					local newPos = initialPos
+					
+					if resizeCorner == 1 then
+						local deltaX = (containerPos.X - mousePos.X) / screenSize.X
+						local deltaY = (containerPos.Y - mousePos.Y) / screenSize.Y
+						newSize = UDim2.new(0, math.max(50, initialSize.X.Offset + deltaX * screenSize.X), 0, math.max(50, initialSize.Y.Offset + deltaY * screenSize.Y))
+						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset - deltaX * screenSize.X, initialPos.Y.Scale, initialPos.Y.Offset - deltaY * screenSize.Y)
+					elseif resizeCorner == 2 then
+						local deltaX = (mousePos.X - (containerPos.X + MobileToggleContainer.AbsoluteSize.X)) / screenSize.X
+						local deltaY = (containerPos.Y - mousePos.Y) / screenSize.Y
+						newSize = UDim2.new(0, math.max(50, initialSize.X.Offset + deltaX * screenSize.X), 0, math.max(50, initialSize.Y.Offset + deltaY * screenSize.Y))
+						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset, initialPos.Y.Scale, initialPos.Y.Offset - deltaY * screenSize.Y)
+					elseif resizeCorner == 3 then
+						local deltaX = (containerPos.X - mousePos.X) / screenSize.X
+						local deltaY = (mousePos.Y - (containerPos.Y + MobileToggleContainer.AbsoluteSize.Y)) / screenSize.Y
+						newSize = UDim2.new(0, math.max(50, initialSize.X.Offset + deltaX * screenSize.X), 0, math.max(50, initialSize.Y.Offset + deltaY * screenSize.Y))
+						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset - deltaX * screenSize.X, initialPos.Y.Scale, initialPos.Y.Offset)
+					elseif resizeCorner == 4 then
+						local deltaX = (mousePos.X - (containerPos.X + MobileToggleContainer.AbsoluteSize.X)) / screenSize.X
+						local deltaY = (mousePos.Y - (containerPos.Y + MobileToggleContainer.AbsoluteSize.Y)) / screenSize.Y
+						newSize = UDim2.new(0, math.max(50, initialSize.X.Offset + deltaX * screenSize.X), 0, math.max(50, initialSize.Y.Offset + deltaY * screenSize.Y))
+					end
+					
+					MobileToggleContainer.Size = newSize
+					if resizeCorner == 1 or resizeCorner == 2 or resizeCorner == 3 then
+						MobileToggleContainer.Position = newPos
+					end
+				end
 			end)
 			
 			library.Conn[#library.Conn + 1] = ToggleButton.TouchTap:Connect(function()
-				Main.Visible = not Main.Visible
-				updateToggleState()
+				if not isDragging then
+					Main.Visible = not Main.Visible
+					updateToggleState()
+				end
 			end)
 			
 			local pulseConnection
