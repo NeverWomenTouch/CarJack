@@ -329,24 +329,162 @@ function library:Window(title, version, info, preset, closebind)
 		if not cg:FindFirstChild(altname) then
 			local ScreenGui = Instance.new("ScreenGui", cg)
 			ScreenGui.Name = altname
-			local QuickCapture = Instance.new("TextButton", ScreenGui)
-			QuickCapture.Name = "UI"
-			QuickCapture.BackgroundColor3 = Color3.fromRGB(85, 0, 255)
-			QuickCapture.BackgroundTransparency = 0.14
-			QuickCapture.Position = UDim2.new(0.93, 0, 0, 40)
-			QuickCapture.Size = UDim2.new(0, 33, 0, 33)
-			QuickCapture.Font = Enum.Font.SourceSansBold
-			QuickCapture.Text = "O/C"
-			QuickCapture.TextColor3 = Color3.fromRGB(255, 0, 0)
-			QuickCapture.TextSize = 20.000
-			QuickCapture.TextWrapped = true
-			QuickCapture.Draggable = library.OCbtn
+			ScreenGui.ResetOnSpawn = false
+			ScreenGui.IgnoreGuiInset = true
+			ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 			
-			library.Conn[#library.Conn + 1] = QuickCapture.MouseButton1Click:Connect(function()
-				if Main.Visible == false then
-					Main.Visible = true
+			local MobileToggle = Instance.new("Frame", ScreenGui)
+			MobileToggle.Name = "MobileToggle"
+			MobileToggle.BackgroundColor3 = Color3.fromRGB(27, 27, 27)
+			MobileToggle.BorderSizePixel = 0
+			MobileToggle.Position = UDim2.new(1, -60, 0, 50)
+			MobileToggle.Size = UDim2.new(0, 50, 0, 50)
+			MobileToggle.ClipsDescendants = false
+			
+			local MobileToggleCorner = Instance.new("UICorner")
+			MobileToggleCorner.CornerRadius = UDim.new(0, 12)
+			MobileToggleCorner.Parent = MobileToggle
+			
+			local MobileToggleStroke = Instance.new("UIStroke")
+			MobileToggleStroke.Parent = MobileToggle
+			MobileToggleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			MobileToggleStroke.Color = PresetColor
+			MobileToggleStroke.Thickness = 2
+			MobileToggleStroke.Transparency = 0.3
+			
+			local MobileToggleGlow = Instance.new("ImageLabel")
+			MobileToggleGlow.Name = "Glow"
+			MobileToggleGlow.Parent = MobileToggle
+			MobileToggleGlow.BackgroundTransparency = 1
+			MobileToggleGlow.Position = UDim2.new(0.5, -30, 0.5, -30)
+			MobileToggleGlow.Size = UDim2.new(0, 60, 0, 60)
+			MobileToggleGlow.Image = "rbxassetid://4996891970"
+			MobileToggleGlow.ImageColor3 = PresetColor
+			MobileToggleGlow.ImageTransparency = 0.7
+			MobileToggleGlow.ScaleType = Enum.ScaleType.Slice
+			MobileToggleGlow.SliceCenter = Rect.new(20, 20, 280, 280)
+			MobileToggleGlow.ZIndex = -1
+			
+			local ToggleButton = Instance.new("TextButton", MobileToggle)
+			ToggleButton.Name = "ToggleButton"
+			ToggleButton.BackgroundTransparency = 1
+			ToggleButton.Size = UDim2.new(1, 0, 1, 0)
+			ToggleButton.Font = Enum.Font.Gotham
+			ToggleButton.Text = ""
+			ToggleButton.TextTransparency = 1
+			ToggleButton.AutoButtonColor = false
+			
+			local IconContainer = Instance.new("Frame")
+			IconContainer.Name = "IconContainer"
+			IconContainer.Parent = ToggleButton
+			IconContainer.BackgroundTransparency = 1
+			IconContainer.Size = UDim2.new(1, 0, 1, 0)
+			
+			local ToggleIcon = Instance.new("ImageLabel")
+			ToggleIcon.Name = "ToggleIcon"
+			ToggleIcon.Parent = IconContainer
+			ToggleIcon.BackgroundTransparency = 1
+			ToggleIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+			ToggleIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+			ToggleIcon.Size = UDim2.new(0, 24, 0, 24)
+			ToggleIcon.Image = "rbxassetid://3926305904"
+			ToggleIcon.ImageRectOffset = Vector2.new(644, 204)
+			ToggleIcon.ImageRectSize = Vector2.new(36, 36)
+			ToggleIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+			
+			local StatusIndicator = Instance.new("Frame")
+			StatusIndicator.Name = "StatusIndicator"
+			StatusIndicator.Parent = MobileToggle
+			StatusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 127)
+			StatusIndicator.BorderSizePixel = 0
+			StatusIndicator.Position = UDim2.new(1, -12, 0, 4)
+			StatusIndicator.Size = UDim2.new(0, 8, 0, 8)
+			StatusIndicator.ZIndex = 2
+			
+			local StatusIndicatorCorner = Instance.new("UICorner")
+			StatusIndicatorCorner.CornerRadius = UDim.new(1, 0)
+			StatusIndicatorCorner.Parent = StatusIndicator
+			
+			local function updateToggleState()
+				local isVisible = Main.Visible
+				if isVisible then
+					ToggleIcon.ImageRectOffset = Vector2.new(324, 204)
+					StatusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 127)
+					tweensv:Create(MobileToggle, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+						BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+					}):Play()
+					tweensv:Create(MobileToggleStroke, TweenInfo.new(0.3), {
+						Transparency = 0.1
+					}):Play()
 				else
-					Main.Visible = false
+					ToggleIcon.ImageRectOffset = Vector2.new(644, 204)
+					StatusIndicator.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+					tweensv:Create(MobileToggle, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+						BackgroundColor3 = Color3.fromRGB(27, 27, 27)
+					}):Play()
+					tweensv:Create(MobileToggleStroke, TweenInfo.new(0.3), {
+						Transparency = 0.3
+					}):Play()
+				end
+			end
+			
+			if library.OCbtn then
+				MobileToggle.Draggable = true
+			end
+			
+			updateToggleState()
+			
+			task.spawn(function()
+				while getgenv().libloaded and MobileToggle.Parent do
+					MobileToggleStroke.Color = PresetColor
+					MobileToggleGlow.ImageColor3 = PresetColor
+					task.wait()
+				end
+			end)
+			
+			library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Click:Connect(function()
+				Main.Visible = not Main.Visible
+				updateToggleState()
+			end)
+			
+			library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Down:Connect(function()
+				tweensv:Create(MobileToggle, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+					Size = UDim2.new(0, 46, 0, 46)
+				}):Play()
+				tweensv:Create(ToggleIcon, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+					Size = UDim2.new(0, 20, 0, 20)
+				}):Play()
+			end)
+			
+			library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Up:Connect(function()
+				tweensv:Create(MobileToggle, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+					Size = UDim2.new(0, 50, 0, 50)
+				}):Play()
+				tweensv:Create(ToggleIcon, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+					Size = UDim2.new(0, 24, 0, 24)
+				}):Play()
+			end)
+			
+			library.Conn[#library.Conn + 1] = ToggleButton.TouchTap:Connect(function()
+				Main.Visible = not Main.Visible
+				updateToggleState()
+			end)
+			
+			local pulseConnection
+			pulseConnection = task.spawn(function()
+				while getgenv().libloaded and MobileToggle.Parent do
+					if not Main.Visible then
+						tweensv:Create(MobileToggleGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+							ImageTransparency = 0.5
+						}):Play()
+						task.wait(1.5)
+						tweensv:Create(MobileToggleGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+							ImageTransparency = 0.7
+						}):Play()
+						task.wait(1.5)
+					else
+						task.wait(0.5)
+					end
 				end
 			end)
 		end
