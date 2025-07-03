@@ -397,10 +397,8 @@ function library:Window(title, version, info, preset, closebind)
 			ToggleIcon.AnchorPoint = Vector2.new(0.5, 0.5)
 			ToggleIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
 			ToggleIcon.Size = UDim2.new(0, 24, 0, 24)
-			ToggleIcon.Image = "rbxassetid://3926305904"
-			ToggleIcon.ImageRectOffset = Vector2.new(284, 4)
-			ToggleIcon.ImageRectSize = Vector2.new(24, 24)
-			ToggleIcon.ImageColor3 = Color3.fromRGB(255, 85, 85)
+			ToggleIcon.Image = "rbxassetid://109809645126775"
+			ToggleIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
 			ToggleIcon.ZIndex = 3
 			
 			local StatusIndicator = Instance.new("Frame")
@@ -455,8 +453,6 @@ function library:Window(title, version, info, preset, closebind)
 			local function updateToggleState()
 				local isVisible = Main.Visible
 				if isVisible then
-					ToggleIcon.ImageRectOffset = Vector2.new(764, 244)
-					ToggleIcon.ImageColor3 = Color3.fromRGB(85, 255, 127)
 					StatusIndicator.BackgroundColor3 = Color3.fromRGB(85, 255, 127)
 					tweensv:Create(MobileToggle, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
 						BackgroundColor3 = Color3.fromRGB(32, 42, 32)
@@ -465,8 +461,6 @@ function library:Window(title, version, info, preset, closebind)
 						Transparency = 0.1
 					}):Play()
 				else
-					ToggleIcon.ImageRectOffset = Vector2.new(284, 4)
-					ToggleIcon.ImageColor3 = Color3.fromRGB(255, 85, 85)
 					StatusIndicator.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
 					tweensv:Create(MobileToggle, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
 						BackgroundColor3 = Color3.fromRGB(27, 27, 27)
@@ -492,9 +486,19 @@ function library:Window(title, version, info, preset, closebind)
 						BackgroundTransparency = 1
 					}):Play()
 					task.delay(0.2, function()
-						corner.Visible = false
+						if corner then
+							corner.Visible = false
+						end
 					end)
 				end
+			end
+			
+			local function updateCornerPositions()
+				local containerSize = MobileToggleContainer.Size
+				ResizeCorners[1].Position = UDim2.new(0, -5, 0, -5)
+				ResizeCorners[2].Position = UDim2.new(1, -5, 0, -5)
+				ResizeCorners[3].Position = UDim2.new(0, -5, 1, -5)
+				ResizeCorners[4].Position = UDim2.new(1, -5, 1, -5)
 			end
 			
 			updateToggleState()
@@ -522,17 +526,19 @@ function library:Window(title, version, info, preset, closebind)
 					Size = UDim2.new(0, 20, 0, 20)
 				}):Play()
 				
-				task.wait(0.5)
-				if isHolding then
-					isDragging = true
-					showResizeCorners()
-					MobileToggleContainer.Draggable = true
-				end
+				spawn(function()
+					task.wait(0.5)
+					if isHolding and not isResizing then
+						isDragging = true
+						showResizeCorners()
+						updateCornerPositions()
+					end
+				end)
 			end)
 			
 			library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Up:Connect(function()
 				local holdTime = tick() - holdStartTime
-				local wasQuickTap = holdTime < 0.3
+				local wasQuickTap = holdTime < 0.5
 				
 				isHolding = false
 				
@@ -547,12 +553,74 @@ function library:Window(title, version, info, preset, closebind)
 				if isDragging then
 					isDragging = false
 					hideResizeCorners()
-					MobileToggleContainer.Draggable = false
 				end
 				
 				if wasQuickTap then
 					Main.Visible = not Main.Visible
 					updateToggleState()
+				end
+			end)
+			
+			library.Conn[#library.Conn + 1] = uis.InputBegan:Connect(function(input)
+				if isDragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+					local mousePos = uis:GetMouseLocation()
+					dragStartPos = Vector2.new(mousePos.X - MobileToggleContainer.AbsolutePosition.X, mousePos.Y - MobileToggleContainer.AbsolutePosition.Y)
+				end
+			end)
+			
+			library.Conn[#library.Conn + 1] = uis.InputChanged:Connect(function(input)
+				if isDragging and dragStartPos and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					local mousePos = uis:GetMouseLocation()
+					local screenSize = MobileToggleContainer.Parent.AbsoluteSize
+					local newX = (mousePos.X - dragStartPos.X) / screenSize.X
+					local newY = (mousePos.Y - dragStartPos.Y) / screenSize.Y
+					
+					newX = math.max(0, math.min(1 - MobileToggleContainer.Size.X.Scale, newX))
+					newY = math.max(0, math.min(1 - MobileToggleContainer.Size.Y.Scale, newY))
+					
+					MobileToggleContainer.Position = UDim2.new(newX, 0, newY, 0)
+				end
+				
+				if isResizing and resizeCorner and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					local mousePos = uis:GetMouseLocation()
+					local containerPos = MobileToggleContainer.AbsolutePosition
+					local screenSize = MobileToggleContainer.Parent.AbsoluteSize
+					
+					local newSize = initialSize
+					local newPos = initialPos
+					
+					if resizeCorner == 1 then
+						local deltaX = (containerPos.X - mousePos.X)
+						local deltaY = (containerPos.Y - mousePos.Y)
+						local newWidth = math.max(70, initialSize.X.Offset + deltaX)
+						local newHeight = math.max(70, initialSize.Y.Offset + deltaY)
+						newSize = UDim2.new(0, newWidth, 0, newHeight)
+						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset - (newWidth - initialSize.X.Offset), initialPos.Y.Scale, initialPos.Y.Offset - (newHeight - initialSize.Y.Offset))
+					elseif resizeCorner == 2 then
+						local deltaX = (mousePos.X - (containerPos.X + MobileToggleContainer.AbsoluteSize.X))
+						local deltaY = (containerPos.Y - mousePos.Y)
+						local newWidth = math.max(70, initialSize.X.Offset + deltaX)
+						local newHeight = math.max(70, initialSize.Y.Offset + deltaY)
+						newSize = UDim2.new(0, newWidth, 0, newHeight)
+						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset, initialPos.Y.Scale, initialPos.Y.Offset - (newHeight - initialSize.Y.Offset))
+					elseif resizeCorner == 3 then
+						local deltaX = (containerPos.X - mousePos.X)
+						local deltaY = (mousePos.Y - (containerPos.Y + MobileToggleContainer.AbsoluteSize.Y))
+						local newWidth = math.max(70, initialSize.X.Offset + deltaX)
+						local newHeight = math.max(70, initialSize.Y.Offset + deltaY)
+						newSize = UDim2.new(0, newWidth, 0, newHeight)
+						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset - (newWidth - initialSize.X.Offset), initialPos.Y.Scale, initialPos.Y.Offset)
+					elseif resizeCorner == 4 then
+						local deltaX = (mousePos.X - (containerPos.X + MobileToggleContainer.AbsoluteSize.X))
+						local deltaY = (mousePos.Y - (containerPos.Y + MobileToggleContainer.AbsoluteSize.Y))
+						newSize = UDim2.new(0, math.max(70, initialSize.X.Offset + deltaX), 0, math.max(70, initialSize.Y.Offset + deltaY))
+					end
+					
+					MobileToggleContainer.Size = newSize
+					if resizeCorner == 1 or resizeCorner == 2 or resizeCorner == 3 then
+						MobileToggleContainer.Position = newPos
+					end
+					updateCornerPositions()
 				end
 			end)
 			
@@ -570,53 +638,24 @@ function library:Window(title, version, info, preset, closebind)
 						}):Play()
 					end
 				end)
-				
-				library.Conn[#library.Conn + 1] = corner.InputEnded:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			end
+			
+			library.Conn[#library.Conn + 1] = uis.InputEnded:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					if isResizing then
 						isResizing = false
 						resizeCorner = nil
 						
-						tweensv:Create(corner, TweenInfo.new(0.1), {
-							BackgroundTransparency = 0.4,
-							Size = UDim2.new(0, 10, 0, 10)
-						}):Play()
-					end
-				end)
-			end
-			
-			library.Conn[#library.Conn + 1] = uis.InputChanged:Connect(function(input)
-				if isResizing and resizeCorner and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-					local mousePos = uis:GetMouseLocation()
-					local containerPos = MobileToggleContainer.AbsolutePosition
-					local screenSize = MobileToggleContainer.Parent.AbsoluteSize
-					
-					local newSize = initialSize
-					local newPos = initialPos
-					
-					if resizeCorner == 1 then
-						local deltaX = (containerPos.X - mousePos.X) / screenSize.X
-						local deltaY = (containerPos.Y - mousePos.Y) / screenSize.Y
-						newSize = UDim2.new(0, math.max(50, initialSize.X.Offset + deltaX * screenSize.X), 0, math.max(50, initialSize.Y.Offset + deltaY * screenSize.Y))
-						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset - deltaX * screenSize.X, initialPos.Y.Scale, initialPos.Y.Offset - deltaY * screenSize.Y)
-					elseif resizeCorner == 2 then
-						local deltaX = (mousePos.X - (containerPos.X + MobileToggleContainer.AbsoluteSize.X)) / screenSize.X
-						local deltaY = (containerPos.Y - mousePos.Y) / screenSize.Y
-						newSize = UDim2.new(0, math.max(50, initialSize.X.Offset + deltaX * screenSize.X), 0, math.max(50, initialSize.Y.Offset + deltaY * screenSize.Y))
-						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset, initialPos.Y.Scale, initialPos.Y.Offset - deltaY * screenSize.Y)
-					elseif resizeCorner == 3 then
-						local deltaX = (containerPos.X - mousePos.X) / screenSize.X
-						local deltaY = (mousePos.Y - (containerPos.Y + MobileToggleContainer.AbsoluteSize.Y)) / screenSize.Y
-						newSize = UDim2.new(0, math.max(50, initialSize.X.Offset + deltaX * screenSize.X), 0, math.max(50, initialSize.Y.Offset + deltaY * screenSize.Y))
-						newPos = UDim2.new(initialPos.X.Scale, initialPos.X.Offset - deltaX * screenSize.X, initialPos.Y.Scale, initialPos.Y.Offset)
-					elseif resizeCorner == 4 then
-						local deltaX = (mousePos.X - (containerPos.X + MobileToggleContainer.AbsoluteSize.X)) / screenSize.X
-						local deltaY = (mousePos.Y - (containerPos.Y + MobileToggleContainer.AbsoluteSize.Y)) / screenSize.Y
-						newSize = UDim2.new(0, math.max(50, initialSize.X.Offset + deltaX * screenSize.X), 0, math.max(50, initialSize.Y.Offset + deltaY * screenSize.Y))
+						for _, corner in ipairs(ResizeCorners) do
+							tweensv:Create(corner, TweenInfo.new(0.1), {
+								BackgroundTransparency = 0.4,
+								Size = UDim2.new(0, 10, 0, 10)
+							}):Play()
+						end
 					end
 					
-					MobileToggleContainer.Size = newSize
-					if resizeCorner == 1 or resizeCorner == 2 or resizeCorner == 3 then
-						MobileToggleContainer.Position = newPos
+					if isDragging then
+						dragStartPos = nil
 					end
 				end
 			end)
