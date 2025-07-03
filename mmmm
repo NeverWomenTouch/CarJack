@@ -2006,7 +2006,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
         real = default or low,
         show = precise and string.format("%.1f", default or low) or math.floor(default or low),
         fromConfig = false,
-        isMobile = ui:GetPlatform() == Enum.Platform.IOS or ui:GetPlatform() == Enum.Platform.Android
+        isMobile = ui:GetPlatform() == Enum.Platform.IOS or ui:GetPlatform() == Enum.Platform.Android or ui.TouchEnabled
     }
 
     local slider = {}
@@ -2102,11 +2102,13 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
             if state.isMobile then
                 moveConnection = ui.TouchMoved:Connect(function(touch, gameProcessed)
                     if gameProcessed then return end
-                    move(touch.Position)
+                    if state.dragging then
+                        move(touch.Position)
+                    end
                 end)
             else
                 moveConnection = ui.InputChanged:Connect(function(changed)
-                    if changed.UserInputType == Enum.UserInputType.MouseMovement then
+                    if changed.UserInputType == Enum.UserInputType.MouseMovement and state.dragging then
                         move(changed.Position)
                     end
                 end)
@@ -2122,7 +2124,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
             validInput = input.UserInputType == Enum.UserInputType.MouseButton1
         end
         
-        if validInput then
+        if validInput and state.dragging then
             state.dragging = false
             if moveConnection then
                 moveConnection:Disconnect()
@@ -2144,7 +2146,8 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
                 end
             end
         end)
-        hid.Size = UDim2.new(0, 0, 0, 0)
+        -- Make the hide element smaller on mobile but don't hide it completely
+        hid.Size = UDim2.new(0.8, 0, 0.8, 0)
     else
         library.Conn[#library.Conn + 1] = btn.MouseEnter:Connect(function()
             hid:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
@@ -4298,4 +4301,5 @@ function library:ConfigSystem(tab, name)
     end)
     return cfg
 end
+print("1")
 return library
