@@ -81,6 +81,9 @@ function library:Unload()
     if screengui then
         screengui:Destroy()
     end
+    if cg:FindFirstChild("Show") then
+        cg:FindFirstChild("Show"):Destroy()
+    end
     for i,v in next, library.Conn do
 		v:Disconnect()
 	end
@@ -321,10 +324,9 @@ function library:Window(title, version, info, preset, closebind)
 
 	local altname = "Show"
 	local ismobile = table.find({Enum.Platform.IOS, Enum.Platform.Android}, uis:GetPlatform())
-	if cg:FindFirstChild(altname) then
-		cg:FindFirstChild(altname):Destroy()
-	end
-
+    if cg:FindFirstChild("Show") then
+        cg:FindFirstChild("Show"):Destroy()
+    end
 	if ismobile then
 		if not cg:FindFirstChild(altname) then
 			local ScreenGui = Instance.new("ScreenGui", cg)
@@ -466,8 +468,16 @@ function library:Window(title, version, info, preset, closebind)
 					task.wait(0.5)
 					if isHolding then
 						isDragging = true
+						local screenGui = MobileToggleContainer.Parent
+						local viewport = workspace.CurrentCamera.ViewportSize
+						local guiService = game:GetService("GuiService")
+						local topInset = guiService:GetGuiInset().Y
+						
 						local mousePos = uis:GetMouseLocation()
-						dragStartPos = Vector2.new(mousePos.X - MobileToggleContainer.AbsolutePosition.X, mousePos.Y - MobileToggleContainer.AbsolutePosition.Y)
+						local adjustedMouseY = mousePos.Y - topInset
+						
+						local containerCenter = MobileToggleContainer.AbsolutePosition + (MobileToggleContainer.AbsoluteSize / 2)
+						dragStartPos = Vector2.new(mousePos.X - containerCenter.X, adjustedMouseY - containerCenter.Y)
 					end
 				end)
 			end)
@@ -499,12 +509,22 @@ function library:Window(title, version, info, preset, closebind)
 			
 			library.Conn[#library.Conn + 1] = uis.InputChanged:Connect(function(input)
 				if isDragging and dragStartPos and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-					local mousePos = uis:GetMouseLocation()
-					local screenSize = MobileToggleContainer.Parent.AbsoluteSize
-					local containerSize = MobileToggleContainer.AbsoluteSize
+					local screenGui = MobileToggleContainer.Parent
+					local viewport = workspace.CurrentCamera.ViewportSize
+					local guiService = game:GetService("GuiService")
+					local topInset = guiService:GetGuiInset().Y
 					
-					local newX = math.max(0, math.min(screenSize.X - containerSize.X, mousePos.X - dragStartPos.X))
-					local newY = math.max(0, math.min(screenSize.Y - containerSize.Y, mousePos.Y - dragStartPos.Y))
+					local mousePos = uis:GetMouseLocation()
+					local adjustedMouseY = mousePos.Y - topInset
+					
+					local containerSize = MobileToggleContainer.AbsoluteSize
+					local halfSize = containerSize / 2
+					
+					local newX = mousePos.X - dragStartPos.X - halfSize.X
+					local newY = adjustedMouseY - dragStartPos.Y - halfSize.Y
+					
+					newX = math.max(0, math.min(viewport.X - containerSize.X, newX))
+					newY = math.max(0, math.min(viewport.Y - containerSize.Y, newY))
 					
 					MobileToggleContainer.Position = UDim2.new(0, newX, 0, newY)
 				end
