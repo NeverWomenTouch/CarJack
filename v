@@ -468,16 +468,14 @@ function library:Window(title, version, info, preset, closebind)
 					task.wait(0.5)
 					if isHolding then
 						isDragging = true
-						local screenGui = MobileToggleContainer.Parent
-						local viewport = workspace.CurrentCamera.ViewportSize
 						local guiService = game:GetService("GuiService")
 						local topInset = guiService:GetGuiInset().Y
 						
 						local mousePos = uis:GetMouseLocation()
 						local adjustedMouseY = mousePos.Y - topInset
 						
-						local containerCenter = MobileToggleContainer.AbsolutePosition + (MobileToggleContainer.AbsoluteSize / 2)
-						dragStartPos = Vector2.new(mousePos.X - containerCenter.X, adjustedMouseY - containerCenter.Y)
+						local containerPos = MobileToggleContainer.AbsolutePosition
+						dragStartPos = Vector2.new(mousePos.X - containerPos.X, adjustedMouseY - containerPos.Y)
 					end
 				end)
 			end)
@@ -518,10 +516,9 @@ function library:Window(title, version, info, preset, closebind)
 					local adjustedMouseY = mousePos.Y - topInset
 					
 					local containerSize = MobileToggleContainer.AbsoluteSize
-					local halfSize = containerSize / 2
 					
-					local newX = mousePos.X - dragStartPos.X - halfSize.X
-					local newY = adjustedMouseY - dragStartPos.Y - halfSize.Y
+					local newX = mousePos.X - dragStartPos.X
+					local newY = adjustedMouseY - dragStartPos.Y
 					
 					newX = math.max(0, math.min(viewport.X - containerSize.X, newX))
 					newY = math.max(0, math.min(viewport.Y - containerSize.Y, newY))
