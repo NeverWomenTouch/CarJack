@@ -1898,6 +1898,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     local lbl = Instance.new("TextLabel")
     local crn = Instance.new("UICorner")
     local bar = Instance.new("Frame")
+    local hitbox = Instance.new("Frame")
     local bcrn = Instance.new("UICorner")
     local dot = Instance.new("Frame")
     local hid = Instance.new("Frame")
@@ -1940,6 +1941,13 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     bar.BorderSizePixel = 0
     bar.Position = UDim2.new(0.58, 0, 0.421, 0)
     bar.Size = UDim2.new(0, 140, 0, 5)
+
+    hitbox.Name = "Hitbox"
+    hitbox.Parent = btn
+    hitbox.BackgroundTransparency = 1
+    hitbox.Position = UDim2.new(0.55, 0, 0, 0)
+    hitbox.Size = UDim2.new(0, 150, 0, 40)
+    hitbox.ZIndex = 5
 
     bcrn.CornerRadius = UDim.new(0, 15)
     bcrn.Parent = bar
@@ -1994,7 +2002,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     dcrn.Parent = dot
 
     local state = {
-        active = false,
+        dragging = false,
         real = default or low,
         show = precise and string.format("%.1f", default or low) or math.floor(default or low),
         fromConfig = false,
@@ -2068,11 +2076,11 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     
     update(default or low)
 
-    local isDragging = false
+    local moveConnection = nil
 
-    local function move(input)
-        if not isDragging then return end
-        update(nil, input.Position.X)
+    local function move(inputPos)
+        if not state.dragging then return end
+        update(nil, inputPos.X)
     end
 
     local function startDrag(input)
@@ -2084,8 +2092,25 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
         end
         
         if validInput then
-            isDragging = true
-            move(input)
+            state.dragging = true
+            move(input.Position)
+            
+            if moveConnection then
+                moveConnection:Disconnect()
+            end
+            
+            if state.isMobile then
+                moveConnection = ui.TouchMoved:Connect(function(touch, gameProcessed)
+                    if gameProcessed then return end
+                    move(touch.Position)
+                end)
+            else
+                moveConnection = ui.InputChanged:Connect(function(changed)
+                    if changed.UserInputType == Enum.UserInputType.MouseMovement then
+                        move(changed.Position)
+                    end
+                end)
+            end
         end
     end
 
@@ -2098,34 +2123,38 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
         end
         
         if validInput then
-            isDragging = false
+            state.dragging = false
+            if moveConnection then
+                moveConnection:Disconnect()
+                moveConnection = nil
+            end
         end
     end
 
-    library.Conn[#library.Conn + 1] = btn.InputBegan:Connect(startDrag)
-    library.Conn[#library.Conn + 1] = btn.InputEnded:Connect(endDrag)
+    library.Conn[#library.Conn + 1] = hitbox.InputBegan:Connect(startDrag)
+    library.Conn[#library.Conn + 1] = hitbox.InputEnded:Connect(endDrag)
 
-    library.Conn[#library.Conn + 1] = ui.InputChanged:Connect(function(input)
-        if isDragging then
-            if (input.UserInputType == Enum.UserInputType.MouseMovement) or 
-               (input.UserInputType == Enum.UserInputType.Touch) then
-                move(input)
+    if state.isMobile then
+        library.Conn[#library.Conn + 1] = ui.TouchEnded:Connect(function(touch, gameProcessed)
+            if state.dragging then
+                state.dragging = false
+                if moveConnection then
+                    moveConnection:Disconnect()
+                    moveConnection = nil
+                end
             end
-        end
-    end)
-
-    if not state.isMobile then
+        end)
+        hid.Size = UDim2.new(0, 0, 0, 0)
+    else
         library.Conn[#library.Conn + 1] = btn.MouseEnter:Connect(function()
             hid:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
         end)
 
         library.Conn[#library.Conn + 1] = btn.MouseLeave:Connect(function()
-            if not isDragging then
+            if not state.dragging then
                 hid:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
             end
         end)
-    else
-        hid.Size = UDim2.new(0, 0, 0, 0)
     end
 
     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
