@@ -2006,7 +2006,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
         real = default or low,
         show = precise and string.format("%.1f", default or low) or math.floor(default or low),
         fromConfig = false,
-        isMobile = ui:GetPlatform() == Enum.Platform.IOS or ui:GetPlatform() == Enum.Platform.Android or ui.TouchEnabled
+        isMobile = ui.TouchEnabled and (ui:GetPlatform() == Enum.Platform.IOS or ui:GetPlatform() == Enum.Platform.Android)
     }
 
     local slider = {}
@@ -2077,6 +2077,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     update(default or low)
 
     local moveConnection = nil
+    local endConnection = nil
 
     local function move(inputPos)
         if not state.dragging then return end
@@ -2084,26 +2085,31 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     end
 
     local function startDrag(input)
-        local validInput = false
-        if state.isMobile then
-            validInput = input.UserInputType == Enum.UserInputType.Touch
-        else
-            validInput = input.UserInputType == Enum.UserInputType.MouseButton1
-        end
+        if state.dragging then return end
+        
+        local validInput = (input.UserInputType == Enum.UserInputType.MouseButton1) or 
+                          (input.UserInputType == Enum.UserInputType.Touch)
         
         if validInput then
             state.dragging = true
             move(input.Position)
             
-            if moveConnection then
-                moveConnection:Disconnect()
-            end
+            -- Clean up existing connections
+            if moveConnection then moveConnection:Disconnect() end
+            if endConnection then endConnection:Disconnect() end
             
-            if state.isMobile then
+            -- Set up movement tracking
+            if ui.TouchEnabled then
                 moveConnection = ui.TouchMoved:Connect(function(touch, gameProcessed)
-                    if gameProcessed then return end
-                    if state.dragging then
+                    if not gameProcessed and state.dragging then
                         move(touch.Position)
+                    end
+                end)
+                endConnection = ui.TouchEnded:Connect(function(touch, gameProcessed)
+                    if state.dragging then
+                        state.dragging = false
+                        if moveConnection then moveConnection:Disconnect() moveConnection = nil end
+                        if endConnection then endConnection:Disconnect() endConnection = nil end
                     end
                 end)
             else
@@ -2112,45 +2118,25 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
                         move(changed.Position)
                     end
                 end)
-            end
-        end
-    end
-
-    local function endDrag(input)
-        local validInput = false
-        if state.isMobile then
-            validInput = input.UserInputType == Enum.UserInputType.Touch
-        else
-            validInput = input.UserInputType == Enum.UserInputType.MouseButton1
-        end
-        
-        if validInput and state.dragging then
-            state.dragging = false
-            if moveConnection then
-                moveConnection:Disconnect()
-                moveConnection = nil
+                endConnection = ui.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 and state.dragging then
+                        state.dragging = false
+                        if moveConnection then moveConnection:Disconnect() moveConnection = nil end
+                        if endConnection then endConnection:Disconnect() endConnection = nil end
+                    end
+                end)
             end
         end
     end
 
     library.Conn[#library.Conn + 1] = hitbox.InputBegan:Connect(startDrag)
-    library.Conn[#library.Conn + 1] = hitbox.InputEnded:Connect(endDrag)
 
-    if state.isMobile then
-        library.Conn[#library.Conn + 1] = ui.TouchEnded:Connect(function(touch, gameProcessed)
-            if state.dragging then
-                state.dragging = false
-                if moveConnection then
-                    moveConnection:Disconnect()
-                    moveConnection = nil
-                end
-            end
-        end)
-        -- Make the hide element smaller on mobile but don't hide it completely
-        hid.Size = UDim2.new(0.8, 0, 0.8, 0)
-    else
+    -- Mouse hover effects for desktop
+    if not ui.TouchEnabled then
         library.Conn[#library.Conn + 1] = btn.MouseEnter:Connect(function()
-            hid:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
+            if not state.dragging then
+                hid:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
+            end
         end)
 
         library.Conn[#library.Conn + 1] = btn.MouseLeave:Connect(function()
@@ -2158,6 +2144,9 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
                 hid:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
             end
         end)
+    else
+        -- Make dot more visible on touch devices
+        hid.Size = UDim2.new(0.5, 0, 0.5, 0)
     end
 
     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
@@ -4301,5 +4290,4 @@ function library:ConfigSystem(tab, name)
     end)
     return cfg
 end
-print("1")
 return library
