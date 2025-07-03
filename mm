@@ -1907,7 +1907,6 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     local fcrn = Instance.new("UICorner")
     local stroke = Instance.new("UIStroke")
     local val = Instance.new("TextLabel")
-    local hitbox = Instance.new("Frame")
     
     btn.Name = text
     btn.Parent = Tab
@@ -1941,13 +1940,6 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     bar.BorderSizePixel = 0
     bar.Position = UDim2.new(0.58, 0, 0.421, 0)
     bar.Size = UDim2.new(0, 140, 0, 5)
-
-    hitbox.Name = "Hitbox"
-    hitbox.Parent = bar
-    hitbox.BackgroundTransparency = 1
-    hitbox.Position = UDim2.new(0, -20, 0, -20)
-    hitbox.Size = UDim2.new(1, 40, 0, 45)
-    hitbox.ZIndex = 10
 
     bcrn.CornerRadius = UDim.new(0, 15)
     bcrn.Parent = bar
@@ -2003,7 +1995,6 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
 
     local state = {
         active = false,
-        connections = {},
         real = default or low,
         show = precise and string.format("%.1f", default or low) or math.floor(default or low),
         fromConfig = false,
@@ -2077,24 +2068,14 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     
     update(default or low)
 
-    local function clearConnections()
-        for _, conn in pairs(state.connections) do
-            if conn then
-                conn:Disconnect()
-            end
-        end
-        table.clear(state.connections)
-    end
+    local isDragging = false
 
     local function move(input)
-        if not state.active then return end
-        local position = input.Position or input
-        update(nil, position.X)
+        if not isDragging then return end
+        update(nil, input.Position.X)
     end
 
     local function startDrag(input)
-        if state.active then return end
-        
         local validInput = false
         if state.isMobile then
             validInput = input.UserInputType == Enum.UserInputType.Touch
@@ -2102,45 +2083,36 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
             validInput = input.UserInputType == Enum.UserInputType.MouseButton1
         end
         
-        if not validInput then return end
-        
-        state.active = true
-        clearConnections()
-        
-        if state.isMobile then
-            state.connections[#state.connections + 1] = ui.TouchMoved:Connect(function(touch, gameProcessed)
-                if gameProcessed then return end
-                move(touch)
-            end)
-            
-            state.connections[#state.connections + 1] = ui.TouchEnded:Connect(function(touch, gameProcessed)
-                if touch.UserInputType == Enum.UserInputType.Touch then
-                    state.active = false
-                    clearConnections()
-                end
-            end)
-        else
-            state.connections[#state.connections + 1] = ui.InputChanged:Connect(function(changed)
-                if changed.UserInputType == Enum.UserInputType.MouseMovement then
-                    move(changed)
-                end
-            end)
-            
-            state.connections[#state.connections + 1] = ui.InputEnded:Connect(function(ended)
-                if ended.UserInputType == Enum.UserInputType.MouseButton1 then
-                    state.active = false
-                    clearConnections()
-                end
-            end)
+        if validInput then
+            isDragging = true
+            move(input)
         end
-        
-        move(input)
     end
 
-    local dragElements = {hitbox, bar, btn, dot}
-    for _, element in pairs(dragElements) do
-        library.Conn[#library.Conn + 1] = element.InputBegan:Connect(startDrag)
+    local function endDrag(input)
+        local validInput = false
+        if state.isMobile then
+            validInput = input.UserInputType == Enum.UserInputType.Touch
+        else
+            validInput = input.UserInputType == Enum.UserInputType.MouseButton1
+        end
+        
+        if validInput then
+            isDragging = false
+        end
     end
+
+    library.Conn[#library.Conn + 1] = btn.InputBegan:Connect(startDrag)
+    library.Conn[#library.Conn + 1] = btn.InputEnded:Connect(endDrag)
+
+    library.Conn[#library.Conn + 1] = ui.InputChanged:Connect(function(input)
+        if isDragging then
+            if (input.UserInputType == Enum.UserInputType.MouseMovement) or 
+               (input.UserInputType == Enum.UserInputType.Touch) then
+                move(input)
+            end
+        end
+    end)
 
     if not state.isMobile then
         library.Conn[#library.Conn + 1] = btn.MouseEnter:Connect(function()
@@ -2148,7 +2120,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
         end)
 
         library.Conn[#library.Conn + 1] = btn.MouseLeave:Connect(function()
-            if not state.active then
+            if not isDragging then
                 hid:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
             end
         end)
