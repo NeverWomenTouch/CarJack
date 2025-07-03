@@ -2005,8 +2005,7 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
         dragging = false,
         real = default or low,
         show = precise and string.format("%.1f", default or low) or math.floor(default or low),
-        fromConfig = false,
-        isMobile = ui.TouchEnabled and (ui:GetPlatform() == Enum.Platform.IOS or ui:GetPlatform() == Enum.Platform.Android)
+        fromConfig = false
     }
 
     local slider = {}
@@ -2076,12 +2075,22 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
     
     update(default or low)
 
-    local moveConnection = nil
-    local endConnection = nil
+    local connections = {}
 
     local function move(inputPos)
         if not state.dragging then return end
         update(nil, inputPos.X)
+    end
+
+    local function stopDragging()
+        if not state.dragging then return end
+        state.dragging = false
+        for i = #connections, 1, -1 do
+            if connections[i] then
+                connections[i]:Disconnect()
+                table.remove(connections, i)
+            end
+        end
     end
 
     local function startDrag(input)
@@ -2094,60 +2103,45 @@ function tabcontent:NewSlider(text, low, high, precise, callback, default, flag)
             state.dragging = true
             move(input.Position)
             
-            -- Clean up existing connections
-            if moveConnection then moveConnection:Disconnect() end
-            if endConnection then endConnection:Disconnect() end
+            stopDragging()
             
-            -- Set up movement tracking
-            if ui.TouchEnabled then
-                moveConnection = ui.TouchMoved:Connect(function(touch, gameProcessed)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                table.insert(connections, ui.TouchMoved:Connect(function(touch, gameProcessed)
                     if not gameProcessed and state.dragging then
                         move(touch.Position)
                     end
-                end)
-                endConnection = ui.TouchEnded:Connect(function(touch, gameProcessed)
-                    if state.dragging then
-                        state.dragging = false
-                        if moveConnection then moveConnection:Disconnect() moveConnection = nil end
-                        if endConnection then endConnection:Disconnect() endConnection = nil end
-                    end
-                end)
+                end))
+                table.insert(connections, ui.TouchEnded:Connect(function(touch, gameProcessed)
+                    stopDragging()
+                end))
             else
-                moveConnection = ui.InputChanged:Connect(function(changed)
+                table.insert(connections, ui.InputChanged:Connect(function(changed)
                     if changed.UserInputType == Enum.UserInputType.MouseMovement and state.dragging then
                         move(changed.Position)
                     end
-                end)
-                endConnection = ui.InputEnded:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 and state.dragging then
-                        state.dragging = false
-                        if moveConnection then moveConnection:Disconnect() moveConnection = nil end
-                        if endConnection then endConnection:Disconnect() endConnection = nil end
+                end))
+                table.insert(connections, ui.InputEnded:Connect(function(inputEnd)
+                    if inputEnd.UserInputType == Enum.UserInputType.MouseButton1 then
+                        stopDragging()
                     end
-                end)
+                end))
             end
         end
     end
 
     library.Conn[#library.Conn + 1] = hitbox.InputBegan:Connect(startDrag)
 
-    -- Mouse hover effects for desktop
-    if not ui.TouchEnabled then
-        library.Conn[#library.Conn + 1] = btn.MouseEnter:Connect(function()
-            if not state.dragging then
-                hid:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
-            end
-        end)
+    library.Conn[#library.Conn + 1] = btn.MouseEnter:Connect(function()
+        if not state.dragging then
+            hid:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Sine", 0.2, true)
+        end
+    end)
 
-        library.Conn[#library.Conn + 1] = btn.MouseLeave:Connect(function()
-            if not state.dragging then
-                hid:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
-            end
-        end)
-    else
-        -- Make dot more visible on touch devices
-        hid.Size = UDim2.new(0.5, 0, 0.5, 0)
-    end
+    library.Conn[#library.Conn + 1] = btn.MouseLeave:Connect(function()
+        if not state.dragging then
+            hid:TweenSize(UDim2.new(1, 1, 1, 1), "In", "Sine", 0.2, true)
+        end
+    end)
 
     Tab.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y)
     return slider
