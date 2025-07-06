@@ -1844,13 +1844,13 @@ function OrionLib:MakeWindow(WindowConfig)
 				if DropdownConfig.Multi then
 					local count = #Dropdown.Value
 					if count == 0 then
-						return "None Selected"
+						return "..."
 					else
 						return tostring(count)
 					end
 				else
 					if Dropdown.Value == "" then
-						return "Select Option"
+						return "..."
 					else
 						local textWidth = game:GetService("TextService"):GetTextSize(Dropdown.Value, 13, Enum.Font.Gotham, Vector2.new(math.huge, 18)).X
 						if textWidth > availableWidth then
@@ -1993,6 +1993,12 @@ function OrionLib:MakeWindow(WindowConfig)
 							if i then table.remove(Dropdown.Value, i) else table.insert(Dropdown.Value, option) end
 						else
 							Dropdown.Value = option
+							Dropdown.Toggled = false
+							DropdownFrame.F.Line.Visible = false
+							TweenService:Create(DropdownFrame.F.Ico, TweenInfo.new(0.15), {Rotation = 0}):Play()
+							
+							local baseSize = ShouldExpandDropdown() and (38 + game:GetService("TextService"):GetTextSize(Dropdown.Value or "", 13, Enum.Font.Gotham, Vector2.new(DropdownFrame.AbsoluteSize.X - 24, math.huge)).Y + 16) or 38
+							TweenService:Create(DropdownFrame, TweenInfo.new(0.15), {Size = UDim2.new(1,0,0,baseSize)}):Play()
 						end
 						for opt, btn in pairs(Dropdown.Buttons) do
 							UpdateButtonVisuals(btn, opt, DropdownConfig.Multi and table.find(Dropdown.Value, opt) or Dropdown.Value == opt, true)
