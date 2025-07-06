@@ -1946,16 +1946,22 @@ function OrionLib:MakeWindow(WindowConfig)
 				local shouldExpand = ShouldExpandDropdown()
 				ExpandedTextLabel.Visible = shouldExpand
 				
+				local baseSize = 38
 				if shouldExpand then
 					ExpandedTextLabel.Text = Dropdown.Value
 					local textHeight = game:GetService("TextService"):GetTextSize(Dropdown.Value, 13, Enum.Font.Gotham, Vector2.new(DropdownFrame.AbsoluteSize.X - 24, math.huge)).Y
 					ExpandedTextLabel.Size = UDim2.new(1, -24, 0, textHeight)
-					local totalHeight = 38 + textHeight + 16
-					DropdownFrame.Size = UDim2.new(1, 0, 0, totalHeight)
-					DropdownContainer.Position = UDim2.new(0, 0, 0, totalHeight)
+					baseSize = 38 + textHeight + 16
+					DropdownContainer.Position = UDim2.new(0, 0, 0, baseSize)
 				else
-					DropdownFrame.Size = UDim2.new(1, 0, 0, 38)
 					DropdownContainer.Position = UDim2.new(0, 0, 0, 38)
+				end
+				
+				if Dropdown.Toggled then
+					local expandedSize = #Dropdown.Options > MaxElements and baseSize + MaxElements*28 or baseSize + DropdownList.AbsoluteContentSize.Y
+					DropdownFrame.Size = UDim2.new(1, 0, 0, expandedSize)
+				else
+					DropdownFrame.Size = UDim2.new(1, 0, 0, baseSize)
 				end
 				
 				DropdownFrame.F.Selected.Text = GetSmartSelectedText()
