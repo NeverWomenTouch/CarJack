@@ -2152,15 +2152,31 @@ function OrionLib:MakeWindow(WindowConfig)
 					Parent = ItemParent
 				}), {
 					AddThemeObject(SetProps(MakeElement("Label", TextboxConfig.Name, 15), {
-						Size = UDim2.new(1, -12, 1, 0),
-						Position = UDim2.new(0, 12, 0, 0),
+						Size = UDim2.new(1, -40, 0, 0),
+						Position = UDim2.new(0, 12, 0, 8),
 						Font = Enum.Font.GothamBold,
-						Name = "Content"
+						Name = "Content",
+						TextWrapped = true
 					}), "Text"),
 					AddThemeObject(MakeElement("Stroke"), "Stroke"),
 					TextContainer,
 					Click
 				}), "Second")
+
+				local function updateTextboxSize()
+					local textHeight = TextboxFrame.Content.TextBounds.Y
+					TextboxFrame.Content.Size = UDim2.new(1, -40, 0, textHeight)
+					local frameHeight = math.max(38, textHeight + 16)
+					TextboxFrame.Size = UDim2.new(1, 0, 0, frameHeight)
+					
+					TextContainer.Position = UDim2.new(1, -12, 0, frameHeight / 2)
+				end
+
+				AddConnection(TextboxFrame.Content:GetPropertyChangedSignal("Text"), updateTextboxSize)
+				AddConnection(TextboxFrame.Content:GetPropertyChangedSignal("TextBounds"), updateTextboxSize)
+
+				TextboxFrame.Content.Text = TextboxConfig.Name
+				updateTextboxSize()
 
 				AddConnection(TextboxActual:GetPropertyChangedSignal("Text"), function()
 					TweenService:Create(TextContainer, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, TextboxActual.TextBounds.X + 16, 0, 24)}):Play()
