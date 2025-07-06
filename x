@@ -1838,45 +1838,41 @@ function OrionLib:MakeWindow(WindowConfig)
 			end
 
 			local function GetSmartSelectedText()
-				-- Calculate available space for the selected text
-				-- Total dropdown width minus: left padding (12) + dropdown name width + icon width (20) + right padding (30) + buffer (20)
 				local dropdownNameWidth = game:GetService("TextService"):GetTextSize(DropdownConfig.Name, 15, Enum.Font.GothamBold, Vector2.new(math.huge, 18)).X
-				local availableWidth = math.max(100, 300 - 12 - dropdownNameWidth - 20 - 30 - 20) -- Minimum 100px for selected text
+				local availableWidth = math.max(80, 280 - 12 - dropdownNameWidth - 20 - 30 - 15)
 				
 				if DropdownConfig.Multi then
 					local count = #Dropdown.Value
 					if count == 0 then
 						return "None Selected"
-					elseif count == 1 then
-						-- Check if single selection text fits
-						local singleOption = Dropdown.Value[1]
-						local textWidth = game:GetService("TextService"):GetTextSize(singleOption, 13, Enum.Font.Gotham, Vector2.new(math.huge, 18)).X
-						if textWidth > availableWidth then
-							return "1 Selected"
-						else
-							return singleOption
-						end
 					else
-						-- Always show count for multiple selections
-						return tostring(count) .. " Selected"
+						return tostring(count)
 					end
 				else
 					if Dropdown.Value == "" then
 						return "Select Option"
 					else
-						-- Check if single selection text fits
 						local textWidth = game:GetService("TextService"):GetTextSize(Dropdown.Value, 13, Enum.Font.Gotham, Vector2.new(math.huge, 18)).X
 						if textWidth > availableWidth then
-							-- Try truncating with ellipsis
-							local maxLength = math.floor(availableWidth / 7) - 3 -- Rough estimate: 7px per character
-							if maxLength > 0 and string.len(Dropdown.Value) > maxLength then
-								return string.sub(Dropdown.Value, 1, maxLength) .. "..."
-							else
-								return "..." -- Fallback if text is too long
-							end
+							return "..."
 						else
 							return Dropdown.Value
 						end
+					end
+				end
+			end
+
+			local function ShouldExpandDropdown()
+				if DropdownConfig.Multi then
+					return false
+				else
+					if Dropdown.Value == "" then
+						return false
+					else
+						local dropdownNameWidth = game:GetService("TextService"):GetTextSize(DropdownConfig.Name, 15, Enum.Font.GothamBold, Vector2.new(math.huge, 18)).X
+						local availableWidth = math.max(80, 280 - 12 - dropdownNameWidth - 20 - 30 - 15)
+						local textWidth = game:GetService("TextService"):GetTextSize(Dropdown.Value, 13, Enum.Font.Gotham, Vector2.new(math.huge, 18)).X
+						return textWidth > availableWidth
 					end
 				end
 			end
@@ -1888,6 +1884,16 @@ function OrionLib:MakeWindow(WindowConfig)
 				Size = UDim2.new(1,0,1,-38),
 				ClipsDescendants = true
 			}), "Divider")
+			
+			local ExpandedTextLabel = AddThemeObject(SetProps(MakeElement("Label", "", 13), {
+				Size = UDim2.new(1, -24, 0, 0),
+				Position = UDim2.new(0, 12, 0, 46),
+				Font = Enum.Font.Gotham,
+				Name = "ExpandedText",
+				TextWrapped = true,
+				Visible = false
+			}), "OtherText")
+			
 			local Click = SetProps(MakeElement("Button"), {Size = UDim2.new(1,0,1,0)})
 			local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255,0,255),0,5), {
 				Size = UDim2.new(1,0,0,38),
@@ -1927,6 +1933,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					ClipsDescendants = true,
 					Name = "F"
 				}),
+				ExpandedTextLabel,
 				AddThemeObject(MakeElement("Stroke"), "Stroke"),
 				MakeElement("Corner")
 			}), "Second")
@@ -1934,6 +1941,25 @@ function OrionLib:MakeWindow(WindowConfig)
 			AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
 				DropdownContainer.CanvasSize = UDim2.new(0,0,0,DropdownList.AbsoluteContentSize.Y)
 			end)
+
+			local function UpdateDropdownLayout()
+				local shouldExpand = ShouldExpandDropdown()
+				ExpandedTextLabel.Visible = shouldExpand
+				
+				if shouldExpand then
+					ExpandedTextLabel.Text = Dropdown.Value
+					local textHeight = game:GetService("TextService"):GetTextSize(Dropdown.Value, 13, Enum.Font.Gotham, Vector2.new(DropdownFrame.AbsoluteSize.X - 24, math.huge)).Y
+					ExpandedTextLabel.Size = UDim2.new(1, -24, 0, textHeight)
+					local totalHeight = 38 + textHeight + 16
+					DropdownFrame.Size = UDim2.new(1, 0, 0, totalHeight)
+					DropdownContainer.Position = UDim2.new(0, 0, 0, totalHeight)
+				else
+					DropdownFrame.Size = UDim2.new(1, 0, 0, 38)
+					DropdownContainer.Position = UDim2.new(0, 0, 0, 38)
+				end
+				
+				DropdownFrame.F.Selected.Text = GetSmartSelectedText()
+			end
 
 			function UpdateButtonVisuals(button, option, isSelected, animate)
 				local t = animate and 0.15 or 0
@@ -1971,7 +1997,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						for opt, btn in pairs(Dropdown.Buttons) do
 							UpdateButtonVisuals(btn, opt, DropdownConfig.Multi and table.find(Dropdown.Value, opt) or Dropdown.Value == opt, true)
 						end
-						DropdownFrame.F.Selected.Text = GetSmartSelectedText()
+						UpdateDropdownLayout()
 						DropdownConfig.Callback(Dropdown.Value)
 						if DropdownConfig.Save then SaveCfg(game.GameId) end
 					end)
@@ -1997,7 +2023,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 				Dropdown.Options = options
 				AddOptions(options)
-				DropdownFrame.F.Selected.Text = GetSmartSelectedText()
+				UpdateDropdownLayout()
 			end
 
 			function Dropdown:Set(value)
@@ -2012,7 +2038,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				for opt, btn in pairs(Dropdown.Buttons) do
 					UpdateButtonVisuals(btn, opt, DropdownConfig.Multi and table.find(Dropdown.Value, opt) or Dropdown.Value == opt, true)
 				end
-				DropdownFrame.F.Selected.Text = GetSmartSelectedText()
+				UpdateDropdownLayout()
 				DropdownConfig.Callback(Dropdown.Value)
 			end
 
@@ -2020,12 +2046,15 @@ function OrionLib:MakeWindow(WindowConfig)
 				Dropdown.Toggled = not Dropdown.Toggled
 				DropdownFrame.F.Line.Visible = Dropdown.Toggled
 				TweenService:Create(DropdownFrame.F.Ico, TweenInfo.new(0.15), {Rotation = Dropdown.Toggled and 180 or 0}):Play()
-				local size = Dropdown.Toggled and (#Dropdown.Options > MaxElements and 38 + MaxElements*28 or 38 + DropdownList.AbsoluteContentSize.Y) or 38
-				TweenService:Create(DropdownFrame, TweenInfo.new(0.15), {Size = UDim2.new(1,0,0,size)}):Play()
+				
+				local baseSize = ShouldExpandDropdown() and (38 + game:GetService("TextService"):GetTextSize(Dropdown.Value or "", 13, Enum.Font.Gotham, Vector2.new(DropdownFrame.AbsoluteSize.X - 24, math.huge)).Y + 16) or 38
+				local expandedSize = Dropdown.Toggled and (#Dropdown.Options > MaxElements and baseSize + MaxElements*28 or baseSize + DropdownList.AbsoluteContentSize.Y) or baseSize
+				
+				TweenService:Create(DropdownFrame, TweenInfo.new(0.15), {Size = UDim2.new(1,0,0,expandedSize)}):Play()
 			end)
 
 			Dropdown:Refresh(Dropdown.Options, false)
-			DropdownFrame.F.Selected.Text = GetSmartSelectedText()
+			UpdateDropdownLayout()
 
 			if DropdownConfig.Default and DropdownConfig.Default ~= "" then
 				Dropdown:Set(DropdownConfig.Default)
