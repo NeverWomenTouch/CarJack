@@ -2165,16 +2165,16 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				local function updateTextboxSize()
 					local textHeight = TextboxFrame.Content.TextBounds.Y
-					local textIsSingleLine = textHeight <= 18
+					local textIsSingleLine = textHeight <= 20
 					
 					if textIsSingleLine then
-						TextboxFrame.Content.Size = UDim2.new(1, -124, 0, textHeight)
+						TextboxFrame.Content.Size = UDim2.new(1, -124, 0, math.max(textHeight, 18))
 						TextContainer.Position = UDim2.new(1, -112, 0, 7)
-						TextboxFrame.Size = UDim2.new(1, 0, 0, math.max(38, textHeight + 14))
+						TextboxFrame.Size = UDim2.new(1, 0, 0, 38)
 					else
 						TextboxFrame.Content.Size = UDim2.new(1, -12, 0, textHeight)
-						TextContainer.Position = UDim2.new(1, -112, 0, textHeight + 14)
-						TextboxFrame.Size = UDim2.new(1, 0, 0, textHeight + 50)
+						TextContainer.Position = UDim2.new(1, -112, 0, textHeight + 16)
+						TextboxFrame.Size = UDim2.new(1, 0, 0, textHeight + 48)
 					end
 				end
 
@@ -2183,10 +2183,6 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				TextboxFrame.Content.Text = TextboxConfig.Name
 				updateTextboxSize()
-
-				AddConnection(TextboxActual:GetPropertyChangedSignal("Text"), function()
-					TweenService:Create(TextContainer, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, TextboxActual.TextBounds.X + 16, 0, 24)}):Play()
-				end)
 
 				AddConnection(TextboxActual.FocusLost, function()
 					TextboxConfig.Callback(TextboxActual.Text)
