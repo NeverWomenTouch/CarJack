@@ -1973,235 +1973,214 @@ function OrionLib:MakeWindow(WindowConfig)
 			return Dropdown
 		end
 
-function ElementFunction:AddTextbox(TextboxConfig)
-    TextboxConfig = TextboxConfig or {}
-    TextboxConfig.Name = TextboxConfig.Name or "Textbox"
-    TextboxConfig.Default = TextboxConfig.Default or ""
-    TextboxConfig.TextDisappear = TextboxConfig.TextDisappear or false
-    TextboxConfig.Callback = TextboxConfig.Callback or function() end
-    TextboxConfig.ToolTip = TextboxConfig.ToolTip or ""
+	function ElementFunction:AddBind(BindConfig)
+					BindConfig.Name = BindConfig.Name or "Bind"
+					BindConfig.Default = BindConfig.Default or Enum.KeyCode.Unknown
+					BindConfig.Hold = BindConfig.Hold or false
+					BindConfig.Callback = BindConfig.Callback or function() end
+					BindConfig.Flag = BindConfig.Flag or nil
+					BindConfig.Save = BindConfig.Save or false
+					BindConfig.ToolTip = BindConfig.ToolTip or ""
 
-    local Click = SetProps(MakeElement("Button"), {
-        Size = UDim2.new(1, 0, 1, 0)
-    })
+					local Bind = {Value, Binding = false, Type = "Bind", Save = BindConfig.Save}
+					local Holding = false
 
-    local TextboxActual = AddThemeObject(Create("TextBox", {
-        Size = UDim2.new(1, -8, 1, -4),
-        Position = UDim2.new(0, 4, 0, 2),
-        BackgroundTransparency = 1,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        PlaceholderColor3 = Color3.fromRGB(210,210,210),
-        PlaceholderText = "Input",
-        Font = Enum.Font.GothamSemibold,
-        TextXAlignment = Enum.TextXAlignment.Center,
-        TextSize = 14,
-        ClearTextOnFocus = false,
-        TextWrapped = false
-    }), "Text")
+					local Click = SetProps(MakeElement("Button"), {
+						Size = UDim2.new(1, 0, 1, 0)
+					})
 
-    local TextContainer = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
-        Size = UDim2.new(0, 100, 0, 24),
-        Position = UDim2.new(1, -12, 0.5, 0),
-        AnchorPoint = Vector2.new(1, 0.5)
-    }), {
-        AddThemeObject(MakeElement("Stroke"), "Stroke"),
-        TextboxActual
-    }), "Main")
+					local BindBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
+						Size = UDim2.new(0, 24, 0, 24),
+						Position = UDim2.new(1, -12, 0.5, 0),
+						AnchorPoint = Vector2.new(1, 0.5)
+					}), {
+						AddThemeObject(MakeElement("Stroke"), "Stroke"),
+						AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 14), {
+							Size = UDim2.new(1, 0, 1, 0),
+							Font = Enum.Font.GothamBold,
+							TextXAlignment = Enum.TextXAlignment.Center,
+							Name = "Value"
+						}), "Text")
+					}), "Main")
 
-    local TextboxFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
-        Size = UDim2.new(1, 0, 0, 38),
-        Parent = ItemParent
-    }), {
-        AddThemeObject(SetProps(MakeElement("Label", TextboxConfig.Name, 15), {
-            Size = UDim2.new(1, -120, 1, 0),
-            Position = UDim2.new(0, 12, 0, 0),
-            Font = Enum.Font.GothamBold,
-            Name = "Content"
-        }), "Text"),
-        AddThemeObject(MakeElement("Stroke"), "Stroke"),
-        TextContainer,
-        Click
-    }), "Second")
+					local BindFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+						Size = UDim2.new(1, 0, 0, 38),
+						Parent = ItemParent
+					}), {
+						AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 15), {
+							Size = UDim2.new(1, -12, 1, 0),
+							Position = UDim2.new(0, 12, 0, 0),
+							Font = Enum.Font.GothamBold,
+							Name = "Content"
+						}), "Text"),
+						AddThemeObject(MakeElement("Stroke"), "Stroke"),
+						BindBox,
+						Click
+					}), "Second")
 
-    AddConnection(TextboxActual:GetPropertyChangedSignal("Text"), function()
-        local textBounds = TextboxActual.TextBounds.X
-        local newWidth = math.max(textBounds + 20, 100)
-        newWidth = math.min(newWidth, 200)
-        
-        TweenService:Create(TextContainer, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, newWidth, 0, 24)
-        }):Play()
-        
-        TextboxFrame.Content.Size = UDim2.new(1, -newWidth - 24, 1, 0)
-    end)
+					AddConnection(BindBox.Value:GetPropertyChangedSignal("Text"), function()
+						TweenService:Create(BindBox, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, BindBox.Value.TextBounds.X + 16, 0, 24)}):Play()
+					end)
 
-    AddConnection(TextboxActual.FocusLost, function()
-        TextboxConfig.Callback(TextboxActual.Text)
-        if TextboxConfig.TextDisappear then
-            TextboxActual.Text = ""
-        end    
-    end)
+					AddConnection(Click.InputEnded, function(Input)
+						if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+							if Bind.Binding then return end
+							Bind.Binding = true
+							BindBox.Value.Text = ""
+						end
+					end)
 
-    TextboxActual.Text = TextboxConfig.Default
+					AddConnection(UserInputService.InputBegan, function(Input)
+						if UserInputService:GetFocusedTextBox() then return end
+						if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding then
+							if BindConfig.Hold then
+								Holding = true
+								BindConfig.Callback(Holding)
+							else
+								BindConfig.Callback()
+							end
+						elseif Bind.Binding then
+							local Key
+							pcall(function()
+								if not CheckKey(BlacklistedKeys, Input.KeyCode) then
+									Key = Input.KeyCode
+								end
+							end)
+							pcall(function()
+								if CheckKey(WhitelistedMouse, Input.UserInputType) and not Key then
+									Key = Input.UserInputType
+								end
+							end)
+							Key = Key or Bind.Value
+							Bind:Set(Key)
+							SaveCfg(game.GameId)
+						end
+					end)
 
-    AddConnection(Click.MouseEnter, function()
-        TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
-    end)
+					AddConnection(UserInputService.InputEnded, function(Input)
+						if Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value then
+							if BindConfig.Hold and Holding then
+								Holding = false
+								BindConfig.Callback(Holding)
+							end
+						end
+					end)
 
-    AddConnection(Click.MouseLeave, function()
-        TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
-    end)
+					AddConnection(Click.MouseEnter, function()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					end)
 
-    AddConnection(Click.MouseButton1Up, function()
-        TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
-        TextboxActual:CaptureFocus()
-    end)
+					AddConnection(Click.MouseLeave, function()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
+					end)
 
-    AddConnection(Click.MouseButton1Down, function()
-        TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
-    end)
-    
-    if TextboxConfig.ToolTip and TextboxConfig.ToolTip ~= "" then
-        AddTooltipToElement(TextboxFrame, TextboxConfig.ToolTip)
-    end
-end
+					AddConnection(Click.MouseButton1Up, function()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					end)
 
-function ElementFunction:AddBind(BindConfig)
-    BindConfig.Name = BindConfig.Name or "Bind"
-    BindConfig.Default = BindConfig.Default or Enum.KeyCode.Unknown
-    BindConfig.Hold = BindConfig.Hold or false
-    BindConfig.Callback = BindConfig.Callback or function() end
-    BindConfig.Flag = BindConfig.Flag or nil
-    BindConfig.Save = BindConfig.Save or false
-    BindConfig.ToolTip = BindConfig.ToolTip or ""
+					AddConnection(Click.MouseButton1Down, function()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
+					end)
 
-    local Bind = {Value, Binding = false, Type = "Bind", Save = BindConfig.Save}
-    local Holding = false
+					function Bind:Set(Key)
+						Bind.Binding = false
+						Bind.Value = Key or Bind.Value
+						Bind.Value = Bind.Value.Name or Bind.Value
+						BindBox.Value.Text = Bind.Value
+					end
 
-    local Click = SetProps(MakeElement("Button"), {
-        Size = UDim2.new(1, 0, 1, 0)
-    })
+					Bind:Set(BindConfig.Default)
+					if BindConfig.Flag then				
+						OrionLib.Flags[BindConfig.Flag] = Bind
+					end
+					if BindConfig.ToolTip and BindConfig.ToolTip ~= "" then
+						AddTooltipToElement(BindFrame, BindConfig.ToolTip)
+					end
+					
+					return Bind
+				end
+			function ElementFunction:AddTextbox(TextboxConfig)
+				TextboxConfig = TextboxConfig or {}
+				TextboxConfig.Name = TextboxConfig.Name or "Textbox"
+				TextboxConfig.Default = TextboxConfig.Default or ""
+				TextboxConfig.TextDisappear = TextboxConfig.TextDisappear or false
+				TextboxConfig.Callback = TextboxConfig.Callback or function() end
+				TextboxConfig.ToolTip = TextboxConfig.ToolTip or ""
 
-    local BindBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
-        Size = UDim2.new(0, 80, 0, 24),
-        Position = UDim2.new(1, -12, 0.5, 0),
-        AnchorPoint = Vector2.new(1, 0.5)
-    }), {
-        AddThemeObject(MakeElement("Stroke"), "Stroke"),
-        AddThemeObject(SetProps(MakeElement("Label", "Unknown", 14), {
-            Size = UDim2.new(1, -8, 1, 0),
-            Position = UDim2.new(0, 4, 0, 0),
-            Font = Enum.Font.GothamBold,
-            TextXAlignment = Enum.TextXAlignment.Center,
-            Name = "Value"
-        }), "Text")
-    }), "Main")
+				local Click = SetProps(MakeElement("Button"), {
+					Size = UDim2.new(1, 0, 1, 0)
+				})
 
-    local BindFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
-        Size = UDim2.new(1, 0, 0, 38),
-        Parent = ItemParent
-    }), {
-        AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 15), {
-            Size = UDim2.new(1, -100, 1, 0),
-            Position = UDim2.new(0, 12, 0, 0),
-            Font = Enum.Font.GothamBold,
-            Name = "Content"
-        }), "Text"),
-        AddThemeObject(MakeElement("Stroke"), "Stroke"),
-        BindBox,
-        Click
-    }), "Second")
+				local TextboxActual = AddThemeObject(Create("TextBox", {
+					Size = UDim2.new(1, 0, 1, 0),
+					BackgroundTransparency = 1,
+					TextColor3 = Color3.fromRGB(255, 255, 255),
+					PlaceholderColor3 = Color3.fromRGB(210,210,210),
+					PlaceholderText = "Input",
+					Font = Enum.Font.GothamSemibold,
+					TextXAlignment = Enum.TextXAlignment.Center,
+					TextSize = 14,
+					ClearTextOnFocus = false
+				}), "Text")
 
-    AddConnection(BindBox.Value:GetPropertyChangedSignal("Text"), function()
-        local textBounds = BindBox.Value.TextBounds.X
-        local newWidth = math.max(textBounds + 16, 80)
-        newWidth = math.min(newWidth, 150)
-        
-        TweenService:Create(BindBox, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, newWidth, 0, 24)
-        }):Play()
-        
-        BindFrame.Content.Size = UDim2.new(1, -newWidth - 24, 1, 0)
-    end)
+				local TextContainer = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
+					Size = UDim2.new(0, 24, 0, 24),
+					Position = UDim2.new(1, -12, 0.5, 0),
+					AnchorPoint = Vector2.new(1, 0.5)
+				}), {
+					AddThemeObject(MakeElement("Stroke"), "Stroke"),
+					TextboxActual
+				}), "Main")
 
-    AddConnection(Click.InputEnded, function(Input)
-        if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if Bind.Binding then return end
-            Bind.Binding = true
-            BindBox.Value.Text = "..."
-        end
-    end)
 
-    AddConnection(UserInputService.InputBegan, function(Input)
-        if UserInputService:GetFocusedTextBox() then return end
-        if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding then
-            if BindConfig.Hold then
-                Holding = true
-                BindConfig.Callback(Holding)
-            else
-                BindConfig.Callback()
-            end
-        elseif Bind.Binding then
-            local Key
-            pcall(function()
-                if not CheckKey(BlacklistedKeys, Input.KeyCode) then
-                    Key = Input.KeyCode
-                end
-            end)
-            pcall(function()
-                if CheckKey(WhitelistedMouse, Input.UserInputType) and not Key then
-                    Key = Input.UserInputType
-                end
-            end)
-            Key = Key or Bind.Value
-            Bind:Set(Key)
-            SaveCfg(game.GameId)
-        end
-    end)
+				local TextboxFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+					Size = UDim2.new(1, 0, 0, 38),
+					Parent = ItemParent
+				}), {
+					AddThemeObject(SetProps(MakeElement("Label", TextboxConfig.Name, 15), {
+						Size = UDim2.new(1, -12, 1, 0),
+						Position = UDim2.new(0, 12, 0, 0),
+						Font = Enum.Font.GothamBold,
+						Name = "Content"
+					}), "Text"),
+					AddThemeObject(MakeElement("Stroke"), "Stroke"),
+					TextContainer,
+					Click
+				}), "Second")
 
-    AddConnection(UserInputService.InputEnded, function(Input)
-        if Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value then
-            if BindConfig.Hold and Holding then
-                Holding = false
-                BindConfig.Callback(Holding)
-            end
-        end
-    end)
+				AddConnection(TextboxActual:GetPropertyChangedSignal("Text"), function()
+					TweenService:Create(TextContainer, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, TextboxActual.TextBounds.X + 16, 0, 24)}):Play()
+				end)
 
-    AddConnection(Click.MouseEnter, function()
-        TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
-    end)
+				AddConnection(TextboxActual.FocusLost, function()
+					TextboxConfig.Callback(TextboxActual.Text)
+					if TextboxConfig.TextDisappear then
+						TextboxActual.Text = ""
+					end	
+				end)
 
-    AddConnection(Click.MouseLeave, function()
-        TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
-    end)
+				TextboxActual.Text = TextboxConfig.Default
 
-    AddConnection(Click.MouseButton1Up, function()
-        TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
-    end)
+				AddConnection(Click.MouseEnter, function()
+					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+				end)
 
-    AddConnection(Click.MouseButton1Down, function()
-        TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
-    end)
+				AddConnection(Click.MouseLeave, function()
+					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
+				end)
 
-    function Bind:Set(Key)
-        Bind.Binding = false
-        Bind.Value = Key or Bind.Value
-        Bind.Value = Bind.Value.Name or Bind.Value
-        BindBox.Value.Text = Bind.Value
-    end
+				AddConnection(Click.MouseButton1Up, function()
+					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					TextboxActual:CaptureFocus()
+				end)
 
-    Bind:Set(BindConfig.Default)
-    
-    if BindConfig.Flag then                
-        OrionLib.Flags[BindConfig.Flag] = Bind
-    end
-    if BindConfig.ToolTip and BindConfig.ToolTip ~= "" then
-        AddTooltipToElement(BindFrame, BindConfig.ToolTip)
-    end
-    
-    return Bind
-end
+				AddConnection(Click.MouseButton1Down, function()
+					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
+				end)
+				    if TextboxConfig.ToolTip and TextboxConfig.ToolTip ~= "" then
+      				AddTooltipToElement(TextboxFrame, TextboxConfig.ToolTip)
+				end
+			end	
 
 			function ElementFunction:AddToggleColorPicker(ToggleColorPickerConfig)
 				ToggleColorPickerConfig = ToggleColorPickerConfig or {}
