@@ -1825,9 +1825,59 @@ function OrionLib:MakeWindow(WindowConfig)
 			local function GetSelectedText()
 				if DropdownConfig.Multi then
 					local count = #Dropdown.Value
-					return count == 0 and "None Selected" or (count == 1 and Dropdown.Value[1] or tostring(count) .. " Selected")
+					if count == 0 then
+						return "None Selected"
+					elseif count == 1 then
+						return Dropdown.Value[1]
+					else
+						return tostring(count) .. " Selected"
+					end
 				else
 					return Dropdown.Value == "" and "Select Option" or Dropdown.Value
+				end
+			end
+
+			local function GetSmartSelectedText()
+				-- Calculate available space for the selected text
+				-- Total dropdown width minus: left padding (12) + dropdown name width + icon width (20) + right padding (30) + buffer (20)
+				local dropdownNameWidth = game:GetService("TextService"):GetTextSize(DropdownConfig.Name, 15, Enum.Font.GothamBold, Vector2.new(math.huge, 18)).X
+				local availableWidth = math.max(100, 300 - 12 - dropdownNameWidth - 20 - 30 - 20) -- Minimum 100px for selected text
+				
+				if DropdownConfig.Multi then
+					local count = #Dropdown.Value
+					if count == 0 then
+						return "None Selected"
+					elseif count == 1 then
+						-- Check if single selection text fits
+						local singleOption = Dropdown.Value[1]
+						local textWidth = game:GetService("TextService"):GetTextSize(singleOption, 13, Enum.Font.Gotham, Vector2.new(math.huge, 18)).X
+						if textWidth > availableWidth then
+							return "1 Selected"
+						else
+							return singleOption
+						end
+					else
+						-- Always show count for multiple selections
+						return tostring(count) .. " Selected"
+					end
+				else
+					if Dropdown.Value == "" then
+						return "Select Option"
+					else
+						-- Check if single selection text fits
+						local textWidth = game:GetService("TextService"):GetTextSize(Dropdown.Value, 13, Enum.Font.Gotham, Vector2.new(math.huge, 18)).X
+						if textWidth > availableWidth then
+							-- Try truncating with ellipsis
+							local maxLength = math.floor(availableWidth / 7) - 3 -- Rough estimate: 7px per character
+							if maxLength > 0 and string.len(Dropdown.Value) > maxLength then
+								return string.sub(Dropdown.Value, 1, maxLength) .. "..."
+							else
+								return "..." -- Fallback if text is too long
+							end
+						else
+							return Dropdown.Value
+						end
+					end
 				end
 			end
 
@@ -1859,7 +1909,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						ImageColor3 = Color3.fromRGB(255,0,255),
 						Name = "Ico"
 					}), "OtherText"),
-					AddThemeObject(SetProps(MakeElement("Label", GetSelectedText(), 13), {
+					AddThemeObject(SetProps(MakeElement("Label", GetSmartSelectedText(), 13), {
 						Size = UDim2.new(1,-40,1,0),
 						Font = Enum.Font.Gotham,
 						Name = "Selected",
@@ -1921,7 +1971,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						for opt, btn in pairs(Dropdown.Buttons) do
 							UpdateButtonVisuals(btn, opt, DropdownConfig.Multi and table.find(Dropdown.Value, opt) or Dropdown.Value == opt, true)
 						end
-						DropdownFrame.F.Selected.Text = GetSelectedText()
+						DropdownFrame.F.Selected.Text = GetSmartSelectedText()
 						DropdownConfig.Callback(Dropdown.Value)
 						if DropdownConfig.Save then SaveCfg(game.GameId) end
 					end)
@@ -1947,7 +1997,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 				Dropdown.Options = options
 				AddOptions(options)
-				DropdownFrame.F.Selected.Text = GetSelectedText()
+				DropdownFrame.F.Selected.Text = GetSmartSelectedText()
 			end
 
 			function Dropdown:Set(value)
@@ -1962,7 +2012,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				for opt, btn in pairs(Dropdown.Buttons) do
 					UpdateButtonVisuals(btn, opt, DropdownConfig.Multi and table.find(Dropdown.Value, opt) or Dropdown.Value == opt, true)
 				end
-				DropdownFrame.F.Selected.Text = GetSelectedText()
+				DropdownFrame.F.Selected.Text = GetSmartSelectedText()
 				DropdownConfig.Callback(Dropdown.Value)
 			end
 
@@ -1975,7 +2025,7 @@ function OrionLib:MakeWindow(WindowConfig)
 			end)
 
 			Dropdown:Refresh(Dropdown.Options, false)
-			DropdownFrame.F.Selected.Text = GetSelectedText()
+			DropdownFrame.F.Selected.Text = GetSmartSelectedText()
 
 			if DropdownConfig.Default and DropdownConfig.Default ~= "" then
 				Dropdown:Set(DropdownConfig.Default)
