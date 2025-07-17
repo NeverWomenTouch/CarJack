@@ -1794,6 +1794,18 @@ function OrionLib:MakeWindow(WindowConfig)
 				Toggled = false,
 				Save = DropdownConfig.Save
 			}
+			
+			local function InitializeDropdownState()
+				Dropdown.Toggled = false
+				if DropdownFrame then
+					DropdownFrame.F.Line.Visible = false
+					if DropdownFrame.F.Ico then
+						DropdownFrame.F.Ico.Rotation = 0
+					end
+					local baseSize = 38
+					DropdownFrame.Size = UDim2.new(1, 0, 0, baseSize)
+				end
+			end
 			local MaxElements = 5
 
 			if DropdownConfig.Multi then
@@ -2130,6 +2142,8 @@ function OrionLib:MakeWindow(WindowConfig)
 			if DropdownConfig.Default and DropdownConfig.Default ~= "" then
 				Dropdown:Set(DropdownConfig.Default)
 			end
+
+			InitializeDropdownState() -- Ensure dropdown starts closed
 
 			if DropdownConfig.Flag then OrionLib.Flags[DropdownConfig.Flag] = Dropdown end
 			if DropdownConfig.ToolTip ~= "" then AddTooltipToElement(DropdownFrame, DropdownConfig.ToolTip) end
