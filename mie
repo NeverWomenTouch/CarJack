@@ -1,0 +1,464 @@
+
+local lp = game.Players.LocalPlayer
+local camera = game.Workspace.CurrentCamera
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = game:GetService("Workspace").CurrentCamera
+local ESPInstances = {}
+function CPESP(Player)
+    if ESPInstances[Player] then
+        if ESPInstances[Player].connection then
+            ESPInstances[Player].connection:Disconnect()
+        end
+        for _, drawing in ipairs(ESPInstances[Player].drawings) do
+            if drawing then drawing:Remove() end
+        end
+        if ESPInstances[Player].chamsHighlight then
+            ESPInstances[Player].chamsHighlight:Destroy()
+        end
+        if ESPInstances[Player].skeletonLimbs then
+            for _, limb in pairs(ESPInstances[Player].skeletonLimbs) do
+                limb:Remove()
+            end
+        end
+        ESPInstances[Player] = nil
+    end
+end
+function ThanosTheCreatorEspNigger(Player)
+    if not Player then return end
+    CPESP(Player)
+    local Box, BoxOutline, BoxFilled, Name, Distance, Weapon, HealthBar, HealthBarOutline, HealthText, Tracer, TracerOutline = 
+        Drawing.new("Square"), Drawing.new("Square"), Drawing.new("Square"), 
+        Drawing.new("Text"), Drawing.new("Text"), Drawing.new("Text"), 
+        Drawing.new("Square"), Drawing.new("Square"), Drawing.new("Text"),
+        Drawing.new("Line"), Drawing.new("Line")
+    local chamsHighlight = nil
+    if getgenv().Config.Esp.Chams and Player and Player:IsA("Model") then
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = Player
+        highlight.FillColor = getgenv().Config.Esp.ChamsFillColor
+        highlight.OutlineColor = getgenv().Config.Esp.ChamsOutlineColor
+        highlight.FillTransparency = getgenv().Config.Esp.ChamsFillTransparency or 0.5
+        highlight.OutlineTransparency = getgenv().Config.Esp.ChamsOutlineTransparency or 0
+        highlight.DepthMode = getgenv().Config.Esp.ChamsOutlineMode or "AlwaysOnTop"
+        highlight.Parent = game:GetService("CoreGui")
+        chamsHighlight = highlight
+    end
+    local skeletonLimbs = {}
+    if getgenv().Config.Esp.Skeleton and Player and Player:FindFirstChild("Humanoid") then
+        local humanoid = Player:FindFirstChild("Humanoid")
+        local rigType = humanoid.RigType
+        local function DrawLine()
+            local line = Drawing.new("Line")
+            line.Visible = false
+            line.Color = getgenv().Config.Esp.SkeletonColor
+            line.Thickness = getgenv().Config.Esp.SkeletonThickness
+            line.Transparency = getgenv().Config.Esp.SkeletonTransparency
+            line.ZIndex = 100
+            return line
+        end
+        if rigType == Enum.HumanoidRigType.R15 then
+            skeletonLimbs = {
+                HeadToChest = DrawLine(),
+                ChestToPelvis = DrawLine(),
+                ChestToLeftShoulder = DrawLine(),
+                LeftUpperArmToLeftLowerArm = DrawLine(),
+                LeftLowerArmToLeftHand = DrawLine(),
+                ChestToRightShoulder = DrawLine(),
+                RightUpperArmToRightLowerArm = DrawLine(),
+                RightLowerArmToRightHand = DrawLine(),
+                PelvisToLeftThigh = DrawLine(),
+                LeftThighToLeftCalf = DrawLine(),
+                LeftCalfToLeftFoot = DrawLine(),
+                PelvisToRightThigh = DrawLine(),
+                RightThighToRightCalf = DrawLine(),
+                RightCalfToRightFoot = DrawLine(),
+                PelvisToLeftThighDirect = DrawLine(),
+                PelvisToRightThighDirect = DrawLine(),
+            }
+        else
+            skeletonLimbs = {
+                HeadToSpine = DrawLine(),
+                SpineLine = DrawLine(),
+                LeftArmLine = DrawLine(),
+                LeftArmToChest = DrawLine(),
+                RightArmLine = DrawLine(),
+                RightArmToChest = DrawLine(),
+                LeftLegLine = DrawLine(),
+                LeftLegToPelvis = DrawLine(),
+                RightLegLine = DrawLine(),
+                RightLegToPelvis = DrawLine(),
+            }
+        end
+    end
+    ESPInstances[Player] = {
+        drawings = {Box, BoxOutline, BoxFilled, Name, Distance, Weapon, HealthBar, HealthBarOutline, HealthText, Tracer, TracerOutline},
+        connection = nil,
+        chamsHighlight = chamsHighlight,
+        skeletonLimbs = skeletonLimbs
+    }
+    local Updater = RunService.RenderStepped:Connect(function()
+        local char = Player
+        if not char then return end
+        local humanoid = char:FindFirstChild("Humanoid")
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        if char and char.Parent and rootPart and humanoid then
+            if getgenv().Config.Esp.Skeleton and ESPInstances[Player].skeletonLimbs then
+                local limbs = ESPInstances[Player].skeletonLimbs
+                local rigType = humanoid.RigType
+                local Camera = game:GetService("Workspace").CurrentCamera
+                if rigType == Enum.HumanoidRigType.R15 then
+                    local function v2(part)
+                        local partObj = char:FindFirstChild(part)
+                        if not partObj then return Vector2.new(), false end
+                        local pos, vis = Camera:WorldToViewportPoint(partObj.Position)
+                        return Vector2.new(pos.X, pos.Y), vis
+                    end
+                    local head, vis = v2("Head")
+                    local chest = v2("UpperTorso")
+                    local pelvis = v2("LowerTorso")
+                    local leftShoulder = v2("LeftUpperArm")
+                    local leftElbow = v2("LeftLowerArm")
+                    local leftHand = v2("LeftHand")
+                    local rightShoulder = v2("RightUpperArm")
+                    local rightElbow = v2("RightLowerArm")
+                    local rightHand = v2("RightHand")
+                    local leftThigh = v2("LeftUpperLeg")
+                    local leftCalf = v2("LeftLowerLeg")
+                    local leftFoot = v2("LeftFoot")
+                    local rightThigh = v2("RightUpperLeg")
+                    local rightCalf = v2("RightLowerLeg")
+                    local rightFoot = v2("RightFoot")
+                    local function setLine(limb, from, to)
+                        if limbs[limb] and from and to then
+                            limbs[limb].From = from
+                            limbs[limb].To = to
+                            limbs[limb].Visible = vis
+                            limbs[limb].Color = getgenv().Config.Esp.SkeletonColor
+                            limbs[limb].Thickness = getgenv().Config.Esp.SkeletonThickness
+                            limbs[limb].Transparency = getgenv().Config.Esp.SkeletonTransparency
+                            if limbs[limb].HasOwnProperty then
+                                limbs[limb].HasOwnProperty("AntiAliasing")
+                                limbs[limb].AntiAliasing = true
+                            end
+                        elseif limbs[limb] then
+                            limbs[limb].Visible = false
+                        end
+                    end
+                    setLine("HeadToChest", head, chest)
+                    setLine("ChestToPelvis", chest, pelvis)
+                    setLine("PelvisToLeftThighDirect", pelvis, leftThigh)
+                    setLine("PelvisToRightThighDirect", pelvis, rightThigh)
+                    setLine("ChestToLeftShoulder", chest, leftShoulder)
+                    setLine("LeftUpperArmToLeftLowerArm", leftShoulder, leftElbow)
+                    setLine("LeftLowerArmToLeftHand", leftElbow, leftHand)
+                    setLine("ChestToRightShoulder", chest, rightShoulder)
+                    setLine("RightUpperArmToRightLowerArm", rightShoulder, rightElbow)
+                    setLine("RightLowerArmToRightHand", rightElbow, rightHand)
+                    setLine("PelvisToLeftThigh", pelvis, leftThigh)
+                    setLine("LeftThighToLeftCalf", leftThigh, leftCalf)
+                    setLine("LeftCalfToLeftFoot", leftCalf, leftFoot)
+                    setLine("PelvisToRightThigh", pelvis, rightThigh)
+                    setLine("RightThighToRightCalf", rightThigh, rightCalf)
+                    setLine("RightCalfToRightFoot", rightCalf, rightFoot)
+                else
+                    local function v2(part)
+                        local partObj = char:FindFirstChild(part)
+                        if not partObj then return Vector2.new(), false end
+                        local pos, vis = Camera:WorldToViewportPoint(partObj.Position)
+                        return Vector2.new(pos.X, pos.Y), vis
+                    end
+                    local head, vis = v2("Head")
+                    local torso = char:FindFirstChild("Torso")
+                    if torso then
+                        local torsoHeight = torso.Size.Y/2 - 0.2
+                        local chestPos = Camera:WorldToViewportPoint((torso.CFrame * CFrame.new(0, torsoHeight, 0)).p)
+                        local pelvisPos = Camera:WorldToViewportPoint((torso.CFrame * CFrame.new(0, -torsoHeight, 0)).p)
+                        local leftArmTop = Camera:WorldToViewportPoint((char["Left Arm"].CFrame * CFrame.new(0, char["Left Arm"].Size.Y/2 - 0.2, 0)).p)
+                        local leftArmBottom = Camera:WorldToViewportPoint((char["Left Arm"].CFrame * CFrame.new(0, -char["Left Arm"].Size.Y/2 + 0.2, 0)).p)
+                        local rightArmTop = Camera:WorldToViewportPoint((char["Right Arm"].CFrame * CFrame.new(0, char["Right Arm"].Size.Y/2 - 0.2, 0)).p)
+                        local rightArmBottom = Camera:WorldToViewportPoint((char["Right Arm"].CFrame * CFrame.new(0, -char["Right Arm"].Size.Y/2 + 0.2, 0)).p)
+                        local leftLegTop = Camera:WorldToViewportPoint((char["Left Leg"].CFrame * CFrame.new(0, char["Left Leg"].Size.Y/2 - 0.2, 0)).p)
+                        local leftLegBottom = Camera:WorldToViewportPoint((char["Left Leg"].CFrame * CFrame.new(0, -char["Left Leg"].Size.Y/2 + 0.2, 0)).p)
+                        local rightLegTop = Camera:WorldToViewportPoint((char["Right Leg"].CFrame * CFrame.new(0, char["Right Leg"].Size.Y/2 - 0.2, 0)).p)
+                        local rightLegBottom = Camera:WorldToViewportPoint((char["Right Leg"].CFrame * CFrame.new(0, -char["Right Leg"].Size.Y/2 + 0.2, 0)).p)
+                        local function setLineR6(limb, from, to)
+                            if limbs[limb] and from and to then
+                                limbs[limb].From = from
+                                limbs[limb].To = to
+                                limbs[limb].Visible = vis
+                                limbs[limb].Color = getgenv().Config.Esp.SkeletonColor
+                                limbs[limb].Thickness = getgenv().Config.Esp.SkeletonThickness
+                                limbs[limb].Transparency = getgenv().Config.Esp.SkeletonTransparency
+                                if limbs[limb].HasOwnProperty then
+                                    limbs[limb].HasOwnProperty("AntiAliasing")
+                                    limbs[limb].AntiAliasing = true
+                                end
+                            elseif limbs[limb] then
+                                limbs[limb].Visible = false
+                            end
+                        end
+                        setLineR6("HeadToSpine", Vector2.new(head.X, head.Y), Vector2.new(chestPos.X, chestPos.Y))
+                        setLineR6("SpineLine", Vector2.new(chestPos.X, chestPos.Y), Vector2.new(pelvisPos.X, pelvisPos.Y))
+                        setLineR6("LeftArmLine", Vector2.new(leftArmTop.X, leftArmTop.Y), Vector2.new(leftArmBottom.X, leftArmBottom.Y))
+                        setLineR6("LeftArmToChest", Vector2.new(chestPos.X, chestPos.Y), Vector2.new(leftArmTop.X, leftArmTop.Y))
+                        setLineR6("RightArmLine", Vector2.new(rightArmTop.X, rightArmTop.Y), Vector2.new(rightArmBottom.X, rightArmBottom.Y))
+                        setLineR6("RightArmToChest", Vector2.new(chestPos.X, chestPos.Y), Vector2.new(rightArmTop.X, rightArmTop.Y))
+                        setLineR6("LeftLegLine", Vector2.new(leftLegTop.X, leftLegTop.Y), Vector2.new(leftLegBottom.X, leftLegBottom.Y))
+                        setLineR6("LeftLegToPelvis", Vector2.new(pelvisPos.X, pelvisPos.Y), Vector2.new(leftLegTop.X, leftLegTop.Y))
+                        setLineR6("RightLegLine", Vector2.new(rightLegTop.X, rightLegTop.Y), Vector2.new(rightLegBottom.X, rightLegBottom.Y))
+                        setLineR6("RightLegToPelvis", Vector2.new(pelvisPos.X, pelvisPos.Y), Vector2.new(rightLegTop.X, rightLegTop.Y))
+                    end
+                end
+            end
+            if getgenv().Config.Esp.Chams and ESPInstances[Player].chamsHighlight then
+                local chams = ESPInstances[Player].chamsHighlight
+                chams.Enabled = true
+                chams.FillColor = getgenv().Config.Esp.ChamsFillColor
+                chams.OutlineColor = getgenv().Config.Esp.ChamsOutlineColor
+                chams.FillTransparency = getgenv().Config.Esp.ChamsFillTransparency or 0.5
+                chams.OutlineTransparency = getgenv().Config.Esp.ChamsOutlineTransparency or 0
+                chams.DepthMode = getgenv().Config.Esp.ChamsOutlineMode or "AlwaysOnTop"
+            elseif ESPInstances[Player].chamsHighlight then
+                ESPInstances[Player].chamsHighlight.Enabled = false
+            end
+            local Target2dPosition, IsVisible = Camera:WorldToViewportPoint(rootPart.Position)
+            local scale_factor = 1 / (Target2dPosition.Z * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
+            local width, height = math.floor(getgenv().Config.Esp.BoxSize * scale_factor), math.floor(getgenv().Config.Esp.BoxSize * 1.5 * scale_factor)
+            local distance = math.floor((rootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
+            if getgenv().Config.Esp.Names then
+                Name.Visible = IsVisible
+                Name.Text = char.Name
+                Name.Color = getgenv().Config.Esp.NamesColor
+                Name.Center = true
+                Name.Outline = getgenv().Config.Esp.NamesOutline
+                Name.OutlineColor = getgenv().Config.Esp.NamesOutlineColor
+                Name.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height/2 - 15)
+                Name.Font = getgenv().Config.Esp.NamesFont
+                Name.Size = getgenv().Config.Esp.NamesSize
+            else
+                Name.Visible = false
+            end
+            if getgenv().Config.Esp.Distance then
+                Distance.Visible = IsVisible
+                Distance.Text = tostring(distance) .. " studs"
+                Distance.Color = getgenv().Config.Esp.DistanceColor
+                Distance.Center = true
+                Distance.Outline = getgenv().Config.Esp.DistanceOutline
+                Distance.OutlineColor = getgenv().Config.Esp.DistanceOutlineColor
+                if getgenv().Config.Esp.DistancePosition == "Top" then
+                    Distance.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height/2 - 25)
+                else
+                    local weaponOffset = getgenv().Config.Esp.Weapon and 18 or 3
+                    Distance.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y + height/2 + weaponOffset)
+                end
+                Distance.Font = getgenv().Config.Esp.DistanceFont
+                Distance.Size = getgenv().Config.Esp.DistanceSize
+            else
+                Distance.Visible = false
+            end
+            if getgenv().Config.Esp.Weapon then
+                Weapon.Visible = IsVisible
+                Weapon.Color = getgenv().Config.Esp.WeaponColor
+                local tool = char:FindFirstChildOfClass("Tool")
+                Weapon.Text = tool and tool.Name or "None"
+                Weapon.Center = true
+                Weapon.Outline = getgenv().Config.Esp.WeaponOutline
+                Weapon.OutlineColor = getgenv().Config.Esp.WeaponOutlineColor
+                Weapon.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y + height/2 + 3)
+                Weapon.Font = getgenv().Config.Esp.WeaponFont
+                Weapon.Size = getgenv().Config.Esp.WeaponSize
+            else
+                Weapon.Visible = false
+            end
+            if getgenv().Config.Esp.Tracers then
+                local viewportSize = Camera.ViewportSize
+                local startPos = 
+                    getgenv().Config.Esp.TracerOrigin == "Bottom" and Vector2.new(viewportSize.X/2, viewportSize.Y) or
+                    getgenv().Config.Esp.TracerOrigin == "Top" and Vector2.new(viewportSize.X/2, 0) or
+                    Vector2.new(viewportSize.X/2, viewportSize.Y/2)
+                local endPos = Vector2.new(Target2dPosition.X, Target2dPosition.Y + height/2)
+                local tracerVisible = Target2dPosition.Z > 0 and 
+                    Target2dPosition.X >= 0 and Target2dPosition.X <= viewportSize.X and
+                    Target2dPosition.Y >= 0 and Target2dPosition.Y <= viewportSize.Y
+                if getgenv().Config.Esp.TracerOutline then
+                    TracerOutline.Visible = tracerVisible
+                    if tracerVisible then
+                        TracerOutline.Color = getgenv().Config.Esp.TracerOutlineColor
+                        TracerOutline.Thickness = getgenv().Config.Esp.TracerThickness + 2
+                        TracerOutline.Transparency = math.max(getgenv().Config.Esp.TracerTransparency - 0.1, 0)
+                        TracerOutline.ZIndex = 0
+                        TracerOutline.From = startPos
+                        TracerOutline.To = endPos
+                    end
+                else
+                    TracerOutline.Visible = false
+                end
+                Tracer.Visible = tracerVisible
+                if tracerVisible then
+                    Tracer.Color = getgenv().Config.Esp.TracerColor
+                    Tracer.Thickness = getgenv().Config.Esp.TracerThickness
+                    Tracer.Transparency = getgenv().Config.Esp.TracerTransparency
+                    Tracer.ZIndex = 1
+                    Tracer.From = startPos
+                    Tracer.To = endPos
+                end
+            else
+                Tracer.Visible = false
+                TracerOutline.Visible = false
+            end
+            if getgenv().Config.Esp.Box then
+                Box.Visible = IsVisible
+                Box.Color = getgenv().Config.Esp.BoxColor
+                Box.Size = Vector2.new(width, height)
+                Box.Position = Vector2.new(Target2dPosition.X - width/2, Target2dPosition.Y - height/2)
+                Box.Filled = false
+                Box.Thickness = 1
+                Box.ZIndex = 69
+                if getgenv().Config.Esp.BoxFilled then
+                    BoxFilled.Visible = IsVisible
+                    BoxFilled.Color = getgenv().Config.Esp.BoxFilledColor
+                    BoxFilled.Size = Box.Size
+                    BoxFilled.Position = Box.Position
+                    BoxFilled.Filled = true
+                    BoxFilled.Transparency = getgenv().Config.Esp.BoxTransparency
+                    BoxFilled.ZIndex = 2
+                else
+                    BoxFilled.Visible = false
+                end
+                if getgenv().Config.Esp.BoxOutline then
+                    BoxOutline.Visible = IsVisible
+                    BoxOutline.Color = getgenv().Config.Esp.BoxOutlineColor
+                    BoxOutline.Size = Box.Size
+                    BoxOutline.Position = Box.Position
+                    BoxOutline.Filled = false
+                    BoxOutline.Thickness = 3
+                    BoxOutline.ZIndex = 1
+                else
+                    BoxOutline.Visible = false
+                end
+            else
+                Box.Visible = false
+                BoxOutline.Visible = false
+                BoxFilled.Visible = false
+            end
+            if getgenv().Config.Esp.HealthBar then
+                HealthBarOutline.Visible = IsVisible
+                HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
+                HealthBarOutline.Filled = true
+                HealthBarOutline.ZIndex = 1
+                HealthBar.Visible = IsVisible
+                HealthBar.Color = getgenv().Config.Esp.HealthBarLowColor:lerp(getgenv().Config.Esp.HealthBarColor, humanoid.Health / humanoid.MaxHealth)
+                HealthBar.Thickness = 1
+                HealthBar.Filled = true
+                HealthBar.ZIndex = 69
+                if getgenv().Config.Esp.HealthBarSide == "Left" then
+                    HealthBarOutline.Size = Vector2.new(2, height)
+                    HealthBarOutline.Position = Vector2.new(Target2dPosition.X - width/2 - 5, Target2dPosition.Y - height/2)
+                    HealthBar.Size = Vector2.new(1, -(height - 2) * (humanoid.Health / humanoid.MaxHealth))
+                    HealthBar.Position = HealthBarOutline.Position + Vector2.new(1, height - 1)
+                elseif getgenv().Config.Esp.HealthBarSide == "Right" then
+                    HealthBarOutline.Size = Vector2.new(2, height)
+                    HealthBarOutline.Position = Vector2.new(Target2dPosition.X + width/2 + 3, Target2dPosition.Y - height/2)
+                    HealthBar.Size = Vector2.new(1, -(height - 2) * (humanoid.Health / humanoid.MaxHealth))
+                    HealthBar.Position = HealthBarOutline.Position + Vector2.new(1, height - 1)
+                elseif getgenv().Config.Esp.HealthBarSide == "Bottom" then
+                    HealthBarOutline.Size = Vector2.new(width, 2)
+                    HealthBarOutline.Position = Vector2.new(Target2dPosition.X - width/2, Target2dPosition.Y + height/2 + 3)
+                    HealthBar.Size = Vector2.new((width - 2) * (humanoid.Health / humanoid.MaxHealth), 1)
+                    HealthBar.Position = HealthBarOutline.Position + Vector2.new(1, 1)
+                end
+            else
+                HealthBar.Visible = false
+                HealthBarOutline.Visible = false
+            end
+            if getgenv().Config.Esp.HealthText then
+                HealthText.Visible = IsVisible
+                HealthText.Text = math.floor((humanoid.Health / humanoid.MaxHealth) * 100) .. "%"
+                HealthText.Color = getgenv().Config.Esp.HealthTextColor
+                HealthText.Size = getgenv().Config.Esp.HealthTextSize
+                HealthText.Outline = getgenv().Config.Esp.HealthTextOutline
+                HealthText.OutlineColor = getgenv().Config.Esp.HealthTextColorOutline
+                if getgenv().Config.Esp.HealthBar then
+                    if getgenv().Config.Esp.HealthBarSide == "Left" then
+                        HealthText.Center = true
+                        HealthText.Position = Vector2.new(Target2dPosition.X - width/2 - 20, Target2dPosition.Y - height/2 - 3)
+                    elseif getgenv().Config.Esp.HealthBarSide == "Right" then
+                        HealthText.Center = false
+                        HealthText.Position = Vector2.new(Target2dPosition.X + width/2 + 8, Target2dPosition.Y - height/2 - 3)
+                    else
+                        HealthText.Center = true
+                        HealthText.Position = Vector2.new(Target2dPosition.X - width/2 - 15, Target2dPosition.Y - height/2 - 3)
+                    end
+                else
+                    HealthText.Center = true
+                    HealthText.Position = Vector2.new(Target2dPosition.X - width/2 - 15, Target2dPosition.Y - height/2 - 3)
+                end
+            else
+                HealthText.Visible = false
+            end
+        else
+            Box.Visible = false
+            BoxOutline.Visible = false
+            BoxFilled.Visible = false
+            Name.Visible = false
+            Distance.Visible = false
+            Weapon.Visible = false
+            HealthBar.Visible = false
+            HealthBarOutline.Visible = false
+            HealthText.Visible = false
+            Tracer.Visible = false
+            TracerOutline.Visible = false
+            if ESPInstances[Player].chamsHighlight then
+                ESPInstances[Player].chamsHighlight.Enabled = false
+            end
+        end
+    end)
+    ESPInstances[Player].connection = Updater
+end
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= Players.LocalPlayer then
+        if plr.Character then
+            ThanosTheCreatorEspNigger(plr.Character)
+        end
+        plr.CharacterAdded:Connect(ThanosTheCreatorEspNigger)
+        plr.CharacterRemoving:Connect(function(char)
+            CPESP(char)
+        end)
+    end
+end
+RunService.RenderStepped:Connect(function()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= Players.LocalPlayer and plr.Character then
+            if not ESPInstances[plr.Character] then
+                ThanosTheCreatorEspNigger(plr.Character)
+            end
+            if ESPInstances[plr.Character] then
+                if not getgenv().Config.Esp.Skeleton and ESPInstances[plr.Character].skeletonLimbs then
+                    for _, limb in pairs(ESPInstances[plr.Character].skeletonLimbs) do
+                        limb.Visible = false
+                    end
+                end
+                if not getgenv().Config.Esp.Chams and ESPInstances[plr.Character].chamsHighlight then
+                    ESPInstances[plr.Character].chamsHighlight.Enabled = false
+                end
+            end
+        end
+    end
+end)
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= Players.LocalPlayer then
+        if plr.Character then
+            ThanosTheCreatorEspNigger(plr.Character)
+        end
+        plr.CharacterAdded:Connect(ThanosTheCreatorEspNigger)
+        plr.CharacterRemoving:Connect(function(char)
+            CPESP(char)
+        end)
+    end
+end)
+Players.PlayerRemoving:Connect(function(plr)
+    if plr.Character then
+        CPESP(plr.Character)
+    end
+end)
