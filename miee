@@ -4,29 +4,29 @@ local camera = game.Workspace.CurrentCamera
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = game:GetService("Workspace").CurrentCamera
-local ESPInstances = {}
-function CPESP(Player)
-    if ESPInstances[Player] then
-        if ESPInstances[Player].connection then
-            ESPInstances[Player].connection:Disconnect()
+getgenv().ESPInstances = getgenv().ESPInstances or {}
+getgenv().CPESP = function(Player)
+    if getgenv().ESPInstances[Player] then
+        if getgenv().ESPInstances[Player].connection then
+            getgenv().ESPInstances[Player].connection:Disconnect()
         end
-        for _, drawing in ipairs(ESPInstances[Player].drawings) do
+        for _, drawing in ipairs(getgenv().ESPInstances[Player].drawings) do
             if drawing then drawing:Remove() end
         end
-        if ESPInstances[Player].chamsHighlight then
-            ESPInstances[Player].chamsHighlight:Destroy()
+        if getgenv().ESPInstances[Player].chamsHighlight then
+            getgenv().ESPInstances[Player].chamsHighlight:Destroy()
         end
-        if ESPInstances[Player].skeletonLimbs then
-            for _, limb in pairs(ESPInstances[Player].skeletonLimbs) do
+        if getgenv().ESPInstances[Player].skeletonLimbs then
+            for _, limb in pairs(getgenv().ESPInstances[Player].skeletonLimbs) do
                 limb:Remove()
             end
         end
-        ESPInstances[Player] = nil
+        getgenv().ESPInstances[Player] = nil
     end
 end
-function ThanosTheCreatorEspNigger(Player)
+getgenv().ThanosTheCreatorEspNigger = function(Player)
     if not Player then return end
-    CPESP(Player)
+    getgenv().CPESP(Player)
     local Box, BoxOutline, BoxFilled, Name, Distance, Weapon, HealthBar, HealthBarOutline, HealthText, Tracer, TracerOutline = 
         Drawing.new("Square"), Drawing.new("Square"), Drawing.new("Square"), 
         Drawing.new("Text"), Drawing.new("Text"), Drawing.new("Text"), 
@@ -91,7 +91,7 @@ function ThanosTheCreatorEspNigger(Player)
             }
         end
     end
-    ESPInstances[Player] = {
+    getgenv().ESPInstances[Player] = {
         drawings = {Box, BoxOutline, BoxFilled, Name, Distance, Weapon, HealthBar, HealthBarOutline, HealthText, Tracer, TracerOutline},
         connection = nil,
         chamsHighlight = chamsHighlight,
@@ -103,8 +103,8 @@ function ThanosTheCreatorEspNigger(Player)
         local humanoid = char:FindFirstChild("Humanoid")
         local rootPart = char:FindFirstChild("HumanoidRootPart")
         if char and char.Parent and rootPart and humanoid then
-            if getgenv().Config.Esp.Skeleton and ESPInstances[Player].skeletonLimbs then
-                local limbs = ESPInstances[Player].skeletonLimbs
+            if getgenv().Config.Esp.Skeleton and getgenv().ESPInstances[Player].skeletonLimbs then
+                local limbs = getgenv().ESPInstances[Player].skeletonLimbs
                 local rigType = humanoid.RigType
                 local Camera = game:GetService("Workspace").CurrentCamera
                 if rigType == Enum.HumanoidRigType.R15 then
@@ -211,16 +211,16 @@ function ThanosTheCreatorEspNigger(Player)
                     end
                 end
             end
-            if getgenv().Config.Esp.Chams and ESPInstances[Player].chamsHighlight then
-                local chams = ESPInstances[Player].chamsHighlight
+            if getgenv().Config.Esp.Chams and getgenv().ESPInstances[Player].chamsHighlight then
+                local chams = getgenv().ESPInstances[Player].chamsHighlight
                 chams.Enabled = true
                 chams.FillColor = getgenv().Config.Esp.ChamsFillColor
                 chams.OutlineColor = getgenv().Config.Esp.ChamsOutlineColor
                 chams.FillTransparency = getgenv().Config.Esp.ChamsFillTransparency or 0.5
                 chams.OutlineTransparency = getgenv().Config.Esp.ChamsOutlineTransparency or 0
                 chams.DepthMode = getgenv().Config.Esp.ChamsOutlineMode or "AlwaysOnTop"
-            elseif ESPInstances[Player].chamsHighlight then
-                ESPInstances[Player].chamsHighlight.Enabled = false
+            elseif getgenv().ESPInstances[Player].chamsHighlight then
+                getgenv().ESPInstances[Player].chamsHighlight.Enabled = false
             end
             local Target2dPosition, IsVisible = Camera:WorldToViewportPoint(rootPart.Position)
             local scale_factor = 1 / (Target2dPosition.Z * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
@@ -409,12 +409,12 @@ function ThanosTheCreatorEspNigger(Player)
             HealthText.Visible = false
             Tracer.Visible = false
             TracerOutline.Visible = false
-            if ESPInstances[Player].chamsHighlight then
-                ESPInstances[Player].chamsHighlight.Enabled = false
+            if getgenv().ESPInstances[Player].chamsHighlight then
+                getgenv().ESPInstances[Player].chamsHighlight.Enabled = false
             end
         end
     end)
-    ESPInstances[Player].connection = Updater
+    getgenv().ESPInstances[Player].connection = Updater
 end
 for _, plr in pairs(Players:GetPlayers()) do
     if plr ~= Players.LocalPlayer then
@@ -430,17 +430,17 @@ end
 RunService.RenderStepped:Connect(function()
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= Players.LocalPlayer and plr.Character then
-            if not ESPInstances[plr.Character] then
-                ThanosTheCreatorEspNigger(plr.Character)
+            if not getgenv().ESPInstances[plr.Character] then
+                getgenv().ThanosTheCreatorEspNigger(plr.Character)
             end
-            if ESPInstances[plr.Character] then
-                if not getgenv().Config.Esp.Skeleton and ESPInstances[plr.Character].skeletonLimbs then
-                    for _, limb in pairs(ESPInstances[plr.Character].skeletonLimbs) do
+            if getgenv().ESPInstances[plr.Character] then
+                if not getgenv().Config.Esp.Skeleton and getgenv().ESPInstances[plr.Character].skeletonLimbs then
+                    for _, limb in pairs(getgenv().ESPInstances[plr.Character].skeletonLimbs) do
                         limb.Visible = false
                     end
                 end
-                if not getgenv().Config.Esp.Chams and ESPInstances[plr.Character].chamsHighlight then
-                    ESPInstances[plr.Character].chamsHighlight.Enabled = false
+                if not getgenv().Config.Esp.Chams and getgenv().ESPInstances[plr.Character].chamsHighlight then
+                    getgenv().ESPInstances[plr.Character].chamsHighlight.Enabled = false
                 end
             end
         end
