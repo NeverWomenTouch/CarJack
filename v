@@ -12,17 +12,42 @@ if getgenv().Library then
 end
 
 local Library do
-    -- Initialize Library and its sections
-    Library = {
-        Sections = {
-            -- Define the AddParagraph method
-            AddParagraph = function(self, Name, Description)
-                if not self or not self.Items then
-                    self.Items = {}
-                end
-                if not self.Items["Content"] then
-                    self.Items["Content"] = { Instance = InstanceNew("Frame") }
-                end
+    Library = { }
+    
+    local TabClass = {}
+    TabClass.__index = TabClass
+    
+    function TabClass:CreateSection(Name)
+        local section = setmetatable({
+            Window = self.Window,
+            Page = self,
+            Name = Name,
+            Items = {}
+        }, Library.Sections)
+        
+        section.Items["Content"] = Instances:Create("Frame", {
+            Parent = self.Items["Content"].Instance,
+            Name = "\0",
+            BackgroundTransparency = 1,
+            Size = UDim2New(1, 0, 0, 0),
+            BorderColor3 = FromRGB(0, 0, 0),
+            BorderSizePixel = 0,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = FromRGB(255, 255, 255)
+        })
+        
+        return section
+    end
+    
+    Library.Sections = {
+        AddParagraph = function(self, Name, Description)
+            local Paragraph = {
+                Window = self.Window,
+                Page = self.Page,
+                Section = self,
+                Name = Name or "Paragraph",
+                Description = Description or "Content"
+            }
 
                 local Paragraph = {
                     Window = self.Window,
@@ -201,21 +226,9 @@ local Library do
     }
 
     Library.__index = Library
+    Library.Sections.__index = Library.Sections
 
-function Library.CreateSection(name, parent)
-    local section = setmetatable({
-        Name = name,
-        Parent = parent,
-        Items = {
-            ["Content"] = { Instance = InstanceNew("Frame") }
-        }
-    }, Library.Sections)
-    return section
-end
-
-Library.__index = Library 
-
-    Library.Pages.__index = Library.Pages
+    return Library    Library.Pages.__index = Library.Pages
     Library.Sections.__index = Library.Sections
 
     local Themes = {
@@ -2653,40 +2666,24 @@ Library.__index = Library
         Library.MakeTab = function(self, Data)
             Data = Data or { }
 
-            local Page = {
+            local Page = setmetatable({
                 Window = self,
-
                 Name = Data.Name or Data.name or "Page",
                 Icon = Data.Icon or Data.icon or nil,
-
                 Active = false,
                 SubPages = { },
                 Items = { },
-                ColumnsData = { },
+                ColumnsData = { }
+            }, TabClass)
 
-                CreateSection = function(self, Name)
-                    local Section = setmetatable({
-                        Window = self.Window,
-                        Page = self,
-                        Name = Name,
-                        Items = { }
-                    }, Library.Sections)
-
-                    -- Create the Content frame
-                    Section.Items["Content"] = Instances:Create("Frame", {
-                        Parent = self.Items["Content"].Instance,
-                        Name = "\0",
-                        BackgroundTransparency = 1,
-                        Size = UDim2New(1, 0, 0, 0),
-                        BorderColor3 = FromRGB(0, 0, 0),
-                        BorderSizePixel = 0,
-                        AutomaticSize = Enum.AutomaticSize.Y,
-                        BackgroundColor3 = FromRGB(255, 255, 255)
-                    })
-
-                    return Section
-                end
-            }
+            Page.Items["Content"] = Instances:Create("Frame", {
+                Name = "\0",
+                BackgroundTransparency = 1,
+                Size = UDim2New(1, 0, 1, 0),
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })
 
             local Items = { } do
                 -- Create the Content frame first
