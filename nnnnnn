@@ -2566,10 +2566,20 @@ local Library do
 
                 Active = false,
                 SubPages = { },
-                Items = { }
+                Items = { },
+                ColumnsData = { }
             }
 
             local Items = { } do
+                -- Create the Content frame first
+                Items["Content"] = Instances:Create("Frame", {
+                    Name = "\0",
+                    BackgroundTransparency = 1,
+                    Size = UDim2New(1, 0, 1, 0),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                })
                 Items["Inactive"] = Instances:Create("TextButton", {
                     Parent = Page.Window.Items["Pages"].Instance,
                     Name = "\0",
@@ -2971,18 +2981,34 @@ local Library do
         end
 
         Library.Pages.AddSection = function(self, Data)
+            -- Handle both string and table input
             local Section = {
                 Window = self.Window,
                 Page = self,
-
-                Name = Data.Name or Data.name or "Section",
-                Description = Data.Description or Data.Description or "",
-                Side = Data.Side or Data.side or 1,
-
                 Items = { }
             }
+            
+            if type(Data) == "string" then
+                Section.Name = Data
+                Section.Description = ""
+                Section.Side = 1
+            else
+                Section.Name = Data.Name or Data.name or "Section"
+                Section.Description = Data.Description or Data.description or ""
+                Section.Side = Data.Side or Data.side or 1
+            end
 
             local Items = { } do 
+                -- Create Content frame for the section
+                Items["Content"] = Instances:Create("Frame", {
+                    Name = "\0",
+                    BackgroundTransparency = 1,
+                    Size = UDim2New(1, 0, 1, 0),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                })
+
                 Items["Section"] = Instances:Create("Frame", {
                     Parent = Section.Page.ColumnsData[Section.Side] and Section.Page.ColumnsData[Section.Side].Instance or Section.Page.Items["Content"].Instance,
                     Name = "\0",
@@ -3807,12 +3833,10 @@ local Library do
                     for Index, Value in Option do 
                         local OptionData = self.OptionInstances[Value]
 
-                        if not OptionData then
-                            continue
+                        if OptionData then
+                            OptionData.Selected = true
+                            OptionData:Toggle("Active")
                         end
-
-                        OptionData.Selected = true
-                        OptionData:Toggle("Active")
                     end
                     
                     local TextFormat = #self.Value == 0 and "--" or TableConcat(self.Value, ", ")
@@ -4009,13 +4033,10 @@ local Library do
                 for Index, Value in Descendants do 
                     local TransparencyProperty = Tween:GetProperty(Value)
 
-                    if not TransparencyProperty then 
-                        continue
-                    end
-
-                    if not StringFind(Value.ClassName, "UI") then 
-                        Value.ZIndex = self.IsOpen and 104 or 1
-                    end
+                    if TransparencyProperty then 
+                        if not StringFind(Value.ClassName, "UI") then 
+                            Value.ZIndex = self.IsOpen and 104 or 1
+                        end
 
                     if type(TransparencyProperty) == "table" then 
                         for _, Property in TransparencyProperty do 
@@ -4659,6 +4680,7 @@ local Library do
         })
     end
 end
+end -- end for the Library do block
 
 getgenv().Library = Library
 return Library
