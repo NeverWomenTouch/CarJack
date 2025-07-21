@@ -963,8 +963,10 @@ local Library do
     end
 
     Library.CreateColorpicker = function(self, Data)
+        Data = Data or {}
         local Colorpicker = {
-            Flag = Data.Flag,
+            Flag = Data.Flag or "ColorPicker",
+            Name = Data.Name or "ColorPicker",
 
             IsOpen = false,
 
@@ -972,7 +974,7 @@ local Library do
             Saturation = 0,
             Value = 0,
 
-            Color = FromRGB(255, 255, 255),
+            Color = Data.Default or FromRGB(255, 255, 255),
             HexValue = "#ffffff",
         }
 
@@ -2733,17 +2735,27 @@ local Library do
                 end)
             end
 
-            function Page:SetVisibility(Bool)
-                Items["Inactive"].Instance.Visible = Bool
-            end
+        function Page:SetVisibility(Bool)
+            Items["Inactive"].Instance.Visible = Bool
+        end
+
+        function Page:AddColorpicker(Info)
+            Info = Info or {}
+            return Library:CreateColorpicker({
+                Name = Info.Name,
+                Default = Info.Default,
+                Callback = Info.Callback,
+                Parent = self.Items["Columns"].Instance,
+                Flag = Info.Flag,
+                Info = Info.Info
+            })
+        end
 
             Items["Inactive"]:Connect("MouseButton1Down", function()
                 for Index, Value in Page.Window.Pages do 
                     Value:Turn(Value == Page)
                 end
-            end)
-
-            if #Page.Window.Pages == 0 then 
+            end)            if #Page.Window.Pages == 0 then 
                 Page:Turn(true)
             end
 
