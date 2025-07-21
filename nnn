@@ -11,9 +11,6 @@ if getgenv().Library then
     getgenv().Library:Unload()
 end
 
-local OrionLib = {
-    Window = nil
-}
 local Library do
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
@@ -578,19 +575,19 @@ local Library do
             local InputChanged
 
             local ResizeButton = Instances:Create("ImageButton", {
-                Parent = Gui,
+				Parent = Gui,
                 Image = "rbxassetid://7368471234",
-                AnchorPoint = Vector2New(1, 1),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Size = UDim2New(0, 10, 0, 10),
-                Position = UDim2New(1, -2, 1, -2),
+				AnchorPoint = Vector2New(1, 1),
+				BorderColor3 = FromRGB(0, 0, 0),
+				Size = UDim2New(0, 10, 0, 10),
+				Position = UDim2New(1, -2, 1, -2),
                 Name = "\0",
-                BorderSizePixel = 0,
-                BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				BackgroundTransparency = 1,
                 ZIndex = 5,
-                AutoButtonColor = false,
+				AutoButtonColor = false,
                 Visible = true,
-            })  ResizeButton:AddToTheme({ImageColor3 = "Accent"})
+			})  ResizeButton:AddToTheme({ImageColor3 = "Accent"})
 
             ResizeButton:Connect("InputBegan", function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
@@ -963,10 +960,8 @@ local Library do
     end
 
     Library.CreateColorpicker = function(self, Data)
-        Data = Data or {}
         local Colorpicker = {
-            Flag = Data.Flag or "ColorPicker",
-            Name = Data.Name or "ColorPicker",
+            Flag = Data.Flag,
 
             IsOpen = false,
 
@@ -974,7 +969,7 @@ local Library do
             Saturation = 0,
             Value = 0,
 
-            Color = Data.Default or FromRGB(255, 255, 255),
+            Color = FromRGB(255, 255, 255),
             HexValue = "#ffffff",
         }
 
@@ -2562,15 +2557,6 @@ local Library do
 
         Library.MakeTab = function(self, Data)
             Data = Data or { }
-            
-            -- Support for OrionLib-style tab creation
-            if type(Data) == "table" and Data.Name then
-                Data = {
-                    Name = Data.Name,
-                    Icon = Data.Icon,
-                    PremiumOnly = Data.PremiumOnly or false
-                }
-            end
 
             local Page = {
                 Window = self,
@@ -2735,49 +2721,22 @@ local Library do
                 end)
             end
 
-        function Page:SetVisibility(Bool)
-            Items["Inactive"].Instance.Visible = Bool
-        end
-
-        function Page:AddColorpicker(Info)
-            Info = Info or {}
-            return Library:CreateColorpicker({
-                Name = Info.Name,
-                Default = Info.Default,
-                Callback = Info.Callback,
-                Parent = self.Items["Columns"].Instance,
-                Flag = Info.Flag,
-                Info = Info.Info
-            })
-        end
+            function Page:SetVisibility(Bool)
+                Items["Inactive"].Instance.Visible = Bool
+            end
 
             Items["Inactive"]:Connect("MouseButton1Down", function()
                 for Index, Value in Page.Window.Pages do 
                     Value:Turn(Value == Page)
                 end
-            end)            if #Page.Window.Pages == 0 then 
+            end)
+
+            if #Page.Window.Pages == 0 then 
                 Page:Turn(true)
             end
 
             TableInsert(Page.Window.Pages, Page)
             return setmetatable(Page, Library.Pages)
-        end
-        function Library.Pages:AddParagraph(title, content)
-            local paragraph = Instances:Create("TextLabel", {
-                Parent = self.Items["Columns"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 255, 255),
-                Text = title .. "\n" .. content,
-                Size = UDim2New(1, 0, 0, 30),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                BorderColor3 = FromRGB(0, 0, 0),
-                TextSize = 14,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })
-            paragraph:AddToTheme({TextColor3 = "Text"})
-            return paragraph
         end
 
         Library.MakeTabSection = function(self, Name)
@@ -4697,212 +4656,5 @@ local Library do
     end
 end
 
-local Window = Library:MakeWindow({
-    Name = "Onion ui",
-    CloseCallback = function()
-        print("Destroyed")
-    end
-}) 
-
-local CombatPage = Window:MakeTab({
-    Name = "Combat",
-    Icon = "rbxassetid://78404822070968",
-})
-
-local MiscPage = Window:MakeTab({
-    Name = "Misc",
-    Icon = nil,
-})
-
-local VisualsPage = Window:MakeTab({
-    Name = "Visuals",
-    Icon = nil,
-})
-
-local SettingsPage = Window:MakeTab({
-    Name = "Settings",
-    Icon = nil,
-})
-
-local GeneralSubTab = CombatPage:AddSubTab({Name = "General", Columns = 2})
-local WeaponSubTab = CombatPage:AddSubTab({Name = "Weapon", Columns = 2})
-local OtherSubTab = CombatPage:AddSubTab({Name = "Other", Columns = 2})
-
-local ThemingSubPage = SettingsPage:AddSubTab({Name = "Theming", Columns = 2})
-local ConfigsSubPage = SettingsPage:AddSubTab({Name = "Configs", Columns = 2})
-local SettingsSubPage = SettingsPage:AddSubTab({Name = "Settings", Columns = 2})
-
-local AimbotSection = GeneralSubTab:AddSection({
-    Name = "Aim assist",
-    Description = "helps your shitty aim",
-    Side = 1
-})
-
-local Toggle = AimbotSection:AddToggle({
-    Name = "This is a toggle",
-    Tooltip = "this is a tooltip", -- replace with nil if you dont want it
-    Flag = "Aimbot", -- for configs, make sure its not the same as other elements
-    Callback = function(Value)
-        print(Value)
-    end
-})
-
---Toggle:SetVisibility(<bool>) -> nil
---Toggle:Set(<bool>) -> nil
---Toggle:Get(<void>) -> Toggle.Value
-
-local Button = AimbotSection:AddButton({
-    Name = "This is a button",
-    Tooltip = nil,
-    Callback = function()
-        print("Pressed")
-    end
-})
-
---Button:SetVisibility(<bool>) -> nil
---Button:Press() -> nil
-
-local Slider = AimbotSection:AddSlider({
-    Name = "This is a slider",
-    Tooltip = nil,
-    Min = 0,
-    Max = 100,
-    Increment = 0.1,
-    Default = 25,
-    ValueName = "s",
-    Flag = "Slider",
-    Callback = function(Value)
-        print(Value)
-    end
-})
-
---Slider:SetVisibility(<bool>) -> nil
---Slider:Set(<number>) -> nil
---Slider:Get(<void>) -> Slider.Value
-
-local Dropdown = AimbotSection:AddDropdown({
-    Name = "This is a dropdown",
-    Tooltip = nil,
-    Options = { "Item 1", "Item 2", "Item 3" },
-    Multi = false,
-    MaxSize = 80,
-    Default = "Item 1",
-    Flag = "Dropdown",
-    Callback = function(Value)
-        print(Value)
-    end
-})
-
---Dropdown:SetVisibility(<bool>) -> nil
---Dropdown:Set(<string>) -> nil
---Dropdown:Get(<void>) -> Dropdown.Value
---Dropdown:Add(<string>) -> OptionData
---Dropdown:Remove(<string>) -> nil
---Dropdown:Refresh(<table>, <boolean>) -> nil   
-
-local Label = AimbotSection:AddLabel("This is a label")
-
---Label:SetVisibility(<bool>) -> nil
---Label:SetText(<string>) -> nil
-
-local Colorpicker = AimbotSection:AddLabel("This is a colorpicker"):AddColorpicker({
-    Flag = "Colorpicker",
-    Default = Color3.fromRGB(255, 255, 255),
-    Callback = function(Value)
-        print(Value)
-    end
-})
-
---Colorpicker:Set(<Color3>) -> nil
---Colorpicker:Get(<void>) -> Color3
---Colorpicker:SetVisibility(<bool>) -> nil
-
-local Keybind = AimbotSection:AddLabel("This is a keybind"):AddKeybind({
-    Flag = "Keybind",
-    Default = Enum.KeyCode.F,
-    Mode = "Toggle",
-    Callback = function(Value)
-        print(Value)
-    end
-})
-
---Keybind:SetVisibility(<bool>) -> nil
---Keybind:Get(<void>) -> EnumItem
---Keybind:Set(<EnumItem>) -> nil
---Keybind:SetMode(<string>) -> nil
---Keybind:Press(<void>) -> nil
-
-local Textbox = AimbotSection:AddTextbox({
-    Name = "Textbox",
-    Numeric = false,
-    Finished = false,
-    Flag = "Textbox",
-    Default = "Hello",
-    Placeholder = "...",
-    Callback = function(Value)
-        print(Value)
-    end
-})
-
---Textbox:SetVisibility(<bool>) -> nil
---Textbox:Get(<void>) -> string
---Textbox:Set(<string>) -> nil
-
-local Divider = AimbotSection:AddDivider("This is a divider")
-
---Divider:SetVisibility(<bool>) -> nil
---Divider:SetText(<string>) -> nil
-
-local Paragraph = AimbotSection:AddParagraph("This is a paragraph", "This is a description\nwith another line\nwith another line\nand with one more last line")
-
---Paragraph:SetVisibility(<bool>) -> nil
---Paragraph:SetText(<string>) -> nil
---Paragraph:SetDescription(<string>) -> nil
-
-Library:CreateThemingSection(ThemingSubPage)
-Library:CreateConfigsSection(ConfigsSubPage)
-Library:CreateSettingsSection(SettingsSubPage)
-
-for Index = 1, 8 do 
-    Library:MakeNotification({
-        Name = "Title", 
-        Content = "Notification description\nwith another line!", 
-        Time = 5
-    })
-    task.wait(1)
-end
-
--- Create OrionLib interface
-function OrionLib:CreateWindow(config)
-    config = config or {}
-    self.Window = Library:MakeWindow({
-        Name = config.Name or "New Window",
-        HidePremium = config.HidePremium or false,
-        SaveConfig = config.SaveConfig or false,
-        ConfigFolder = config.ConfigFolder or "OrionTest"
-    })
-    return self.Window
-end
-
-function OrionLib:MakeWindow(config)
-    return self:CreateWindow(config)
-end
-
-function OrionLib:Init()
-    -- Initialization if needed
-end
-
--- Make Library methods available through OrionLib
-for name, func in pairs(Library) do
-    if type(func) == "function" and not OrionLib[name] then
-        OrionLib[name] = function(...)
-            return func(Library, ...)
-        end
-    end
-end
-
--- Make both Library and OrionLib available globally
 getgenv().Library = Library
-getgenv().OrionLib = OrionLib
-
-return OrionLib
+return Library
