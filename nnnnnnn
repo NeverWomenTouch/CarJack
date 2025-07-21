@@ -12,6 +12,85 @@ if getgenv().Library then
 end
 
 local Library do
+    -- Initialize Library and its sections
+    Library = {
+        Sections = {
+            -- Define the AddParagraph method
+            AddParagraph = function(self, Name, Description)
+                if not self or not self.Items or not self.Items["Content"] or not self.Items["Content"].Instance then
+                    return nil
+                end
+
+                local Paragraph = {
+                    Window = self.Window,
+                    Page = self.Page,
+                    Section = self,
+                    Name = Name or "Paragraph",
+                    Description = Description or "Content"
+                }
+
+                local Items = { } do
+                    Items["Content"] = Instances:Create("Frame", {
+                        Name = "\0",
+                        BackgroundTransparency = 1,
+                        Size = UDim2New(1, 0, 1, 0),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = FromRGB(255, 255, 255)
+                    })
+
+                    Items["Paragraph"] = Instances:Create("Frame", {
+                        Parent = self.Items["Content"].Instance,
+                        Name = "\0",
+                        BackgroundTransparency = 1,
+                        Size = UDim2New(1, 0, 0, 25),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        BackgroundColor3 = FromRGB(255, 255, 255)
+                    })
+
+                    Items["Text"] = Instances:Create("TextLabel", {
+                        Parent = Items["Paragraph"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = Paragraph.Name,
+                        BackgroundTransparency = 1,
+                        Size = UDim2New(0, 0, 0, 15),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.X,
+                        TextSize = 14,
+                        BackgroundColor3 = FromRGB(255, 255, 255)
+                    })
+
+                    Items["Description"] = Instances:Create("TextLabel", {
+                        Parent = Items["Paragraph"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Subfont,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        TextTransparency = 0.4000000059604645,
+                        Text = Paragraph.Description,
+                        Size = UDim2New(1, 0, 0, 15),
+                        Position = UDim2New(0, 0, 0, 22),
+                        BorderSizePixel = 0,
+                        BackgroundTransparency = 1,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        TextSize = 12,
+                        BackgroundColor3 = FromRGB(255, 255, 255)
+                    })
+
+                    Paragraph.Items = Items
+                    return Paragraph
+                end
+            end
+        }
+    }
+    Library.Sections.__index = Library.Sections
+
     local Workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
     local Players = game:GetService("Players")
