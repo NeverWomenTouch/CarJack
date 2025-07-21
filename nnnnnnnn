@@ -17,8 +17,11 @@ local Library do
         Sections = {
             -- Define the AddParagraph method
             AddParagraph = function(self, Name, Description)
-                if not self or not self.Items or not self.Items["Content"] or not self.Items["Content"].Instance then
-                    return nil
+                if not self or not self.Items then
+                    self.Items = {}
+                end
+                if not self.Items["Content"] then
+                    self.Items["Content"] = { Instance = InstanceNew("Frame") }
                 end
 
                 local Paragraph = {
@@ -197,7 +200,20 @@ local Library do
         Subfont = nil,
     }
 
-    Library.__index = Library 
+    Library.__index = Library
+
+function Library.CreateSection(name, parent)
+    local section = setmetatable({
+        Name = name,
+        Parent = parent,
+        Items = {
+            ["Content"] = { Instance = InstanceNew("Frame") }
+        }
+    }, Library.Sections)
+    return section
+end
+
+Library.__index = Library 
 
     Library.Pages.__index = Library.Pages
     Library.Sections.__index = Library.Sections
