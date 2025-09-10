@@ -4302,14 +4302,22 @@ local Library do
                 Items = { }
             }
 
-            -- Ensure the Side is within bounds
-            if Section.Side > #Section.Page.ColumnsData then
+            -- Ensure ColumnsData exists and Side is within bounds
+            if not Section.Page.ColumnsData or type(Section.Page.ColumnsData) ~= "table" then
+                Section.Page.ColumnsData = {}
+                for i = 1, Section.Page.Columns or 2 do
+                    Section.Page.ColumnsData[i] = NewColumn
+                end
+            end
+            
+            -- Default to first column if Side is invalid
+            if not Section.Side or Section.Side < 1 or not Section.Page.ColumnsData[Section.Side] then
                 Section.Side = 1
             end
 
             local Items = { } do 
                 Items["Section"] = Instances:Create("Frame", {
-                    Parent = Section.Page.ColumnsData[Section.Side].Instance,
+                    Parent = Section.Page.ColumnsData[Section.Side] and Section.Page.ColumnsData[Section.Side].Instance,
                     Name = "\0",
                     Size = UDim2New(1, 0, 0, 35),
                     BorderColor3 = FromRGB(0, 0, 0),
@@ -5432,8 +5440,9 @@ local Library do
                         local OptionData = self.OptionInstances[Value]
 
                         if not OptionData then
-                            continue
+                            goto continue
                         end
+                        ::continue::
 
                         OptionData.Selected = true
                         OptionData:Toggle("Active")
