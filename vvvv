@@ -419,11 +419,11 @@ local Library do
                 return
             end
 
-            if Text == nil then 
+            if not Text or type(Text) ~= "string" then 
                 return
             end
-
-            if type(Text) ~= "string" then 
+            
+            if not self or not self.Instance then
                 return
             end
 
@@ -502,14 +502,18 @@ local Library do
 
             Library:Connect(Gui.MouseEnter, function()
                 Items["Tooltip"].Instance.Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)
-                Items["Tooltip"]:Tween(nil, {BackgroundTransparency = 0})
-                Items["Text"]:Tween(nil, {TextTransparency = 0})
-                Items["UIStroke"]:Tween(nil, {Transparency = 0})
+                if Items["Tooltip"] and Items["Text"] and Items["UIStroke"] then
+                    Items["Tooltip"]:Tween(0.1, {BackgroundTransparency = 0})
+                    Items["Text"]:Tween(0.1, {TextTransparency = 0})
+                    Items["UIStroke"]:Tween(0.1, {Transparency = 0})
 
-                RenderStepped = RunService.RenderStepped:Connect(function()
-                    MouseLocation = UserInputService:GetMouseLocation()
-                    Items["Tooltip"]:Tween(nil, {Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)})
-                end)
+                    RenderStepped = RunService.RenderStepped:Connect(function()
+                        if Items["Tooltip"] then
+                            MouseLocation = UserInputService:GetMouseLocation()
+                            Items["Tooltip"]:Tween(0.1, {Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)})
+                        end
+                    end)
+                end
             end)
 
             Library:Connect(Gui.MouseLeave, function()
