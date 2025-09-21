@@ -228,13 +228,13 @@ local Library do
         ["RightAlt"]          = "RightAlt"
     }
 
-    for Index, Value in pairs(Library.Folders) do 
+    for Index, Value in Library.Folders do 
         if not isfolder(Value) then
             makefolder(Value)
         end
     end
 
-    for Index, Value in pairs(Library.Images) do 
+    for Index, Value in Library.Images do 
         local ImageData = Value
 
         local ImageName = ImageData[1]
@@ -768,11 +768,11 @@ local Library do
     })
 
     Library.Unload = function(self)
-    for Index, Value in pairs(self.Connections) do 
+        for Index, Value in self.Connections do 
             Value.Connection:Disconnect()
         end
 
-    for Index, Value in ipairs(self.Threads) do 
+        for Index, Value in self.Threads do 
             coroutine.close(Value)
         end
 
@@ -913,7 +913,7 @@ local Library do
         local Config = { } 
 
         local Success, Result = Library:SafeCall(function()
-            for Index, Value in pairs(Library.Flags) do 
+            for Index, Value in Library.Flags do 
                 if type(Value) == "table" and Value.Key then
                     Config[Index] = {Key = tostring(Value.Key), Mode = Value.Mode}
                 elseif type(Value) == "table" and Value.Color then
@@ -931,7 +931,7 @@ local Library do
         local Decoded = HttpService:JSONDecode(Config)
 
         local Success, Result = Library:SafeCall(function()
-            for Index, Value in pairs(Decoded) do 
+            for Index, Value in Decoded do 
                 local SetFunction = Library.SetFlags[Index]
 
                 if not SetFunction then
@@ -963,7 +963,7 @@ local Library do
 
         local ConfigFolderName = StringGSub(Library.Folders.Configs, Library.Folders.Directory .. "/", "")
 
-    for Index, Value in ipairs(listfiles(Library.Folders.Configs)) do
+        for Index, Value in listfiles(Library.Folders.Configs) do
             local FileName = StringGSub(Value, Library.Folders.Directory .. "\\" .. ConfigFolderName .. "\\", "")
             List[Index] = FileName
         end
@@ -1394,7 +1394,7 @@ local Library do
             if self.IsOpen then 
                 Items["ColorpickerWindow"].Instance.Position = UDim2New(0, Items["ColorpickerButton"].Instance.AbsolutePosition.X, 0, Items["ColorpickerButton"].Instance.AbsolutePosition.Y + 25)
             
-                for Index, Value in pairs(Library.OpenFrames) do 
+                for Index, Value in Library.OpenFrames do 
                     if Value ~= self then 
                         Value:SetOpen(false)
                     end
@@ -1412,7 +1412,7 @@ local Library do
 
             local NewTween
 
-            for Index, Value in ipairs(Descendants) do 
+            for Index, Value in Descendants do 
                 local TransparencyProperty = Tween:GetProperty(Value)
 
                 if not TransparencyProperty then 
@@ -1893,7 +1893,7 @@ local Library do
         end
 
         function Keybind:SetMode(Mode)
-            for Index, Value in pairs(Modes) do 
+            for Index, Value in Modes do 
                 if Index == Mode then 
                     Value[1]:Tween(nil, {BackgroundTransparency = 0})
                     Value[2]:Tween(nil, {TextTransparency = 0})
@@ -1984,7 +1984,7 @@ local Library do
             Items["KeybindWindow"].Instance.Visible = Bool
 
             if self.IsOpen then 
-                for Index, Value in pairs(Library.OpenFrames) do 
+                for Index, Value in Library.OpenFrames do 
                     if Value ~= self then 
                         Value:SetOpen(false)
                     end
@@ -2002,7 +2002,7 @@ local Library do
 
             local NewTween 
 
-            for Index, Value in ipairs(Descendants) do 
+            for Index, Value in Descendants do 
                 local TransparencyProperty = Tween:GetProperty(Value)
 
                 if not TransparencyProperty then 
@@ -2239,7 +2239,7 @@ local Library do
 
         local Size = Items["Notification"].Instance.AbsoluteSize
 
-    for Index, Value in pairs(Items) do 
+        for Index, Value in Items do 
             if Value.Instance:IsA("Frame") or Value.Instance:IsA("TextButton") then
                 Value.Instance.BackgroundTransparency = 1
             elseif Value.Instance:IsA("TextLabel") then 
@@ -2254,7 +2254,7 @@ local Library do
         Items["Notification"].Instance.AutomaticSize = Enum.AutomaticSize.None
 
         Library:Thread(function()
-            for Index, Value in pairs(Items) do 
+            for Index, Value in Items do 
                 if Value.Instance:IsA("Frame") or Value.Instance:IsA("TextButton") then
                     Value:Tween(nil, {BackgroundTransparency = 0})
                 elseif Value.Instance:IsA("TextLabel") and Index ~= "Description" then 
@@ -2272,7 +2272,7 @@ local Library do
             Items["Accent"]:Tween(TweenInfo.new(Data.Time, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Size = UDim2New(0, 0, 1, 0)})
             
             task.delay(Data.Time, function()
-                for Index, Value in pairs(Items) do 
+                for Index, Value in Items do 
                     if Value.Instance:IsA("Frame") or Value.Instance:IsA("TextButton") then
                         Value:Tween(nil, {BackgroundTransparency = 1})
                     elseif Value.Instance:IsA("TextLabel") then 
@@ -2292,7 +2292,7 @@ local Library do
 
         Items["CloseButton"]:Connect("InputBegan", function(Input)
             if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-                for Index, Value in pairs(Items) do 
+                for Index, Value in Items do 
                     if Value.Instance:IsA("Frame") or Value.Instance:IsA("TextButton") then
                         Value:Tween(nil, {BackgroundTransparency = 1})
                     elseif Value.Instance:IsA("TextLabel") then 
@@ -2637,7 +2637,7 @@ local Library do
 
                 local NewTween
 
-                for Index, Value in ipairs(Descendants) do 
+                for Index, Value in Descendants do 
                     local TransparencyProperty = Tween:GetProperty(Value)
 
                     if not TransparencyProperty then 
@@ -2682,13 +2682,13 @@ local Library do
                     if Window.IsOpen then
                         Window.ResizeHandle.Instance.Visible = true
 
-                        for Index, Value in pairs(Library.OpenFrames) do 
+                        for Index, Value in Library.OpenFrames do 
                             Value:SetOpen(false)
                         end
                     else
                         Window.ResizeHandle.Instance.Visible = false
 
-                        for Index, Value in pairs(Library.OpenFrames) do 
+                        for Index, Value in Library.OpenFrames do 
                             Value:SetOpen(false)
                         end
                     end
@@ -2751,11 +2751,11 @@ local Library do
                         Items["UserInfo"].Instance.Visible = false
                         Items["Content"].Instance.Visible = false
 
-                        for Index, Value in ipairs(Window.Pages) do 
+                        for Index, Value in Window.Pages do 
                             Value:SetVisibility(false)
                         end
 
-                        for Index, Value in pairs(Library.OpenFrames) do 
+                        for Index, Value in Library.OpenFrames do 
                             Value:SetOpen(false)
                         end
                     else
@@ -2766,11 +2766,11 @@ local Library do
                         Items["UserInfo"].Instance.Visible = true
                         Items["Content"].Instance.Visible = true
 
-                        for Index, Value in ipairs(Window.Pages) do 
+                        for Index, Value in Window.Pages do 
                             Value:SetVisibility(true)
                         end
 
-                        for Index, Value in pairs(Library.OpenFrames) do 
+                        for Index, Value in Library.OpenFrames do 
                             Value:SetOpen(false)
                         end
                     end
@@ -2941,7 +2941,7 @@ local Library do
 
                     Items["Columns"]:Tween(TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position =  UDim2New(0, 8, 0, 56)})
 
-                    for Index, Value in pairs(Library.OpenFrames) do 
+                    for Index, Value in Library.OpenFrames do 
                         Value:SetOpen(false)
                     end
                 else
@@ -2954,17 +2954,20 @@ local Library do
 
                     Items["Columns"]:Tween(TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position =  UDim2New(0, 50, 0, 56)})
 
-                    for Index, Value in pairs(Library.OpenFrames) do 
+                    for Index, Value in Library.OpenFrames do 
                         Value:SetOpen(false)
                     end
                 end
 
+                Debounce = false
+
+                --[[
                 local Descendants = Items["Page"].Instance:GetDescendants()
                 TableInsert(Descendants, Items["Page"].Instance)
 
                 local NewTween
 
-                for Index, Value in ipairs(Descendants) do 
+                for Index, Value in Descendants do 
                     local TransparencyProperty = Tween:GetProperty(Value)
 
                     if not TransparencyProperty then 
@@ -2983,6 +2986,7 @@ local Library do
                 Library:Connect(NewTween.Tween.Completed, function()
                     Debounce = false
                 end)
+                --]]
             end
 
             function Page:SetVisibility(Bool)
@@ -3218,6 +3222,9 @@ local Library do
                     end
                 end
 
+                Debounce = false
+
+                --[[
                 local Descendants = Items["Page"].Instance:GetDescendants()
                 TableInsert(Descendants, Items["Page"].Instance)
 
@@ -3242,6 +3249,7 @@ local Library do
                 Library:Connect(NewTween.Tween.Completed, function()
                     Debounce = false
                 end)
+                --]]
             end
 
             Items["Inactive"]:Connect("InputBegan", function(Input)
@@ -3961,7 +3969,7 @@ local Library do
                     FontFace = Library.Font,
                     TextColor3 = FromRGB(255, 255, 255),
                     TextTransparency = 0.4000000059604645,
-                    Text = "Mods",
+                    Text = "Player Mods",
                     Size = UDim2New(0, 0, 0, 15),
                     AnchorPoint = Vector2New(1, 0.5),
                     BorderSizePixel = 0,
@@ -5667,14 +5675,19 @@ local Library do
             end
 
             function Dropdown:Refresh(List, ShouldClearOthers)
-                if ShouldClearOthers then
-                    for Index, Value in Dropdown.OptionInstances do 
-                        self:Remove(Value.Name)
+                local NewOptions = {}
+                for _, Value in List do
+                    NewOptions[Value] = true
+                end
+                for Name, OptionData in pairs(Dropdown.OptionInstances) do
+                    if not NewOptions[Name] then
+                        self:Remove(Name)
                     end
                 end
-
-                for Index, Value in List do 
-                    Dropdown:Add(Value)
+                for _, Value in List do
+                    if not Dropdown.OptionInstances[Value] then
+                        Dropdown:Add(Value)
+                    end
                 end
             end
 
