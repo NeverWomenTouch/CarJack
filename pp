@@ -5675,19 +5675,31 @@ local Library do
             end
 
             function Dropdown:Refresh(List, ShouldClearOthers)
+                local wasOpen = self.IsOpen
                 local NewOptions = {}
                 for _, Value in List do
                     NewOptions[Value] = true
                 end
-                for Name, OptionData in pairs(Dropdown.OptionInstances) do
-                    if not NewOptions[Name] then
-                        self:Remove(Name)
+                if ShouldClearOthers then
+                    for Name, OptionData in pairs(Dropdown.OptionInstances) do
+                        if not NewOptions[Name] then
+                            self:Remove(Name)
+                        end
+                    end
+                else
+                    for Name, OptionData in pairs(Dropdown.OptionInstances) do
+                        if not NewOptions[Name] then
+                            self:Remove(Name)
+                        end
                     end
                 end
                 for _, Value in List do
                     if not Dropdown.OptionInstances[Value] then
                         Dropdown:Add(Value)
                     end
+                end
+                if wasOpen and not self.IsOpen then
+                    self:SetOpen(true)
                 end
             end
 
