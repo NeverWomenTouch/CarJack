@@ -5592,8 +5592,8 @@ local Library do
 
             local Debounce = false
             local RenderStepped
-            local UpdateConnection
             local IsFirstOpen = false
+            local OptionsUpdateConnection
 
             function Dropdown:SetOpen(Bool)
                 if Debounce then 
@@ -5613,23 +5613,39 @@ local Library do
                 if self.IsOpen then 
                     Items["Icon"]:Tween(nil, {Rotation = -90})
 
-                    UpdateConnection = RunService.Heartbeat:Connect(function()
-                        if type(Dropdown.Options) == "function" then
-                            local success, newOptions = pcall(Dropdown.Options)
-                            if success and newOptions then
-                                local optionNames = {}
-                                for _, option in ipairs(newOptions) do
-                                    table.insert(optionNames, tostring(option))
-                                end
-                                self:Refresh(optionNames, true)
-                            end
-                        end
-                    end)
-
                     RenderStepped = RunService.RenderStepped:Connect(function()
                         Items["OptionHolder"].Instance.Position = UDim2New(0, Items["RealDropdown"].Instance.AbsolutePosition.X, 0, Items["RealDropdown"].Instance.AbsolutePosition.Y + Items["RealDropdown"].Instance.AbsoluteSize.Y + 5)
                         Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X, 0, Dropdown.MaxSize)
                     end)
+
+                    if type(Dropdown.Options) == "function" then
+                        OptionsUpdateConnection = RunService.Heartbeat:Connect(function()
+                            local newOptions = Dropdown.Options()
+                            if type(newOptions) == "table" then
+                                for Index, Value in Dropdown.OptionInstances do 
+                                    Dropdown:Remove(Value.Name)
+                                end
+                                for Index, Value in newOptions do 
+                                    if type(Value) == "Instance" and Value:IsA("Player") then
+                                        Dropdown:Add(Value.Name)
+                                    else
+                                        Dropdown:Add(tostring(Value))
+                                    end
+                                end
+                            end
+                        end)
+                    elseif type(Dropdown.Options) == "Instance" and (Dropdown.Options.ClassName == "Players" or Dropdown.Options:IsA("DataModel")) then
+                        OptionsUpdateConnection = RunService.Heartbeat:Connect(function()
+                            for Index, Value in Dropdown.OptionInstances do 
+                                Dropdown:Remove(Value.Name)
+                            end
+                            for Index, Value in Dropdown.Options:GetChildren() do 
+                                if Value:IsA("Player") then
+                                    Dropdown:Add(Value.Name)
+                                end
+                            end
+                        end)
+                    end
 
                     for Index, Value in Library.OpenFrames do
                         if Value ~= self then
@@ -5645,14 +5661,14 @@ local Library do
                         Library.OpenFrames[self] = nil
                     end
 
-                    if UpdateConnection then
-                        UpdateConnection:Disconnect()
-                        UpdateConnection = nil
-                    end
-
                     if RenderStepped then
                         RenderStepped:Disconnect()
                         RenderStepped = nil
+                    end
+
+                    if OptionsUpdateConnection then
+                        OptionsUpdateConnection:Disconnect()
+                        OptionsUpdateConnection = nil
                     end
                 end
 
@@ -5694,36 +5710,14 @@ local Library do
             end
 
             function Dropdown:Refresh(List, ShouldClearOthers)
-                local wasOpen = self.IsOpen
-                local refreshDebounce = Debounce
-                Debounce = false
-                
-                local NewOptions = {}
-                for _, Value in List do
-                    NewOptions[Value] = true
-                end
                 if ShouldClearOthers then
-                    for Name, OptionData in pairs(Dropdown.OptionInstances) do
-                        if not NewOptions[Name] then
-                            self:Remove(Name)
-                        end
-                    end
-                else
-                    for Name, OptionData in pairs(Dropdown.OptionInstances) do
-                        if not NewOptions[Name] then
-                            self:Remove(Name)
-                        end
+                    for Index, Value in Dropdown.OptionInstances do 
+                        self:Remove(Value.Name)
                     end
                 end
-                for _, Value in List do
-                    if not Dropdown.OptionInstances[Value] then
-                        self:Add(Value)
-                    end
-                end
-                
-                Debounce = refreshDebounce
-                if wasOpen then
-                    self:SetOpen(true)
+
+                for Index, Value in List do 
+                    Dropdown:Add(Value)
                 end
             end
 
@@ -5811,8 +5805,37 @@ local Library do
                 end
             end)
 
-            for Index, Value in Dropdown.Options do 
-                Dropdown:Add(Value)
+            if type(Dropdown.Options) == "function" then
+                local initialOptions = Dropdown.Options()
+                if type(initialOptions) == "table" then
+                    for Index, Value in initialOptions do 
+                        if type(Value) == "Instance" and Value:IsA("Player") then
+                            Dropdown:Add(Value.Name)
+                        else
+                            Dropdown:Add(tostring(Value))
+                        end
+                    end
+                end
+            elseif type(Dropdown.Options) == "table" then
+                for Index, Value in Dropdown.Options do 
+                    if type(Value) == "Instance" and Value:IsA("Player") then
+                        Dropdown:Add(Value.Name)
+                    else
+                        Dropdown:Add(tostring(Value))
+                    end
+                end
+            elseif type(Dropdown.Options) == "Instance" and Dropdown.Options:IsA("DataModel") then
+                for Index, Value in Dropdown.Options:GetChildren() do 
+                    if Value:IsA("Player") then
+                        Dropdown:Add(Value.Name)
+                    end
+                end
+            elseif type(Dropdown.Options) == "Instance" and Dropdown.Options.ClassName == "Players" then
+                for Index, Value in Dropdown.Options:GetChildren() do 
+                    if Value:IsA("Player") then
+                        Dropdown:Add(Value.Name)
+                    end
+                end
             end
 
             if Dropdown.Default then
