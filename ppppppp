@@ -5620,28 +5620,59 @@ local Library do
 
                     if type(Dropdown.Options) == "function" then
                         OptionsUpdateConnection = RunService.Heartbeat:Connect(function()
-                            local newOptions = Dropdown.Options()
-                            if type(newOptions) == "table" then
-                                for Index, Value in Dropdown.OptionInstances do 
-                                    Dropdown:Remove(Value.Name)
-                                end
-                                for Index, Value in newOptions do 
-                                    if type(Value) == "Instance" and Value:IsA("Player") then
-                                        Dropdown:Add(Value.Name)
-                                    else
-                                        Dropdown:Add(tostring(Value))
+                            pcall(function()
+                                local newOptions = Dropdown.Options()
+                                if type(newOptions) == "table" then
+                                    local currentOptions = {}
+                                    for optionName, _ in pairs(Dropdown.OptionInstances) do
+                                        currentOptions[optionName] = true
+                                    end
+                                    
+                                    local newOptionsList = {}
+                                    for Index, Value in newOptions do 
+                                        local optionName = ""
+                                        if type(Value) == "Instance" and Value:IsA("Player") then
+                                            optionName = Value.Name
+                                        elseif type(Value) == "string" then
+                                            optionName = Value
+                                        else
+                                            optionName = tostring(Value)
+                                        end
+                                        newOptionsList[optionName] = true
+                                        
+                                        if not currentOptions[optionName] then
+                                            Dropdown:Add(optionName)
+                                        end
+                                    end
+                                    
+                                    for optionName, _ in pairs(currentOptions) do
+                                        if not newOptionsList[optionName] then
+                                            Dropdown:Remove(optionName)
+                                        end
                                     end
                                 end
-                            end
+                            end)
                         end)
                     elseif type(Dropdown.Options) == "Instance" and (Dropdown.Options.ClassName == "Players" or Dropdown.Options:IsA("DataModel")) then
                         OptionsUpdateConnection = RunService.Heartbeat:Connect(function()
-                            for Index, Value in Dropdown.OptionInstances do 
-                                Dropdown:Remove(Value.Name)
+                            local currentOptions = {}
+                            for optionName, _ in pairs(Dropdown.OptionInstances) do
+                                currentOptions[optionName] = true
                             end
+                            
+                            local newOptionsList = {}
                             for Index, Value in Dropdown.Options:GetChildren() do 
                                 if Value:IsA("Player") then
-                                    Dropdown:Add(Value.Name)
+                                    newOptionsList[Value.Name] = true
+                                    if not currentOptions[Value.Name] then
+                                        Dropdown:Add(Value.Name)
+                                    end
+                                end
+                            end
+                            
+                            for optionName, _ in pairs(currentOptions) do
+                                if not newOptionsList[optionName] then
+                                    Dropdown:Remove(optionName)
                                 end
                             end
                         end)
@@ -5680,20 +5711,18 @@ local Library do
                 for Index, Value in Descendants do 
                     local TransparencyProperty = Tween:GetProperty(Value)
 
-                    if not TransparencyProperty then 
-                        continue
-                    end
-
-                    if not StringFind(Value.ClassName, "UI") then 
-                        Value.ZIndex = self.IsOpen and 104 or 1
-                    end
-
-                    if type(TransparencyProperty) == "table" then 
-                        for _, Property in TransparencyProperty do 
-                            NewTween = Tween:FadeItem(Value, Property, Bool, Library.FadeSpeed)
+                    if TransparencyProperty then 
+                        if not StringFind(Value.ClassName, "UI") then 
+                            Value.ZIndex = self.IsOpen and 104 or 1
                         end
-                    else
-                        NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Library.FadeSpeed)
+
+                        if type(TransparencyProperty) == "table" then 
+                            for _, Property in TransparencyProperty do 
+                                NewTween = Tween:FadeItem(Value, Property, Bool, Library.FadeSpeed)
+                            end
+                        else
+                            NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Library.FadeSpeed)
+                        end
                     end
                 end
 
@@ -5806,16 +5835,20 @@ local Library do
             end)
 
             if type(Dropdown.Options) == "function" then
-                local initialOptions = Dropdown.Options()
-                if type(initialOptions) == "table" then
-                    for Index, Value in initialOptions do 
-                        if type(Value) == "Instance" and Value:IsA("Player") then
-                            Dropdown:Add(Value.Name)
-                        else
-                            Dropdown:Add(tostring(Value))
+                pcall(function()
+                    local initialOptions = Dropdown.Options()
+                    if type(initialOptions) == "table" then
+                        for Index, Value in initialOptions do 
+                            if type(Value) == "Instance" and Value:IsA("Player") then
+                                Dropdown:Add(Value.Name)
+                            elseif type(Value) == "string" then
+                                Dropdown:Add(Value)
+                            else
+                                Dropdown:Add(tostring(Value))
+                            end
                         end
                     end
-                end
+                end)
             elseif type(Dropdown.Options) == "table" then
                 for Index, Value in Dropdown.Options do 
                     if type(Value) == "Instance" and Value:IsA("Player") then
