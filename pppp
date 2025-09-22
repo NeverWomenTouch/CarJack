@@ -5592,6 +5592,7 @@ local Library do
 
             local Debounce = false
             local RenderStepped
+            local UpdateConnection
             local IsFirstOpen = false
 
             function Dropdown:SetOpen(Bool)
@@ -5612,6 +5613,19 @@ local Library do
                 if self.IsOpen then 
                     Items["Icon"]:Tween(nil, {Rotation = -90})
 
+                    UpdateConnection = RunService.Heartbeat:Connect(function()
+                        if type(Dropdown.Options) == "function" then
+                            local success, newOptions = pcall(Dropdown.Options)
+                            if success and newOptions then
+                                local optionNames = {}
+                                for _, option in ipairs(newOptions) do
+                                    table.insert(optionNames, tostring(option))
+                                end
+                                self:Refresh(optionNames, true)
+                            end
+                        end
+                    end)
+
                     RenderStepped = RunService.RenderStepped:Connect(function()
                         Items["OptionHolder"].Instance.Position = UDim2New(0, Items["RealDropdown"].Instance.AbsolutePosition.X, 0, Items["RealDropdown"].Instance.AbsolutePosition.Y + Items["RealDropdown"].Instance.AbsoluteSize.Y + 5)
                         Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X, 0, Dropdown.MaxSize)
@@ -5629,6 +5643,11 @@ local Library do
 
                     if Library.OpenFrames[self] then 
                         Library.OpenFrames[self] = nil
+                    end
+
+                    if UpdateConnection then
+                        UpdateConnection:Disconnect()
+                        UpdateConnection = nil
                     end
 
                     if RenderStepped then
@@ -5676,6 +5695,9 @@ local Library do
 
             function Dropdown:Refresh(List, ShouldClearOthers)
                 local wasOpen = self.IsOpen
+                local refreshDebounce = Debounce
+                Debounce = false
+                
                 local NewOptions = {}
                 for _, Value in List do
                     NewOptions[Value] = true
@@ -5698,6 +5720,8 @@ local Library do
                         Dropdown:Add(Value)
                     end
                 end
+                
+                Debounce = refreshDebounce
                 if wasOpen then
                     self:SetOpen(true)
                 end
