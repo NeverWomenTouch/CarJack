@@ -3486,8 +3486,7 @@ local Library do
                     Parent = Library.UnusedHolder.Instance,
                     Name = "\0",
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(0, 200, 0, 0),
-                    AutomaticSize = Enum.AutomaticSize.Y,
+                    Size = UDim2New(0, 200, 0, 400),
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(26, 25, 31)
                 })  Items["SettingsWindow"]:AddToTheme({BackgroundColor3 = "Background"})
@@ -3498,8 +3497,21 @@ local Library do
                     CornerRadius = UDimNew(0, 6)
                 })
                 
-                Instances:Create("UIPadding", {
+                Items["SettingsScrollFrame"] = Instances:Create("ScrollingFrame", {
                     Parent = Items["SettingsWindow"].Instance,
+                    Name = "\0",
+                    Size = UDim2New(1, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                    CanvasSize = UDim2New(0, 0, 0, 0),
+                    ScrollBarImageColor3 = FromRGB(255, 20, 147),
+                    ScrollBarThickness = 8,
+                    ScrollingDirection = Enum.ScrollingDirection.Y
+                })
+                
+                Instances:Create("UIPadding", {
+                    Parent = Items["SettingsScrollFrame"].Instance,
                     Name = "\0",
                     PaddingTop = UDimNew(0, 6),
                     PaddingBottom = UDimNew(0, 6),
@@ -3508,14 +3520,14 @@ local Library do
                 })
                 
                 Instances:Create("UIListLayout", {
-                    Parent = Items["SettingsWindow"].Instance,
+                    Parent = Items["SettingsScrollFrame"].Instance,
                     Name = "\0",
                     Padding = UDimNew(0, 4),
                     SortOrder = Enum.SortOrder.LayoutOrder
                 })
 
                 Playerlist.Items = {
-                    Content = Items["SettingsWindow"],
+                    Content = Items["SettingsScrollFrame"],
                 }
 
                 setmetatable(Playerlist, Library.Sections)
@@ -4040,7 +4052,11 @@ local Library do
 
                     RenderStepped2 = RunService.RenderStepped:Connect(function()
                         local MainFrame = Playerlist.Window.Items["MainFrame"].Instance
-                        Items["SettingsWindow"].Instance.Position = UDim2New(0, MainFrame.AbsolutePosition.X + MainFrame.AbsoluteSize.X + 15, 0, MainFrame.AbsolutePosition.Y + 50)
+                        Items["SettingsWindow"].Instance.Position = UDim2New(0, MainFrame.AbsolutePosition.X + MainFrame.AbsoluteSize.X + 15, 0, MainFrame.AbsolutePosition.Y)
+                        
+                        -- Set height constraint to half the UI height
+                        local maxHeight = math.min(400, MainFrame.AbsoluteSize.Y * 0.5)
+                        Items["SettingsWindow"].Instance.Size = UDim2New(0, 200, 0, maxHeight)
                     end)
                 else
                     if RenderStepped2 then 
