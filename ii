@@ -1,0 +1,307 @@
+--!nocheck
+-- luacheck: globals cloneref isfile isfolder makefolder writefile readfile listfiles delfile Color3 Enum game UDim2 Vector2 Rect
+local cloneref = cloneref or function(x) return x end
+local function SRV(name) return cloneref(game:GetService(name)) end
+local CoreGui = SRV("CoreGui")
+local TweenService = SRV("TweenService")
+local UserInputService = SRV("UserInputService")
+local HttpService = SRV("HttpService")
+local MarketplaceService = SRV("MarketplaceService")
+local _isfile = (isfile or function() return false end)
+local _isfolder = (isfolder or function() return false end)
+local _makefolder = (makefolder or function() end)
+local _writefile = (writefile or function() end)
+local _readfile = (readfile or function() return "" end)
+local _listfiles = (listfiles or function() return {} end)
+local _delfile = (delfile or function() end)
+local function Create(className, props, children)
+    local inst = Instance.new(className)
+    if props then for k, v in pairs(props) do inst[k] = v end end
+    if children then for _, c in ipairs(children) do c.Parent = inst end end
+    return inst
+end
+local function Round(num, inc) inc = inc or 1 return math.floor(num / inc + 0.5) * inc end
+local function Clamp(v, a, b) return (v < a and a) or (v > b and b) or v end
+local Theme = {
+    Bg = Color3.fromRGB(18, 18, 20),
+    Panel = Color3.fromRGB(24, 24, 28),
+    Stroke = Color3.fromRGB(38, 38, 42),
+    Accent = Color3.fromRGB(105, 125, 255),
+    Accent2 = Color3.fromRGB(90, 110, 255),
+    Text = Color3.fromRGB(230, 230, 235),
+    SubText = Color3.fromRGB(160, 160, 172),
+    Hover = Color3.fromRGB(32, 32, 36),
+    Button = Color3.fromRGB(32, 34, 40),
+    Good = Color3.fromRGB(85, 195, 95),
+    Warn = Color3.fromRGB(255, 178, 55),
+    Bad = Color3.fromRGB(255, 85, 98),
+    Scrollbar = Color3.fromRGB(46, 46, 52),
+}
+local Fonts = { Regular = Enum.Font.Gotham, Medium = Enum.Font.GothamMedium, Bold = Enum.Font.GothamBold }
+local function T(i, t, p) return TweenService:Create(i, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), p) end
+local function DropShadow(parent, tr)
+    tr = tr or 0.4
+    local sh = Create("Frame", {Name = "Shadow", BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), ZIndex = parent.ZIndex - 1, Parent = parent.Parent})
+    for i=1,3 do
+        Create("ImageLabel", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Size = UDim2.new(1, 20 + (i-1)*6, 1, 20 + (i-1)*6), Image = "rbxassetid://6014261993", ImageTransparency = tr + (i-1)*0.08, ImageColor3 = Color3.new(0,0,0), ScaleType = Enum.ScaleType.Slice, SliceCenter = Rect.new(64,64,64,64), ZIndex = parent.ZIndex - 1, Parent = sh})
+    end
+    return sh
+end
+local Config = {}
+do
+    local function sanitize(s) s = tostring(s or "Game"); s = s:gsub("[^%w%s%-_]", "_"); s = s:gsub("%s+", "_"); return s end
+    local function gameKey()
+        local ok, info = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
+        if ok and info and info.Name and #info.Name > 0 then return sanitize(info.Name) end
+        return "Place_" .. tostring(game.PlaceId)
+    end
+    local Base = "DendriteUI"
+    local Folder = Base .. "/" .. gameKey()
+    function Config.Ensure() if not _isfolder(Base) then _makefolder(Base) end if not _isfolder(Folder) then _makefolder(Folder) end end
+    function Config.Path(n) Config.Ensure() return Folder .. "/" .. sanitize(n) .. ".json" end
+    function Config.Save(n, d) local p = Config.Path(n) local ok, j = pcall(function() return HttpService:JSONEncode(d or {}) end) if ok then _writefile(p, j) end return ok end
+    function Config.Load(n) local p = Config.Path(n) if _isfile(p) then local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end) if ok and type(t)=="table" then return t end end return {} end
+    function Config.List() Config.Ensure() local r = {} for _, f in ipairs(_listfiles(Folder) or {}) do local n = f:match("([^/\\]+)$") or f n = n:gsub("%.json$", "") table.insert(r, n) end table.sort(r) return r end
+    function Config.Delete(n) local p = Config.Path(n) if _isfile(p) then _delfile(p) end end
+end
+local function Signal()
+    local h = {}
+    return {
+        Connect = function(_, fn)
+            local c = {Connected = true}
+            h[#h+1] = {fn = fn, c = c}
+            function c:Disconnect() self.Connected = false end
+            return c
+        end,
+        Fire = function(_, ...)
+            for i=1,#h do local x=h[i]; if x.c.Connected then coroutine.wrap(x.fn)(...) end end
+        end
+    }
+end
+local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0" }
+local RootGui = (function()
+    local g = Create("ScreenGui", {Name = "DendriteUI", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, ResetOnSpawn = false, Parent = CoreGui})
+    return g
+end)()
+function Library:_registerControl(c) self._controls[c.id] = c end
+function Library:_setValue(id, v, s) local c = self._controls[id]; if c and c.Set then c:Set(v, s) end end
+function Library:_getSnapshot() local d = {} for id, c in pairs(self._controls) do if c.Get then d[id] = c:Get() end end return d end
+function Library:SaveConfig(n) return Config.Save(n, self:_getSnapshot()) end
+function Library:LoadConfig(n) local t = Config.Load(n) for id, v in pairs(t) do self:_setValue(id, v, true) end end
+function Library:ListConfigs() return Config.List() end
+function Library:CreateLibrary(opts)
+    opts = opts or {}
+    local title = tostring(opts.Name or "Dendrite UI")
+    local size = opts.Size or UDim2.fromOffset(800, 500)
+    local closeCb = opts.CloseCallback
+    local Window = { Name = title, _categories = {}, _selectedCategory = nil }
+    local z = 100
+    local root = Create("Frame", {Name = "Window", Size = size, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z, Parent = RootGui}, {Create("UICorner", {CornerRadius = UDim.new(0, 10)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+    DropShadow(root, 0.5)
+    local header = Create("Frame", {Name = "Header", Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, ZIndex = z + 1, Parent = root}, {Create("UICorner", {CornerRadius = UDim.new(0, 10)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.2})})
+    local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -80, 1, 0), Position = UDim2.fromOffset(16, 0), Text = title, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
+    local closeBtn = Create("TextButton", {Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -12 - 28, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.Button, Text = "✕", Font = Fonts.Medium, TextSize = 16, TextColor3 = Theme.Text, AutoButtonColor = false, ZIndex = z + 2, Parent = header}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+    closeBtn.MouseEnter:Connect(function() T(closeBtn, 0.12, {BackgroundColor3 = Theme.Bad}):Play() end)
+    closeBtn.MouseLeave:Connect(function() T(closeBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
+    closeBtn.MouseButton1Click:Connect(function() root.Visible = false if type(closeCb) == "function" then pcall(closeCb) end end)
+    local body = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -16, 1, -(40 + 16)), Position = UDim2.fromOffset(8, 40 + 8), ZIndex = z, Parent = root})
+    local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 160, 1, 0), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 8)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8)})})
+    local content = Create("Frame", {Name = "Content", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(1, -(160 + 8), 1, 0), Position = UDim2.new(0, 160 + 8, 0, 0), ZIndex = z, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 8)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+    do
+        local dragging, dragStart, startPos
+        header.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true dragStart = input.Position startPos = root.Position input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end) end
+        end)
+        header.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then local d = input.Position - dragStart root.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end
+        end)
+    end
+    function Window:AddCategory(o)
+        o = o or {}
+        local name = tostring(o.Name or "Category")
+        local icon = o.Icon
+        local Category = { Name = name, _pages = {}, _selectedPage = nil }
+        local btn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 32), ZIndex = z + 2, Parent = sidebar}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+        local iconImg
+        if icon then iconImg = Create("ImageLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), Position = UDim2.fromOffset(10, 7), Image = icon, ZIndex = z + 3, Parent = btn}) end
+        local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -(icon and 36 or 12), 1, 0), Position = UDim2.fromOffset(icon and 30 or 8, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 3, Parent = btn})
+        btn.MouseEnter:Connect(function() if Window._selectedCategory ~= Category then T(btn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end end)
+        btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(btn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end end)
+        local catContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = content})
+        local subBar = Create("ScrollingFrame", {BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(1, -16, 0, 32), Position = UDim2.fromOffset(8, 8), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = z + 1, Parent = catContainer}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8)}), Create("UIPadding", {PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)})})
+        local pageArea = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -16, 1, -(32 + 16 + 8)), Position = UDim2.fromOffset(8, 32 + 16), Parent = catContainer})
+        function Category:Select()
+            if Window._selectedCategory and Window._selectedCategory._btn then T(Window._selectedCategory._btn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end
+            Window._selectedCategory = Category
+            for _, f in ipairs(content:GetChildren()) do if f:IsA("Frame") then f.Visible = false end end
+            catContainer.Visible = true
+            T(btn, 0.12, {BackgroundColor3 = Theme.Accent2}):Play()
+            if not Category._selectedPage and #Category._pages > 0 then Category._pages[1]:Select() end
+        end
+        btn.MouseButton1Click:Connect(function() Category:Select() end)
+        function Category:AddPage(p)
+            p = p or {}
+            local pname = tostring(p.Name or "Page")
+            local Page = { Name = pname, _blocks = {}, _columns = Clamp(tonumber(p.Columns) or 2, 1, 3) }
+            local subBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = pname, Size = UDim2.fromOffset(120, 24), ZIndex = z + 2, Parent = subBar}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+            subBtn.MouseEnter:Connect(function() if Category._selectedPage ~= Page then T(subBtn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end end)
+            subBtn.MouseLeave:Connect(function() if Category._selectedPage ~= Page then T(subBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end end)
+            local pageFrame = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = pageArea})
+            local cols = {}
+            do
+                local pad = 10
+                local cw = 1 / Page._columns
+                for i=1, Page._columns do
+                    local col = Create("ScrollingFrame", {BackgroundTransparency = 1, Size = UDim2.new(cw, -(pad * (Page._columns + 1)) / Page._columns, 1, -4), Position = UDim2.new((i-1)*cw, pad * i - (pad / Page._columns), 0, 2), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, Parent = pageFrame}, {Create("UIListLayout", {Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingLeft = UDim.new(0,5), PaddingRight = UDim.new(0,5), PaddingTop = UDim.new(0,2), PaddingBottom = UDim.new(0,8)})})
+                    cols[i] = col
+                end
+            end
+            function Page:Select()
+                for _, pfr in ipairs(pageArea:GetChildren()) do if pfr:IsA("Frame") then pfr.Visible = false end end
+                pageFrame.Visible = true
+                Category._selectedPage = Page
+                for _, b in ipairs(subBar:GetChildren()) do if b:IsA("TextButton") then T(b, 0.12, {BackgroundColor3 = Theme.Button}):Play() end end
+                T(subBtn, 0.12, {BackgroundColor3 = Theme.Accent2}):Play()
+            end
+            subBtn.MouseButton1Click:Connect(function() Page:Select() end)
+            function Page:AddBlock(g)
+                g = g or {}
+                local gName = tostring(g.Name or "Block")
+                local desc = g.Description
+                local side = Clamp(tonumber(g.Side) or 1, 1, Page._columns)
+                local Group = { Name = gName, _controls = {} }
+                local gFrame = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.new(1, -10, 0, 60), AutomaticSize = Enum.AutomaticSize.Y, BorderSizePixel = 0, ZIndex = z + 1, Parent = cols[side]}, {Create("UICorner", {CornerRadius = UDim.new(0, 8)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,8), PaddingBottom = UDim.new(0,10)})})
+                local titleLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = gName, Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 2, Parent = gFrame})
+                local y = 22
+                if desc and #desc > 0 then Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, y), Text = desc, Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 2, Parent = gFrame}); y = y + 20 end
+                local function nextY(h) local o=y; y=y+h+8; return o end
+                function Group:AddToggle(o)
+                    o = o or {}
+                    local label = tostring(o.Name or "Toggle")
+                    local default = (o.Default == true)
+                    local cb = o.Callback
+                    local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, nextY(28)), Parent = gFrame})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -40, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local button = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(36, 22), Position = UDim2.new(1, -4 - 36, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), Text = "", Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    local knob = Create("Frame", {Size = UDim2.fromOffset(18,18), Position = UDim2.fromOffset(2,2), BackgroundColor3 = Theme.Text, Parent = button}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+                    local Toggle = { id = id, _value = default, _signal = Signal(), Get = function(self) return self._value end, Set = function(self, v, silent) v = (v == true) self._value = v if v then T(button, 0.15, {BackgroundColor3 = Theme.Good}):Play(); T(knob, 0.15, {Position = UDim2.fromOffset(36-2-18, 2)}):Play() else T(button, 0.15, {BackgroundColor3 = Theme.Button}):Play(); T(knob, 0.15, {Position = UDim2.fromOffset(2, 2)}):Play() end if not silent then if type(cb) == "function" then pcall(cb, v) end self._signal:Fire(v) end end, OnChanged = function(self, fn) return self._signal:Connect(fn) end }
+                    button.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
+                    Toggle:Set(default, true)
+                    Library:_registerControl(Toggle)
+                    table.insert(Group._controls, Toggle)
+                    return Toggle
+                end
+                function Group:AddButton(o)
+                    o = o or {}
+                    local label = tostring(o.Name or "Button")
+                    local cb = o.Callback
+                    local compact = o.Compact == true
+                    local h = compact and 26 or 30
+                    local row = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(1, 0, 0, h), Position = UDim2.fromOffset(0, nextY(h)), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, Parent = gFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    row.MouseEnter:Connect(function() T(row, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end)
+                    row.MouseLeave:Connect(function() T(row, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
+                    row.MouseButton1Click:Connect(function() if type(cb) == "function" then pcall(cb) end end)
+                    local Button = { id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label) }
+                    Library:_registerControl(Button)
+                    table.insert(Group._controls, Button)
+                    return Button
+                end
+                function Group:AddSlider(o)
+                    o = o or {}
+                    local label = tostring(o.Name or "Slider")
+                    local min = tonumber(o.Min) or 0
+                    local max = tonumber(o.Max) or 100
+                    local default = tonumber(o.Default or min)
+                    local step = tonumber(o.Step or 1)
+                    local cb = o.Callback
+                    local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 44), Position = UDim2.fromOffset(0, nextY(44)), Parent = gFrame})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local valueLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0, 80, 0, 18), Position = UDim2.new(1, -80, 0, 0), Text = tostring(default), Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Right, Parent = row})
+                    local bar = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.new(1, 0, 0, 8), Position = UDim2.fromOffset(0, 26), Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})})
+                    local fill = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.new(0, 0, 1, 0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)})})
+                    local Slider = { id = id, _value = default, Get = function(self) return self._value end, Set = function(self, v, silent) v = Clamp(Round(v, step), min, max) self._value = v local pct = (v - min) / (max - min) T(fill, 0.1, {Size = UDim2.new(pct, 0, 1, 0)}):Play() valueLabel.Text = tostring(v) if not silent and type(cb) == "function" then pcall(cb, v) end end }
+                    local dragging = false
+                    bar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true local rel = (UserInputService:GetMouseLocation().X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X Slider:Set(min + rel * (max - min)) end end)
+                    UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+                    UserInputService.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then local rel = (UserInputService:GetMouseLocation().X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X Slider:Set(min + rel * (max - min)) end end)
+                    Slider:Set(default, true)
+                    Library:_registerControl(Slider)
+                    table.insert(Group._controls, Slider)
+                    return Slider
+                end
+                function Group:AddDropdown(o)
+                    o = o or {}
+                    local label = tostring(o.Name or "Dropdown")
+                    local list = o.Options or {}
+                    local default = o.Default
+                    local cb = o.Callback
+                    local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, nextY(30)), Parent = gFrame})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.5, -8, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5, -4, 1, 0), Position = UDim2.new(0.5, 4, 0, 0), Text = "", Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -24, 1, 0), Position = UDim2.fromOffset(8, 0), Text = default and tostring(default) or "Select...", Font = Fonts.Medium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.SubText, Parent = box})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18, 18), Position = UDim2.new(1, -18, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), Text = "▾", Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.Text, Parent = box})
+                    local listFrame = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.new(0, box.AbsoluteSize.X, 0, 0), Position = UDim2.new(1, -4, 0, 0), Visible = false, ZIndex = (z + 100), Parent = gFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    local listScroll = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -8, 1, -8), Position = UDim2.fromOffset(4, 4), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, ZIndex = (z + 101), Parent = listFrame}, {Create("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder})})
+                    local Dropdown = { id = id, _value = default, _options = {}, Get = function(self) return self._value end, Set = function(self, v, silent) if v == nil then self._value=nil; valueLbl.Text = "Select..."; valueLbl.TextColor3 = Theme.SubText; return end if not self._options or not table.find(self._options, v) then return end self._value = v valueLbl.Text = tostring(v) valueLbl.TextColor3 = Theme.Text if not silent and type(cb) == "function" then pcall(cb, v) end end, SetOptions = function(self, nl) self._options = {} for _, c in ipairs(listScroll:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end for _, val in ipairs(nl or {}) do table.insert(self._options, val) local item = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(1, 0, 0, 24), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, Parent = listScroll, ZIndex = (z + 102)}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})}) item.MouseEnter:Connect(function() T(item, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end) item.MouseLeave:Connect(function() T(item, 0.12, {BackgroundColor3 = Theme.Button}):Play() end) item.MouseButton1Click:Connect(function() Dropdown:Set(val) listFrame.Visible = false end) end listFrame.Size = UDim2.new(0, math.max(140, box.AbsoluteSize.X), 0, math.min(160, #self._options * 28 + 8)) end }
+                    box.MouseButton1Click:Connect(function() listFrame.Visible = not listFrame.Visible end)
+                    Dropdown:SetOptions(list)
+                    if default ~= nil then Dropdown:Set(default, true) end
+                    Library:_registerControl(Dropdown)
+                    table.insert(Group._controls, Dropdown)
+                    return Dropdown
+                end
+                function Group:AddTextbox(o)
+                    o = o or {}
+                    local label = tostring(o.Name or "Text")
+                    local placeholder = tostring(o.Placeholder or "")
+                    local default = tostring(o.Default or "")
+                    local cb = o.Callback
+                    local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, nextY(30)), Parent = gFrame})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.4, -8, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local box = Create("TextBox", {BackgroundColor3 = Theme.Button, Size = UDim2.new(0.6, 0, 1, 0), Position = UDim2.new(0.4, 8, 0, 0), ClearTextOnFocus = false, PlaceholderText = placeholder, Text = default, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})})
+                    local Textbox = { id = id, _value = default, Get = function(self) return self._value end, Set = function(self, v, silent) v = tostring(v or "") self._value = v box.Text = v if not silent and type(cb) == "function" then pcall(cb, v) end end }
+                    box.FocusLost:Connect(function(enterPressed) Textbox:Set(box.Text) end)
+                    Library:_registerControl(Textbox)
+                    table.insert(Group._controls, Textbox)
+                    return Textbox
+                end
+                function Group:AddKeybind(o)
+                    o = o or {}
+                    local label = tostring(o.Name or "Keybind")
+                    local default = o.Default
+                    local cb = o.Callback
+                    local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, nextY(30)), Parent = gFrame})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.5, -8, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5, -4, 1, 0), Position = UDim2.new(0.5, 4, 0, 0), Text = default and default.Name or "Press a key...", Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    local waiting = false
+                    local Keybind = { id = id, _value = default, Get = function(self) return self._value end, Set = function(self, keycode, silent) self._value = keycode box.Text = keycode and keycode.Name or "None" box.TextColor3 = keycode and Theme.Text or Theme.SubText if keycode ~= nil and not silent and type(cb) == "function" then pcall(cb, keycode) end end }
+                    box.MouseButton1Click:Connect(function() box.Text = "Press any key..." box.TextColor3 = Theme.Text waiting = true end)
+                    UserInputService.InputBegan:Connect(function(input) if waiting and input.UserInputType == Enum.UserInputType.Keyboard then waiting = false Keybind:Set(input.KeyCode) end end)
+                    Library:_registerControl(Keybind)
+                    table.insert(Group._controls, Keybind)
+                    return Keybind
+                end
+                return Group
+            end
+            table.insert(Category._pages, Page)
+            if not Category._selectedPage then Page:Select() end
+            return Page
+        end
+        Category._btn = btn
+        Category._container = catContainer
+        table.insert(Window._categories, Category)
+        if not Window._selectedCategory then Category:Select() end
+        return Category
+    end
+    Window.AddTab = Window.AddCategory
+    return Window
+end
+function Library:MakeWindow(o) return self:CreateLibrary(o) end
+function Library:NewWindow(o) return self:CreateLibrary(o) end
+function Library:SetTheme(t) for k, v in pairs(t or {}) do if Theme[k] ~= nil then Theme[k] = v end end end
+return Library
