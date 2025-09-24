@@ -23,19 +23,19 @@ end
 local function Round(num, inc) inc = inc or 1 return math.floor(num / inc + 0.5) * inc end
 local function Clamp(v, a, b) return (v < a and a) or (v > b and b) or v end
 local Theme = {
-    Bg = Color3.fromRGB(16, 18, 17),
-    Panel = Color3.fromRGB(22, 24, 23),
-    Stroke = Color3.fromRGB(40, 44, 41),
-    Accent = Color3.fromRGB(82, 200, 135),
-    Accent2 = Color3.fromRGB(72, 185, 125),
-    Text = Color3.fromRGB(232, 235, 232),
-    SubText = Color3.fromRGB(160, 170, 165),
-    Hover = Color3.fromRGB(34, 38, 35),
-    Button = Color3.fromRGB(30, 32, 31),
-    Good = Color3.fromRGB(82, 200, 135),
+    Bg = Color3.fromRGB(12, 14, 13),
+    Panel = Color3.fromRGB(18, 20, 19),
+    Stroke = Color3.fromRGB(34, 38, 36),
+    Accent = Color3.fromRGB(100, 220, 160),
+    Accent2 = Color3.fromRGB(90, 205, 150),
+    Text = Color3.fromRGB(235, 238, 236),
+    SubText = Color3.fromRGB(158, 165, 160),
+    Hover = Color3.fromRGB(32, 36, 34),
+    Button = Color3.fromRGB(26, 28, 27),
+    Good = Color3.fromRGB(100, 220, 160),
     Warn = Color3.fromRGB(240, 180, 70),
     Bad = Color3.fromRGB(235, 80, 90),
-    Scrollbar = Color3.fromRGB(52, 56, 53),
+    Scrollbar = Color3.fromRGB(50, 54, 52),
 }
 local Fonts = { Regular = Enum.Font.Gotham, Medium = Enum.Font.GothamMedium, Bold = Enum.Font.GothamBold }
 local function T(i, t, p) return TweenService:Create(i, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), p) end
@@ -84,7 +84,7 @@ function Library:ListConfigs() return Config.List() end
 function Library:CreateLibrary(opts)
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
-    local size = opts.Size or UDim2.fromOffset(620, 540)
+    local size = opts.Size or UDim2.fromOffset(600, 540)
     local closeCb = opts.CloseCallback
     local Window = { Name = title, _categories = {}, _selectedCategory = nil }
     local z = 100
@@ -93,26 +93,43 @@ function Library:CreateLibrary(opts)
     local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -90, 1, 0), Position = UDim2.fromOffset(14, 0), Text = title, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
     local closeBtn = Create("TextButton", {Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -6, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Theme.Button, Text = "X", Font = Fonts.Medium, TextSize = 16, TextColor3 = Theme.Text, AutoButtonColor = false, ZIndex = z + 2, Parent = header}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
     local minBtn = Create("TextButton", {Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -6 - 28 - 6, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Theme.Button, Text = "–", Font = Fonts.Medium, TextSize = 18, TextColor3 = Theme.Text, AutoButtonColor = false, ZIndex = z + 2, Parent = header}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+    local fsBtn = Create("TextButton", {Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -6 - 28 - 6 - 28 - 6, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Theme.Button, Text = "□", Font = Fonts.Medium, TextSize = 16, TextColor3 = Theme.Text, AutoButtonColor = false, ZIndex = z + 2, Parent = header}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
     closeBtn.MouseEnter:Connect(function() T(closeBtn, 0.12, {BackgroundColor3 = Theme.Bad}):Play() end)
     closeBtn.MouseLeave:Connect(function() T(closeBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
     closeBtn.MouseButton1Click:Connect(function() root.Visible = false if type(closeCb) == "function" then pcall(closeCb) end end)
     minBtn.MouseEnter:Connect(function() T(minBtn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end)
     minBtn.MouseLeave:Connect(function() T(minBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
-    local minimized, prevSize = false, root.Size
+    fsBtn.MouseEnter:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end)
+    fsBtn.MouseLeave:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
+    local minimized, prevSize, prevPos = false, root.Size, root.Position
+    local fullscreen, fsPrevSize, fsPrevPos = false, nil, nil
     minBtn.MouseButton1Click:Connect(function()
         minimized = not minimized
         if minimized then
-            prevSize = root.Size
-            for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = false end end
-            root.Size = UDim2.new(prevSize.X.Scale, prevSize.X.Offset, 0, 46)
+            prevSize = root.Size; prevPos = root.Position
+            local tw = T(root, 0.2, {Size = UDim2.new(prevSize.X.Scale, prevSize.X.Offset, 0, 46)})
+            tw:Play()
+            tw.Completed:Connect(function()
+                for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = false end end
+            end)
         else
-            root.Size = prevSize
             for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = true end end
+            T(root, 0.2, {Size = prevSize}):Play()
+        end
+    end)
+    fsBtn.MouseButton1Click:Connect(function()
+        if not fullscreen then
+            fsPrevSize, fsPrevPos = root.Size, root.Position
+            T(root, 0.22, {Size = UDim2.new(1, -20, 1, -20), Position = UDim2.fromScale(0.5, 0.5)}):Play()
+            fullscreen = true
+        else
+            T(root, 0.22, {Size = fsPrevSize, Position = fsPrevPos}):Play()
+            fullscreen = false
         end
     end)
     local body = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -12, 1, -(40 + 12)), Position = UDim2.fromOffset(6, 40 + 6), ZIndex = z, Parent = root})
-    local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 128, 1, 0), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 8)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
-    local content = Create("Frame", {Name = "Content", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(1, -(128 + 6), 1, 0), Position = UDim2.new(0, 128 + 6, 0, 0), ZIndex = z, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 8)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+    local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 120, 1, 0), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 8)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
+    local content = Create("Frame", {Name = "Content", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(1, -(120 + 6), 1, 0), Position = UDim2.new(0, 120 + 6, 0, 0), ZIndex = z, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 8)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
     do
         local dragging, dragStart, startPos
         header.InputBegan:Connect(function(input)
@@ -125,6 +142,9 @@ function Library:CreateLibrary(opts)
             local gp = {tl = Vector2.new(0,0), tr = Vector2.new(1,0), bl = Vector2.new(0,1), br = Vector2.new(1,1)}
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), Position = UDim2.new(ap.X, ap.X==1 and -4 or 4, ap.Y, ap.Y==1 and -4 or 4), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
+            local hint = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromOffset(18,2), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Rotation = (mode=="br" or mode=="tl") and 45 or -45, Parent = grip}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+            grip.MouseEnter:Connect(function() hint.Visible = true T(hint, 0.15, {BackgroundTransparency = 0.2, Size = UDim2.fromOffset(22,2)}):Play() end)
+            grip.MouseLeave:Connect(function() local tw = T(hint, 0.15, {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,2)}) tw.Completed:Connect(function() hint.Visible = false end) tw:Play() end)
             local resizing = false
             local startMouse, startAbsPos, startAbsSize, parentAbs
             local minW, minH = 520, 380
@@ -183,7 +203,7 @@ function Library:CreateLibrary(opts)
         btn.MouseEnter:Connect(function() if Window._selectedCategory ~= Category then T(btn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end end)
         btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(btn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end end)
         local catContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = content})
-    local subBar = Create("ScrollingFrame", {BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(1, -12, 0, 26), Position = UDim2.fromOffset(6, 6), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = z + 1, Parent = catContainer}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Center}), Create("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)})})
+    local subBar = Create("ScrollingFrame", {BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(1, -12, 0, 26), Position = UDim2.fromOffset(6, 6), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = z + 1, Parent = catContainer}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left}), Create("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)})})
     local pageArea = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -12, 1, -(26 + 12 + 6)), Position = UDim2.fromOffset(6, 26 + 10), Parent = catContainer})
         function Category:Select()
             if Window._selectedCategory and Window._selectedCategory._btn then T(Window._selectedCategory._btn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end
