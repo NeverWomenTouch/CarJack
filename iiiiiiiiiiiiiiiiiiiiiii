@@ -94,31 +94,7 @@ function Library:_getSnapshot() local d = {} for id, c in pairs(self._controls) 
 function Library:SaveConfig(n) return Config.Save(n, self:_getSnapshot()) end
 function Library:LoadConfig(n) local t = Config.Load(n) for id, v in pairs(t) do self:_setValue(id, v, true) end end
 function Library:ListConfigs() return Config.List() end
---[[
-CreateLibrary options:
-    Name (string)            - Window title text.
-    Size (UDim2)             - Initial window size (desktop baseline). Will be clamped for mobile if AutoDeviceCheck.
-    CloseCallback (func)     - Invoked when close button clicked.
-      TitleMode (string)       - "Static" (default) or "Type".
-          Static: shows the title immediately.
-          Type  : continuous looping scramble-typewriter animation.
-      TitleTypeConfig (table)  - Optional tuning when TitleMode = "Type":
-          Characters (string) random charset (default: "1234567890")
-          ScrambleCycles (number range) {min,max} transient random flashes per char (default {1,4})
-          CharDelay (number) base delay per final character reveal (default 0.02)
-          ScrambleDelay (number) delay between scramble flashes (default 0.015)
-          LoopPause (number) pause (seconds) after full word before restarting (default 2)
-    AutoDeviceCheck (bool)   - If true and on mobile: resizes window to a suitable mobile size. On mobile a floating
-                                                         draggable toggle button is ALWAYS created (even if false) so users can reopen the UI.
-Usage example:
-    local win = Library:CreateLibrary{
-            Name = "Example",
-            Size = UDim2.fromOffset(800,500),
-            TitleMode = "Rainbow",
-            AutoDeviceCheck = true,
-            CloseCallback = function() print("Closed") end,
-    }
-]]
+
 function Library:CreateLibrary(opts)
     -- destroy previous instance windows if any (singleton behavior)
     if self._singletonRoot and self._singletonRoot.Parent then
@@ -130,8 +106,9 @@ function Library:CreateLibrary(opts)
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
     local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static | type
-    local typeCfg = opts.TitleTypeConfig or {}
+    -- Removed TitleTypeConfig: using fixed tuned timings
     local autoDevice = opts.AutoDeviceCheck == true
+    local forceShowMobileBtn = opts.ShowMobileButton == true -- new option: show mobile toggle even on PC
     local size = opts.Size or UDim2.fromOffset(600, 540)
     local closeCb = opts.CloseCallback
     local Window = { Name = title, _categories = {}, _selectedCategory = nil }
@@ -142,6 +119,7 @@ function Library:CreateLibrary(opts)
     if isMobile and autoDevice then
         size = UDim2.fromOffset(math.clamp(size.X.Offset, 480, 560), math.clamp(size.Y.Offset, 360, 420))
     end
+    local showMobileBtn = isMobile or forceShowMobileBtn
     local root = Create("Frame", {Name = "Window", Size = size, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z, Parent = RootGui}, {rootStroke})
     self._singletonRoot = root
     -- Simplified header: clean bar + single accent line
@@ -154,14 +132,11 @@ function Library:CreateLibrary(opts)
     if titleMode == "type" then
         task.spawn(function()
             local txt = title:upper()
-            local charset = (type(typeCfg.Characters)=="string" and #typeCfg.Characters>0) and typeCfg.Characters or "1234567890"
-            local scrambleRange = typeCfg.ScrambleCycles or {1,4}
-            local scrambleMin = tonumber(scrambleRange[1]) or 1
-            local scrambleMax = tonumber(scrambleRange[2]) or 4
-            if scrambleMax < scrambleMin then scrambleMax = scrambleMin end
-            local charDelay = tonumber(typeCfg.CharDelay) or 0.02
-            local scrambleDelay = tonumber(typeCfg.ScrambleDelay) or 0.015
-            local loopPause = tonumber(typeCfg.LoopPause) or 2
+            local charset = "1234567890"
+            local scrambleMin, scrambleMax = 2, 5         -- slightly longer per char for smoother feel
+            local scrambleDelay = 0.03                     -- delay between scramble frames
+            local charDelay = 0.055                        -- delay after locking real char
+            local loopPause = 2.25                         -- pause after full word
             while true do
                 titleLabel.Text = ""
                 for i=1,#txt do
@@ -169,8 +144,7 @@ function Library:CreateLibrary(opts)
                     local prefix = txt:sub(1,i-1)
                     local flashes = math.random(scrambleMin, scrambleMax)
                     for f=1, flashes do
-                        local randChar = charset:sub(math.random(1,#charset), math.random(1,#charset))
-                        titleLabel.Text = prefix .. randChar
+                        titleLabel.Text = prefix .. charset:sub(math.random(1,#charset), math.random(1,#charset))
                         task.wait(scrambleDelay)
                     end
                     titleLabel.Text = prefix .. realChar
@@ -756,7 +730,7 @@ function Library:CreateLibrary(opts)
     end
     -- mobile open/close button
     local mobileToggleBtn
-    if isMobile then
+    if showMobileBtn then
         mobileToggleBtn = Create("TextButton", {Text = "≡", Font = Fonts.Bold, TextSize = 20, TextColor3 = Theme.Text, BackgroundColor3 = Theme.Accent, Size = UDim2.fromOffset(42,42), Position = UDim2.fromOffset(8, (size.Y.Offset + 20)), Parent = RootGui, AutoButtonColor = false})
         Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = mobileToggleBtn})
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.2, Parent = mobileToggleBtn})
