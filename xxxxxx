@@ -293,33 +293,36 @@ function Library:CreateLibrary(opts)
             local gp = {tl = Vector2.new(0,0), tr = Vector2.new(1,0), bl = Vector2.new(0,1), br = Vector2.new(1,1)}
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
+            local bracketH, bracketV, diag, bead
             if showVisual then
-                -- Clean triple diagonal grip (classic resize indicator)
-                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(22,22), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
-                local lengths = {16,11,6}
-                local offsets = {0,4,8}
-                local lines = {}
-                for i,len in ipairs(lengths) do
-                    local line = Create("Frame", {
-                        BackgroundColor3 = Theme.Accent,
-                        BackgroundTransparency = 0.35 + (i-1)*0.1,
-                        BorderSizePixel = 0,
-                        Size = UDim2.fromOffset(len,2),
-                        AnchorPoint = Vector2.new(1,1),
-                        Position = UDim2.new(1,-offsets[i],1,-offsets[i]),
-                        Rotation = 45,
-                        ZIndex = z + 5 + i,
-                        Parent = gripRoot
-                    })
-                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = line})
-                    lines[#lines+1] = line
-                end
+                -- Detailed composite indicator: bracket (L) + inner diagonal + accent bead
+                local rootSize = 22
+                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(rootSize,rootSize), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
+                -- bracket bars
+                bracketH = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.35, BorderSizePixel = 0, Size = UDim2.fromOffset(14,3), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 5, Parent = gripRoot})
+                bracketV = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.35, BorderSizePixel = 0, Size = UDim2.fromOffset(3,14), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 5, Parent = gripRoot})
+                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = bracketH})
+                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = bracketV})
+                -- diagonal accent
+                diag = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.55, BorderSizePixel = 0, Size = UDim2.fromOffset(16,2), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-1,1,-1), Rotation = 45, ZIndex = z + 6, Parent = gripRoot})
+                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = diag})
+                -- bead at corner
+                bead = Create("Frame", {BackgroundColor3 = Theme.Accent2, BackgroundTransparency = 0.15, BorderSizePixel = 0, Size = UDim2.fromOffset(6,6), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-1,1,-1), ZIndex = z + 7, Parent = gripRoot})
+                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = bead})
+                -- subtle inner notch to give layered feel
+                local beadInner = Create("Frame", {BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0.2, BorderSizePixel = 0, Size = UDim2.fromOffset(2,2), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), ZIndex = z + 8, Parent = bead})
+                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = beadInner})
                 local function hover(on)
-                    for i,line in ipairs(lines) do
-                        local baseLen = lengths[i]
-                        local targetLen = on and (baseLen + 2) or baseLen
-                        local targetTrans = on and (0.05 + (i-1)*0.08) or (0.35 + (i-1)*0.1)
-                        T(line,0.16,{BackgroundTransparency = targetTrans, Size = UDim2.fromOffset(targetLen,2)}):Play()
+                    if on then
+                        T(bracketH,0.14,{BackgroundTransparency = 0.1, Size = UDim2.fromOffset(16,3)}):Play()
+                        T(bracketV,0.14,{BackgroundTransparency = 0.1, Size = UDim2.fromOffset(3,16)}):Play()
+                        T(diag,0.16,{BackgroundTransparency = 0.25, Size = UDim2.fromOffset(18,2)}):Play()
+                        T(bead,0.18,{BackgroundTransparency = 0, Size = UDim2.fromOffset(7,7)}):Play()
+                    else
+                        T(bracketH,0.18,{BackgroundTransparency = 0.35, Size = UDim2.fromOffset(14,3)}):Play()
+                        T(bracketV,0.18,{BackgroundTransparency = 0.35, Size = UDim2.fromOffset(3,14)}):Play()
+                        T(diag,0.20,{BackgroundTransparency = 0.55, Size = UDim2.fromOffset(16,2)}):Play()
+                        T(bead,0.20,{BackgroundTransparency = 0.15, Size = UDim2.fromOffset(6,6)}):Play()
                     end
                 end
                 grip.MouseEnter:Connect(function() hover(true) end)
