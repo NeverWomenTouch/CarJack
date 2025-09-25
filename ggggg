@@ -550,7 +550,7 @@ function Library:CreateLibrary(opts)
                     local precise = o.Precise == true
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     -- UI row (taller & more spacious)
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,54), Position = UDim2.fromOffset(0,nextY(54)), Parent = gFrame})
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,58), Position = UDim2.fromOffset(0,nextY(58)), Parent = gFrame})
                     -- Label anchored top-left
                     local labelText = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -80, 0, 18), Position = UDim2.new(0,0,0,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
                     -- Value box floats to right of label
@@ -558,29 +558,51 @@ function Library:CreateLibrary(opts)
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = valueBox})
                     local vbStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = valueBox})
                     -- Bar spans almost entire width beneath
-                    local bar = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,10), Position = UDim2.new(0,0,0,28), Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55})})
-                    local fill = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.new(0,0,1,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(0,4)})})
-                    -- gradient overlay
+                    local bar = Create("Frame", {BackgroundColor3 = Color3.fromRGB(30,32,31), Size = UDim2.new(1,0,0,6), Position = UDim2.new(0,0,0,30), Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+                    local barStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.6, Parent = bar})
+                    local fill = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.new(0,0,1,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
                     local gradient = Instance.new("UIGradient")
-                    gradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Theme.Accent), ColorSequenceKeypoint.new(1, Theme.Accent2)})
+                    gradient.Color = ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Theme.Accent),
+                        ColorSequenceKeypoint.new(0.5, Theme.Accent2),
+                        ColorSequenceKeypoint.new(1, Theme.Accent)
+                    })
                     gradient.Rotation = 0
                     gradient.Parent = fill
-                    local knob = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,0,0.5,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
-                    local knobGlow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Text, ImageTransparency = 0.85, Size = UDim2.fromOffset(32,32), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = knob})
+                    -- animate gradient shift
+                    task.spawn(function()
+                        local t0 = tick()
+                        while row.Parent do
+                            local tNow = (tick() - t0) * 25
+                            gradient.Offset = Vector2.new((tNow % 100)/100, 0)
+                            task.wait(0.05)
+                        end
+                    end)
+                    local knob = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,0,0.5,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+                    local knobStroke = Create("UIStroke", {Color = Theme.Bg, Thickness = 2, Transparency = 0.2, Parent = knob})
+                    local knobGlow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.9, Size = UDim2.fromOffset(28,28), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = knob})
+                    -- tooltip
+                    local tip = Create("TextLabel", {BackgroundTransparency = 1, Text = tostring(default), Font = Fonts.Medium, TextSize = 11, TextColor3 = Theme.Text, AnchorPoint = Vector2.new(0.5,1), Position = UDim2.new(0,0,0,28), Size = UDim2.fromOffset(40,14), Visible = false, Parent = knob})
+                    local tipBg = Create("Frame", {BackgroundColor3 = Color3.fromRGB(20,22,21), Size = UDim2.fromOffset(40,16), AnchorPoint = Vector2.new(0.5,1), Position = UDim2.new(0,0,0,-4), Visible = false, Parent = knob}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})})
+                    tipBg.ZIndex = 10 tip.ZIndex = 11 knobGlow.ZIndex = 9 knob.ZIndex = 9
                     -- Hover effects
                     local function hover(on)
                         if on then
-                            T(bar,0.15,{BackgroundColor3 = Color3.fromRGB(38,42,40)}):Play()
-                            T(bar.UIStroke,0.18,{Transparency = 0.35}):Play()
-                            T(vbStroke,0.18,{Transparency = 0.35}):Play()
+                            T(bar,0.16,{BackgroundColor3 = Color3.fromRGB(36,40,38)}):Play()
+                            T(barStroke,0.18,{Transparency = 0.35}):Play()
+                            T(knobGlow,0.2,{ImageTransparency = 0.75}):Play()
+                            T(knob,0.18,{Size = UDim2.fromOffset(18,18)}):Play()
                         else
-                            T(bar,0.18,{BackgroundColor3 = Theme.Button}):Play()
-                            T(bar.UIStroke,0.18,{Transparency = 0.55}):Play()
-                            T(vbStroke,0.18,{Transparency = 0.45}):Play()
+                            T(bar,0.20,{BackgroundColor3 = Color3.fromRGB(30,32,31)}):Play()
+                            T(barStroke,0.20,{Transparency = 0.6}):Play()
+                            T(knobGlow,0.25,{ImageTransparency = 0.9}):Play()
+                            T(knob,0.20,{Size = UDim2.fromOffset(14,14)}):Play()
                         end
                     end
-                    bar.MouseEnter:Connect(function() hover(true) end)
-                    bar.MouseLeave:Connect(function() if not bar:IsDescendantOf(game) then return end hover(false) end)
+                    bar.MouseEnter:Connect(function() hover(true) tip.Visible = true tipBg.Visible = true end)
+                    bar.MouseLeave:Connect(function() hover(false) if not dragging then tip.Visible = false tipBg.Visible = false end end)
+                    knob.MouseEnter:Connect(function() hover(true) tip.Visible = true tipBg.Visible = true end)
+                    knob.MouseLeave:Connect(function() if not dragging then hover(false) tip.Visible = false tipBg.Visible = false end end)
                     valueBox.Focused:Connect(function() T(vbStroke,0.15,{Transparency = 0.25}):Play() end)
                     valueBox.FocusLost:Connect(function() T(vbStroke,0.18,{Transparency = 0.45}):Play() end)
                     local Slider = { id = id, _value = default }
@@ -605,6 +627,7 @@ function Library:CreateLibrary(opts)
                         fill.Size = UDim2.new(pct,0,1,0)
                         knob.Position = UDim2.new(pct,0,0.5,0)
                         valueBox.Text = formatValue(v)
+                        tip.Text = formatValue(v)
                         if not silent and type(cb)=="function" then pcall(cb,v) end
                     end
                     -- dragging logic
