@@ -811,6 +811,25 @@ function Library:CreateLibrary(opts)
                 end
             end
         end)
+        UserInputService.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                if holding then
+                    -- emulate release logic if MouseButton1Up missed (e.g., pointer left button area)
+                    local wasTap = holding and not dragging and (tick() - (pressTime or tick())) < 0.4
+                    holding = false
+                    T(toggleFrame,0.2,{Size = UDim2.new(0,50,0,50), Position = UDim2.new(0,10,0,10)}):Play()
+                    T(icon,0.2,{Size = UDim2.new(0,24,0,24)}):Play()
+                    if wasTap then
+                        open = not open
+                        root.Visible = open
+                        updateState()
+                    end
+                end
+                dragging = false
+                pressPos = nil
+                dragOffset = nil
+            end
+        end)
         button.TouchTap:Connect(function()
             if not dragging and not holding then
                 open = not open
