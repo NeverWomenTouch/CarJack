@@ -99,13 +99,15 @@ CreateLibrary options:
     Name (string)            - Window title text.
     Size (UDim2)             - Initial window size (desktop baseline). Will be clamped for mobile if AutoDeviceCheck.
     CloseCallback (func)     - Invoked when close button clicked.
-    TitleMode (string)       - One of:
-             "Static"  (default) : No animation.
-             "Type"              : Typewriter scramble reveal.
-             "Pulse"             : Accent/Text color pulsing.
-             "Rainbow"           : Hue cycling.
-             "Wave"              : Per-character wave (uses RichText).
-             "Glitch"            : Random char flicker.
+      TitleMode (string)       - "Static" (default) or "Type".
+          Static: shows the title immediately.
+          Type  : continuous looping scramble-typewriter animation.
+      TitleTypeConfig (table)  - Optional tuning when TitleMode = "Type":
+          Characters (string) random charset (default: "1234567890")
+          ScrambleCycles (number range) {min,max} transient random flashes per char (default {1,4})
+          CharDelay (number) base delay per final character reveal (default 0.02)
+          ScrambleDelay (number) delay between scramble flashes (default 0.015)
+          LoopPause (number) pause (seconds) after full word before restarting (default 2)
     AutoDeviceCheck (bool)   - If true and on mobile: resizes window to a suitable mobile size. On mobile a floating
                                                          draggable toggle button is ALWAYS created (even if false) so users can reopen the UI.
 Usage example:
@@ -127,7 +129,8 @@ function Library:CreateLibrary(opts)
     end
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
-    local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static, type, pulse, rainbow, wave, glitch
+    local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static | type
+    local typeCfg = opts.TitleTypeConfig or {}
     local autoDevice = opts.AutoDeviceCheck == true
     local size = opts.Size or UDim2.fromOffset(600, 540)
     local closeCb = opts.CloseCallback
@@ -147,83 +150,38 @@ function Library:CreateLibrary(opts)
     })
     local accentLine = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(1,-20,0,1), Position = UDim2.new(0,10,1,-2), BackgroundTransparency = 0.05, Parent = header})
     local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -160, 1, 0), Position = UDim2.fromOffset(12, 0), Text = title:upper(), TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
-    -- title animation helpers
-    local animThreads = {}
-    local function killAnims()
-        for i = #animThreads,1,-1 do local th = animThreads[i]; if coroutine.status(th) ~= "dead" then pcall(function() coroutine.close(th) end) end animThreads[i]=nil end
-    end
-    local function startAnim(fn)
-        local th = coroutine.create(fn)
-        animThreads[#animThreads+1] = th
-        coroutine.resume(th)
-    end
-    local function typeEffect()
-        local txt = title:upper()
-        local charset = "1234567890"; titleLabel.Text = ""
-        for i=1,#txt do
-            local realChar = txt:sub(i,i)
-            for _=1, math.random(1,4) do
-                titleLabel.Text = txt:sub(1,i-1)..charset:sub(math.random(1,#charset), math.random(1,#charset))
-                task.wait(0.015)
-            end
-            titleLabel.Text = txt:sub(1,i)
-            task.wait(0.02)
-        end
-    end
-    local function pulseEffect()
-        while true do
-            T(titleLabel,0.6,{TextColor3 = Theme.Accent}):Play(); task.wait(0.65)
-            T(titleLabel,0.6,{TextColor3 = Theme.Text}):Play(); task.wait(0.65)
-        end
-    end
-    local function rainbowEffect()
-        local h=0
-        while true do
-            h = (h + 0.007) % 1
-            local c = Color3.fromHSV(h,1,1)
-            titleLabel.TextColor3 = c
-            task.wait(0.03)
-        end
-    end
-    local function waveEffect()
-        local txt = title:upper()
-        local chars = {}
-        titleLabel.RichText = true
-        while true do
-            for i=1,#txt do
-                local phase = math.sin(tick()*5 + i*0.4)
-                local offset = math.floor(phase*3)
-                chars[i] = string.format("<font color=\"#%02X%02X%02X\">%s</font>", Theme.Text.R*255, Theme.Text.G*255, Theme.Text.B*255, txt:sub(i,i))
-            end
-            titleLabel.Text = table.concat(chars, "")
-            task.wait(0.06)
-        end
-    end
-    local function glitchEffect()
-        local txt = title:upper()
-        local charset = "!@#$%^&*1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        while true do
-            local out = {}
-            for i=1,#txt do
-                if math.random() < 0.08 then
-                    out[i] = charset:sub(math.random(1,#charset), math.random(1,#charset))
-                else
-                    out[i] = txt:sub(i,i)
+    -- Title animation: only Static or looping Type
+    if titleMode == "type" then
+        task.spawn(function()
+            local txt = title:upper()
+            local charset = (type(typeCfg.Characters)=="string" and #typeCfg.Characters>0) and typeCfg.Characters or "1234567890"
+            local scrambleRange = typeCfg.ScrambleCycles or {1,4}
+            local scrambleMin = tonumber(scrambleRange[1]) or 1
+            local scrambleMax = tonumber(scrambleRange[2]) or 4
+            if scrambleMax < scrambleMin then scrambleMax = scrambleMin end
+            local charDelay = tonumber(typeCfg.CharDelay) or 0.02
+            local scrambleDelay = tonumber(typeCfg.ScrambleDelay) or 0.015
+            local loopPause = tonumber(typeCfg.LoopPause) or 2
+            while true do
+                titleLabel.Text = ""
+                for i=1,#txt do
+                    local realChar = txt:sub(i,i)
+                    local prefix = txt:sub(1,i-1)
+                    local flashes = math.random(scrambleMin, scrambleMax)
+                    for f=1, flashes do
+                        local randChar = charset:sub(math.random(1,#charset), math.random(1,#charset))
+                        titleLabel.Text = prefix .. randChar
+                        task.wait(scrambleDelay)
+                    end
+                    titleLabel.Text = prefix .. realChar
+                    task.wait(charDelay)
                 end
+                task.wait(loopPause)
             end
-            titleLabel.Text = table.concat(out,"")
-            task.wait(0.08)
-        end
+        end)
+    else
+        titleLabel.Text = title:upper()
     end
-    task.spawn(function()
-        if titleMode == "static" then return end
-        if titleMode == "type" then startAnim(typeEffect)
-        elseif titleMode == "pulse" then startAnim(pulseEffect)
-        elseif titleMode == "rainbow" then startAnim(rainbowEffect)
-        elseif titleMode == "wave" then startAnim(waveEffect)
-        elseif titleMode == "glitch" then startAnim(glitchEffect)
-        end
-    end)
     local btnCluster = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(108, 32), Position = UDim2.new(1, -8, 0.5, 0), AnchorPoint = Vector2.new(1,0.5), Parent = header})
     local clusterLayout = Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0,4)}) clusterLayout.Parent = btnCluster
     local function makeHeaderBtn(iconChar)
@@ -294,13 +252,43 @@ function Library:CreateLibrary(opts)
     local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 100, 1, 0), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
     local content = Create("Frame", {Name = "Content", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ClipsDescendants = true, Size = UDim2.new(1, -(100 + 6), 1, 0), Position = UDim2.new(0, 100 + 6, 0, 0), ZIndex = z, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
     do
-        local dragging, dragStart, startPos
+        -- Smooth, resilient dragging (supports mouse & touch) without stutter.
+    local dragging = false
+    local dragStart
+    local frameStart
+        local lastInput
+        local RS = game:GetService("RunService")
+        local function update()
+            if not dragging or not lastInput then return end
+            local curPos = (lastInput.UserInputType == Enum.UserInputType.Touch) and lastInput.Position or UserInputService:GetMouseLocation()
+            local delta = curPos - dragStart
+            root.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + delta.X, frameStart.Y.Scale, frameStart.Y.Offset + delta.Y)
+        end
         header.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true dragStart = input.Position startPos = root.Position input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end) end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                lastInput = input
+                dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                frameStart = root.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
         end)
         header.InputChanged:Connect(function(input)
-            if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then local d = input.Position - dragStart root.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                lastInput = input
+            end
         end)
+        UserInputService.InputChanged:Connect(function(input)
+            if not dragging then return end
+            if input == lastInput then
+                update()
+            end
+        end)
+        RS.RenderStepped:Connect(update)
         local resizingCount = 0
         local sizeLabel = Create("TextLabel", {BackgroundTransparency = 0.25, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(110, 20), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1, -8, 1, -8), Text = "", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, Visible = false, Parent = root}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0.4})})
         local function resizeStartEffect()
