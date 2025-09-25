@@ -94,6 +94,29 @@ function Library:_getSnapshot() local d = {} for id, c in pairs(self._controls) 
 function Library:SaveConfig(n) return Config.Save(n, self:_getSnapshot()) end
 function Library:LoadConfig(n) local t = Config.Load(n) for id, v in pairs(t) do self:_setValue(id, v, true) end end
 function Library:ListConfigs() return Config.List() end
+--[[
+CreateLibrary options:
+    Name (string)            - Window title text.
+    Size (UDim2)             - Initial window size (desktop baseline). Will be clamped for mobile if AutoDeviceCheck.
+    CloseCallback (func)     - Invoked when close button clicked.
+    TitleMode (string)       - One of:
+             "Static"  (default) : No animation.
+             "Type"              : Typewriter scramble reveal.
+             "Pulse"             : Accent/Text color pulsing.
+             "Rainbow"           : Hue cycling.
+             "Wave"              : Per-character wave (uses RichText).
+             "Glitch"            : Random char flicker.
+    AutoDeviceCheck (bool)   - If true and on mobile: resizes window to a suitable mobile size. On mobile a floating
+                                                         draggable toggle button is ALWAYS created (even if false) so users can reopen the UI.
+Usage example:
+    local win = Library:CreateLibrary{
+            Name = "Example",
+            Size = UDim2.fromOffset(800,500),
+            TitleMode = "Rainbow",
+            AutoDeviceCheck = true,
+            CloseCallback = function() print("Closed") end,
+    }
+]]
 function Library:CreateLibrary(opts)
     -- destroy previous instance windows if any (singleton behavior)
     if self._singletonRoot and self._singletonRoot.Parent then
@@ -104,11 +127,18 @@ function Library:CreateLibrary(opts)
     end
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
+    local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static, type, pulse, rainbow, wave, glitch
+    local autoDevice = opts.AutoDeviceCheck == true
     local size = opts.Size or UDim2.fromOffset(600, 540)
     local closeCb = opts.CloseCallback
     local Window = { Name = title, _categories = {}, _selectedCategory = nil }
     local z = 100
     local rootStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
+    -- device adapt
+    local isMobile = (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) or (UserInputService.KeyboardEnabled == false)
+    if isMobile and autoDevice then
+        size = UDim2.fromOffset(math.clamp(size.X.Offset, 480, 560), math.clamp(size.Y.Offset, 360, 420))
+    end
     local root = Create("Frame", {Name = "Window", Size = size, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z, Parent = RootGui}, {rootStroke})
     self._singletonRoot = root
     -- Simplified header: clean bar + single accent line
@@ -117,6 +147,83 @@ function Library:CreateLibrary(opts)
     })
     local accentLine = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(1,-20,0,1), Position = UDim2.new(0,10,1,-2), BackgroundTransparency = 0.05, Parent = header})
     local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -160, 1, 0), Position = UDim2.fromOffset(12, 0), Text = title:upper(), TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
+    -- title animation helpers
+    local animThreads = {}
+    local function killAnims()
+        for i = #animThreads,1,-1 do local th = animThreads[i]; if coroutine.status(th) ~= "dead" then pcall(function() coroutine.close(th) end) end animThreads[i]=nil end
+    end
+    local function startAnim(fn)
+        local th = coroutine.create(fn)
+        animThreads[#animThreads+1] = th
+        coroutine.resume(th)
+    end
+    local function typeEffect()
+        local txt = title:upper()
+        local charset = "1234567890"; titleLabel.Text = ""
+        for i=1,#txt do
+            local realChar = txt:sub(i,i)
+            for _=1, math.random(1,4) do
+                titleLabel.Text = txt:sub(1,i-1)..charset:sub(math.random(1,#charset), math.random(1,#charset))
+                task.wait(0.015)
+            end
+            titleLabel.Text = txt:sub(1,i)
+            task.wait(0.02)
+        end
+    end
+    local function pulseEffect()
+        while true do
+            T(titleLabel,0.6,{TextColor3 = Theme.Accent}):Play(); task.wait(0.65)
+            T(titleLabel,0.6,{TextColor3 = Theme.Text}):Play(); task.wait(0.65)
+        end
+    end
+    local function rainbowEffect()
+        local h=0
+        while true do
+            h = (h + 0.007) % 1
+            local c = Color3.fromHSV(h,1,1)
+            titleLabel.TextColor3 = c
+            task.wait(0.03)
+        end
+    end
+    local function waveEffect()
+        local txt = title:upper()
+        local chars = {}
+        titleLabel.RichText = true
+        while true do
+            for i=1,#txt do
+                local phase = math.sin(tick()*5 + i*0.4)
+                local offset = math.floor(phase*3)
+                chars[i] = string.format("<font color=\"#%02X%02X%02X\">%s</font>", Theme.Text.R*255, Theme.Text.G*255, Theme.Text.B*255, txt:sub(i,i))
+            end
+            titleLabel.Text = table.concat(chars, "")
+            task.wait(0.06)
+        end
+    end
+    local function glitchEffect()
+        local txt = title:upper()
+        local charset = "!@#$%^&*1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        while true do
+            local out = {}
+            for i=1,#txt do
+                if math.random() < 0.08 then
+                    out[i] = charset:sub(math.random(1,#charset), math.random(1,#charset))
+                else
+                    out[i] = txt:sub(i,i)
+                end
+            end
+            titleLabel.Text = table.concat(out,"")
+            task.wait(0.08)
+        end
+    end
+    task.spawn(function()
+        if titleMode == "static" then return end
+        if titleMode == "type" then startAnim(typeEffect)
+        elseif titleMode == "pulse" then startAnim(pulseEffect)
+        elseif titleMode == "rainbow" then startAnim(rainbowEffect)
+        elseif titleMode == "wave" then startAnim(waveEffect)
+        elseif titleMode == "glitch" then startAnim(glitchEffect)
+        end
+    end)
     local btnCluster = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(108, 32), Position = UDim2.new(1, -8, 0.5, 0), AnchorPoint = Vector2.new(1,0.5), Parent = header})
     local clusterLayout = Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0,4)}) clusterLayout.Parent = btnCluster
     local function makeHeaderBtn(iconChar)
@@ -658,6 +765,33 @@ function Library:CreateLibrary(opts)
         table.insert(Window._categories, Category)
         if not Window._selectedCategory then Category:Select() end
         return Category
+    end
+    -- mobile open/close button
+    local mobileToggleBtn
+    if isMobile then
+        mobileToggleBtn = Create("TextButton", {Text = "≡", Font = Fonts.Bold, TextSize = 20, TextColor3 = Theme.Text, BackgroundColor3 = Theme.Accent, Size = UDim2.fromOffset(42,42), Position = UDim2.fromOffset(8, (size.Y.Offset + 20)), Parent = RootGui, AutoButtonColor = false})
+        Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = mobileToggleBtn})
+        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.2, Parent = mobileToggleBtn})
+        local open = true
+        mobileToggleBtn.MouseButton1Click:Connect(function()
+            open = not open
+            root.Visible = open
+            T(mobileToggleBtn,0.15,{BackgroundColor3 = open and Theme.Accent or Theme.Hover}):Play()
+        end)
+        -- drag support
+        local dragging=false; local dragStart; local startPos
+        mobileToggleBtn.InputBegan:Connect(function(inp)
+            if inp.UserInputType==Enum.UserInputType.Touch or inp.UserInputType==Enum.UserInputType.MouseButton1 then
+                dragging=true; dragStart=inp.Position; startPos=mobileToggleBtn.Position
+                inp.Changed:Connect(function() if inp.UserInputState==Enum.UserInputState.End then dragging=false end end)
+            end
+        end)
+        mobileToggleBtn.InputChanged:Connect(function(inp)
+            if dragging and (inp.UserInputType==Enum.UserInputType.Touch or inp.UserInputType==Enum.UserInputType.MouseMovement) then
+                local d = inp.Position - dragStart
+                mobileToggleBtn.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset + d.X,startPos.Y.Scale,startPos.Y.Offset + d.Y)
+            end
+        end)
     end
     Window.AddTab = Window.AddCategory
     return Window
