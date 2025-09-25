@@ -550,18 +550,39 @@ function Library:CreateLibrary(opts)
                     local precise = o.Precise == true
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     -- UI row (taller & more spacious)
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,46), Position = UDim2.fromOffset(0,nextY(46)), Parent = gFrame})
-                    local labelWidth = 0.36
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(labelWidth,-6,0,20), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local right = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1-labelWidth,0,1,0), Position = UDim2.new(labelWidth,0,0,0), Parent = row})
-                    -- value editor
-                    local valueBox = Create("TextBox", {BackgroundColor3 = Theme.Button, Text = tostring(default), Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.SubText, Size = UDim2.new(0,66,0,20), Position = UDim2.new(1,-70,0,0), AnchorPoint = Vector2.new(0,0), ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Center, Parent = right})
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,54), Position = UDim2.fromOffset(0,nextY(54)), Parent = gFrame})
+                    -- Label anchored top-left
+                    local labelText = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -80, 0, 18), Position = UDim2.new(0,0,0,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    -- Value box floats to right of label
+                    local valueBox = Create("TextBox", {BackgroundColor3 = Theme.Button, Text = tostring(default), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, Size = UDim2.new(0,64,0,18), Position = UDim2.new(1,-66,0,0), AnchorPoint = Vector2.new(0,0), ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Center, Parent = row})
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = valueBox})
-                    Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4, Parent = valueBox})
-                    local barWidthOffset = 74
-                    local bar = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.new(1,-barWidthOffset,0,8), Position = UDim2.new(0,0,0,28), Parent = right}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
-                    local fill = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.new(0,0,1,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(0,3)})})
-                    local knob = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,0,0.5,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+                    local vbStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = valueBox})
+                    -- Bar spans almost entire width beneath
+                    local bar = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,10), Position = UDim2.new(0,0,0,28), Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55})})
+                    local fill = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.new(0,0,1,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(0,4)})})
+                    -- gradient overlay
+                    local gradient = Instance.new("UIGradient")
+                    gradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Theme.Accent), ColorSequenceKeypoint.new(1, Theme.Accent2)})
+                    gradient.Rotation = 0
+                    gradient.Parent = fill
+                    local knob = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,0,0.5,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+                    local knobGlow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Text, ImageTransparency = 0.85, Size = UDim2.fromOffset(32,32), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = knob})
+                    -- Hover effects
+                    local function hover(on)
+                        if on then
+                            T(bar,0.15,{BackgroundColor3 = Color3.fromRGB(38,42,40)}):Play()
+                            T(bar.UIStroke,0.18,{Transparency = 0.35}):Play()
+                            T(vbStroke,0.18,{Transparency = 0.35}):Play()
+                        else
+                            T(bar,0.18,{BackgroundColor3 = Theme.Button}):Play()
+                            T(bar.UIStroke,0.18,{Transparency = 0.55}):Play()
+                            T(vbStroke,0.18,{Transparency = 0.45}):Play()
+                        end
+                    end
+                    bar.MouseEnter:Connect(function() hover(true) end)
+                    bar.MouseLeave:Connect(function() if not bar:IsDescendantOf(game) then return end hover(false) end)
+                    valueBox.Focused:Connect(function() T(vbStroke,0.15,{Transparency = 0.25}):Play() end)
+                    valueBox.FocusLost:Connect(function() T(vbStroke,0.18,{Transparency = 0.45}):Play() end)
                     local Slider = { id = id, _value = default }
                     function Slider:Get() return self._value end
                     local function formatValue(v)
