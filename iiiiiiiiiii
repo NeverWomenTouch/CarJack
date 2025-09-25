@@ -87,6 +87,13 @@ function Library:SaveConfig(n) return Config.Save(n, self:_getSnapshot()) end
 function Library:LoadConfig(n) local t = Config.Load(n) for id, v in pairs(t) do self:_setValue(id, v, true) end end
 function Library:ListConfigs() return Config.List() end
 function Library:CreateLibrary(opts)
+    -- destroy previous instance windows if any (singleton behavior)
+    if self._singletonRoot and self._singletonRoot.Parent then
+        pcall(function()
+            for _, child in ipairs(self._singletonRoot:GetChildren()) do child:Destroy() end
+            self._singletonRoot:Destroy()
+        end)
+    end
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
     local size = opts.Size or UDim2.fromOffset(600, 540)
@@ -95,6 +102,7 @@ function Library:CreateLibrary(opts)
     local z = 100
     local rootStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
     local root = Create("Frame", {Name = "Window", Size = size, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z, Parent = RootGui}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), rootStroke})
+    self._singletonRoot = root
     local header = Create("Frame", {Name = "Header", Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, ZIndex = z + 1, Parent = root}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.2})})
     local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -90, 1, 0), Position = UDim2.fromOffset(14, 0), Text = title, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
     local closeBtn = Create("TextButton", {Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -6, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Theme.Button, Text = "X", Font = Fonts.Medium, TextSize = 16, TextColor3 = Theme.Text, AutoButtonColor = false, ZIndex = z + 2, Parent = header}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
@@ -338,45 +346,36 @@ function Library:CreateLibrary(opts)
                     local default = (o.Default == true)
                     local cb = o.Callback
                     local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 42), Position = UDim2.fromOffset(0, nextY(42)), Parent = gFrame})
-                    local container = Create("TextButton", {BackgroundColor3 = Color3.fromRGB(37,37,37), AutoButtonColor = false, Text = "", Size = UDim2.new(1, -2, 1, 0), Position = UDim2.fromOffset(0,0), Parent = row})
-                    Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = container})
-                    local title = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.95, 0, 0, 40), Position = UDim2.fromOffset(14,1), Text = label, Font = Fonts.Medium, TextSize = 16, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = container})
-                    local frame1 = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(37,18), AnchorPoint = Vector2.new(1,0), Position = UDim2.new(1, -14, 0.285, 0), Parent = container})
-                    Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = frame1})
-                    local frame2 = Create("Frame", {BackgroundColor3 = Color3.fromRGB(34,34,34), Size = UDim2.fromOffset(33,14), Position = UDim2.fromOffset(2,2), Parent = frame1})
-                    Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = frame2})
-                    local frame3 = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromOffset(37,18), Parent = frame1})
-                    Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = frame3})
-                    local circle = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(10,10), Position = UDim2.new(0.127,0,0.222,0), Parent = frame1})
-                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = circle})
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32), Position = UDim2.fromOffset(0, nextY(32)), Parent = gFrame})
+                    local container = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 1, 0), Parent = row})
+                    Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = container})
+                    local title = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -60, 1, 0), Position = UDim2.fromOffset(8,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = container})
+                    local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(40,18), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1, -8, 0.5, 0), Parent = container})
+                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
+                    local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(36,14), Position = UDim2.fromOffset(2,2), Parent = shell})
+                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = recess})
+                    local accentFill = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = shell})
+                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
+                    local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0, 4, 0.5, 0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
+                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
                     local Toggle = { id = id, _value = default, _signal = Signal() }
                     function Toggle:Get() return self._value end
-                    local function apply(state, silent)
-                        if state then
-                            T(container, 0.3, {BackgroundColor3 = Color3.fromRGB(37,37,37)}):Play()
-                            T(frame1, 0.3, {BackgroundTransparency = 1}):Play()
-                            T(frame2, 0.3, {BackgroundTransparency = 1}):Play()
-                            T(frame3, 0.3, {BackgroundTransparency = 0}):Play()
-                            T(circle, 0.3, {BackgroundColor3 = Theme.Text, Position = UDim2.new(0.587,0,0.222,0)}):Play()
+                    function Toggle:Set(v, silent)
+                        v = (v == true)
+                        Toggle._value = v
+                        if v then
+                            T(accentFill, 0.25, {BackgroundTransparency = 0}):Play()
+                            T(knob, 0.25, {Position = UDim2.new(1, -16, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
                         else
-                            T(container, 0.3, {BackgroundColor3 = Color3.fromRGB(34,34,34)}):Play()
-                            T(frame1, 0.3, {BackgroundTransparency = 0}):Play()
-                            T(frame2, 0.3, {BackgroundTransparency = 0}):Play()
-                            T(frame3, 0.3, {BackgroundTransparency = 1}):Play()
-                            T(circle, 0.3, {BackgroundColor3 = Color3.fromRGB(50,50,50), Position = UDim2.new(0.127,0,0.222,0)}):Play()
+                            T(accentFill, 0.25, {BackgroundTransparency = 1}):Play()
+                            T(knob, 0.25, {Position = UDim2.new(0, 4, 0.5, 0), BackgroundColor3 = Theme.Scrollbar}):Play()
                         end
-                        Toggle._value = state
-                        if not silent then
-                            if type(cb) == "function" then pcall(cb, state) end
-                            Toggle._signal:Fire(state)
-                        end
+                        if not silent then if type(cb) == "function" then pcall(cb, v) end Toggle._signal:Fire(v) end
                     end
-                    function Toggle:Set(v, silent) apply(v == true, silent) end
                     function Toggle:OnChanged(fn) return self._signal:Connect(fn) end
                     container.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
-                    container.MouseEnter:Connect(function() if not Toggle._value then T(container,0.2,{BackgroundColor3 = Color3.fromRGB(38,38,38)}):Play() end end)
-                    container.MouseLeave:Connect(function() T(container,0.2,{BackgroundColor3 = Toggle._value and Color3.fromRGB(37,37,37) or Color3.fromRGB(34,34,34)}):Play() end)
+                    container.MouseEnter:Connect(function() T(container,0.15,{BackgroundColor3 = Theme.Hover}):Play() end)
+                    container.MouseLeave:Connect(function() T(container,0.15,{BackgroundColor3 = Theme.Button}):Play() end)
                     Toggle:Set(default, true)
                     Library:_registerControl(Toggle)
                     table.insert(Group._controls, Toggle)
