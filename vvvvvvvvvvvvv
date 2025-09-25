@@ -297,34 +297,18 @@ function Library:CreateLibrary(opts)
             if showVisual then
                 hBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.25, BorderSizePixel = 0, Size = UDim2.fromOffset(18,2), ZIndex = z + 4, Parent = grip})
                 vBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.25, BorderSizePixel = 0, Size = UDim2.fromOffset(2,18), ZIndex = z + 4, Parent = grip})
-                -- rounded bars
+                -- rounded bars only (removed circular caps per request)
                 Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = hBar})
                 Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = vBar})
-                -- circles at the INNER start of each bar (left end of horizontal, top end of vertical)
-                local hCap = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.18, BorderSizePixel = 0, Size = UDim2.fromOffset(6,6), AnchorPoint = Vector2.new(0,0.5), Position = UDim2.new(0,0,0.5,0), ZIndex = z + 5, Parent = hBar})
-                local vCap = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.18, BorderSizePixel = 0, Size = UDim2.fromOffset(6,6), AnchorPoint = Vector2.new(0.5,0), Position = UDim2.new(0.5,0,0,0), ZIndex = z + 5, Parent = vBar})
-                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = hCap})
-                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = vCap})
-                local function capsHover(on)
-                    if on then
-                        T(hCap,0.18,{BackgroundTransparency = 0.05, Size = UDim2.fromOffset(7,7)}):Play()
-                        T(vCap,0.18,{BackgroundTransparency = 0.05, Size = UDim2.fromOffset(7,7)}):Play()
-                    else
-                        T(hCap,0.20,{BackgroundTransparency = 0.18, Size = UDim2.fromOffset(6,6)}):Play()
-                        T(vCap,0.20,{BackgroundTransparency = 0.18, Size = UDim2.fromOffset(6,6)}):Play()
-                    end
-                end
                 hBar.AnchorPoint = Vector2.new(1,1); hBar.Position = UDim2.new(1, -2, 1, -2)
                 vBar.AnchorPoint = Vector2.new(1,1); vBar.Position = UDim2.new(1, -2, 1, -2)
                 local function hover(on)
                     if on then
                         T(hBar, 0.15, {BackgroundTransparency = 0, Size = UDim2.fromOffset(24,2)}):Play()
                         T(vBar, 0.15, {BackgroundTransparency = 0, Size = UDim2.fromOffset(2,24)}):Play()
-                        capsHover(true)
                     else
                         T(hBar, 0.15, {BackgroundTransparency = 0.25, Size = UDim2.fromOffset(18,2)}):Play()
                         T(vBar, 0.15, {BackgroundTransparency = 0.25, Size = UDim2.fromOffset(2,18)}):Play()
-                        capsHover(false)
                     end
                 end
                 grip.MouseEnter:Connect(function() hover(true) end)
@@ -701,8 +685,7 @@ function Library:CreateLibrary(opts)
                     if not text or text == "" then return end
                     Library._searchEntries[#Library._searchEntries+1] = {textLower = string.lower(text), category = Category, page = Page, groupFrame = gFrame}
                 end
-                -- register group name
-                registerSearch(gName)
+                -- removed group name registration so search only matches control titles
                 -- Toggle
                 function Group:AddToggle(o)
                     o = o or {}
@@ -1022,26 +1005,110 @@ function Library:CreateLibrary(opts)
                     local default = o.Default
                     local cb = o.Callback
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,30), Position = UDim2.fromOffset(0,nextY(30)), Parent = gFrame})
+                    local rowH = 30
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
                     local labelWidth = 0.44
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(labelWidth,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(1-labelWidth,-4,1,0), Position = UDim2.new(labelWidth,4,0,0), Text = "", Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-26,1,0), Position = UDim2.fromOffset(8,0), Text = default and tostring(default) or "Select...", Font = Fonts.Medium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.SubText, Parent = box})
-                    local arrow = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), Position = UDim2.new(1,-12,0.5,0), AnchorPoint = Vector2.new(0.5,0.5), Text = "▶", Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.Text, Rotation = 90, Parent = box})
-                    local listFrame = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, ZIndex = (z+200), Parent = RootGui}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                    local listScroll = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1,-8,1,-8), Position = UDim2.fromOffset(4,4), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, ZIndex = (z+201), Parent = listFrame}, {Create("UIListLayout", {Padding = UDim.new(0,4), SortOrder = Enum.SortOrder.LayoutOrder})})
-                    local function updateListGeometry(count)
-                        local w = math.max(170, box.AbsoluteSize.X)
-                        local h = math.min(180, (count * 28) + 10)
-                        listFrame.Size = UDim2.fromOffset(w, 0)
-                        listFrame.Position = UDim2.fromOffset(box.AbsolutePosition.X, box.AbsolutePosition.Y + box.AbsoluteSize.Y + 4)
-                        -- animate expand
-                        local targetH = h
-                        listFrame.Visible = true
-                        listFrame.Size = UDim2.fromOffset(w, 4)
-                        T(listFrame,0.18,{Size = UDim2.fromOffset(w,targetH)}):Play()
-                    end
+                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1-labelWidth,-4,1,0), Position = UDim2.new(labelWidth,4,0,0), Parent = row}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                        Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,24)})
+                    })
+                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Text = default and tostring(default) or "Select...", Font = Fonts.Medium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.SubText, Parent = box})
+                    -- chevron icon (two lines) rotating on open/close
+                    local chev = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(1,-10,0.5,0), Parent = box})
+                    -- curved chevron arms (rounded ends) to follow window corner style
+                    local ch1 = Create("Frame", {BackgroundColor3 = Theme.Text, BorderSizePixel = 0, Size = UDim2.fromOffset(10,2), Position = UDim2.fromOffset(2,6), Parent = chev}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,2)})
+                    })
+                    local ch2 = Create("Frame", {BackgroundColor3 = Theme.Text, BorderSizePixel = 0, Size = UDim2.fromOffset(10,2), Position = UDim2.fromOffset(2,6), Parent = chev}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,2)})
+                    })
+                    ch1.Rotation = 45 ch2.Rotation = -45
+                    -- dropdown panel (internal) appears below row; sized dynamically
+                    local panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 200, Parent = gFrame}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                        Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
+                    })
+                    local panelScroll = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(4,4), Size = UDim2.new(1,-8,1,-8), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, ZIndex = z + 201, Parent = panel}, {
+                        Create("UIListLayout", {Padding = UDim.new(0,3), SortOrder = Enum.SortOrder.LayoutOrder})
+                    })
                     local Dropdown = { id = id, _value = default, _options = {} }
+                    local opening = false
+                    local maxVisible = 6
+                    local function positionPanel()
+                        panel.Position = UDim2.fromOffset(box.AbsolutePosition.X - gFrame.AbsolutePosition.X, row.AbsolutePosition.Y - gFrame.AbsolutePosition.Y + row.AbsoluteSize.Y + 2)
+                        panel.Size = UDim2.fromOffset(box.AbsoluteSize.X, 0)
+                    end
+                    positionPanel()
+                    box:GetPropertyChangedSignal("AbsoluteSize"):Connect(positionPanel)
+                    box:GetPropertyChangedSignal("AbsolutePosition"):Connect(positionPanel)
+                    local function animateChevron(open)
+                        local base1, base2 = 45, -45
+                        local targetAdd = open and 180 or 0
+                        T(ch1,0.18,{Rotation = base1 + targetAdd}):Play()
+                        T(ch2,0.18,{Rotation = base2 + targetAdd}):Play()
+                    end
+                    local function closePanel()
+                        if not opening then return end
+                        opening = false
+                        animateChevron(false)
+                        local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X,0)})
+                        tw:Play()
+                        tw.Completed:Connect(function()
+                            if not opening then panel.Visible = false end
+                        end)
+                    end
+                    local function openPanel()
+                        if opening then return end
+                        opening = true
+                        animateChevron(true)
+                        positionPanel()
+                        panel.Visible = true
+                        panel.ClipsDescendants = true
+                        panel.Size = UDim2.fromOffset(box.AbsoluteSize.X,0)
+                        local count = #(Dropdown._options or {})
+                        local itemH = 24
+                        local targetH = math.min(count, maxVisible) * (itemH + 3) + 8
+                        T(panel,0.20,{Size = UDim2.fromOffset(box.AbsoluteSize.X, targetH)}):Play()
+                        -- sequential reveal
+                        local delayStep = 0.025
+                        local idx = 0
+                        for _, child in ipairs(panelScroll:GetChildren()) do
+                            if child:IsA("TextButton") then
+                                idx = idx + 1
+                                child.BackgroundTransparency = 1
+                                local lbl = child:FindFirstChildWhichIsA("TextLabel")
+                                if lbl then lbl.TextTransparency = 1 end
+                                task.delay(idx*delayStep, function()
+                                    if not opening or not child.Parent then return end
+                                    T(child,0.15,{BackgroundTransparency = 0}):Play()
+                                    if lbl then T(lbl,0.15,{TextTransparency = 0}):Play() end
+                                end)
+                            end
+                        end
+                    end
+                    local function toggle()
+                        if opening then closePanel() else openPanel() end
+                    end
+                    box.MouseButton1Click:Connect(toggle)
+                    -- outside click close
+                    UserInputService.InputBegan:Connect(function(input)
+                        if not panel.Visible or not opening then return end
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            local pos = (input.UserInputType==Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                            local absP = panel.AbsolutePosition
+                            local pSz = panel.AbsoluteSize
+                            local insidePanel = pos.X >= absP.X and pos.X <= absP.X+pSz.X and pos.Y >= absP.Y and pos.Y <= absP.Y+pSz.Y
+                            local absB = box.AbsolutePosition
+                            local bSz = box.AbsoluteSize
+                            local insideBox = pos.X >= absB.X and pos.X <= absB.X+bSz.X and pos.Y >= absB.Y and pos.Y <= absB.Y+bSz.Y
+                            if not insidePanel and not insideBox then closePanel() end
+                        elseif input.KeyCode == Enum.KeyCode.Escape then
+                            closePanel()
+                        end
+                    end)
+                    -- Dropdown table already created above so functions could reference it
                     function Dropdown:Get() return self._value end
                     function Dropdown:Set(v, silent)
                         if v == nil then self._value=nil valueLbl.Text="Select..." valueLbl.TextColor3 = Theme.SubText return end
@@ -1050,47 +1117,25 @@ function Library:CreateLibrary(opts)
                         valueLbl.Text = tostring(v)
                         valueLbl.TextColor3 = Theme.Text
                         if not silent and type(cb)=="function" then pcall(cb,v) end
+                        closePanel()
                     end
                     function Dropdown:SetOptions(nl)
                         self._options = {}
-                        for _, c in ipairs(listScroll:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+                        for _, c in ipairs(panelScroll:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
                         for _, val in ipairs(nl or {}) do
                             table.insert(self._options, val)
-                            local item = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(1,0,0,26), Text = "", Parent = listScroll, ZIndex = (z+202)}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.6})})
-                            local l = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-12,1,0), Position = UDim2.fromOffset(8,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
-                            local accent = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(0,2,1,0), Parent = item})
-                            item.MouseEnter:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(item.UIStroke,0.12,{Transparency = 0.3}):Play() end)
-                            item.MouseLeave:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Button}):Play() T(item.UIStroke,0.12,{Transparency = 0.6}):Play() end)
-                            item.MouseButton1Click:Connect(function() Dropdown:Set(val) listFrame.Visible=false end)
+                            local item = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,24), Text = "", Parent = panelScroll, ZIndex = z + 202}, {
+                                Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                                Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.6})
+                            })
+                            local l = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-14,1,0), Position = UDim2.fromOffset(8,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
+                            item.MouseEnter:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(item.Stroke,0.12,{Transparency = 0.3}):Play() end)
+                            item.MouseLeave:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Button}):Play() T(item.Stroke,0.12,{Transparency = 0.6}):Play() end)
+                            item.MouseButton1Click:Connect(function() Dropdown:Set(val) end)
                         end
-                        if listFrame.Visible then updateListGeometry(#self._options) end
+                        panelScroll.CanvasPosition = Vector2.new(0,0)
+                        if opening then closePanel() end
                     end
-                    box.MouseButton1Click:Connect(function()
-                        if listFrame.Visible then
-                            listFrame.Visible = false
-                            T(box.Stroke,0.15,{Transparency = 0.3}):Play()
-                            T(arrow,0.18,{Rotation = 90}):Play()
-                        else
-                            updateListGeometry(#(Dropdown._options or {}))
-                            T(box.Stroke,0.15,{Transparency = 0.1}):Play()
-                            T(arrow,0.18,{Rotation = 0}):Play()
-                        end
-                    end)
-                    box:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() if listFrame.Visible then updateListGeometry(#(Dropdown._options or {})) end end)
-                    box:GetPropertyChangedSignal("AbsolutePosition"):Connect(function() if listFrame.Visible then updateListGeometry(#(Dropdown._options or {})) end end)
-                    UserInputService.InputBegan:Connect(function(input)
-                        if not listFrame.Visible then return end
-                        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-                            local pos = (input.UserInputType==Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
-                            local inside = pos.X >= listFrame.AbsolutePosition.X and pos.X <= listFrame.AbsolutePosition.X + listFrame.AbsoluteSize.X and pos.Y >= listFrame.AbsolutePosition.Y and pos.Y <= listFrame.AbsolutePosition.Y + listFrame.AbsoluteSize.Y
-                            local insideBox = pos.X >= box.AbsolutePosition.X and pos.X <= box.AbsolutePosition.X + box.AbsoluteSize.X and pos.Y >= box.AbsolutePosition.Y and pos.Y <= box.AbsolutePosition.Y + box.AbsoluteSize.Y
-                            if not inside and not insideBox then
-                                listFrame.Visible=false
-                                T(box.Stroke,0.15,{Transparency = 0.3}):Play()
-                                T(arrow,0.18,{Rotation = 90}):Play()
-                            end
-                        end
-                    end)
                     Dropdown:SetOptions(list)
                     if default ~= nil then Dropdown:Set(default, true) end
                     Library:_registerControl(Dropdown)
