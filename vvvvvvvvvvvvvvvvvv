@@ -1076,7 +1076,7 @@ function Library:CreateLibrary(opts)
                         -- sequential reveal
                         local delayStep = 0.025
                         local idx = 0
-                        for _, child in ipairs(panelScroll:GetChildren()) do
+                        for _, child in ipairs(panelScroll and panelScroll:GetChildren() or {}) do
                             if child:IsA("TextButton") then
                                 idx = idx + 1
                                 child.BackgroundTransparency = 1
@@ -1123,8 +1123,8 @@ function Library:CreateLibrary(opts)
                     end
                     function Dropdown:SetOptions(nl)
                         self._options = {}
-                        for _, c in ipairs(panelScroll:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-                        for _, val in ipairs(nl or {}) do
+                        for _, c in ipairs(panelScroll and panelScroll:GetChildren() or {}) do if c:IsA("TextButton") then c:Destroy() end end
+                        for _, val in ipairs(type(nl)=="table" and nl or {}) do
                             table.insert(self._options, val)
                             local item = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,24), Text = "", Parent = panelScroll, ZIndex = z + 202}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
@@ -1343,7 +1343,7 @@ function Library:CreateLibrary(opts)
         term = tostring(term or ""):lower()
         if term == "" then return end
         local match
-        for _, entry in ipairs(Library._searchEntries) do
+    for _, entry in ipairs(Library._searchEntries or {}) do
             if entry.textLower:find(term, 1, true) then match = entry break end
         end
         if not match then return nil end
