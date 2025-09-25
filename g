@@ -764,43 +764,55 @@ function Library:CreateLibrary(opts)
                 task.wait()
             end
         end)
+        -- Improved drag: start when movement passes threshold; quick tap toggles
+        local pressPos
+        local dragOffset
+        local pressTime
+        local DRAG_THRESHOLD = 6
         button.MouseButton1Down:Connect(function()
-            holding = true; holdStart = tick()
+            holding = true; pressTime = tick(); dragging = false
+            local mouse = UserInputService:GetMouseLocation()
+            pressPos = Vector2.new(mouse.X, mouse.Y)
+            local abs = container.AbsolutePosition
+            dragOffset = Vector2.new(mouse.X - abs.X, mouse.Y - abs.Y)
             T(toggleFrame,0.1,{Size = UDim2.new(0,46,0,46), Position = UDim2.new(0,12,0,12)}):Play()
             T(icon,0.1,{Size = UDim2.new(0,20,0,20)}):Play()
-            task.delay(0.5,function()
-                if holding then
-                    dragging = true
-                    local pos = container.AbsolutePosition
-                    dragStart = Vector2.new(UserInputService:GetMouseLocation().X - pos.X, UserInputService:GetMouseLocation().Y - pos.Y)
-                end
-            end)
         end)
         button.MouseButton1Up:Connect(function()
-            local wasQuick = holding and (tick() - holdStart) < 0.5
+            local wasTap = holding and (tick() - pressTime) < 0.4 and not dragging
             holding = false
             T(toggleFrame,0.2,{Size = UDim2.new(0,50,0,50), Position = UDim2.new(0,10,0,10)}):Play()
             T(icon,0.2,{Size = UDim2.new(0,24,0,24)}):Play()
-            if dragging then dragging = false dragStart = nil end
-            if wasQuick then
+            if wasTap then
                 open = not open
                 root.Visible = open
                 updateState()
             end
+            dragging = false
+            pressPos = nil; dragOffset = nil
         end)
         UserInputService.InputChanged:Connect(function(inp)
-            if dragging and dragStart and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
+            if holding and pressPos and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                 local mouse = UserInputService:GetMouseLocation()
-                local newX = mouse.X - dragStart.X
-                local newY = mouse.Y - dragStart.Y
-                newX = math.max(0, math.min(viewport.X - container.AbsoluteSize.X, newX))
-                newY = math.max(0, math.min(viewport.Y - container.AbsoluteSize.Y, newY))
-                container.Position = UDim2.new(0, newX, 0, newY)
+                if not dragging then
+                    local dx = mouse.X - pressPos.X
+                    local dy = mouse.Y - pressPos.Y
+                    if (dx*dx + dy*dy) > (DRAG_THRESHOLD*DRAG_THRESHOLD) then
+                        dragging = true
+                    end
+                end
+                if dragging and dragOffset then
+                    local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
+                    local newX = mouse.X - dragOffset.X
+                    local newY = mouse.Y - dragOffset.Y
+                    newX = math.max(0, math.min(viewport.X - container.AbsoluteSize.X, newX))
+                    newY = math.max(0, math.min(viewport.Y - container.AbsoluteSize.Y, newY))
+                    container.Position = UDim2.new(0, newX, 0, newY)
+                end
             end
         end)
         button.TouchTap:Connect(function()
-            if not dragging then
+            if not dragging and not holding then
                 open = not open
                 root.Visible = open
                 updateState()
