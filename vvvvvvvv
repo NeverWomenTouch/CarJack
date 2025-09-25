@@ -122,12 +122,18 @@ function Library:CreateLibrary(opts)
         size = UDim2.fromOffset(math.clamp(size.X.Offset, 480, 560), math.clamp(size.Y.Offset, 360, 420))
     end
     local showMobileBtn = isMobile or forceShowMobileBtn
-    local root = Create("Frame", {Name = "Window", Size = size, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z, Parent = RootGui}, {rootStroke})
+    local root = Create("Frame", {Name = "Window", Size = size, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z, Parent = RootGui}, {
+        rootStroke,
+        -- added gentle rounding (was square); adjust 12 -> different look if needed
+        Create("UICorner", {CornerRadius = UDim.new(0,12)})
+    })
     self._singletonRoot = root
     -- Simplified header: clean bar + single accent line
     -- header color lightened (was Theme.Bg) to match panel tone for preview
     local header = Create("Frame", {Name = "Header", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ZIndex = z + 1, Parent = root}, {
-        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25})
+        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25}),
+        -- mirror rounding so top edge matches window curvature (bottom stays visually seamless)
+        Create("UICorner", {CornerRadius = UDim.new(0,12)})
     })
     -- removed accent line per request
     local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -160, 1, 0), Position = UDim2.fromOffset(12, 0), Text = title:upper(), TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
@@ -581,9 +587,9 @@ function Library:CreateLibrary(opts)
                 Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = gName, Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 2, Parent = gFrame})
                 local y = 22
                 if desc and #desc > 0 then
-                    -- Larger visible info badge with plain 'i'
-                    local infoBtn = Create("TextButton", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 12,1), AnchorPoint = Vector2.new(1,0), Text = "i", TextColor3 = Theme.SubText, Font = Fonts.Bold, TextSize = 14, AutoButtonColor = false, ZIndex = z + 6, Parent = gFrame})
-                    -- hover circle (separate so base stays transparent)
+                    -- Larger visible info badge with plain 'i' (reworked: anchor via scale so resizing window doesn't break alignment)
+                    local infoBtn = Create("TextButton", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), Position = UDim2.new(1, -6, 0, 1), AnchorPoint = Vector2.new(1,0), Text = "i", TextColor3 = Theme.SubText, Font = Fonts.Bold, TextSize = 14, AutoButtonColor = false, ZIndex = z + 6, Parent = gFrame})
+                    -- hover circle (separate so base stays transparent) follows same anchored position
                     local hoverCircle = Create("Frame", {BackgroundColor3 = Color3.fromRGB(40,42,41), BackgroundTransparency = 1, Size = infoBtn.Size, Position = infoBtn.Position, AnchorPoint = Vector2.new(1,0), ZIndex = z + 5, Parent = gFrame})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = hoverCircle})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = infoBtn})
@@ -603,18 +609,7 @@ function Library:CreateLibrary(opts)
                     end
                     infoBtn.MouseEnter:Connect(function() hover(true) end)
                     infoBtn.MouseLeave:Connect(function() hover(false) end)
-                    -- adjust when size changes (since AbsoluteSize not ready on creation) using a heartbeat
-                    task.spawn(function()
-                        local rs = game:GetService("RunService")
-                        for _=1,10 do
-                            if not infoBtn.Parent then return end
-                            infoBtn.Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 12,1)
-                            rs.Heartbeat:Wait()
-                        end
-                        gFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                            infoBtn.Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 12,1)
-                        end)
-                    end)
+                    -- no AbsoluteSize polling needed; anchored with scale to right edge
                     -- measure text for better width
                     local meas = TextService:GetTextSize(desc, 12, Fonts.Regular, Vector2.new(320, math.huge))
                     local baseW = math.clamp(meas.X + 30, 140, 340)
