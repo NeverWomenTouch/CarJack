@@ -293,24 +293,25 @@ function Library:CreateLibrary(opts)
             local gp = {tl = Vector2.new(0,0), tr = Vector2.new(1,0), bl = Vector2.new(0,1), br = Vector2.new(1,1)}
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
-            local hBar, vBar -- not used for arc style but kept for legacy compatibility
+            local hBar, vBar -- legacy refs retained (unused in arc version)
             if showVisual then
-                -- Curved indicator using a stroked rounded frame and masks to show only quarter arc (no fill bleed)
-                local arcFrame = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(24,24), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-3,1,-3), ZIndex = z + 4, Parent = grip})
-                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = arcFrame})
-                local stroke = Create("UIStroke", {Color = Theme.Accent, Thickness = 2, Transparency = 0.25, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, arcFrame)
-                -- Masks (panels colored like background) to hide unwanted quadrants of stroke leaving only bottom-right curve
-                local coverLeft = Create("Frame", {BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0.55,0,1,0), ZIndex = z + 5, Parent = arcFrame})
-                local coverTop = Create("Frame", {BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(1,0,0.55,0), ZIndex = z + 5, Parent = arcFrame})
-                coverTop.Position = UDim2.new(0,0,0,0)
-                -- shift covers so only a clean quarter arc remains (tweak factors if needed)
-                coverLeft.ClipsDescendants = true
-                coverTop.ClipsDescendants = true
+                -- Curved quarter-ring indicator built without images (stable & theme-aware)
+                local arcRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(22,22), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
+                local outer = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.fromScale(1,1), Parent = arcRoot})
+                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = outer})
+                local inner = Create("Frame", {BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(1,-6,1,-6), Position = UDim2.fromOffset(3,3), Parent = outer})
+                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = inner})
+                -- Masks to hide three quadrants (left half + top half of right side) leaving bottom-right quarter ring
+                local maskLeft = Create("Frame", {BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0.5,0,1,0), Parent = arcRoot})
+                local maskTop = Create("Frame", {BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0.5,0,0.5,0), Position = UDim2.new(0.5,0,0,0), Parent = arcRoot})
+                -- Optional subtle anti-alias blend (slightly transparent overlay) could be added here if needed
                 local function hover(on)
                     if on then
-                        T(stroke,0.15,{Transparency = 0.05, Thickness = 3, Color = Theme.Accent2}):Play()
+                        T(outer,0.16,{BackgroundColor3 = Theme.Accent2}):Play()
+                        T(inner,0.16,{Size = UDim2.new(1,-8,1,-8), Position = UDim2.fromOffset(4,4)}):Play()
                     else
-                        T(stroke,0.18,{Transparency = 0.25, Thickness = 2, Color = Theme.Accent}):Play()
+                        T(outer,0.18,{BackgroundColor3 = Theme.Accent}):Play()
+                        T(inner,0.18,{Size = UDim2.new(1,-6,1,-6), Position = UDim2.fromOffset(3,3)}):Play()
                     end
                 end
                 grip.MouseEnter:Connect(function() hover(true) end)
@@ -1076,7 +1077,7 @@ function Library:CreateLibrary(opts)
                         -- sequential reveal
                         local delayStep = 0.025
                         local idx = 0
-                        for _, child in ipairs(panelScroll and panelScroll:GetChildren() or {}) do
+                        for _, child in ipairs(panelScroll:GetChildren()) do
                             if child:IsA("TextButton") then
                                 idx = idx + 1
                                 child.BackgroundTransparency = 1
@@ -1123,8 +1124,8 @@ function Library:CreateLibrary(opts)
                     end
                     function Dropdown:SetOptions(nl)
                         self._options = {}
-                        for _, c in ipairs(panelScroll and panelScroll:GetChildren() or {}) do if c:IsA("TextButton") then c:Destroy() end end
-                        for _, val in ipairs(type(nl)=="table" and nl or {}) do
+                        for _, c in ipairs(panelScroll:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+                        for _, val in ipairs(nl or {}) do
                             table.insert(self._options, val)
                             local item = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,24), Text = "", Parent = panelScroll, ZIndex = z + 202}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
@@ -1343,7 +1344,7 @@ function Library:CreateLibrary(opts)
         term = tostring(term or ""):lower()
         if term == "" then return end
         local match
-    for _, entry in ipairs(Library._searchEntries or {}) do
+        for _, entry in ipairs(Library._searchEntries) do
             if entry.textLower:find(term, 1, true) then match = entry break end
         end
         if not match then return nil end
