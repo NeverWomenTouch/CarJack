@@ -76,10 +76,13 @@ local function Signal()
     }
 end
 local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0" }
--- ensure only one ScreenGui named DendriteUI exists (handles multi-load separate scripts)
+-- stronger pre-destroy: remove ANY ScreenGui named DendriteUI before creating new root
 do
-    local existing = CoreGui:FindFirstChild("DendriteUI")
-    if existing then pcall(function() existing:Destroy() end) end
+    for _, child in ipairs(CoreGui:GetChildren()) do
+        if child:IsA("ScreenGui") and child.Name == "DendriteUI" then
+            pcall(function() child:Destroy() end)
+        end
+    end
 end
 local RootGui = (function()
     local g = Create("ScreenGui", {Name = "DendriteUI", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, ResetOnSpawn = false, Parent = CoreGui})
@@ -353,7 +356,7 @@ function Library:CreateLibrary(opts)
                     local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32), Position = UDim2.fromOffset(0, nextY(32)), Parent = gFrame})
                     local container = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 1, 0), Parent = row})
-                    local title = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -60, 1, 0), Position = UDim2.fromOffset(8,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = container})
+                    local title = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -60, 1, 0), Position = UDim2.fromOffset(0,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = container})
                     local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(40,18), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1, -8, 0.5, 0), Parent = container})
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
                     local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(36,14), Position = UDim2.fromOffset(2,2), Parent = shell})
@@ -391,27 +394,41 @@ function Library:CreateLibrary(opts)
                     local cb = o.Callback
                     local compact = o.Compact == true
                     local h = compact and 28 or 32
-                    local row = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(1, 0, 0, h), Position = UDim2.fromOffset(0, nextY(h)), Text = "", Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, Parent = gFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                    local accentBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.75, Size = UDim2.new(0, 3, 1, 0), Parent = row})
-                    local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -14, 1, 0), Position = UDim2.fromOffset(8,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    -- Base button frame
+                    local row = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(1, 0, 0, h), Position = UDim2.fromOffset(0, nextY(h)), Text = "", Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, Parent = gFrame}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0, 4)}),
+                        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
+                    })
+                    -- Subtle gradient for depth
+                    local grad = Create("UIGradient", {Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Theme.Button), ColorSequenceKeypoint.new(1, Theme.Panel)})})
+                    grad.Parent = row
+                    local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5,1), Position = UDim2.new(0.5,0,1,0), Size = UDim2.fromOffset(0,2), BackgroundTransparency = 0.15, Parent = row})
+                    local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Position = UDim2.fromOffset(0,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local shadeTop = Create("Frame", {BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 0.9, BorderSizePixel = 0, Size = UDim2.new(1,-2,0,1), Position = UDim2.fromOffset(1,1), Parent = row})
+                    local shadeBottom = Create("Frame", {BackgroundColor3 = Color3.fromRGB(0,0,0), BackgroundTransparency = 0.85, BorderSizePixel = 0, Size = UDim2.new(1,-2,0,1), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,1,1,-1), Parent = row})
                     local function hover(on)
                         if on then
                             T(row, 0.14, {BackgroundColor3 = Theme.Hover}):Play()
-                            T(accentBar, 0.18, {BackgroundTransparency = 0.1, Size = UDim2.new(0, 6, 1, 0)}):Play()
+                            T(row.Stroke, 0.16, {Transparency = 0.15, Thickness = 1.5}):Play()
+                            T(underline, 0.22, {Size = UDim2.fromOffset(math.floor(row.AbsoluteSize.X*0.92), 2)}):Play()
                         else
                             T(row, 0.14, {BackgroundColor3 = Theme.Button}):Play()
-                            T(accentBar, 0.18, {BackgroundTransparency = 0.75, Size = UDim2.new(0, 3, 1, 0)}):Play()
+                            T(row.Stroke, 0.16, {Transparency = 0.35, Thickness = 1}):Play()
+                            T(underline, 0.22, {Size = UDim2.fromOffset(0,2)}):Play()
                         end
                     end
                     row.MouseEnter:Connect(function() hover(true) end)
                     row.MouseLeave:Connect(function() hover(false) end)
                     row.MouseButton1Click:Connect(function()
                         if type(cb) == "function" then pcall(cb) end
-                        accentBar.Size = UDim2.new(0, 6, 1, 0)
-                        accentBar.BackgroundTransparency = 0.1
-                        local flash = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.6, Size = UDim2.new(1,0,1,0), Parent = row})
-                        T(flash, 0.25, {BackgroundTransparency = 1}):Play()
-                        task.delay(0.3, function() if flash then flash:Destroy() end end)
+                        -- click pulse
+                        local pulse = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.85, Size = UDim2.new(0,0,1,0), Parent = row})
+                        T(pulse, 0.25, {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0)}):Play()
+                        task.delay(0.26, function() if pulse then pulse:Destroy() end end)
+                        -- underline flash
+                        underline.Size = UDim2.fromOffset(math.floor(row.AbsoluteSize.X*0.60), 2)
+                        T(underline, 0.18, {Size = UDim2.fromOffset(math.floor(row.AbsoluteSize.X*0.92),2)}):Play()
                     end)
                     local Button = { id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label) }
                     Library:_registerControl(Button)
@@ -491,11 +508,33 @@ function Library:CreateLibrary(opts)
                     local default = tostring(o.Default or "")
                     local cb = o.Callback
                     local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, nextY(30)), Parent = gFrame})
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.4, -8, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local box = Create("TextBox", {BackgroundColor3 = Theme.Button, Size = UDim2.new(0.6, 0, 1, 0), Position = UDim2.new(0.4, 8, 0, 0), ClearTextOnFocus = false, PlaceholderText = placeholder, Text = default, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})})
-                    local Textbox = { id = id, _value = default, Get = function(self) return self._value end, Set = function(self, v, silent) v = tostring(v or "") self._value = v box.Text = v if not silent and type(cb) == "function" then pcall(cb, v) end end }
-                    box.FocusLost:Connect(function(enterPressed) Textbox:Set(box.Text) end)
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32), Position = UDim2.fromOffset(0, nextY(32)), Parent = gFrame})
+                    local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.45, -6, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local box = Create("TextBox", {BackgroundColor3 = Theme.Button, Size = UDim2.new(0.55, -4, 1, 0), Position = UDim2.new(0.45, 4, 0, 0), ClearTextOnFocus = false, PlaceholderText = placeholder, Text = default, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Parent = row}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
+                    })
+                    local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0.5,1), Position = UDim2.new(0.5,0,1,0), BackgroundTransparency = 0.15, Parent = box})
+                    local Textbox = { id = id, _value = default }
+                    function Textbox:Get() return self._value end
+                    function Textbox:Set(v, silent)
+                        v = tostring(v or "")
+                        self._value = v
+                        box.Text = v
+                        if not silent and type(cb) == "function" then pcall(cb, v) end
+                    end
+                    box.Focused:Connect(function()
+                        T(box.Stroke, 0.15, {Transparency = 0.1, Thickness = 1.5, Color = Theme.Accent}):Play()
+                        T(underline, 0.22, {Size = UDim2.new(1, -6, 0, 2)}):Play()
+                        T(box, 0.18, {BackgroundColor3 = Theme.Bg}):Play()
+                    end)
+                    box.FocusLost:Connect(function()
+                        Textbox:Set(box.Text)
+                        T(box.Stroke, 0.18, {Transparency = 0.35, Thickness = 1, Color = Theme.Stroke}):Play()
+                        T(underline, 0.22, {Size = UDim2.new(0,0,0,2)}):Play()
+                        T(box, 0.18, {BackgroundColor3 = Theme.Button}):Play()
+                    end)
                     Library:_registerControl(Textbox)
                     table.insert(Group._controls, Textbox)
                     return Textbox
