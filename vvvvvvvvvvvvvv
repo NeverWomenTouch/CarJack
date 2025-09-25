@@ -295,20 +295,54 @@ function Library:CreateLibrary(opts)
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
             local hBar, vBar
             if showVisual then
-                hBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.25, BorderSizePixel = 0, Size = UDim2.fromOffset(18,2), ZIndex = z + 4, Parent = grip})
-                vBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.25, BorderSizePixel = 0, Size = UDim2.fromOffset(2,18), ZIndex = z + 4, Parent = grip})
-                -- rounded bars only (removed circular caps per request)
-                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = hBar})
-                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = vBar})
-                hBar.AnchorPoint = Vector2.new(1,1); hBar.Position = UDim2.new(1, -2, 1, -2)
-                vBar.AnchorPoint = Vector2.new(1,1); vBar.Position = UDim2.new(1, -2, 1, -2)
-                local function hover(on)
-                    if on then
-                        T(hBar, 0.15, {BackgroundTransparency = 0, Size = UDim2.fromOffset(24,2)}):Play()
-                        T(vBar, 0.15, {BackgroundTransparency = 0, Size = UDim2.fromOffset(2,24)}):Play()
+                -- Curved corner indicator: a quarter-ring arc following window rounding
+                local arcContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,0,1,0), Parent = grip})
+                local arc = Create("ImageLabel", {
+                    BackgroundTransparency = 1,
+                    Image = "rbxassetid://6026568240", -- generic circle/ring texture; quarter masked via slicing
+                    ImageColor3 = Theme.Accent,
+                    ImageTransparency = 0.25,
+                    Size = UDim2.fromOffset(26,26),
+                    ZIndex = z + 4,
+                    Parent = arcContainer
+                })
+                -- apply slice center to make thin ring (assuming texture supports); fallback by scaling
+                pcall(function()
+                    arc.ScaleType = Enum.ScaleType.Slice
+                    arc.SliceCenter = Rect.new(12,12,12,12)
+                end)
+                -- mask 3/4 of the ring leaving only bottom-right quarter using gradient (hacky but light)
+                local grad = Create("UIGradient", {Rotation = 45, Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255,255,255)),
+                    ColorSequenceKeypoint.new(0.49, Color3.fromRGB(255,255,255)),
+                    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0,0,0)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0)),
+                }), Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 1),
+                    NumberSequenceKeypoint.new(0.45, 1),
+                    NumberSequenceKeypoint.new(0.46, 0),
+                    NumberSequenceKeypoint.new(1, 0)
+                }), Parent = arc})
+                -- fallback subtle cross if image fails to load
+                task.delay(0.5, function()
+                    if not arc.IsLoaded then
+                        grad:Destroy()
+                        arc.ImageTransparency = 1
+                        local hb = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.25, BorderSizePixel = 0, Size = UDim2.fromOffset(20,2), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-4), Parent = arcContainer})
+                        local vb = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.25, BorderSizePixel = 0, Size = UDim2.fromOffset(2,20), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-4,1,-2), Parent = arcContainer})
+                        Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = hb})
+                        Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = vb})
+                        hBar, vBar = hb, vb
                     else
-                        T(hBar, 0.15, {BackgroundTransparency = 0.25, Size = UDim2.fromOffset(18,2)}):Play()
-                        T(vBar, 0.15, {BackgroundTransparency = 0.25, Size = UDim2.fromOffset(2,18)}):Play()
+                        hBar = arc -- reuse for hover transparency changes
+                    end
+                end)
+                local function hover(on)
+                    if not hBar then return end
+                    if on then
+                        T(hBar,0.18,{ImageTransparency = 0}):Play()
+                    else
+                        T(hBar,0.18,{ImageTransparency = 0.25}):Play()
                     end
                 end
                 grip.MouseEnter:Connect(function() hover(true) end)
