@@ -385,7 +385,7 @@ function Library:CreateLibrary(opts)
     -- search popup + button (per category view) -----------------------------
     local searchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = catContainer}, {
         Create("UICorner", {CornerRadius = UDim.new(0,6)}),
-        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
+        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
         Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,4)})
     })
     local searchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = searchPopup})
@@ -395,29 +395,48 @@ function Library:CreateLibrary(opts)
     })
     -- track whether columns are filtered so we can restore
     local filteredPage
+    local activeHighlightStroke, activeStrokeOrigColor, activeStrokeOrigThickness, activeStrokeOrigTrans
     local function restoreColumns()
         if filteredPage and filteredPage._columnsFrames then
             for _, cfr in ipairs(filteredPage._columnsFrames) do cfr.Visible = true end
         end
         filteredPage = nil
+        if activeHighlightStroke and activeHighlightStroke.Parent then
+            activeHighlightStroke.Color = activeStrokeOrigColor or activeHighlightStroke.Color
+            activeHighlightStroke.Thickness = activeStrokeOrigThickness or 1
+            activeHighlightStroke.Transparency = activeStrokeOrigTrans or activeHighlightStroke.Transparency
+        end
+        activeHighlightStroke = nil
     end
     local function toggleSearch(show)
         show = (show == nil) and (not searchPopup.Visible) or show
         if show then
             searchPopup.Visible = true
-            -- position popup directly under search button each open
-            task.defer(function()
-                if not searchPopup.Visible then return end
+            -- comfy intro animation (soft glow + fade + size ease)
+            local stroke = searchPopup:FindFirstChild("Stroke")
+            if stroke then stroke.Thickness = 2.2 stroke.Transparency = 0.75 end
+            searchPopup.BackgroundTransparency = 1
+            searchPopup.Size = UDim2.fromOffset(0,0)
+            -- position before anim
+            local function positionPopup()
                 local btnAbs = searchBtn.AbsolutePosition
                 local parentAbs = catContainer.AbsolutePosition
                 local btnSize = searchBtn.AbsoluteSize
-                -- place centered horizontally under button
-                local px = btnAbs.X - parentAbs.X - (searchPopup.AbsoluteSize.X/2) + (btnSize.X/2)
+                local px = btnAbs.X - parentAbs.X - (210/2) + (btnSize.X/2)
                 if px < 4 then px = 4 end
-                searchPopup.Position = UDim2.fromOffset(px, subBar.Position.Y.Offset + subBar.Size.Y.Offset + 4)
-            end)
+                searchPopup.Position = UDim2.fromOffset(px, subBar.Position.Y.Offset + subBar.Size.Y.Offset + 6)
+            end
+            positionPopup()
+            -- soft glow behind
+            local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.92, Size = UDim2.fromOffset(20,20), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0, searchPopup.Position.X.Offset + 105, 0, searchPopup.Position.Y.Offset + 15), ZIndex = searchPopup.ZIndex - 1, Parent = catContainer})
+            T(glow,0.45,{ImageTransparency = 1, Size = UDim2.fromOffset(260,60)}):Play()
+            task.delay(0.5, function() pcall(function() glow:Destroy() end) end)
+            T(searchPopup,0.22,{Size = UDim2.fromOffset(210,30)}):Play()
+            T(searchPopup,0.25,{BackgroundTransparency = 0}):Play()
+            if stroke then
+                T(stroke,0.35,{Thickness = 1, Transparency = 0.4}):Play()
+            end
             task.defer(function() pcall(function() searchBox:CaptureFocus() end) end)
-            T(searchPopup,0.15,{Size = UDim2.fromOffset(210,30)}):Play()
         else
             searchPopup.Visible = false
             searchBox.Text = ""
@@ -449,7 +468,7 @@ function Library:CreateLibrary(opts)
             restoreColumns()
             return
         end
-        local match = Window:Search(term) -- returns entry
+        local match = Window:Search(term, true) -- returns entry, suppress highlight flash
         if match and match.page and match.groupFrame then
             -- hide other columns in that page
             local page = match.page
@@ -459,20 +478,40 @@ function Library:CreateLibrary(opts)
                     cfr.Visible = (cfr == match.groupFrame.Parent)
                 end
             end
+            -- outline accent (stroke pulse) only
+            local stroke = nil
+            for _, child in ipairs(match.groupFrame:GetChildren()) do
+                if child:IsA("UIStroke") then stroke = child break end
+            end
+            if stroke then
+                if activeHighlightStroke ~= stroke then
+                    if activeHighlightStroke and activeHighlightStroke.Parent then
+                        activeHighlightStroke.Color = activeStrokeOrigColor or activeHighlightStroke.Color
+                        activeHighlightStroke.Thickness = activeStrokeOrigThickness or 1
+                        activeHighlightStroke.Transparency = activeStrokeOrigTrans or activeHighlightStroke.Transparency
+                    end
+                    activeHighlightStroke = stroke
+                    activeStrokeOrigColor = stroke.Color
+                    activeStrokeOrigThickness = stroke.Thickness
+                    activeStrokeOrigTrans = stroke.Transparency
+                end
+                stroke.Color = Theme.Accent
+                stroke.Transparency = 0.15
+                T(stroke,0.35,{Thickness = 2}):Play()
+            end
         end
     end
+    local lastChange = 0
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
         if not searchPopup.Visible then return end
-        if searchBox.Text == "" then
-            restoreColumns()
-        end
+        if searchBox.Text == "" then restoreColumns() return end
+        lastChange = lastChange + 1
+        local version = lastChange
+        task.delay(0.15, function() if version == lastChange then applyFilter() end end)
     end)
     searchBox.FocusLost:Connect(function(enter)
-        if enter then
-            applyFilter()
-        end
+        if enter then applyFilter() end
     end)
-    -- pressing Enter while focused (roblox fires FocusLost with enter=true already) – extra safety for OSK
     searchBox.ReturnPressedFromOnScreenKeyboard:Connect(applyFilter)
     local pageArea = Create("Frame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(1, -10, 1, -(24 + 10 + 6)), Position = UDim2.fromOffset(5, 24 + 9), Parent = catContainer})
         function Category:Select()
@@ -1238,7 +1277,7 @@ function Library:CreateLibrary(opts)
     end
     Window.AddTab = Window.AddCategory
     -- perform search across indexed entries (first match)
-    function Window:Search(term)
+    function Window:Search(term, suppressHighlight)
         term = tostring(term or ""):lower()
         if term == "" then return end
         local match
@@ -1260,11 +1299,21 @@ function Library:CreateLibrary(opts)
                 if offset < 0 then offset = 0 end
                 col.CanvasPosition = Vector2.new(0, offset)
             end
-            -- highlight pulse
-            local flash = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.85, Size = UDim2.new(1,0,1,0), ZIndex = (match.groupFrame.ZIndex or 1) + 100, Parent = match.groupFrame})
-            Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = flash})
-            T(flash,0.35,{BackgroundTransparency = 1}):Play()
-            task.delay(0.4, function() pcall(function() flash:Destroy() end) end)
+            if not suppressHighlight then
+                -- single outline pulse on search call without suppression
+                local stroke = nil
+                for _, child in ipairs(match.groupFrame:GetChildren()) do if child:IsA("UIStroke") then stroke = child break end end
+                if stroke then
+                    local origColor, origThick = stroke.Color, stroke.Thickness
+                    stroke.Color = Theme.Accent
+                    T(stroke,0.15,{Thickness = 3}):Play()
+                    task.delay(0.45, function()
+                        if stroke and stroke.Parent then
+                            T(stroke,0.30,{Thickness = origThick, Color = origColor}):Play()
+                        end
+                    end)
+                end
+            end
         end)
         return match
     end
