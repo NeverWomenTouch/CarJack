@@ -338,39 +338,45 @@ function Library:CreateLibrary(opts)
                     local default = (o.Default == true)
                     local cb = o.Callback
                     local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, nextY(28)), Parent = gFrame})
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -56, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local track = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(44, 18), Position = UDim2.new(1, -4 - 44, 0.5, 0), AnchorPoint = Vector2.new(0.5,0.5), Parent = row}, {Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25})})
-                    local fill = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.new(0,0,1,0), BackgroundTransparency = 0.85, Parent = track})
-                    local diamond = Create("Frame", {Size = UDim2.fromOffset(14,14), BackgroundColor3 = Theme.Text, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0, 6, 0.5, 0), Parent = track}, {})
-                    diamond.Rotation = 45
-                    local pulse = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0.5,0.5), Position = diamond.Position, Parent = track}, {})
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 42), Position = UDim2.fromOffset(0, nextY(42)), Parent = gFrame})
+                    local container = Create("TextButton", {BackgroundColor3 = Color3.fromRGB(37,37,37), AutoButtonColor = false, Text = "", Size = UDim2.new(1, -2, 1, 0), Position = UDim2.fromOffset(0,0), Parent = row})
+                    Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = container})
+                    local title = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.95, 0, 0, 40), Position = UDim2.fromOffset(14,1), Text = label, Font = Fonts.Medium, TextSize = 16, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = container})
+                    local frame1 = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(37,18), AnchorPoint = Vector2.new(1,0), Position = UDim2.new(1, -14, 0.285, 0), Parent = container})
+                    Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = frame1})
+                    local frame2 = Create("Frame", {BackgroundColor3 = Color3.fromRGB(34,34,34), Size = UDim2.fromOffset(33,14), Position = UDim2.fromOffset(2,2), Parent = frame1})
+                    Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = frame2})
+                    local frame3 = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromOffset(37,18), Parent = frame1})
+                    Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = frame3})
+                    local circle = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(10,10), Position = UDim2.new(0.127,0,0.222,0), Parent = frame1})
+                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = circle})
                     local Toggle = { id = id, _value = default, _signal = Signal() }
                     function Toggle:Get() return self._value end
-                    function Toggle:Set(v, silent)
-                        v = (v == true)
-                        self._value = v
-                        if v then
-                            T(fill, 0.18, {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 0.3}):Play()
-                            T(diamond, 0.18, {Position = UDim2.new(1, -6, 0.5, 0), BackgroundColor3 = Theme.Accent}):Play()
-                            pulse.BackgroundColor3 = Theme.Accent
-                            pulse.BackgroundTransparency = 0.4
-                            pulse.Size = UDim2.fromOffset(14,14)
-                            local tw = T(pulse, 0.35, {BackgroundTransparency = 1, Size = UDim2.fromOffset(28,28)})
-                            tw:Play()
+                    local function apply(state, silent)
+                        if state then
+                            T(container, 0.3, {BackgroundColor3 = Color3.fromRGB(37,37,37)}):Play()
+                            T(frame1, 0.3, {BackgroundTransparency = 1}):Play()
+                            T(frame2, 0.3, {BackgroundTransparency = 1}):Play()
+                            T(frame3, 0.3, {BackgroundTransparency = 0}):Play()
+                            T(circle, 0.3, {BackgroundColor3 = Theme.Text, Position = UDim2.new(0.587,0,0.222,0)}):Play()
                         else
-                            T(fill, 0.18, {Size = UDim2.new(0,0,1,0), BackgroundTransparency = 0.85}):Play()
-                            T(diamond, 0.18, {Position = UDim2.new(0, 6, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
+                            T(container, 0.3, {BackgroundColor3 = Color3.fromRGB(34,34,34)}):Play()
+                            T(frame1, 0.3, {BackgroundTransparency = 0}):Play()
+                            T(frame2, 0.3, {BackgroundTransparency = 0}):Play()
+                            T(frame3, 0.3, {BackgroundTransparency = 1}):Play()
+                            T(circle, 0.3, {BackgroundColor3 = Color3.fromRGB(50,50,50), Position = UDim2.new(0.127,0,0.222,0)}):Play()
                         end
+                        Toggle._value = state
                         if not silent then
-                            if type(cb) == "function" then pcall(cb, v) end
-                            self._signal:Fire(v)
+                            if type(cb) == "function" then pcall(cb, state) end
+                            Toggle._signal:Fire(state)
                         end
                     end
+                    function Toggle:Set(v, silent) apply(v == true, silent) end
                     function Toggle:OnChanged(fn) return self._signal:Connect(fn) end
-                    track.MouseEnter:Connect(function() if not Toggle._value then T(track,0.12,{BackgroundColor3 = Theme.Hover}):Play() end end)
-                    track.MouseLeave:Connect(function() if not Toggle._value then T(track,0.12,{BackgroundColor3 = Theme.Button}):Play() end end)
-                    track.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
+                    container.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
+                    container.MouseEnter:Connect(function() if not Toggle._value then T(container,0.2,{BackgroundColor3 = Color3.fromRGB(38,38,38)}):Play() end end)
+                    container.MouseLeave:Connect(function() T(container,0.2,{BackgroundColor3 = Toggle._value and Color3.fromRGB(37,37,37) or Color3.fromRGB(34,34,34)}):Play() end)
                     Toggle:Set(default, true)
                     Library:_registerControl(Toggle)
                     table.insert(Group._controls, Toggle)
