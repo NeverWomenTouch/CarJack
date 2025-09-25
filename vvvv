@@ -75,7 +75,7 @@ local function Signal()
         end
     }
 end
-local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0" }
+local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {} }
 -- stronger pre-destroy: remove ANY ScreenGui named DendriteUI before creating new root
 do
     for _, child in ipairs(CoreGui:GetChildren()) do
@@ -103,6 +103,8 @@ function Library:CreateLibrary(opts)
             self._singletonRoot:Destroy()
         end)
     end
+    -- reset search entries on new window
+    self._searchEntries = {}
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
     local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static | type
@@ -380,6 +382,55 @@ function Library:CreateLibrary(opts)
         btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.SubText}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.SubText}):Play() end end end)
         local catContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = content})
     local subBar = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -10, 0, 24), Position = UDim2.fromOffset(5, 5), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = z + 1, Parent = catContainer}, {Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left})})
+    -- search popup + button (per category view) -----------------------------
+    local searchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.new(1, -215, 0, 32), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = catContainer}, {
+        Create("UICorner", {CornerRadius = UDim.new(0,6)}),
+        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
+        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,4)})
+    })
+    local searchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = searchPopup})
+    local searchBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(32,22), Text = "🔍", Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.Text, ZIndex = z + 2, Parent = subBar}, {
+        Create("UICorner", {CornerRadius = UDim.new(0,5)}),
+        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
+    })
+    local function toggleSearch(show)
+        show = (show == nil) and (not searchPopup.Visible) or show
+        if show then
+            searchPopup.Visible = true
+            task.defer(function() pcall(function() searchBox:CaptureFocus() end) end)
+            T(searchPopup,0.15,{Size = UDim2.fromOffset(210,30)}):Play()
+        else
+            searchPopup.Visible = false
+            searchBox.Text = ""
+        end
+    end
+    searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
+    searchBtn.MouseLeave:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Button}):Play() end)
+    searchBtn.MouseButton1Click:Connect(function() toggleSearch() end)
+    UserInputService.InputBegan:Connect(function(inp)
+        if searchPopup.Visible and (inp.KeyCode == Enum.KeyCode.Escape) then toggleSearch(false) end
+    end)
+    UserInputService.InputBegan:Connect(function(inp)
+        if not searchPopup.Visible then return end
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            local pos = UserInputService:GetMouseLocation()
+            local abs = searchPopup.AbsolutePosition
+            local sz = searchPopup.AbsoluteSize
+            local inside = pos.X >= abs.X and pos.X <= abs.X+sz.X and pos.Y >= abs.Y and pos.Y <= abs.Y+sz.Y
+            local btnAbs = searchBtn.AbsolutePosition
+            local btnSz = searchBtn.AbsoluteSize
+            local insideBtn = pos.X >= btnAbs.X and pos.X <= btnAbs.X+btnSz.X and pos.Y >= btnAbs.Y and pos.Y <= btnAbs.Y+btnSz.Y
+            if not inside and not insideBtn then toggleSearch(false) end
+        end
+    end)
+    local function doSearch()
+        local term = searchBox.Text
+        if term and #term > 0 then
+            Window:Search(term)
+        end
+        toggleSearch(false)
+    end
+    searchBox.FocusLost:Connect(function(enter) if enter then doSearch() end end)
     local pageArea = Create("Frame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(1, -10, 1, -(24 + 10 + 6)), Position = UDim2.fromOffset(5, 24 + 9), Parent = catContainer})
         function Category:Select()
             if Window._selectedCategory and Window._selectedCategory._label then
@@ -547,6 +598,13 @@ function Library:CreateLibrary(opts)
                     y = y + 0 -- no vertical space consumed now
                 end
                 local function nextY(h) local o=y; y=y+h+6; return o end
+                -- search registration helper (captures Category/Page/Group)
+                local function registerSearch(text)
+                    if not text or text == "" then return end
+                    Library._searchEntries[#Library._searchEntries+1] = {textLower = string.lower(text), category = Category, page = Page, groupFrame = gFrame}
+                end
+                -- register group name
+                registerSearch(gName)
                 -- Toggle
                 function Group:AddToggle(o)
                     o = o or {}
@@ -587,6 +645,7 @@ function Library:CreateLibrary(opts)
                     Toggle:Set(default,true)
                     Library:_registerControl(Toggle)
                     table.insert(Group._controls, Toggle)
+                    registerSearch(label)
                     return Toggle
                 end
                 -- Button
@@ -632,6 +691,7 @@ function Library:CreateLibrary(opts)
                     local Button = { id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label) }
                     Library:_registerControl(Button)
                     table.insert(Group._controls, Button)
+                    registerSearch(label)
                     return Button
                 end
                 -- Slider
@@ -840,6 +900,7 @@ function Library:CreateLibrary(opts)
                     end)
                     Library:_registerControl(Slider)
                     table.insert(Group._controls, Slider)
+                    registerSearch(label)
                     return Slider
                 end
                 -- NewSlider(text, low, high, precise, callback, defaultValue, flag)
@@ -936,6 +997,7 @@ function Library:CreateLibrary(opts)
                     if default ~= nil then Dropdown:Set(default, true) end
                     Library:_registerControl(Dropdown)
                     table.insert(Group._controls, Dropdown)
+                    registerSearch(label)
                     return Dropdown
                 end
                 -- Textbox
@@ -972,6 +1034,7 @@ function Library:CreateLibrary(opts)
                     end)
                     Library:_registerControl(Textbox)
                     table.insert(Group._controls, Textbox)
+                    registerSearch(label)
                     return Textbox
                 end
                 -- Keybind
@@ -992,6 +1055,7 @@ function Library:CreateLibrary(opts)
                     UserInputService.InputBegan:Connect(function(input) if waiting and input.UserInputType==Enum.UserInputType.Keyboard then waiting=false Keybind:Set(input.KeyCode) end end)
                     Library:_registerControl(Keybind)
                     table.insert(Group._controls, Keybind)
+                    registerSearch(label)
                     return Keybind
                 end
                 return Group
@@ -1129,6 +1193,36 @@ function Library:CreateLibrary(opts)
         end)
     end
     Window.AddTab = Window.AddCategory
+    -- perform search across indexed entries (first match)
+    function Window:Search(term)
+        term = tostring(term or ""):lower()
+        if term == "" then return end
+        local match
+        for _, entry in ipairs(Library._searchEntries) do
+            if entry.textLower:find(term, 1, true) then match = entry break end
+        end
+        if not match then return end
+        -- select category & page
+        if Window._selectedCategory ~= match.category then match.category:Select() end
+        if match.category._selectedPage ~= match.page then match.page:Select() end
+        -- defer scroll/highlight until UI is visible
+        task.defer(function()
+            if not match.groupFrame or not match.groupFrame.Parent then return end
+            local col = match.groupFrame.Parent
+            if col and col:IsA("ScrollingFrame") then
+                local absPos = match.groupFrame.AbsolutePosition.Y
+                local colAbs = col.AbsolutePosition.Y
+                local offset = absPos - colAbs - 6
+                if offset < 0 then offset = 0 end
+                col.CanvasPosition = Vector2.new(0, offset)
+            end
+            -- highlight pulse
+            local flash = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.85, Size = UDim2.new(1,0,1,0), ZIndex = (match.groupFrame.ZIndex or 1) + 100, Parent = match.groupFrame})
+            Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = flash})
+            T(flash,0.35,{BackgroundTransparency = 1}):Play()
+            task.delay(0.4, function() pcall(function() flash:Destroy() end) end)
+        end)
+    end
     return Window
 end
 function Library:MakeWindow(o) return self:CreateLibrary(o) end
