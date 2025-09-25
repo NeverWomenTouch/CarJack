@@ -446,19 +446,18 @@ function Library:CreateLibrary(opts)
                 Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = gName, Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 2, Parent = gFrame})
                 local y = 22
                 if desc and #desc > 0 then
-                    -- Replace inline text with an info icon + floating popup on hover / click
-                    local infoBtn = Create("TextButton", {BackgroundColor3 = Color3.fromRGB(40,42,41), Size = UDim2.fromOffset(18,18), Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 10,6), AnchorPoint = Vector2.new(1,0), Text = "ℹ", TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 13, AutoButtonColor = false, ZIndex = z + 5, Parent = gFrame})
+                    -- Compact circular info symbol aligned with title (no growth)
+                    local infoBtn = Create("TextButton", {BackgroundColor3 = Color3.fromRGB(36,38,37), Size = UDim2.fromOffset(16,16), Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 6,2), AnchorPoint = Vector2.new(1,0), Text = "ⓘ", TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 12, AutoButtonColor = false, ZIndex = z + 5, Parent = gFrame})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = infoBtn})
-                    Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = infoBtn})
+                    local iStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55, Parent = infoBtn})
                     infoBtn.MouseEnter:Connect(function()
-                        T(infoBtn,0.15,{BackgroundColor3 = Color3.fromRGB(52,56,54)}):Play()
-                        T(infoBtn.UIStroke,0.15,{Transparency = 0.25}):Play()
-                        T(infoBtn,0.15,{Size = UDim2.fromOffset(20,20)}):Play()
+                        T(infoBtn,0.15,{BackgroundColor3 = Color3.fromRGB(48,52,50)}):Play()
+                        T(iStroke,0.15,{Transparency = 0.35}):Play()
                     end)
                     infoBtn.MouseLeave:Connect(function()
                         if not popup or not popup.Visible then
-                            T(infoBtn,0.18,{BackgroundColor3 = Color3.fromRGB(40,42,41), Size = UDim2.fromOffset(18,18)}):Play()
-                            T(infoBtn.UIStroke,0.18,{Transparency = 0.45}):Play()
+                            T(infoBtn,0.18,{BackgroundColor3 = Color3.fromRGB(36,38,37)}):Play()
+                            T(iStroke,0.18,{Transparency = 0.55}):Play()
                         end
                     end)
                     -- adjust when size changes (since AbsoluteSize not ready on creation) using a heartbeat
@@ -466,38 +465,33 @@ function Library:CreateLibrary(opts)
                         local rs = game:GetService("RunService")
                         for _=1,10 do
                             if not infoBtn.Parent then return end
-                            infoBtn.Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 10,6)
+                            infoBtn.Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 6,2)
                             rs.Heartbeat:Wait()
                         end
                         gFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                            infoBtn.Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 10,6)
+                            infoBtn.Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 6,2)
                         end)
                     end)
                     -- measure text for better width
-                    local meas = TextService:GetTextSize(desc, 12, Fonts.Regular, Vector2.new(260, math.huge))
-                    local baseW = math.clamp(meas.X + 18, 140, 300)
-                    local popup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.new(0, baseW, 0, 0), ZIndex = z + 500, Parent = gFrame}, {
-                        Create("UICorner", {CornerRadius = UDim.new(0,6)}),
-                        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25}),
-                        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,6), PaddingBottom = UDim.new(0,6)})
+                    local meas = TextService:GetTextSize(desc, 12, Fonts.Regular, Vector2.new(300, math.huge))
+                    local baseW = math.clamp(meas.X + 26, 140, 320)
+                    local popup = Create("Frame", {BackgroundColor3 = Color3.fromRGB(28,30,29), BorderSizePixel = 0, Visible = false, Size = UDim2.new(0, baseW, 0, 0), ZIndex = z + 500, Parent = gFrame}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,100)}),
+                        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,6), PaddingBottom = UDim.new(0,6)})
                     })
                     local pText = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,0), TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = desc, Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 501, Parent = popup})
                     pText.AutomaticSize = Enum.AutomaticSize.Y
                     popup.AutomaticSize = Enum.AutomaticSize.Y
                     popup.ClipsDescendants = true
                     -- arrow (triangle) using rotated square trick
-                    local arrow = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), Rotation = 45, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0,0), ZIndex = z + 499, Parent = popup})
-                    Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25, Parent = arrow})
-                    arrow.BackgroundColor3 = Theme.Bg
-                    arrow.BorderSizePixel = 0
+                    -- arrow removed for minimalist pill popup
                     -- layout popup on show
                     local function positionPopup()
                         local relX = infoBtn.AbsolutePosition.X - gFrame.AbsolutePosition.X
                         local desired = relX - popup.AbsoluteSize.X/2 + infoBtn.AbsoluteSize.X/2
                         desired = math.clamp(desired, 4, math.max(4, gFrame.AbsoluteSize.X - popup.AbsoluteSize.X - 4))
-                        popup.Position = UDim2.fromOffset(desired, 26)
-                        local arrowOffset = (relX - desired - popup.AbsoluteSize.X/2) + infoBtn.AbsoluteSize.X/2
-                        arrow.Position = UDim2.new(0.5 + (arrowOffset / math.max(1,popup.AbsoluteSize.X)),0,0,0)
+                        popup.Position = UDim2.fromOffset(desired, 20)
                     end
                     local showing = false
                     local function show()
@@ -506,9 +500,9 @@ function Library:CreateLibrary(opts)
                         popup.Visible = true
                         popup.Size = UDim2.new(0, baseW, 0, 0)
                         positionPopup()
-                        T(popup,0.18,{Size = UDim2.new(0,baseW,0,pText.AbsoluteSize.Y + 16)}):Play()
-                        T(infoBtn,0.15,{BackgroundColor3 = Color3.fromRGB(52,56,54)}):Play()
-                        T(infoBtn.UIStroke,0.15,{Transparency = 0.25}):Play()
+                        T(popup,0.18,{Size = UDim2.new(0,baseW,0,pText.AbsoluteSize.Y + 12)}):Play()
+                        T(infoBtn,0.15,{BackgroundColor3 = Color3.fromRGB(48,52,50)}):Play()
+                        T(iStroke,0.15,{Transparency = 0.35}):Play()
                     end
                     local function hide()
                         if not showing then return end
@@ -518,8 +512,8 @@ function Library:CreateLibrary(opts)
                         tw.Completed:Connect(function()
                             if not showing then
                                 popup.Visible = false
-                                T(infoBtn,0.18,{BackgroundColor3 = Color3.fromRGB(40,42,41), Size = UDim2.fromOffset(18,18)}):Play()
-                                T(infoBtn.UIStroke,0.18,{Transparency = 0.45}):Play()
+                                T(infoBtn,0.18,{BackgroundColor3 = Color3.fromRGB(36,38,37)}):Play()
+                                T(iStroke,0.18,{Transparency = 0.55}):Play()
                             end
                         end)
                     end
