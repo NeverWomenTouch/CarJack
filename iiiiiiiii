@@ -104,8 +104,8 @@ function Library:CreateLibrary(opts)
     local fsIcon = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Parent = fsBtn})
     local function makeCorner(ax, ay)
         local c = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(7,7), AnchorPoint = Vector2.new(ax,ay), Position = UDim2.new(ax, ax==1 and -1 or 1, ay, ay==1 and -1 or 1), Parent = fsIcon})
-        Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.fromOffset(7,2), Position = UDim2.new(ax==1 and 1 or 0, ax==1 and -7 or 0, ay==1 and 1 or 0, ay==1 and -2 or 0), Parent = c})
-        Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.fromOffset(2,7), Position = UDim2.new(ax==1 and 1 or 0, ax==1 and -2 or 0, ay==1 and 1 or 0, ay==1 and -7 or 0), Parent = c})
+    Create("Frame", {BackgroundColor3 = Theme.Text, BorderSizePixel = 0, Size = UDim2.fromOffset(7,2), Position = UDim2.new(ax==1 and 1 or 0, ax==1 and -7 or 0, ay==1 and 1 or 0, ay==1 and -2 or 0), Parent = c})
+    Create("Frame", {BackgroundColor3 = Theme.Text, BorderSizePixel = 0, Size = UDim2.fromOffset(2,7), Position = UDim2.new(ax==1 and 1 or 0, ax==1 and -2 or 0, ay==1 and 1 or 0, ay==1 and -7 or 0), Parent = c})
         return c
     end
     local fsCorners = {makeCorner(0,0), makeCorner(1,0), makeCorner(0,1), makeCorner(1,1)}
@@ -255,14 +255,15 @@ function Library:CreateLibrary(opts)
         local name = tostring(o.Name or "Category")
         local icon = o.Icon
         local Category = { Name = name, _pages = {}, _selectedPage = nil }
-        local btn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 28), ZIndex = z + 2, Parent = sidebar})
+        local btn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 34), ZIndex = z + 2, Parent = sidebar})
+        local inner = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2,2), Parent = btn})
         local iconImg
         if icon then
             if type(icon) == "number" or tostring(icon):match("^%d+$") then icon = "rbxassetid://" .. tostring(icon) end
-            iconImg = Create("ImageLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), Position = UDim2.fromOffset(6, 6), Image = icon, ImageColor3 = Theme.SubText, ZIndex = z + 3, Parent = btn})
+            iconImg = Create("ImageLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5, -26, 0.5, 0), Image = icon, ImageColor3 = Theme.SubText, ZIndex = z + 3, Parent = inner})
         end
-        local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -(icon and 30 or 10), 1, 0), Position = UDim2.fromOffset(icon and 26 or 6, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 3, Parent = btn})
-        local catInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.fromOffset(0, 2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0, icon and 26 or 6, 1, -2), Visible = false, ZIndex = z + 3, Parent = btn})
+        local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset( (icon and 60) or 90, 16), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5, icon and 6 or 0, 0.5, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = z + 3, Parent = inner})
+        local catInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.fromOffset(0, 2), AnchorPoint = Vector2.new(0.5,1), Position = UDim2.new(0.5, 0, 1, 0), Visible = false, ZIndex = z + 3, Parent = btn})
         btn.MouseEnter:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.Text}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.Text}):Play() end end end)
         btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.SubText}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.SubText}):Play() end end end)
         local catContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = content})
@@ -281,7 +282,8 @@ function Library:CreateLibrary(opts)
             if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.Text}):Play() end
             local cb = TextService:GetTextSize(name, 14, Fonts.Medium, Vector2.new(1000, 28))
             catInd.Visible = true
-            T(catInd, 0.18, {Size = UDim2.fromOffset(cb.X, 2)}):Play()
+            local target = math.clamp(cb.X + 14, 20, btn.AbsoluteSize.X - 10)
+            T(catInd, 0.18, {Size = UDim2.fromOffset(target, 2)}):Play()
             if not Category._selectedPage and #Category._pages > 0 then Category._pages[1]:Select() end
         end
         btn.MouseButton1Click:Connect(function() Category:Select() end)
@@ -336,12 +338,39 @@ function Library:CreateLibrary(opts)
                     local default = (o.Default == true)
                     local cb = o.Callback
                     local id = ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 26), Position = UDim2.fromOffset(0, nextY(26)), Parent = gFrame})
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -44, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local button = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(34, 18), Position = UDim2.new(1, -4 - 34, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), Text = "", Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                    local knob = Create("Frame", {Size = UDim2.fromOffset(14,14), Position = UDim2.fromOffset(2,2), BackgroundColor3 = Theme.Text, Parent = button}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)})})
-                    local Toggle = { id = id, _value = default, _signal = Signal(), Get = function(self) return self._value end, Set = function(self, v, silent) v = (v == true) self._value = v if v then T(button, 0.15, {BackgroundColor3 = Theme.Accent}):Play(); T(knob, 0.15, {Position = UDim2.fromOffset(34-2-14, 2)}):Play() else T(button, 0.15, {BackgroundColor3 = Theme.Button}):Play(); T(knob, 0.15, {Position = UDim2.fromOffset(2, 2)}):Play() end if not silent then if type(cb) == "function" then pcall(cb, v) end self._signal:Fire(v) end end, OnChanged = function(self, fn) return self._signal:Connect(fn) end }
-                    button.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, nextY(28)), Parent = gFrame})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -56, 1, 0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local track = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(44, 18), Position = UDim2.new(1, -4 - 44, 0.5, 0), AnchorPoint = Vector2.new(0.5,0.5), Parent = row}, {Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25})})
+                    local fill = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.new(0,0,1,0), BackgroundTransparency = 0.85, Parent = track})
+                    local diamond = Create("Frame", {Size = UDim2.fromOffset(14,14), BackgroundColor3 = Theme.Text, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0, 6, 0.5, 0), Parent = track}, {})
+                    diamond.Rotation = 45
+                    local pulse = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0.5,0.5), Position = diamond.Position, Parent = track}, {})
+                    local Toggle = { id = id, _value = default, _signal = Signal() }
+                    function Toggle:Get() return self._value end
+                    function Toggle:Set(v, silent)
+                        v = (v == true)
+                        self._value = v
+                        if v then
+                            T(fill, 0.18, {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 0.3}):Play()
+                            T(diamond, 0.18, {Position = UDim2.new(1, -6, 0.5, 0), BackgroundColor3 = Theme.Accent}):Play()
+                            pulse.BackgroundColor3 = Theme.Accent
+                            pulse.BackgroundTransparency = 0.4
+                            pulse.Size = UDim2.fromOffset(14,14)
+                            local tw = T(pulse, 0.35, {BackgroundTransparency = 1, Size = UDim2.fromOffset(28,28)})
+                            tw:Play()
+                        else
+                            T(fill, 0.18, {Size = UDim2.new(0,0,1,0), BackgroundTransparency = 0.85}):Play()
+                            T(diamond, 0.18, {Position = UDim2.new(0, 6, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
+                        end
+                        if not silent then
+                            if type(cb) == "function" then pcall(cb, v) end
+                            self._signal:Fire(v)
+                        end
+                    end
+                    function Toggle:OnChanged(fn) return self._signal:Connect(fn) end
+                    track.MouseEnter:Connect(function() if not Toggle._value then T(track,0.12,{BackgroundColor3 = Theme.Hover}):Play() end end)
+                    track.MouseLeave:Connect(function() if not Toggle._value then T(track,0.12,{BackgroundColor3 = Theme.Button}):Play() end end)
+                    track.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
                     Toggle:Set(default, true)
                     Library:_registerControl(Toggle)
                     table.insert(Group._controls, Toggle)
