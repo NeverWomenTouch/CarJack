@@ -383,7 +383,7 @@ function Library:CreateLibrary(opts)
         local catContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = content})
     local subBar = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -10, 0, 24), Position = UDim2.fromOffset(5, 5), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = z + 1, Parent = catContainer}, {Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left})})
     -- search popup + button (per category view) -----------------------------
-    local searchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.new(1, -215, 0, 32), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = catContainer}, {
+    local searchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = catContainer}, {
         Create("UICorner", {CornerRadius = UDim.new(0,6)}),
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
         Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,4)})
@@ -393,15 +393,35 @@ function Library:CreateLibrary(opts)
         Create("UICorner", {CornerRadius = UDim.new(0,5)}),
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
     })
+    -- track whether columns are filtered so we can restore
+    local filteredPage
+    local function restoreColumns()
+        if filteredPage and filteredPage._columnsFrames then
+            for _, cfr in ipairs(filteredPage._columnsFrames) do cfr.Visible = true end
+        end
+        filteredPage = nil
+    end
     local function toggleSearch(show)
         show = (show == nil) and (not searchPopup.Visible) or show
         if show then
             searchPopup.Visible = true
+            -- position popup directly under search button each open
+            task.defer(function()
+                if not searchPopup.Visible then return end
+                local btnAbs = searchBtn.AbsolutePosition
+                local parentAbs = catContainer.AbsolutePosition
+                local btnSize = searchBtn.AbsoluteSize
+                -- place centered horizontally under button
+                local px = btnAbs.X - parentAbs.X - (searchPopup.AbsoluteSize.X/2) + (btnSize.X/2)
+                if px < 4 then px = 4 end
+                searchPopup.Position = UDim2.fromOffset(px, subBar.Position.Y.Offset + subBar.Size.Y.Offset + 4)
+            end)
             task.defer(function() pcall(function() searchBox:CaptureFocus() end) end)
             T(searchPopup,0.15,{Size = UDim2.fromOffset(210,30)}):Play()
         else
             searchPopup.Visible = false
             searchBox.Text = ""
+            restoreColumns()
         end
     end
     searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
@@ -423,14 +443,37 @@ function Library:CreateLibrary(opts)
             if not inside and not insideBtn then toggleSearch(false) end
         end
     end)
-    local function doSearch()
-        local term = searchBox.Text
-        if term and #term > 0 then
-            Window:Search(term)
+    local function applyFilter()
+        local term = searchBox.Text or ""
+        if term == "" then
+            restoreColumns()
+            return
         end
-        toggleSearch(false)
+        local match = Window:Search(term) -- returns entry
+        if match and match.page and match.groupFrame then
+            -- hide other columns in that page
+            local page = match.page
+            if page._columnsFrames then
+                filteredPage = page
+                for _, cfr in ipairs(page._columnsFrames) do
+                    cfr.Visible = (cfr == match.groupFrame.Parent)
+                end
+            end
+        end
     end
-    searchBox.FocusLost:Connect(function(enter) if enter then doSearch() end end)
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        if not searchPopup.Visible then return end
+        if searchBox.Text == "" then
+            restoreColumns()
+        end
+    end)
+    searchBox.FocusLost:Connect(function(enter)
+        if enter then
+            applyFilter()
+        end
+    end)
+    -- pressing Enter while focused (roblox fires FocusLost with enter=true already) – extra safety for OSK
+    searchBox.ReturnPressedFromOnScreenKeyboard:Connect(applyFilter)
     local pageArea = Create("Frame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(1, -10, 1, -(24 + 10 + 6)), Position = UDim2.fromOffset(5, 24 + 9), Parent = catContainer})
         function Category:Select()
             if Window._selectedCategory and Window._selectedCategory._label then
@@ -468,6 +511,7 @@ function Library:CreateLibrary(opts)
                     cols[i] = col
                 end
             end
+            Page._columnsFrames = cols
             function Page:Select()
                 for _, pfr in ipairs(pageArea:GetChildren()) do if pfr:IsA("Frame") then pfr.Visible = false end end
                 pageFrame.Visible = true
@@ -859,9 +903,9 @@ function Library:CreateLibrary(opts)
                     end)
                     UserInputService.InputBegan:Connect(function(input)
                         if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then fine = true end
-                        if input.KeyCode == Enum.KeyCode.Left or input.KeyCode == Enum.KeyCode.A then
+                        if input.KeyCode == Enum.KeyCode.Left then
                             if fine then Slider:Set(Slider._value - (precise and (step*0.25) or step)) else Slider:Set(Slider._value - step) end
-                        elseif input.KeyCode == Enum.KeyCode.Right or input.KeyCode == Enum.KeyCode.D then
+                        elseif input.KeyCode == Enum.KeyCode.Right then
                             if fine then Slider:Set(Slider._value + (precise and (step*0.25) or step)) else Slider:Set(Slider._value + step) end
                         end
                     end)
@@ -1201,7 +1245,7 @@ function Library:CreateLibrary(opts)
         for _, entry in ipairs(Library._searchEntries) do
             if entry.textLower:find(term, 1, true) then match = entry break end
         end
-        if not match then return end
+        if not match then return nil end
         -- select category & page
         if Window._selectedCategory ~= match.category then match.category:Select() end
         if match.category._selectedPage ~= match.page then match.page:Select() end
@@ -1222,6 +1266,7 @@ function Library:CreateLibrary(opts)
             T(flash,0.35,{BackgroundTransparency = 1}):Play()
             task.delay(0.4, function() pcall(function() flash:Destroy() end) end)
         end)
+        return match
     end
     return Window
 end
