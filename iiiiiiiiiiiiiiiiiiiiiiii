@@ -131,26 +131,27 @@ function Library:CreateLibrary(opts)
     -- Title animation: only Static or looping Type
     if titleMode == "type" then
         task.spawn(function()
-            local txt = title:upper()
-            local charset = "1234567890"
-            local scrambleMin, scrambleMax = 2, 5         -- slightly longer per char for smoother feel
-            local scrambleDelay = 0.03                     -- delay between scramble frames
-            local charDelay = 0.055                        -- delay after locking real char
-            local loopPause = 2.25                         -- pause after full word
+            local function animateText(display, text, delay)
+                if not display then return end
+                local animatedRandom = "1234567890"
+                for i = 1, #text do
+                    local revealChar = text:sub(i, i)
+                    local displayText = text:sub(1, i - 1)
+                    for _ = 1, math.random(1, 6) do
+                        local random = math.random(1, #animatedRandom)
+                        local randomChar = animatedRandom:sub(random, random)
+                        display.Text = displayText .. randomChar
+                        task.wait(delay)
+                    end
+                    display.Text = displayText .. revealChar
+                    task.wait(delay)
+                end
+                task.wait(5)
+            end
+            local upper = title:upper()
             while true do
                 titleLabel.Text = ""
-                for i=1,#txt do
-                    local realChar = txt:sub(i,i)
-                    local prefix = txt:sub(1,i-1)
-                    local flashes = math.random(scrambleMin, scrambleMax)
-                    for f=1, flashes do
-                        titleLabel.Text = prefix .. charset:sub(math.random(1,#charset), math.random(1,#charset))
-                        task.wait(scrambleDelay)
-                    end
-                    titleLabel.Text = prefix .. realChar
-                    task.wait(charDelay)
-                end
-                task.wait(loopPause)
+                animateText(titleLabel, upper, 0.045)
             end
         end)
     else
@@ -728,30 +729,91 @@ function Library:CreateLibrary(opts)
         if not Window._selectedCategory then Category:Select() end
         return Category
     end
-    -- mobile open/close button
-    local mobileToggleBtn
+    -- enhanced mobile toggle (glow + status + hold-to-drag)
     if showMobileBtn then
-        mobileToggleBtn = Create("TextButton", {Text = "≡", Font = Fonts.Bold, TextSize = 20, TextColor3 = Theme.Text, BackgroundColor3 = Theme.Accent, Size = UDim2.fromOffset(42,42), Position = UDim2.fromOffset(8, (size.Y.Offset + 20)), Parent = RootGui, AutoButtonColor = false})
-        Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = mobileToggleBtn})
-        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.2, Parent = mobileToggleBtn})
+        local presetColor = Theme.Accent
+        local container = Create("Frame", {Name = "MobileToggleContainer", BackgroundTransparency = 1, Position = UDim2.new(1, -80, 0, 120), Size = UDim2.new(0, 70, 0, 70), ZIndex = 1, Parent = RootGui})
+        local toggleFrame = Create("Frame", {Name = "MobileToggle", BackgroundColor3 = Color3.fromRGB(27,27,27), BorderSizePixel = 0, Position = UDim2.new(0,10,0,10), Size = UDim2.new(0,50,0,50), ClipsDescendants = false, ZIndex = 2, Parent = container})
+        Create("UICorner", {CornerRadius = UDim.new(0,12), Parent = toggleFrame})
+        local stroke = Create("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = presetColor, Thickness = 2, Transparency = 0.3, Parent = toggleFrame})
+        local glow = Create("ImageLabel", {Name = "Glow", BackgroundTransparency = 1, Position = UDim2.new(0.5,-30,0.5,-30), Size = UDim2.new(0,60,0,60), Image = "rbxassetid://4996891970", ImageColor3 = presetColor, ImageTransparency = 0.7, ScaleType = Enum.ScaleType.Slice, SliceCenter = Rect.new(20,20,280,280), ZIndex = 1, Parent = toggleFrame})
+        local button = Create("TextButton", {Name = "ToggleButton", BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Font = Fonts.Medium, Text = "", TextTransparency = 1, AutoButtonColor = false, ZIndex = 3, Parent = toggleFrame})
+        local iconContainer = Create("Frame", {Name = "IconContainer", BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), ZIndex = 3, Parent = button})
+        local icon = Create("ImageLabel", {Name = "ToggleIcon", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Size = UDim2.new(0,24,0,24), Image = "rbxassetid://109809645126775", ImageColor3 = Color3.fromRGB(255,255,255), ZIndex = 3, Parent = iconContainer})
+        local status = Create("Frame", {Name = "StatusIndicator", BackgroundColor3 = Color3.fromRGB(255,85,85), BorderSizePixel = 0, Position = UDim2.new(1,-12,0,4), Size = UDim2.new(0,8,0,8), ZIndex = 4, Parent = toggleFrame})
+        Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = status})
         local open = true
-        mobileToggleBtn.MouseButton1Click:Connect(function()
-            open = not open
-            root.Visible = open
-            T(mobileToggleBtn,0.15,{BackgroundColor3 = open and Theme.Accent or Theme.Hover}):Play()
-        end)
-        -- drag support
-        local dragging=false; local dragStart; local startPos
-        mobileToggleBtn.InputBegan:Connect(function(inp)
-            if inp.UserInputType==Enum.UserInputType.Touch or inp.UserInputType==Enum.UserInputType.MouseButton1 then
-                dragging=true; dragStart=inp.Position; startPos=mobileToggleBtn.Position
-                inp.Changed:Connect(function() if inp.UserInputState==Enum.UserInputState.End then dragging=false end end)
+        local holding, dragging = false, false
+        local holdStart, dragStart
+        local function updateState()
+            if open then
+                status.BackgroundColor3 = Color3.fromRGB(85,255,127)
+                T(toggleFrame,0.3,{BackgroundColor3 = Color3.fromRGB(32,42,32)}):Play()
+                T(stroke,0.3,{Transparency = 0.1}):Play()
+            else
+                status.BackgroundColor3 = Color3.fromRGB(255,85,85)
+                T(toggleFrame,0.3,{BackgroundColor3 = Color3.fromRGB(27,27,27)}):Play()
+                T(stroke,0.3,{Transparency = 0.3}):Play()
+            end
+        end
+        updateState()
+        task.spawn(function()
+            while toggleFrame.Parent do
+                stroke.Color = presetColor
+                glow.ImageColor3 = presetColor
+                task.wait()
             end
         end)
-        mobileToggleBtn.InputChanged:Connect(function(inp)
-            if dragging and (inp.UserInputType==Enum.UserInputType.Touch or inp.UserInputType==Enum.UserInputType.MouseMovement) then
-                local d = inp.Position - dragStart
-                mobileToggleBtn.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset + d.X,startPos.Y.Scale,startPos.Y.Offset + d.Y)
+        button.MouseButton1Down:Connect(function()
+            holding = true; holdStart = tick()
+            T(toggleFrame,0.1,{Size = UDim2.new(0,46,0,46), Position = UDim2.new(0,12,0,12)}):Play()
+            T(icon,0.1,{Size = UDim2.new(0,20,0,20)}):Play()
+            task.delay(0.5,function()
+                if holding then
+                    dragging = true
+                    local pos = container.AbsolutePosition
+                    dragStart = Vector2.new(UserInputService:GetMouseLocation().X - pos.X, UserInputService:GetMouseLocation().Y - pos.Y)
+                end
+            end)
+        end)
+        button.MouseButton1Up:Connect(function()
+            local wasQuick = holding and (tick() - holdStart) < 0.5
+            holding = false
+            T(toggleFrame,0.2,{Size = UDim2.new(0,50,0,50), Position = UDim2.new(0,10,0,10)}):Play()
+            T(icon,0.2,{Size = UDim2.new(0,24,0,24)}):Play()
+            if dragging then dragging = false dragStart = nil end
+            if wasQuick then
+                open = not open
+                root.Visible = open
+                updateState()
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if dragging and dragStart and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
+                local mouse = UserInputService:GetMouseLocation()
+                local newX = mouse.X - dragStart.X
+                local newY = mouse.Y - dragStart.Y
+                newX = math.max(0, math.min(viewport.X - container.AbsoluteSize.X, newX))
+                newY = math.max(0, math.min(viewport.Y - container.AbsoluteSize.Y, newY))
+                container.Position = UDim2.new(0, newX, 0, newY)
+            end
+        end)
+        button.TouchTap:Connect(function()
+            if not dragging then
+                open = not open
+                root.Visible = open
+                updateState()
+            end
+        end)
+        task.spawn(function()
+            while toggleFrame.Parent do
+                if not open then
+                    T(glow,1.5,{ImageTransparency = 0.5}):Play(); task.wait(1.5)
+                    T(glow,1.5,{ImageTransparency = 0.7}):Play(); task.wait(1.5)
+                else
+                    task.wait(0.5)
+                end
             end
         end)
     end
