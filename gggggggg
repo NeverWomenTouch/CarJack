@@ -446,8 +446,75 @@ function Library:CreateLibrary(opts)
                 Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = gName, Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 2, Parent = gFrame})
                 local y = 22
                 if desc and #desc > 0 then
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,16), Position = UDim2.fromOffset(0,y), Text = desc, Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 2, Parent = gFrame})
-                    y = y + 18
+                    -- Replace inline text with an info icon + floating popup on hover / click
+                    local infoBtn = Create("TextButton", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 22,4), AnchorPoint = Vector2.new(1,0), Text = "i", TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 14, AutoButtonColor = false, ZIndex = z + 5, Parent = gFrame})
+                    -- adjust when size changes (since AbsoluteSize not ready on creation) using a heartbeat
+                    task.spawn(function()
+                        local rs = game:GetService("RunService")
+                        for _=1,10 do
+                            if not infoBtn.Parent then return end
+                            infoBtn.Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 22,4)
+                            rs.Heartbeat:Wait()
+                        end
+                        gFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                            infoBtn.Position = UDim2.fromOffset(gFrame.AbsoluteSize.X - 22,4)
+                        end)
+                    end)
+                    local popup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.new(0, math.min(260, math.max(140, #desc * 6)), 0, 0), ZIndex = z + 500, Parent = gFrame}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,6)}),
+                        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,6), PaddingBottom = UDim.new(0,6)})
+                    })
+                    local pText = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,0), TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = desc, Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 501, Parent = popup})
+                    pText.AutomaticSize = Enum.AutomaticSize.Y
+                    popup.AutomaticSize = Enum.AutomaticSize.Y
+                    popup.ClipsDescendants = true
+                    -- arrow (triangle) using rotated square trick
+                    local arrow = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), Rotation = 45, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0,0), ZIndex = z + 499, Parent = popup})
+                    Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25, Parent = arrow})
+                    arrow.BackgroundColor3 = Theme.Bg
+                    arrow.BorderSizePixel = 0
+                    -- layout popup on show
+                    local function positionPopup()
+                        popup.Position = UDim2.fromOffset(infoBtn.AbsolutePosition.X - gFrame.AbsolutePosition.X - (popup.AbsoluteSize.X/2) + (infoBtn.AbsoluteSize.X/2), 24)
+                        arrow.Position = UDim2.new(0.5,0,0,0)
+                    end
+                    local showing = false
+                    local function show()
+                        if showing then return end
+                        showing = true
+                        popup.Visible = true
+                        popup.Size = UDim2.new(0, popup.AbsoluteSize.X, 0, 0)
+                        positionPopup()
+                        T(popup,0.18,{Size = UDim2.new(0,popup.AbsoluteSize.X,0,pText.AbsoluteSize.Y + 16)}):Play()
+                    end
+                    local function hide()
+                        if not showing then return end
+                        showing = false
+                        local tw = T(popup,0.15,{Size = UDim2.new(0,popup.AbsoluteSize.X,0,0)})
+                        tw:Play()
+                        tw.Completed:Connect(function() if not showing then popup.Visible = false end end)
+                    end
+                    infoBtn.MouseEnter:Connect(show)
+                    infoBtn.MouseLeave:Connect(function()
+                        -- hide only if cursor not over popup
+                        local con; con = game:GetService("RunService").RenderStepped:Connect(function()
+                            local pos = UserInputService:GetMouseLocation()
+                            local abs = popup.AbsolutePosition
+                            local sz = popup.AbsoluteSize
+                            local inside = pos.X >= abs.X and pos.X <= abs.X+sz.X and pos.Y >= abs.Y and pos.Y <= abs.Y+sz.Y
+                            local btnAbs = infoBtn.AbsolutePosition
+                            local btnSz = infoBtn.AbsoluteSize
+                            local insideBtn = pos.X >= btnAbs.X and pos.X <= btnAbs.X+btnSz.X and pos.Y >= btnAbs.Y and pos.Y <= btnAbs.Y+btnSz.Y
+                            if not inside and not insideBtn then
+                                hide(); con:Disconnect()
+                            end
+                        end)
+                    end)
+                    infoBtn.MouseButton1Click:Connect(function()
+                        if showing then hide() else show() end
+                    end)
+                    y = y + 0 -- no vertical space consumed now
                 end
                 local function nextY(h) local o=y; y=y+h+6; return o end
                 -- Toggle
