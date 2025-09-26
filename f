@@ -294,33 +294,37 @@ function Library:CreateLibrary(opts)
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
             if showVisual then
-                -- New design: quarter arc ring + inner directional wedge
-                local gripRoot = Create("Frame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.fromOffset(22,22), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-1,1,-1), ZIndex = z + 4, Parent = grip})
-                -- Oversized circle so only bottom-right quarter is visible inside gripRoot (arc effect)
-                local circle = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(44,44), Position = UDim2.fromOffset(-22,-22), ZIndex = z + 5, Parent = gripRoot})
-                local ring = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = circle})
-                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = ring})
-                local ringStroke = Create("UIStroke", {Color = Theme.Accent, Thickness = 2, Transparency = 0.45, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, ring)
-                -- inner arrow head (rotated square) sits near corner
-                local head = Create("Frame", {BackgroundColor3 = Theme.Accent2, BackgroundTransparency = 0.15, BorderSizePixel = 0, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-4,1,-4), Rotation = 45, ZIndex = z + 6, Parent = gripRoot})
-                Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = head})
-                -- subtle glow pulse element
-                local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://5028857084", ImageColor3 = Theme.Accent2, ImageTransparency = 0.9, Size = UDim2.fromOffset(30,30), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-8,1,-8), ZIndex = z + 5, Parent = gripRoot})
-                local pulsing = true
-                task.spawn(function()
-                    while glow.Parent and pulsing do
-                        T(glow,1.2,{ImageTransparency = 0.7}):Play(); task.wait(1.2)
-                        T(glow,1.2,{ImageTransparency = 0.9}):Play(); task.wait(1.2)
-                    end
-                end)
+                -- Fresh design: minimalist dotted diagonal (three accent beads)
+                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(22,22), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
+                local spec = {
+                    {size = 6, off = 2, baseT = 0.15},
+                    {size = 5, off = 9, baseT = 0.35},
+                    {size = 4, off = 15, baseT = 0.55},
+                }
+                local dots = {}
+                for i, d in ipairs(spec) do
+                    local dot = Create("Frame", {
+                        BackgroundColor3 = (i == 1) and Theme.Accent2 or Theme.Accent,
+                        BackgroundTransparency = d.baseT,
+                        BorderSizePixel = 0,
+                        Size = UDim2.fromOffset(d.size,d.size),
+                        AnchorPoint = Vector2.new(1,1),
+                        Position = UDim2.new(1,-d.off,1,-d.off),
+                        ZIndex = z + 5 + i,
+                        Parent = gripRoot
+                    })
+                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dot})
+                    dots[#dots+1] = {inst = dot, spec = d}
+                end
                 local function hover(on)
-                    if on then
-                        T(ringStroke,0.18,{Transparency = 0.15, Thickness = 3}):Play()
-                        T(head,0.16,{BackgroundTransparency = 0}):Play()
-                        T(head,0.20,{Size = UDim2.fromOffset(9,9)}):Play()
-                    else
-                        T(ringStroke,0.22,{Transparency = 0.45, Thickness = 2}):Play()
-                        T(head,0.18,{BackgroundTransparency = 0.15, Size = UDim2.fromOffset(8,8)}):Play()
+                    for i, entry in ipairs(dots) do
+                        local dot = entry.inst
+                        local d = entry.spec
+                        local targetT = on and (0.05 + (i-1)*0.1) or d.baseT
+                        local grow = on and 1 or 0
+                        local newSize = d.size + grow
+                        local newOff = d.off - (grow * 0.5)
+                        T(dot,0.16,{BackgroundTransparency = targetT, Size = UDim2.fromOffset(newSize,newSize), Position = UDim2.new(1,-newOff,1,-newOff)}):Play()
                     end
                 end
                 grip.MouseEnter:Connect(function() hover(true) end)
