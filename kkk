@@ -1,5 +1,5 @@
 --!nocheck
--- luacheck: globals cloneref isfile isfolder makefolder writefile readfile listfiles delfile Color3 Enum game UDim2 UDim Vector2 Rect task tick typeof
+-- luacheck: globals cloneref isfile isfolder makefolder writefile readfile listfiles delfile Color3 Enum game UDim2 Vector2 Rect
 local cloneref = cloneref or function(x) return x end
 local function SRV(name) return cloneref(game:GetService(name)) end
 local CoreGui = SRV("CoreGui")
@@ -166,7 +166,7 @@ function Library:CreateLibrary(opts)
     else
         titleLabel.Text = title:upper()
     end
-    local btnCluster = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(144, 32), Position = UDim2.new(1, -8, 0.5, 0), AnchorPoint = Vector2.new(1,0.5), Parent = header})
+    local btnCluster = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(108, 32), Position = UDim2.new(1, -8, 0.5, 0), AnchorPoint = Vector2.new(1,0.5), Parent = header})
     local clusterLayout = Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0,4)}) clusterLayout.Parent = btnCluster
     local function makeHeaderBtn(iconChar)
         local b = Create("TextButton", {Size = UDim2.fromOffset(32,32), BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = iconChar, Font = Fonts.Medium, TextSize = 18, TextColor3 = Theme.Text, ZIndex = z + 3, Parent = btnCluster}, {
@@ -180,10 +180,7 @@ function Library:CreateLibrary(opts)
     local closeBtn = makeHeaderBtn("X")
     local fsBtn = makeHeaderBtn("")
     local minBtn = makeHeaderBtn("–")
-    local searchHeaderBtn = makeHeaderBtn("🔍")
     -- reposition cluster order: minimize, fullscreen, close (already appended; adjust layout order)
-    -- order: search, minimize, fullscreen, close
-    searchHeaderBtn.LayoutOrder = 0
     minBtn.LayoutOrder = 1 fsBtn.LayoutOrder = 2 closeBtn.LayoutOrder = 3
     -- custom fullscreen icon (aggressive corners)
     local fsIcon = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Parent = fsBtn})
@@ -201,8 +198,6 @@ function Library:CreateLibrary(opts)
     minBtn.MouseLeave:Connect(function() T(minBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
     fsBtn.MouseEnter:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end)
     fsBtn.MouseLeave:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
-    searchHeaderBtn.MouseEnter:Connect(function() T(searchHeaderBtn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end)
-    searchHeaderBtn.MouseLeave:Connect(function() T(searchHeaderBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
     local minimized, prevSize, prevPos = false, root.Size, root.Position
     local fullscreen, fsPrevSize, fsPrevPos = false, nil, nil
     minBtn.MouseButton1Click:Connect(function()
@@ -238,142 +233,6 @@ function Library:CreateLibrary(opts)
         end
     end)
     local body = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -12, 1, -(46 + 12)), Position = UDim2.fromOffset(6, 46 + 6), ZIndex = z, Parent = root})
-    -- Global search UI (persists across tabs)
-    local globalFilteredPage
-    local activeHighlightStroke, activeStrokeOrigColor, activeStrokeOrigThickness, activeStrokeOrigTrans
-    local globalSearchTargetW = 180
-    local globalSearchTargetH = 28
-    local globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(globalSearchTargetW, globalSearchTargetH), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 600, Parent = root}, {
-        Create("UICorner", {CornerRadius = UDim.new(0,6)}),
-        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
-        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,5), PaddingBottom = UDim.new(0,5)})
-    })
-    local globalSearchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = globalSearchPopup})
-    local function restoreGlobalColumns()
-        if globalFilteredPage and globalFilteredPage._columnsFrames then
-            for _, cfr in ipairs(globalFilteredPage._columnsFrames) do cfr.Visible = true end
-        end
-        globalFilteredPage = nil
-        if activeHighlightStroke and activeHighlightStroke.Parent then
-            activeHighlightStroke.Color = activeStrokeOrigColor or activeHighlightStroke.Color
-            activeHighlightStroke.Thickness = activeStrokeOrigThickness or 1
-            activeHighlightStroke.Transparency = activeStrokeOrigTrans or activeHighlightStroke.Transparency
-        end
-        activeHighlightStroke = nil
-    end
-    local lastSearchAnchor = searchHeaderBtn
-    local function positionGlobalSearch()
-        -- position directly under the current anchor button, right aligned
-        local targetW = globalSearchTargetW
-        local anchor = (lastSearchAnchor and lastSearchAnchor.Parent) and lastSearchAnchor or searchHeaderBtn
-        local btnAbs = anchor.AbsolutePosition
-        local btnSize = anchor.AbsoluteSize
-        local rootAbs = root.AbsolutePosition
-        local px = (btnAbs.X - rootAbs.X) + btnSize.X - targetW
-        local py = (btnAbs.Y - rootAbs.Y) + btnSize.Y + 6
-        px = math.max(6, math.min(root.AbsoluteSize.X - targetW - 6, px))
-        globalSearchPopup.Position = UDim2.fromOffset(px, py)
-    end
-    local function toggleGlobalSearch(show, anchorBtn)
-        if typeof(anchorBtn) == "Instance" then
-            lastSearchAnchor = anchorBtn
-            show = true
-        end
-        show = (show == nil) and (not globalSearchPopup.Visible) or show
-        if show then
-            positionGlobalSearch()
-            globalSearchPopup.Visible = true
-            local stroke = globalSearchPopup:FindFirstChild("Stroke")
-            if stroke then stroke.Thickness = 2.2 stroke.Transparency = 0.75 end
-            globalSearchPopup.BackgroundTransparency = 1
-            globalSearchPopup.Size = UDim2.fromOffset(0,0)
-            -- subtle glow centered under the popup
-            local centerOff = globalSearchPopup.Position.X.Offset + math.floor(globalSearchTargetW/2)
-            local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.92, Size = UDim2.fromOffset(24,24), AnchorPoint = Vector2.new(0,0), Position = UDim2.fromOffset(centerOff, globalSearchPopup.Position.Y.Offset + math.floor(globalSearchTargetH/2)), ZIndex = globalSearchPopup.ZIndex - 1, Parent = root})
-            T(glow,0.45,{ImageTransparency = 1, Size = UDim2.fromOffset(300,80)}):Play()
-            task.delay(0.5, function() pcall(function() glow:Destroy() end) end)
-            T(globalSearchPopup,0.22,{Size = UDim2.fromOffset(globalSearchTargetW,globalSearchTargetH)}):Play()
-            T(globalSearchPopup,0.25,{BackgroundTransparency = 0}):Play()
-            if stroke then T(stroke,0.35,{Thickness = 1, Transparency = 0.4}):Play() end
-            task.defer(function() pcall(function() globalSearchBox:CaptureFocus() end) end)
-        else
-            globalSearchPopup.Visible = false
-            globalSearchBox.Text = ""
-            restoreGlobalColumns()
-        end
-    end
-    searchHeaderBtn.MouseButton1Click:Connect(function() toggleGlobalSearch(true, searchHeaderBtn) end)
-    -- reposition popup on resize/move
-    header:GetPropertyChangedSignal("AbsolutePosition"):Connect(positionGlobalSearch)
-    header:GetPropertyChangedSignal("AbsoluteSize"):Connect(positionGlobalSearch)
-    root:GetPropertyChangedSignal("AbsolutePosition"):Connect(positionGlobalSearch)
-    root:GetPropertyChangedSignal("AbsoluteSize"):Connect(positionGlobalSearch)
-    -- close on escape or outside click
-    UserInputService.InputBegan:Connect(function(inp)
-        if not globalSearchPopup.Visible then return end
-        if inp.KeyCode == Enum.KeyCode.Escape then toggleGlobalSearch(false) end
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            local pos = UserInputService:GetMouseLocation()
-            local pAbs, pSz = globalSearchPopup.AbsolutePosition, globalSearchPopup.AbsoluteSize
-            local insidePopup = pos.X >= pAbs.X and pos.X <= pAbs.X+pSz.X and pos.Y >= pAbs.Y and pos.Y <= pAbs.Y+pSz.Y
-            local anchor = (lastSearchAnchor and lastSearchAnchor.Parent) and lastSearchAnchor or searchHeaderBtn
-            local bAbs, bSz = anchor.AbsolutePosition, anchor.AbsoluteSize
-            local insideBtn = pos.X >= bAbs.X and pos.X <= bAbs.X+bSz.X and pos.Y >= bAbs.Y and pos.Y <= bAbs.Y+bSz.Y
-            if not insidePopup and not insideBtn then toggleGlobalSearch(false) end
-        end
-    end)
-    local function applyGlobalFilter()
-        local term = globalSearchBox.Text or ""
-        if term == "" then restoreGlobalColumns() return end
-        -- navigate to match and filter other columns of the page
-        local match = Window:Search(term, true)
-        restoreGlobalColumns()
-        if match and match.page and match.groupFrame then
-            local page = match.page
-            if page._columnsFrames then
-                globalFilteredPage = page
-                for _, cfr in ipairs(page._columnsFrames) do
-                    cfr.Visible = (cfr == match.groupFrame.Parent)
-                end
-            end
-            local stroke = nil
-            for _, child in ipairs(match.groupFrame:GetChildren()) do
-                if child:IsA("UIStroke") then stroke = child break end
-            end
-            if stroke then
-                if activeHighlightStroke ~= stroke then
-                    if activeHighlightStroke and activeHighlightStroke.Parent then
-                        activeHighlightStroke.Color = activeStrokeOrigColor or activeHighlightStroke.Color
-                        activeHighlightStroke.Thickness = activeStrokeOrigThickness or 1
-                        activeHighlightStroke.Transparency = activeStrokeOrigTrans or activeHighlightStroke.Transparency
-                    end
-                    activeHighlightStroke = stroke
-                    activeStrokeOrigColor = stroke.Color
-                    activeStrokeOrigThickness = stroke.Thickness
-                    activeStrokeOrigTrans = stroke.Transparency
-                end
-                stroke.Color = Theme.Accent
-                stroke.Transparency = 0.15
-                T(stroke,0.35,{Thickness = 2}):Play()
-            end
-        end
-    end
-    do
-        local lastChange = 0
-        globalSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-            if not globalSearchPopup.Visible then return end
-            if globalSearchBox.Text == "" then restoreGlobalColumns() return end
-            lastChange = lastChange + 1
-            local v = lastChange
-            task.delay(0.15, function() if v == lastChange then applyGlobalFilter() end end)
-        end)
-        globalSearchBox.FocusLost:Connect(function(enter) if enter then applyGlobalFilter() end end)
-        if globalSearchBox.ReturnPressedFromOnScreenKeyboard then
-            globalSearchBox.ReturnPressedFromOnScreenKeyboard:Connect(applyGlobalFilter)
-        end
-    end
-    -- expose toggler so other parts (like per-category buttons) can open it
-    Window._toggleSearch = toggleGlobalSearch
     local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 100, 1, 0), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
     local content = Create("Frame", {Name = "Content", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ClipsDescendants = true, Size = UDim2.new(1, -(100 + 6), 1, 0), Position = UDim2.new(0, 100 + 6, 0, 0), ZIndex = z, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
     do
@@ -435,22 +294,37 @@ function Library:CreateLibrary(opts)
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
             if showVisual then
-                -- Clean two-line corner arrow
-                local gRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
-                local function line(off, len, alpha)
-                    local f = Create("Frame", {BackgroundColor3 = Theme.Text, BackgroundTransparency = alpha or 0.3, BorderSizePixel = 0, Size = UDim2.fromOffset(len,2), Rotation = 45, AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-off,1,-off), Parent = gRoot})
-                    Create("UICorner", {CornerRadius = UDim.new(0,2), Parent = f})
-                    return f
+                -- Fresh design: minimalist dotted diagonal (three accent beads)
+                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(22,22), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
+                local spec = {
+                    {size = 6, off = 2, baseT = 0.15},
+                    {size = 5, off = 9, baseT = 0.35},
+                    {size = 4, off = 15, baseT = 0.55},
+                }
+                local dots = {}
+                for i, d in ipairs(spec) do
+                    local dot = Create("Frame", {
+                        BackgroundColor3 = (i == 1) and Theme.Accent2 or Theme.Accent,
+                        BackgroundTransparency = d.baseT,
+                        BorderSizePixel = 0,
+                        Size = UDim2.fromOffset(d.size,d.size),
+                        AnchorPoint = Vector2.new(1,1),
+                        Position = UDim2.new(1,-d.off,1,-d.off),
+                        ZIndex = z + 5 + i,
+                        Parent = gripRoot
+                    })
+                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dot})
+                    dots[#dots+1] = {inst = dot, spec = d}
                 end
-                local l1 = line(4, 12, 0.15)
-                local l2 = line(8, 8, 0.35)
                 local function hover(on)
-                    if on then
-                        T(l1,0.12,{BackgroundTransparency = 0.02, Size = UDim2.fromOffset(13,2)}):Play()
-                        T(l2,0.12,{BackgroundTransparency = 0.12, Size = UDim2.fromOffset(9,2)}):Play()
-                    else
-                        T(l1,0.14,{BackgroundTransparency = 0.15, Size = UDim2.fromOffset(12,2)}):Play()
-                        T(l2,0.14,{BackgroundTransparency = 0.35, Size = UDim2.fromOffset(8,2)}):Play()
+                    for i, entry in ipairs(dots) do
+                        local dot = entry.inst
+                        local d = entry.spec
+                        local targetT = on and (0.05 + (i-1)*0.1) or d.baseT
+                        local grow = on and 1 or 0
+                        local newSize = d.size + grow
+                        local newOff = d.off - (grow * 0.5)
+                        T(dot,0.16,{BackgroundTransparency = targetT, Size = UDim2.fromOffset(newSize,newSize), Position = UDim2.new(1,-newOff,1,-newOff)}):Play()
                     end
                 end
                 grip.MouseEnter:Connect(function() hover(true) end)
@@ -510,8 +384,7 @@ function Library:CreateLibrary(opts)
                 end
             end)
         end
-    -- remove visual indicator but keep functionality
-    addCornerGrip("br", false)
+        addCornerGrip("br", true)
         addCornerGrip("bl", false)
         addCornerGrip("tr", false)
         addCornerGrip("tl", false)
@@ -521,11 +394,6 @@ function Library:CreateLibrary(opts)
         local name = tostring(o.Name or "Category")
         local icon = o.Icon
         local Category = { Name = name, _pages = {}, _selectedPage = nil }
-        -- register category name for search (points to first page/group later)
-        local function addSearchEntry(text, page, gFrame)
-            if not text or text == "" then return end
-            Library._searchEntries[#Library._searchEntries+1] = {textLower = string.lower(text), category = Category, page = page, groupFrame = gFrame}
-        end
         local btn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 38), ZIndex = z + 2, Parent = sidebar})
         local inner = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -2, 1, -2), Position = UDim2.fromOffset(1,1), Parent = btn})
         local iconImg
@@ -540,16 +408,137 @@ function Library:CreateLibrary(opts)
         btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.SubText}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.SubText}):Play() end end end)
         local catContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = content})
     local subBar = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -10, 0, 24), Position = UDim2.fromOffset(5, 5), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = z + 1, Parent = catContainer}, {Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left})})
-    -- per-category search button now opens global search
+    -- search popup + button (per category view) -----------------------------
+    local searchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = catContainer}, {
+        Create("UICorner", {CornerRadius = UDim.new(0,6)}),
+        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
+        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,4)})
+    })
+    local searchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = searchPopup})
     local searchBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(32,22), Text = "🔍", Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.Text, ZIndex = z + 2, Parent = subBar}, {
         Create("UICorner", {CornerRadius = UDim.new(0,5)}),
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
     })
+    -- track whether columns are filtered so we can restore
+    local filteredPage
+    local activeHighlightStroke, activeStrokeOrigColor, activeStrokeOrigThickness, activeStrokeOrigTrans
+    local function restoreColumns()
+        if filteredPage and filteredPage._columnsFrames then
+            for _, cfr in ipairs(filteredPage._columnsFrames) do cfr.Visible = true end
+        end
+        filteredPage = nil
+        if activeHighlightStroke and activeHighlightStroke.Parent then
+            activeHighlightStroke.Color = activeStrokeOrigColor or activeHighlightStroke.Color
+            activeHighlightStroke.Thickness = activeStrokeOrigThickness or 1
+            activeHighlightStroke.Transparency = activeStrokeOrigTrans or activeHighlightStroke.Transparency
+        end
+        activeHighlightStroke = nil
+    end
+    local function toggleSearch(show)
+        show = (show == nil) and (not searchPopup.Visible) or show
+        if show then
+            searchPopup.Visible = true
+            -- comfy intro animation (soft glow + fade + size ease)
+            local stroke = searchPopup:FindFirstChild("Stroke")
+            if stroke then stroke.Thickness = 2.2 stroke.Transparency = 0.75 end
+            searchPopup.BackgroundTransparency = 1
+            searchPopup.Size = UDim2.fromOffset(0,0)
+            -- position before anim
+            local function positionPopup()
+                local btnAbs = searchBtn.AbsolutePosition
+                local parentAbs = catContainer.AbsolutePosition
+                local btnSize = searchBtn.AbsoluteSize
+                local px = btnAbs.X - parentAbs.X - (210/2) + (btnSize.X/2)
+                if px < 4 then px = 4 end
+                searchPopup.Position = UDim2.fromOffset(px, subBar.Position.Y.Offset + subBar.Size.Y.Offset + 6)
+            end
+            positionPopup()
+            -- soft glow behind
+            local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.92, Size = UDim2.fromOffset(20,20), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0, searchPopup.Position.X.Offset + 105, 0, searchPopup.Position.Y.Offset + 15), ZIndex = searchPopup.ZIndex - 1, Parent = catContainer})
+            T(glow,0.45,{ImageTransparency = 1, Size = UDim2.fromOffset(260,60)}):Play()
+            task.delay(0.5, function() pcall(function() glow:Destroy() end) end)
+            T(searchPopup,0.22,{Size = UDim2.fromOffset(210,30)}):Play()
+            T(searchPopup,0.25,{BackgroundTransparency = 0}):Play()
+            if stroke then
+                T(stroke,0.35,{Thickness = 1, Transparency = 0.4}):Play()
+            end
+            task.defer(function() pcall(function() searchBox:CaptureFocus() end) end)
+        else
+            searchPopup.Visible = false
+            searchBox.Text = ""
+            restoreColumns()
+        end
+    end
     searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
     searchBtn.MouseLeave:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Button}):Play() end)
-    searchBtn.MouseButton1Click:Connect(function()
-        if Window._toggleSearch then Window._toggleSearch(true, searchBtn) end
+    searchBtn.MouseButton1Click:Connect(function() toggleSearch() end)
+    UserInputService.InputBegan:Connect(function(inp)
+        if searchPopup.Visible and (inp.KeyCode == Enum.KeyCode.Escape) then toggleSearch(false) end
     end)
+    UserInputService.InputBegan:Connect(function(inp)
+        if not searchPopup.Visible then return end
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            local pos = UserInputService:GetMouseLocation()
+            local abs = searchPopup.AbsolutePosition
+            local sz = searchPopup.AbsoluteSize
+            local inside = pos.X >= abs.X and pos.X <= abs.X+sz.X and pos.Y >= abs.Y and pos.Y <= abs.Y+sz.Y
+            local btnAbs = searchBtn.AbsolutePosition
+            local btnSz = searchBtn.AbsoluteSize
+            local insideBtn = pos.X >= btnAbs.X and pos.X <= btnAbs.X+btnSz.X and pos.Y >= btnAbs.Y and pos.Y <= btnAbs.Y+btnSz.Y
+            if not inside and not insideBtn then toggleSearch(false) end
+        end
+    end)
+    local function applyFilter()
+        local term = searchBox.Text or ""
+        if term == "" then
+            restoreColumns()
+            return
+        end
+        local match = Window:Search(term, true) -- returns entry, suppress highlight flash
+        if match and match.page and match.groupFrame then
+            -- hide other columns in that page
+            local page = match.page
+            if page._columnsFrames then
+                filteredPage = page
+                for _, cfr in ipairs(page._columnsFrames) do
+                    cfr.Visible = (cfr == match.groupFrame.Parent)
+                end
+            end
+            -- outline accent (stroke pulse) only
+            local stroke = nil
+            for _, child in ipairs(match.groupFrame:GetChildren()) do
+                if child:IsA("UIStroke") then stroke = child break end
+            end
+            if stroke then
+                if activeHighlightStroke ~= stroke then
+                    if activeHighlightStroke and activeHighlightStroke.Parent then
+                        activeHighlightStroke.Color = activeStrokeOrigColor or activeHighlightStroke.Color
+                        activeHighlightStroke.Thickness = activeStrokeOrigThickness or 1
+                        activeHighlightStroke.Transparency = activeStrokeOrigTrans or activeHighlightStroke.Transparency
+                    end
+                    activeHighlightStroke = stroke
+                    activeStrokeOrigColor = stroke.Color
+                    activeStrokeOrigThickness = stroke.Thickness
+                    activeStrokeOrigTrans = stroke.Transparency
+                end
+                stroke.Color = Theme.Accent
+                stroke.Transparency = 0.15
+                T(stroke,0.35,{Thickness = 2}):Play()
+            end
+        end
+    end
+    local lastChange = 0
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        if not searchPopup.Visible then return end
+        if searchBox.Text == "" then restoreColumns() return end
+        lastChange = lastChange + 1
+        local version = lastChange
+        task.delay(0.15, function() if version == lastChange then applyFilter() end end)
+    end)
+    searchBox.FocusLost:Connect(function(enter)
+        if enter then applyFilter() end
+    end)
+    searchBox.ReturnPressedFromOnScreenKeyboard:Connect(applyFilter)
     local pageArea = Create("Frame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(1, -10, 1, -(24 + 10 + 6)), Position = UDim2.fromOffset(5, 24 + 9), Parent = catContainer})
         function Category:Select()
             if Window._selectedCategory and Window._selectedCategory._label then
@@ -572,7 +561,6 @@ function Library:CreateLibrary(opts)
             p = p or {}
             local pname = tostring(p.Name or "Page")
             local Page = { Name = pname, _blocks = {}, _columns = Clamp(tonumber(p.Columns) or 2, 1, 3) }
-            -- register page title for search once at least one group exists (we'll backfill later too)
             local tb = TextService:GetTextSize(pname, 13, Fonts.Medium, Vector2.new(1000, 22))
             local subBtn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = pname, TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 13, Size = UDim2.fromOffset(tb.X + 18, 22), ZIndex = z + 2, Parent = subBar})
             local subInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,4,1,0), Visible = false, ZIndex = z + 3, Parent = subBtn})
@@ -666,24 +654,42 @@ function Library:CreateLibrary(opts)
                     local function show()
                         if showing then return end
                         showing = true
-                        positionPopup()
                         popup.Visible = true
-                        task.defer(function()
-                            if not popup.Parent then return end
-                            local targetH = pText.AbsoluteSize.Y + 12
-                            popup.Size = UDim2.new(0, baseW, 0, 0)
-                            T(popup,0.15,{Size = UDim2.new(0, baseW, 0, targetH)}):Play()
-                        end)
+                        popup.Size = UDim2.new(0, baseW, 0, 0)
+                        positionPopup()
+                        T(popup,0.18,{Size = UDim2.new(0,baseW,0,pText.AbsoluteSize.Y + 12)}):Play()
+                        T(infoBtn,0.15,{BackgroundColor3 = Color3.fromRGB(48,52,50)}):Play()
+                        T(iStroke,0.15,{Transparency = 0.35}):Play()
                     end
                     local function hide()
                         if not showing then return end
                         showing = false
-                        local tw = T(popup,0.12,{Size = UDim2.new(0, baseW, 0, 0)})
+                        local tw = T(popup,0.15,{Size = UDim2.new(0,baseW,0,0)})
                         tw:Play()
                         tw.Completed:Connect(function()
-                            if not showing then popup.Visible = false end
+                            if not showing then
+                                popup.Visible = false
+                                T(infoBtn,0.18,{BackgroundColor3 = Color3.fromRGB(36,38,37)}):Play()
+                                T(iStroke,0.18,{Transparency = 0.55}):Play()
+                            end
                         end)
                     end
+                    infoBtn.MouseEnter:Connect(show)
+                    infoBtn.MouseLeave:Connect(function()
+                        -- hide only if cursor not over popup
+                        local con; con = game:GetService("RunService").RenderStepped:Connect(function()
+                            local pos = UserInputService:GetMouseLocation()
+                            local abs = popup.AbsolutePosition
+                            local sz = popup.AbsoluteSize
+                            local inside = pos.X >= abs.X and pos.X <= abs.X+sz.X and pos.Y >= abs.Y and pos.Y <= abs.Y+sz.Y
+                            local btnAbs = infoBtn.AbsolutePosition
+                            local btnSz = infoBtn.AbsoluteSize
+                            local insideBtn = pos.X >= btnAbs.X and pos.X <= btnAbs.X+btnSz.X and pos.Y >= btnAbs.Y and pos.Y <= btnAbs.Y+btnSz.Y
+                            if not inside and not insideBtn then
+                                hide(); con:Disconnect()
+                            end
+                        end)
+                    end)
                     infoBtn.MouseButton1Click:Connect(function()
                         if showing then hide() else show() end
                     end)
@@ -695,19 +701,7 @@ function Library:CreateLibrary(opts)
                     if not text or text == "" then return end
                     Library._searchEntries[#Library._searchEntries+1] = {textLower = string.lower(text), category = Category, page = Page, groupFrame = gFrame}
                 end
-                -- include group name and description in search
-                registerSearch(gName)
-                if type(desc) == "string" and #desc > 0 then registerSearch(desc) end
-                -- Also ensure Category and Page titles are searchable and lead somewhere visible
-                if not Page._searchRegistered then
-                    registerSearch(Page.Name)
-                    Page._searchRegistered = true
-                end
-                if not Category._searchRegistered then
-                    -- tie category title to this first visible group
-                    registerSearch(Category.Name)
-                    Category._searchRegistered = true
-                end
+                -- removed group name registration so search only matches control titles
                 -- Toggle
                 function Group:AddToggle(o)
                     o = o or {}
@@ -879,18 +873,16 @@ function Library:CreateLibrary(opts)
                     function Slider:Get() return self._value end
                     local function formatValue(v)
                         if precise then
-                            local s = string.format("%.3f", v)
-                            s = s:gsub("%.?0+$", "")
-                            return s
+                            return tostring(string.format("%.3f", v)):gsub("0+$","%%"):gsub("%.%%$",".")
                         else
                             return tostring(v)
                         end
                     end
                     function Slider:Set(v, silent)
                         if precise then
-                            -- clamp and round to 3 decimals to keep display tidy
+                            local scaledStep = step
+                            if scaledStep < 0.0001 then scaledStep = 0.0001 end
                             v = Clamp(v, min, max)
-                            v = math.floor(v * 1000 + 0.5) / 1000
                         else
                             v = Clamp(Round(v, step), min, max)
                         end
