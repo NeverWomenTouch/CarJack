@@ -473,7 +473,8 @@ function Library:CreateLibrary(opts)
                     local rootAbs = root.AbsolutePosition
                     local btnSize = Window._currentSearchBtn.AbsoluteSize
                     local popupW = 210
-                    local px = btnAbs.X - rootAbs.X + btnSize.X - popupW + 10
+                    -- align popup's left edge with button's left edge
+                    local px = btnAbs.X - rootAbs.X
                     local maxX = root.AbsoluteSize.X - popupW - 4
                     if px < 4 then px = 4 elseif px > maxX then px = maxX end
                     local py = btnAbs.Y - rootAbs.Y + btnSize.Y + 6
@@ -525,7 +526,8 @@ function Library:CreateLibrary(opts)
                         local rootAbs = root.AbsolutePosition
                         local btnSize = self._currentSearchBtn.AbsoluteSize
                         local popupW = 210
-                        local px = btnAbs.X - rootAbs.X + btnSize.X - popupW + 10
+                        -- align popup's left edge with button's left edge
+                        local px = btnAbs.X - rootAbs.X
                         local maxX = root.AbsoluteSize.X - popupW - 4
                         if px < 4 then px = 4 elseif px > maxX then px = maxX end
                         local py = btnAbs.Y - rootAbs.Y + btnSize.Y + 6
@@ -590,22 +592,28 @@ function Library:CreateLibrary(opts)
             if not Window._globalSearchPopup.Visible then return end
             if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                 local pos = UserInputService:GetMouseLocation()
-                
+
                 -- Check if click is inside search popup
                 local searchAbs = Window._globalSearchPopup.AbsolutePosition
                 local searchSz = Window._globalSearchPopup.AbsoluteSize
                 local insideSearch = pos.X >= searchAbs.X and pos.X <= searchAbs.X+searchSz.X and pos.Y >= searchAbs.Y and pos.Y <= searchAbs.Y+searchSz.Y
-                
-                -- Check if click is inside search button
-                local insideBtn = false
-                if Window._currentSearchBtn then
-                    local btnAbs = Window._currentSearchBtn.AbsolutePosition
-                    local btnSz = Window._currentSearchBtn.AbsoluteSize
-                    insideBtn = pos.X >= btnAbs.X and pos.X <= btnAbs.X+btnSz.X and pos.Y >= btnAbs.Y and pos.Y <= btnAbs.Y+btnSz.Y
+
+                -- Check if click is inside ANY category's search button
+                local insideAnyBtn = false
+                for _, cat in ipairs(Window._categories or {}) do
+                    local b = cat._searchBtn
+                    if b and b.Parent then
+                        local bAbs = b.AbsolutePosition
+                        local bSz = b.AbsoluteSize
+                        if pos.X >= bAbs.X and pos.X <= bAbs.X+bSz.X and pos.Y >= bAbs.Y and pos.Y <= bAbs.Y+bSz.Y then
+                            insideAnyBtn = true
+                            break
+                        end
+                    end
                 end
-                
-                -- Close search if clicking anywhere except search popup or button
-                if not insideSearch and not insideBtn then
+
+                -- Close search if clicking anywhere except search popup or any search button
+                if not insideSearch and not insideAnyBtn then
                     Window:ToggleSearch(false)
                 end
             end
