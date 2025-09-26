@@ -241,7 +241,9 @@ function Library:CreateLibrary(opts)
     -- Global search UI (persists across tabs)
     local globalFilteredPage
     local activeHighlightStroke, activeStrokeOrigColor, activeStrokeOrigThickness, activeStrokeOrigTrans
-    local globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(240, 32), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 600, Parent = root}, {
+    local globalSearchTargetW = 180
+    local globalSearchTargetH = 28
+    local globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(globalSearchTargetW, globalSearchTargetH), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 600, Parent = root}, {
         Create("UICorner", {CornerRadius = UDim.new(0,6)}),
         Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
         Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,5), PaddingBottom = UDim.new(0,5)})
@@ -261,13 +263,13 @@ function Library:CreateLibrary(opts)
     end
     local lastSearchAnchor = searchHeaderBtn
     local function positionGlobalSearch()
-        -- position directly under the current anchor button, centered
-        local targetW = 240
+        -- position directly under the current anchor button, right aligned
+        local targetW = globalSearchTargetW
         local anchor = (lastSearchAnchor and lastSearchAnchor.Parent) and lastSearchAnchor or searchHeaderBtn
         local btnAbs = anchor.AbsolutePosition
         local btnSize = anchor.AbsoluteSize
         local rootAbs = root.AbsolutePosition
-        local px = (btnAbs.X - rootAbs.X) + (btnSize.X/2) - (targetW/2)
+        local px = (btnAbs.X - rootAbs.X) + btnSize.X - targetW
         local py = (btnAbs.Y - rootAbs.Y) + btnSize.Y + 6
         px = math.max(6, math.min(root.AbsoluteSize.X - targetW - 6, px))
         globalSearchPopup.Position = UDim2.fromOffset(px, py)
@@ -285,11 +287,12 @@ function Library:CreateLibrary(opts)
             if stroke then stroke.Thickness = 2.2 stroke.Transparency = 0.75 end
             globalSearchPopup.BackgroundTransparency = 1
             globalSearchPopup.Size = UDim2.fromOffset(0,0)
-            -- subtle glow
-            local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.92, Size = UDim2.fromOffset(24,24), AnchorPoint = Vector2.new(0,0), Position = UDim2.fromOffset(globalSearchPopup.Position.X.Offset + 120, globalSearchPopup.Position.Y.Offset + 12), ZIndex = globalSearchPopup.ZIndex - 1, Parent = root})
+            -- subtle glow centered under the popup
+            local centerOff = globalSearchPopup.Position.X.Offset + math.floor(globalSearchTargetW/2)
+            local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.92, Size = UDim2.fromOffset(24,24), AnchorPoint = Vector2.new(0,0), Position = UDim2.fromOffset(centerOff, globalSearchPopup.Position.Y.Offset + math.floor(globalSearchTargetH/2)), ZIndex = globalSearchPopup.ZIndex - 1, Parent = root})
             T(glow,0.45,{ImageTransparency = 1, Size = UDim2.fromOffset(300,80)}):Play()
             task.delay(0.5, function() pcall(function() glow:Destroy() end) end)
-            T(globalSearchPopup,0.22,{Size = UDim2.fromOffset(240,32)}):Play()
+            T(globalSearchPopup,0.22,{Size = UDim2.fromOffset(globalSearchTargetW,globalSearchTargetH)}):Play()
             T(globalSearchPopup,0.25,{BackgroundTransparency = 0}):Play()
             if stroke then T(stroke,0.35,{Thickness = 1, Transparency = 0.4}):Play() end
             task.defer(function() pcall(function() globalSearchBox:CaptureFocus() end) end)
@@ -507,7 +510,8 @@ function Library:CreateLibrary(opts)
                 end
             end)
         end
-        addCornerGrip("br", true)
+    -- remove visual indicator but keep functionality
+    addCornerGrip("br", false)
         addCornerGrip("bl", false)
         addCornerGrip("tr", false)
         addCornerGrip("tl", false)
@@ -875,16 +879,18 @@ function Library:CreateLibrary(opts)
                     function Slider:Get() return self._value end
                     local function formatValue(v)
                         if precise then
-                            return tostring(string.format("%.3f", v)):gsub("0+$","%%"):gsub("%.%%$",".")
+                            local s = string.format("%.3f", v)
+                            s = s:gsub("%.?0+$", "")
+                            return s
                         else
                             return tostring(v)
                         end
                     end
                     function Slider:Set(v, silent)
                         if precise then
-                            local scaledStep = step
-                            if scaledStep < 0.0001 then scaledStep = 0.0001 end
+                            -- clamp and round to 3 decimals to keep display tidy
                             v = Clamp(v, min, max)
+                            v = math.floor(v * 1000 + 0.5) / 1000
                         else
                             v = Clamp(Round(v, step), min, max)
                         end
