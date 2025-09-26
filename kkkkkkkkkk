@@ -501,12 +501,28 @@ function Library:CreateLibrary(opts)
             end
             local match = self:Search(term, true)
             if match and match.page and match.groupFrame then
+                local wasSearchOpen = self._globalSearchPopup.Visible
+                
                 -- Switch to correct category if needed
                 if self._selectedCategory ~= match.category then
                     match.category:Select()
                 end
                 if match.category._selectedPage ~= match.page then
                     match.page:Select()
+                end
+                
+                -- If search was open and we switched categories, keep it open and reposition
+                if wasSearchOpen then
+                    self._globalSearchPopup.Visible = true
+                    -- Reposition popup relative to current category's search button
+                    if self._currentSearchBtn and self._currentSearchBtn.Parent then
+                        local btnAbs = self._currentSearchBtn.AbsolutePosition
+                        local contentAbs = content.AbsolutePosition
+                        local btnSize = self._currentSearchBtn.AbsoluteSize
+                        local px = btnAbs.X - contentAbs.X - (210/2) + (btnSize.X/2)
+                        if px < 4 then px = 4 end
+                        self._globalSearchPopup.Position = UDim2.fromOffset(px, btnAbs.Y - contentAbs.Y + btnSize.Y + 6)
+                    end
                 end
                 
                 -- Hide other columns in that page
@@ -615,6 +631,10 @@ function Library:CreateLibrary(opts)
             catInd.Visible = true
             -- underline now expands full inner width (minus padding) for aggressive look
             T(catInd, 0.2, {Size = UDim2.new(1, -8, 0, 2), Position = UDim2.new(0,4,1,0)}):Play()
+            
+            -- Update current search button reference for this category
+            Window._currentSearchBtn = searchBtn
+            
             if not Category._selectedPage and #Category._pages > 0 then Category._pages[1]:Select() end
         end
         btn.MouseButton1Click:Connect(function() Category:Select() end)
