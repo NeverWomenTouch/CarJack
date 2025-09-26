@@ -1,5 +1,5 @@
 --!nocheck
--- luacheck: globals cloneref isfile isfolder makefolder writefile readfile listfiles delfile Color3 Enum game UDim2 Vector2 Rect
+-- luacheck: globals cloneref isfile isfolder makefolder writefile readfile listfiles delfile Color3 Enum game UDim2 UDim Vector2 Rect task tick typeof
 local cloneref = cloneref or function(x) return x end
 local function SRV(name) return cloneref(game:GetService(name)) end
 local CoreGui = SRV("CoreGui")
@@ -241,12 +241,12 @@ function Library:CreateLibrary(opts)
     -- Global search UI (persists across tabs)
     local globalFilteredPage
     local activeHighlightStroke, activeStrokeOrigColor, activeStrokeOrigThickness, activeStrokeOrigTrans
-    local globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(240, 32), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(1,0), ZIndex = z + 600, Parent = root}, {
+    local globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(240, 32), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 600, Parent = root}, {
         Create("UICorner", {CornerRadius = UDim.new(0,6)}),
         Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
         Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,5), PaddingBottom = UDim.new(0,5)})
     })
-    local globalSearchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search library...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = globalSearchPopup})
+    local globalSearchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = globalSearchPopup})
     local function restoreGlobalColumns()
         if globalFilteredPage and globalFilteredPage._columnsFrames then
             for _, cfr in ipairs(globalFilteredPage._columnsFrames) do cfr.Visible = true end
@@ -259,16 +259,24 @@ function Library:CreateLibrary(opts)
         end
         activeHighlightStroke = nil
     end
+    local lastSearchAnchor = searchHeaderBtn
     local function positionGlobalSearch()
-        -- position under header, right-aligned near the header buttons
-        local btnAbs = searchHeaderBtn.AbsolutePosition
+        -- position directly under the current anchor button, centered
+        local targetW = 240
+        local anchor = (lastSearchAnchor and lastSearchAnchor.Parent) and lastSearchAnchor or searchHeaderBtn
+        local btnAbs = anchor.AbsolutePosition
+        local btnSize = anchor.AbsoluteSize
         local rootAbs = root.AbsolutePosition
-        local px = btnAbs.X - rootAbs.X + searchHeaderBtn.AbsoluteSize.X - globalSearchPopup.AbsoluteSize.X
-        local py = (header.AbsolutePosition.Y - rootAbs.Y) + header.AbsoluteSize.Y + 6
-        px = math.max(6, math.min(root.AbsoluteSize.X - globalSearchPopup.AbsoluteSize.X - 6, px))
+        local px = (btnAbs.X - rootAbs.X) + (btnSize.X/2) - (targetW/2)
+        local py = (btnAbs.Y - rootAbs.Y) + btnSize.Y + 6
+        px = math.max(6, math.min(root.AbsoluteSize.X - targetW - 6, px))
         globalSearchPopup.Position = UDim2.fromOffset(px, py)
     end
-    local function toggleGlobalSearch(show)
+    local function toggleGlobalSearch(show, anchorBtn)
+        if typeof(anchorBtn) == "Instance" then
+            lastSearchAnchor = anchorBtn
+            show = true
+        end
         show = (show == nil) and (not globalSearchPopup.Visible) or show
         if show then
             positionGlobalSearch()
@@ -278,7 +286,7 @@ function Library:CreateLibrary(opts)
             globalSearchPopup.BackgroundTransparency = 1
             globalSearchPopup.Size = UDim2.fromOffset(0,0)
             -- subtle glow
-            local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.92, Size = UDim2.fromOffset(24,24), AnchorPoint = Vector2.new(0,0), Position = UDim2.new(0, globalSearchPopup.Position.X.Offset + globalSearchPopup.Size.X.Offset/2, 0, globalSearchPopup.Position.Y.Offset + 12), ZIndex = globalSearchPopup.ZIndex - 1, Parent = root})
+            local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.92, Size = UDim2.fromOffset(24,24), AnchorPoint = Vector2.new(0,0), Position = UDim2.fromOffset(globalSearchPopup.Position.X.Offset + 120, globalSearchPopup.Position.Y.Offset + 12), ZIndex = globalSearchPopup.ZIndex - 1, Parent = root})
             T(glow,0.45,{ImageTransparency = 1, Size = UDim2.fromOffset(300,80)}):Play()
             task.delay(0.5, function() pcall(function() glow:Destroy() end) end)
             T(globalSearchPopup,0.22,{Size = UDim2.fromOffset(240,32)}):Play()
@@ -291,7 +299,7 @@ function Library:CreateLibrary(opts)
             restoreGlobalColumns()
         end
     end
-    searchHeaderBtn.MouseButton1Click:Connect(function() toggleGlobalSearch() end)
+    searchHeaderBtn.MouseButton1Click:Connect(function() toggleGlobalSearch(true, searchHeaderBtn) end)
     -- reposition popup on resize/move
     header:GetPropertyChangedSignal("AbsolutePosition"):Connect(positionGlobalSearch)
     header:GetPropertyChangedSignal("AbsoluteSize"):Connect(positionGlobalSearch)
@@ -305,7 +313,8 @@ function Library:CreateLibrary(opts)
             local pos = UserInputService:GetMouseLocation()
             local pAbs, pSz = globalSearchPopup.AbsolutePosition, globalSearchPopup.AbsoluteSize
             local insidePopup = pos.X >= pAbs.X and pos.X <= pAbs.X+pSz.X and pos.Y >= pAbs.Y and pos.Y <= pAbs.Y+pSz.Y
-            local bAbs, bSz = searchHeaderBtn.AbsolutePosition, searchHeaderBtn.AbsoluteSize
+            local anchor = (lastSearchAnchor and lastSearchAnchor.Parent) and lastSearchAnchor or searchHeaderBtn
+            local bAbs, bSz = anchor.AbsolutePosition, anchor.AbsoluteSize
             local insideBtn = pos.X >= bAbs.X and pos.X <= bAbs.X+bSz.X and pos.Y >= bAbs.Y and pos.Y <= bAbs.Y+bSz.Y
             if not insidePopup and not insideBtn then toggleGlobalSearch(false) end
         end
@@ -423,28 +432,22 @@ function Library:CreateLibrary(opts)
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
             if showVisual then
-                -- Refined diagonal corner grip: three beveled lines + soft glow
-                local gRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(22,22), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
+                -- Clean two-line corner arrow
+                local gRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
                 local function line(off, len, alpha)
-                    local f = Create("Frame", {BackgroundColor3 = Theme.Text, BackgroundTransparency = alpha or 0.35, BorderSizePixel = 0, Size = UDim2.fromOffset(len,2), Rotation = 45, AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-off,1,-off), Parent = gRoot})
+                    local f = Create("Frame", {BackgroundColor3 = Theme.Text, BackgroundTransparency = alpha or 0.3, BorderSizePixel = 0, Size = UDim2.fromOffset(len,2), Rotation = 45, AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-off,1,-off), Parent = gRoot})
                     Create("UICorner", {CornerRadius = UDim.new(0,2), Parent = f})
                     return f
                 end
-                local l1 = line(3, 8, 0.25)
-                local l2 = line(7, 10, 0.35)
-                local l3 = line(11, 12, 0.5)
-                local glow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.9, Size = UDim2.fromOffset(12,12), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-3,1,-3), ZIndex = gRoot.ZIndex - 1, Parent = gRoot})
+                local l1 = line(4, 12, 0.15)
+                local l2 = line(8, 8, 0.35)
                 local function hover(on)
                     if on then
-                        T(l1,0.12,{BackgroundTransparency = 0.05, Size = UDim2.fromOffset(9,2)}):Play()
-                        T(l2,0.12,{BackgroundTransparency = 0.15, Size = UDim2.fromOffset(12,2)}):Play()
-                        T(l3,0.12,{BackgroundTransparency = 0.25, Size = UDim2.fromOffset(14,2)}):Play()
-                        T(glow,0.18,{ImageTransparency = 0.75, Size = UDim2.fromOffset(20,20)}):Play()
+                        T(l1,0.12,{BackgroundTransparency = 0.02, Size = UDim2.fromOffset(13,2)}):Play()
+                        T(l2,0.12,{BackgroundTransparency = 0.12, Size = UDim2.fromOffset(9,2)}):Play()
                     else
-                        T(l1,0.14,{BackgroundTransparency = 0.25, Size = UDim2.fromOffset(8,2)}):Play()
-                        T(l2,0.14,{BackgroundTransparency = 0.35, Size = UDim2.fromOffset(10,2)}):Play()
-                        T(l3,0.14,{BackgroundTransparency = 0.5, Size = UDim2.fromOffset(12,2)}):Play()
-                        T(glow,0.22,{ImageTransparency = 0.9, Size = UDim2.fromOffset(12,12)}):Play()
+                        T(l1,0.14,{BackgroundTransparency = 0.15, Size = UDim2.fromOffset(12,2)}):Play()
+                        T(l2,0.14,{BackgroundTransparency = 0.35, Size = UDim2.fromOffset(8,2)}):Play()
                     end
                 end
                 grip.MouseEnter:Connect(function() hover(true) end)
@@ -514,6 +517,11 @@ function Library:CreateLibrary(opts)
         local name = tostring(o.Name or "Category")
         local icon = o.Icon
         local Category = { Name = name, _pages = {}, _selectedPage = nil }
+        -- register category name for search (points to first page/group later)
+        local function addSearchEntry(text, page, gFrame)
+            if not text or text == "" then return end
+            Library._searchEntries[#Library._searchEntries+1] = {textLower = string.lower(text), category = Category, page = page, groupFrame = gFrame}
+        end
         local btn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 38), ZIndex = z + 2, Parent = sidebar})
         local inner = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -2, 1, -2), Position = UDim2.fromOffset(1,1), Parent = btn})
         local iconImg
@@ -536,7 +544,7 @@ function Library:CreateLibrary(opts)
     searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
     searchBtn.MouseLeave:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Button}):Play() end)
     searchBtn.MouseButton1Click:Connect(function()
-        if Window._toggleSearch then Window._toggleSearch(true) end
+        if Window._toggleSearch then Window._toggleSearch(true, searchBtn) end
     end)
     local pageArea = Create("Frame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(1, -10, 1, -(24 + 10 + 6)), Position = UDim2.fromOffset(5, 24 + 9), Parent = catContainer})
         function Category:Select()
@@ -560,6 +568,7 @@ function Library:CreateLibrary(opts)
             p = p or {}
             local pname = tostring(p.Name or "Page")
             local Page = { Name = pname, _blocks = {}, _columns = Clamp(tonumber(p.Columns) or 2, 1, 3) }
+            -- register page title for search once at least one group exists (we'll backfill later too)
             local tb = TextService:GetTextSize(pname, 13, Fonts.Medium, Vector2.new(1000, 22))
             local subBtn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = pname, TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 13, Size = UDim2.fromOffset(tb.X + 18, 22), ZIndex = z + 2, Parent = subBar})
             local subInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,4,1,0), Visible = false, ZIndex = z + 3, Parent = subBtn})
@@ -682,7 +691,19 @@ function Library:CreateLibrary(opts)
                     if not text or text == "" then return end
                     Library._searchEntries[#Library._searchEntries+1] = {textLower = string.lower(text), category = Category, page = Page, groupFrame = gFrame}
                 end
-                -- removed group name registration so search only matches control titles
+                -- include group name and description in search
+                registerSearch(gName)
+                if type(desc) == "string" and #desc > 0 then registerSearch(desc) end
+                -- Also ensure Category and Page titles are searchable and lead somewhere visible
+                if not Page._searchRegistered then
+                    registerSearch(Page.Name)
+                    Page._searchRegistered = true
+                end
+                if not Category._searchRegistered then
+                    -- tie category title to this first visible group
+                    registerSearch(Category.Name)
+                    Category._searchRegistered = true
+                end
                 -- Toggle
                 function Group:AddToggle(o)
                     o = o or {}
