@@ -1201,16 +1201,16 @@ function Library:CreateLibrary(opts)
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(labelWidth,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
 
                     local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1-labelWidth,-4,1,0), Position = UDim2.new(labelWidth,4,0,0), Parent = row}, {
-                        Create("UICorner", {CornerRadius = UDim.new(0,5)}),
-                        Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.32}),
-                        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,34)})
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                        Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,30)})
                     })
                     local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Text = default and tostring(default) or "Select...", Font = Fonts.Medium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = box})
                     -- caret icon (clean text glyph)
                     local caretLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(20,16), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-8,0.5,0), Text = "▾", Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.SubText, Parent = box})
 
                     -- floating panel under box
-                    local panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 350, Parent = gFrame}, {
+                    local panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 350, Parent = root}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,6)}),
                         Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
                     })
@@ -1236,17 +1236,18 @@ function Library:CreateLibrary(opts)
                     end
 
                     local function positionPanel(finalHeight)
-                        -- Default to below the box
-                        local relX = box.AbsolutePosition.X - gFrame.AbsolutePosition.X
-                        local relYBelow = row.AbsolutePosition.Y - gFrame.AbsolutePosition.Y + row.AbsoluteSize.Y + 2
+                        -- Default below the box, positioned relative to the window root
+                        local rootAbs = root.AbsolutePosition
+                        local relX = box.AbsolutePosition.X - rootAbs.X
+                        local relYBelow = box.AbsolutePosition.Y - rootAbs.Y + box.AbsoluteSize.Y + 2
                         local width = box.AbsoluteSize.X
 
-                        -- Try to flip above if not enough space below
+                        -- Flip above if not enough space below in viewport
                         local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
-                        local globalYBelow = box.AbsolutePosition.Y + box.AbsoluteSize.Y + 2 + (finalHeight or 0)
-                        local openAbove = (globalYBelow + 8) > viewport.Y
+                        local globalBottom = box.AbsolutePosition.Y + box.AbsoluteSize.Y + 2 + (finalHeight or 0)
+                        local openAbove = (globalBottom + 8) > viewport.Y
                         if openAbove then
-                            panel.Position = UDim2.fromOffset(relX, relYBelow - (finalHeight or 0) - row.AbsoluteSize.Y - 4)
+                            panel.Position = UDim2.fromOffset(relX, relYBelow - (finalHeight or 0) - box.AbsoluteSize.Y - 4)
                         else
                             panel.Position = UDim2.fromOffset(relX, relYBelow)
                         end
@@ -1395,7 +1396,7 @@ function Library:CreateLibrary(opts)
                         local resolved = resolveOption(v)
                         if not self._options or not resolved then return end
                         self._value = resolved
-                        valueLbl.Text = tostring(v)
+                        valueLbl.Text = tostring(resolved)
                         valueLbl.TextColor3 = Theme.Text
                         Dropdown:_closePanel()
                         updateDots()
