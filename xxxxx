@@ -436,7 +436,7 @@ function Library:CreateLibrary(opts)
     -- search popup + button (only create once for the entire window)
     if not Window._globalSearchCreated then
         Window._globalSearchCreated = true
-        Window._globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = content}, {
+    Window._globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = root}, {
             Create("UICorner", {CornerRadius = UDim.new(0,6)}),
             Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
             Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,4)})
@@ -470,11 +470,14 @@ function Library:CreateLibrary(opts)
                 -- Position popup relative to current search button
                 if Window._currentSearchBtn then
                     local btnAbs = Window._currentSearchBtn.AbsolutePosition
-                    local contentAbs = content.AbsolutePosition
+                    local rootAbs = root.AbsolutePosition
                     local btnSize = Window._currentSearchBtn.AbsoluteSize
-                    local px = btnAbs.X - contentAbs.X - (210/2) + (btnSize.X/2)
-                    if px < 4 then px = 4 end
-                    self._globalSearchPopup.Position = UDim2.fromOffset(px, btnAbs.Y - contentAbs.Y + btnSize.Y + 6)
+                    local popupW = 210
+                    local px = btnAbs.X - rootAbs.X + btnSize.X - popupW
+                    local maxX = root.AbsoluteSize.X - popupW - 4
+                    if px < 4 then px = 4 elseif px > maxX then px = maxX end
+                    local py = btnAbs.Y - rootAbs.Y + btnSize.Y + 6
+                    self._globalSearchPopup.Position = UDim2.fromOffset(px, py)
                 end
                 
                 -- Animation
@@ -514,14 +517,19 @@ function Library:CreateLibrary(opts)
                 -- If search was open and we switched categories, keep it open and reposition
                 if wasSearchOpen then
                     self._globalSearchPopup.Visible = true
-                    -- Reposition popup relative to current category's search button
+                    -- Ensure current button points to the matched category's search button
+                    self._currentSearchBtn = match.category and match.category._searchBtn or self._currentSearchBtn
+                    -- Reposition popup relative to current category's search button aligned to right edge
                     if self._currentSearchBtn and self._currentSearchBtn.Parent then
                         local btnAbs = self._currentSearchBtn.AbsolutePosition
-                        local contentAbs = content.AbsolutePosition
+                        local rootAbs = root.AbsolutePosition
                         local btnSize = self._currentSearchBtn.AbsoluteSize
-                        local px = btnAbs.X - contentAbs.X - (210/2) + (btnSize.X/2)
-                        if px < 4 then px = 4 end
-                        self._globalSearchPopup.Position = UDim2.fromOffset(px, btnAbs.Y - contentAbs.Y + btnSize.Y + 6)
+                        local popupW = 210
+                        local px = btnAbs.X - rootAbs.X + btnSize.X - popupW
+                        local maxX = root.AbsoluteSize.X - popupW - 4
+                        if px < 4 then px = 4 elseif px > maxX then px = maxX end
+                        local py = btnAbs.Y - rootAbs.Y + btnSize.Y + 6
+                        self._globalSearchPopup.Position = UDim2.fromOffset(px, py)
                     end
                 end
                 
@@ -609,12 +617,20 @@ function Library:CreateLibrary(opts)
         Create("UICorner", {CornerRadius = UDim.new(0,5)}),
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
     })
+    Category._searchBtn = searchBtn
     
     searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
     searchBtn.MouseLeave:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Button}):Play() end)
-    searchBtn.MouseButton1Click:Connect(function() 
-        Window._currentSearchBtn = searchBtn
-        Window:ToggleSearch() 
+    searchBtn.MouseButton1Click:Connect(function()
+        if Window._globalSearchPopup and Window._globalSearchPopup.Visible and Window._currentSearchBtn ~= searchBtn then
+            -- Switch active button, keep popup open and reposition
+            Window._currentSearchBtn = searchBtn
+            Window:ToggleSearch(true)
+        else
+            -- Toggle normally for same button
+            Window._currentSearchBtn = searchBtn
+            Window:ToggleSearch()
+        end
     end)
     local pageArea = Create("Frame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(1, -10, 1, -(24 + 10 + 6)), Position = UDim2.fromOffset(5, 24 + 9), Parent = catContainer})
         function Category:Select()
@@ -624,6 +640,8 @@ function Library:CreateLibrary(opts)
                 if Window._selectedCategory._icon then T(Window._selectedCategory._icon, 0.12, {ImageColor3 = Theme.SubText}):Play() end
             end
             Window._selectedCategory = Category
+            -- update current search button so global search can reposition correctly
+            Window._currentSearchBtn = Category._searchBtn or Window._currentSearchBtn
             for _, f in ipairs(content:GetChildren()) do if f:IsA("Frame") then f.Visible = false end end
             catContainer.Visible = true
             T(lbl, 0.12, {TextColor3 = Theme.Text}):Play()
