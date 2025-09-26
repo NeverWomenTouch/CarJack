@@ -294,37 +294,18 @@ function Library:CreateLibrary(opts)
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
             if showVisual then
-                -- Fresh design: minimalist dotted diagonal (three accent beads)
-                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(22,22), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
-                local spec = {
-                    {size = 6, off = 2, baseT = 0.15},
-                    {size = 5, off = 9, baseT = 0.35},
-                    {size = 4, off = 15, baseT = 0.55},
-                }
-                local dots = {}
-                for i, d in ipairs(spec) do
-                    local dot = Create("Frame", {
-                        BackgroundColor3 = (i == 1) and Theme.Accent2 or Theme.Accent,
-                        BackgroundTransparency = d.baseT,
-                        BorderSizePixel = 0,
-                        Size = UDim2.fromOffset(d.size,d.size),
-                        AnchorPoint = Vector2.new(1,1),
-                        Position = UDim2.new(1,-d.off,1,-d.off),
-                        ZIndex = z + 5 + i,
-                        Parent = gripRoot
-                    })
-                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dot})
-                    dots[#dots+1] = {inst = dot, spec = d}
-                end
+                -- Chevron arrow indicator at the corner (clean and readable)
+                local root = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(20,20), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
+                local rotor = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,0,1,0), Rotation = 45, Parent = root})
+                local armH = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.25, BorderSizePixel = 0, Size = UDim2.fromOffset(9,2), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,0,1,0), Parent = rotor})
+                local armV = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.25, BorderSizePixel = 0, Size = UDim2.fromOffset(2,9), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,0,1,0), Parent = rotor})
                 local function hover(on)
-                    for i, entry in ipairs(dots) do
-                        local dot = entry.inst
-                        local d = entry.spec
-                        local targetT = on and (0.05 + (i-1)*0.1) or d.baseT
-                        local grow = on and 1 or 0
-                        local newSize = d.size + grow
-                        local newOff = d.off - (grow * 0.5)
-                        T(dot,0.16,{BackgroundTransparency = targetT, Size = UDim2.fromOffset(newSize,newSize), Position = UDim2.new(1,-newOff,1,-newOff)}):Play()
+                    if on then
+                        T(armH,0.14,{BackgroundTransparency = 0.05, Size = UDim2.fromOffset(11,2)}):Play()
+                        T(armV,0.14,{BackgroundTransparency = 0.05, Size = UDim2.fromOffset(2,11)}):Play()
+                    else
+                        T(armH,0.16,{BackgroundTransparency = 0.25, Size = UDim2.fromOffset(9,2)}):Play()
+                        T(armV,0.16,{BackgroundTransparency = 0.25, Size = UDim2.fromOffset(2,9)}):Play()
                     end
                 end
                 grip.MouseEnter:Connect(function() hover(true) end)
@@ -654,42 +635,24 @@ function Library:CreateLibrary(opts)
                     local function show()
                         if showing then return end
                         showing = true
-                        popup.Visible = true
-                        popup.Size = UDim2.new(0, baseW, 0, 0)
                         positionPopup()
-                        T(popup,0.18,{Size = UDim2.new(0,baseW,0,pText.AbsoluteSize.Y + 12)}):Play()
-                        T(infoBtn,0.15,{BackgroundColor3 = Color3.fromRGB(48,52,50)}):Play()
-                        T(iStroke,0.15,{Transparency = 0.35}):Play()
+                        popup.Visible = true
+                        task.defer(function()
+                            if not popup.Parent then return end
+                            local targetH = pText.AbsoluteSize.Y + 12
+                            popup.Size = UDim2.new(0, baseW, 0, 0)
+                            T(popup,0.15,{Size = UDim2.new(0, baseW, 0, targetH)}):Play()
+                        end)
                     end
                     local function hide()
                         if not showing then return end
                         showing = false
-                        local tw = T(popup,0.15,{Size = UDim2.new(0,baseW,0,0)})
+                        local tw = T(popup,0.12,{Size = UDim2.new(0, baseW, 0, 0)})
                         tw:Play()
                         tw.Completed:Connect(function()
-                            if not showing then
-                                popup.Visible = false
-                                T(infoBtn,0.18,{BackgroundColor3 = Color3.fromRGB(36,38,37)}):Play()
-                                T(iStroke,0.18,{Transparency = 0.55}):Play()
-                            end
+                            if not showing then popup.Visible = false end
                         end)
                     end
-                    infoBtn.MouseEnter:Connect(show)
-                    infoBtn.MouseLeave:Connect(function()
-                        -- hide only if cursor not over popup
-                        local con; con = game:GetService("RunService").RenderStepped:Connect(function()
-                            local pos = UserInputService:GetMouseLocation()
-                            local abs = popup.AbsolutePosition
-                            local sz = popup.AbsoluteSize
-                            local inside = pos.X >= abs.X and pos.X <= abs.X+sz.X and pos.Y >= abs.Y and pos.Y <= abs.Y+sz.Y
-                            local btnAbs = infoBtn.AbsolutePosition
-                            local btnSz = infoBtn.AbsoluteSize
-                            local insideBtn = pos.X >= btnAbs.X and pos.X <= btnAbs.X+btnSz.X and pos.Y >= btnAbs.Y and pos.Y <= btnAbs.Y+btnSz.Y
-                            if not inside and not insideBtn then
-                                hide(); con:Disconnect()
-                            end
-                        end)
-                    end)
                     infoBtn.MouseButton1Click:Connect(function()
                         if showing then hide() else show() end
                     end)
