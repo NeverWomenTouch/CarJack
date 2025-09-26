@@ -1202,15 +1202,12 @@ function Library:CreateLibrary(opts)
 
                     local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1-labelWidth,-4,1,0), Position = UDim2.new(labelWidth,4,0,0), Parent = row}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,5)}),
-                        Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.28}),
-                        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,28)})
+                        Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.32}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,34)})
                     })
                     local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Text = default and tostring(default) or "Select...", Font = Fonts.Medium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = box})
-                    -- caret icon
-                    local caret = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(12,12), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(1,-10,0.5,0), Parent = box})
-                    local car1 = Create("Frame", {BackgroundColor3 = Theme.Text, BorderSizePixel = 0, Size = UDim2.fromOffset(10,2), Position = UDim2.fromOffset(1,6), Parent = caret}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
-                    local car2 = Create("Frame", {BackgroundColor3 = Theme.Text, BorderSizePixel = 0, Size = UDim2.fromOffset(10,2), Position = UDim2.fromOffset(1,6), Parent = caret}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
-                    car1.Rotation = 45 car2.Rotation = -45
+                    -- caret icon (clean text glyph)
+                    local caretLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(20,16), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-8,0.5,0), Text = "▾", Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.SubText, Parent = box})
 
                     -- floating panel under box
                     local panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 350, Parent = gFrame}, {
@@ -1273,10 +1270,11 @@ function Library:CreateLibrary(opts)
                         listLayout = panelScroll:FindFirstChildOfClass("UIListLayout")
                     end
 
-                    local Dropdown = { id = id, _value = default, _options = {}, _filtered = {} }
+                    local Dropdown = { id = id, _value = default, _options = {}, _filtered = {}, _itemMap = {} }
 
                     local function renderItems()
                         for _, c in ipairs(panelScroll:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+                        Dropdown._itemMap = {}
                         local function addItem(val)
                             local item = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,itemHeight), Text = "", Parent = panelScroll, ZIndex = panel.ZIndex + 2}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
@@ -1290,6 +1288,7 @@ function Library:CreateLibrary(opts)
                             item.MouseEnter:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(item.Stroke,0.12,{Transparency = 0.3}):Play() end)
                             item.MouseLeave:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Button}):Play() T(item.Stroke,0.12,{Transparency = 0.55}):Play() end)
                             item.MouseButton1Click:Connect(function() Dropdown:Set(val) end)
+                            Dropdown._itemMap[val] = {item = item, dot = dot}
                         end
                         local src = Dropdown._filtered[1] and Dropdown._filtered or Dropdown._options
                         for _, v in ipairs(src) do addItem(v) end
@@ -1300,8 +1299,9 @@ function Library:CreateLibrary(opts)
                         if opening then return end
                         opening = true
                         T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play()
-                        T(box.Stroke,0.12,{Transparency = 0.2}):Play()
-                        T(car1,0.16,{Rotation = 225}):Play(); T(car2,0.16,{Rotation = -225}):Play()
+                        T(box.Stroke,0.12,{Transparency = 0.22}):Play()
+                        T(caretLbl,0.16,{TextColor3 = Theme.Text}):Play()
+                        caretLbl.Text = "▴"
                         buildPanel()
                         Dropdown._filtered = {}
                         renderItems()
@@ -1352,8 +1352,9 @@ function Library:CreateLibrary(opts)
                         if not opening then return end
                         opening = false
                         T(box,0.12,{BackgroundColor3 = Theme.Button}):Play()
-                        T(box.Stroke,0.12,{Transparency = 0.28}):Play()
-                        T(car1,0.16,{Rotation = 45}):Play(); T(car2,0.16,{Rotation = -45}):Play()
+                        T(box.Stroke,0.12,{Transparency = 0.32}):Play()
+                        T(caretLbl,0.16,{TextColor3 = Theme.SubText}):Play()
+                        caretLbl.Text = "▾"
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X,0)})
                         tw:Play()
                         tw.Completed:Connect(function()
@@ -1367,6 +1368,22 @@ function Library:CreateLibrary(opts)
                     end)
 
                     function Dropdown:Get() return self._value end
+                    local function resolveOption(v)
+                        -- prefer exact match, then string-equivalent match
+                        if table.find(Dropdown._options, v) then return v end
+                        local sv = tostring(v)
+                        for _, opt in ipairs(Dropdown._options) do
+                            if tostring(opt) == sv then return opt end
+                        end
+                        return nil
+                    end
+                    local function updateDots()
+                        for val, ref in pairs(Dropdown._itemMap) do
+                            if ref and ref.dot then
+                                ref.dot.Visible = (Dropdown._value == val)
+                            end
+                        end
+                    end
                     function Dropdown:Set(v, silent)
                         if v == nil then
                             self._value=nil
@@ -1375,11 +1392,13 @@ function Library:CreateLibrary(opts)
                             Dropdown:_closePanel()
                             return
                         end
-                        if not self._options or not table.find(self._options, v) then return end
-                        self._value = v
+                        local resolved = resolveOption(v)
+                        if not self._options or not resolved then return end
+                        self._value = resolved
                         valueLbl.Text = tostring(v)
                         valueLbl.TextColor3 = Theme.Text
                         Dropdown:_closePanel()
+                        updateDots()
                         if not silent and type(cb)=="function" then pcall(cb,v) end
                     end
 
@@ -1394,6 +1413,9 @@ function Library:CreateLibrary(opts)
                             self._value = nil
                             valueLbl.Text = "Select..."
                             valueLbl.TextColor3 = Theme.SubText
+                        else
+                            -- ensure dots reflect current selection
+                            updateDots()
                         end
                     end
 
