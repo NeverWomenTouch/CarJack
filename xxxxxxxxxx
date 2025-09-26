@@ -466,6 +466,12 @@ function Library:CreateLibrary(opts)
         function Window:ToggleSearch(show)
             show = (show == nil) and (not self._globalSearchPopup.Visible) or show
             if show then
+                -- Prevent immediate reopen if we just closed from the same button
+                if self._searchForceClosedUntil and os.clock() < (self._searchForceClosedUntil or 0) then
+                    if self._currentSearchBtn and self._searchForceClosedSource and self._currentSearchBtn == self._searchForceClosedSource then
+                        return
+                    end
+                end
                 -- If already open with same owner, just reposition and return
                 if self._globalSearchPopup.Visible and self._searchOwner and self._searchOwner == self._currentSearchBtn then
                     if self._currentSearchBtn and self._currentSearchBtn.Parent then
@@ -484,6 +490,9 @@ function Library:CreateLibrary(opts)
                 self._globalSearchPopup.Visible = true
         -- Remember which button owns this open instance
         self._searchOwner = self._currentSearchBtn
+                -- Clear any stale force-close guard now that we opened intentionally
+                self._searchForceClosedUntil = nil
+                self._searchForceClosedSource = nil
                 -- Position popup relative to current search button
                 if Window._currentSearchBtn then
                     local btnAbs = Window._currentSearchBtn.AbsolutePosition
@@ -512,6 +521,9 @@ function Library:CreateLibrary(opts)
                 self._globalSearchBox.Text = ""
                 self:RestoreColumns()
                 self._searchOwner = nil
+                -- Set a short guard to avoid accidental reopen from the same button within the same click frame
+                self._searchForceClosedUntil = os.clock() + 0.25
+                self._searchForceClosedSource = self._currentSearchBtn or self._searchOwner
             end
         end
         
