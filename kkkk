@@ -294,39 +294,68 @@ function Library:CreateLibrary(opts)
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
             if showVisual then
-                -- Fresh design: minimalist dotted diagonal (three accent beads)
-                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(22,22), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-2,1,-2), ZIndex = z + 4, Parent = grip})
-                local spec = {
-                    {size = 6, off = 2, baseT = 0.15},
-                    {size = 5, off = 9, baseT = 0.35},
-                    {size = 4, off = 15, baseT = 0.55},
+                -- Modern diagonal grip design with clean lines
+                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(20,20), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-3,1,-3), ZIndex = z + 4, Parent = grip})
+                
+                -- Create diagonal grip lines with proper spacing and design
+                local gripLines = {}
+                local lineSpecs = {
+                    {length = 12, offset = 4, thickness = 2},
+                    {length = 8, offset = 8, thickness = 2}, 
+                    {length = 4, offset = 12, thickness = 2}
                 }
-                local dots = {}
-                for i, d in ipairs(spec) do
-                    local dot = Create("Frame", {
-                        BackgroundColor3 = (i == 1) and Theme.Accent2 or Theme.Accent,
-                        BackgroundTransparency = d.baseT,
-                        BorderSizePixel = 0,
-                        Size = UDim2.fromOffset(d.size,d.size),
+                
+                for i, spec in ipairs(lineSpecs) do
+                    -- Create container for each diagonal line
+                    local lineContainer = Create("Frame", {
+                        BackgroundTransparency = 1,
+                        Size = UDim2.fromOffset(spec.length, spec.thickness),
                         AnchorPoint = Vector2.new(1,1),
-                        Position = UDim2.new(1,-d.off,1,-d.off),
+                        Position = UDim2.new(1, -spec.offset, 1, -spec.offset),
+                        Rotation = 45, -- Diagonal orientation
                         ZIndex = z + 5 + i,
                         Parent = gripRoot
                     })
-                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dot})
-                    dots[#dots+1] = {inst = dot, spec = d}
+                    
+                    local line = Create("Frame", {
+                        BackgroundColor3 = Theme.Accent,
+                        BackgroundTransparency = 0.3,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, 0, 1, 0),
+                        Parent = lineContainer
+                    }, {
+                        Create("UICorner", {CornerRadius = UDim.new(0, 1)}) -- Rounded ends
+                    })
+                    
+                    gripLines[#gripLines + 1] = {container = lineContainer, line = line, spec = spec}
                 end
+                
+                -- Enhanced hover effects with smooth animations
                 local function hover(on)
-                    for i, entry in ipairs(dots) do
-                        local dot = entry.inst
-                        local d = entry.spec
-                        local targetT = on and (0.05 + (i-1)*0.1) or d.baseT
-                        local grow = on and 1 or 0
-                        local newSize = d.size + grow
-                        local newOff = d.off - (grow * 0.5)
-                        T(dot,0.16,{BackgroundTransparency = targetT, Size = UDim2.fromOffset(newSize,newSize), Position = UDim2.new(1,-newOff,1,-newOff)}):Play()
+                    for i, entry in ipairs(gripLines) do
+                        local line = entry.line
+                        local container = entry.container
+                        local spec = entry.spec
+                        
+                        if on then
+                            -- Hover state: make lines more visible and add subtle glow
+                            T(line, 0.2, {BackgroundTransparency = 0.1}):Play()
+                            T(container, 0.2, {Size = UDim2.fromOffset(spec.length + 2, spec.thickness)}):Play()
+                        else
+                            -- Default state: restore original appearance
+                            T(line, 0.25, {BackgroundTransparency = 0.3}):Play()
+                            T(container, 0.25, {Size = UDim2.fromOffset(spec.length, spec.thickness)}):Play()
+                        end
+                    end
+                    
+                    -- Add overall grip container scaling for better feedback
+                    if on then
+                        T(gripRoot, 0.2, {Size = UDim2.fromOffset(22, 22)}):Play()
+                    else
+                        T(gripRoot, 0.25, {Size = UDim2.fromOffset(20, 20)}):Play()
                     end
                 end
+                
                 grip.MouseEnter:Connect(function() hover(true) end)
                 grip.MouseLeave:Connect(function() hover(false) end)
             end
