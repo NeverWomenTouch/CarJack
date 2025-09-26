@@ -491,7 +491,14 @@ function Library:CreateLibrary(opts)
         else
             searchPopup.Visible = false
             searchBox.Text = ""
+            noResultsFrame.Visible = false
             restoreColumns()
+            -- Reset search box appearance
+            local searchStroke = searchPopup:FindFirstChild("Stroke")
+            if searchStroke then
+                searchStroke.Color = Theme.Stroke
+                searchStroke.Transparency = 0.4
+            end
         end
     end
     searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
@@ -504,23 +511,75 @@ function Library:CreateLibrary(opts)
         if not searchPopup.Visible then return end
         if inp.UserInputType == Enum.UserInputType.MouseButton1 then
             local pos = UserInputService:GetMouseLocation()
-            local abs = searchPopup.AbsolutePosition
-            local sz = searchPopup.AbsoluteSize
-            local inside = pos.X >= abs.X and pos.X <= abs.X+sz.X and pos.Y >= abs.Y and pos.Y <= abs.Y+sz.Y
+            
+            -- Check if click is inside search popup
+            local searchAbs = searchPopup.AbsolutePosition
+            local searchSz = searchPopup.AbsoluteSize
+            local insideSearch = pos.X >= searchAbs.X and pos.X <= searchAbs.X+searchSz.X and pos.Y >= searchAbs.Y and pos.Y <= searchAbs.Y+searchSz.Y
+            
+            -- Check if click is inside search button
             local btnAbs = searchBtn.AbsolutePosition
             local btnSz = searchBtn.AbsoluteSize
             local insideBtn = pos.X >= btnAbs.X and pos.X <= btnAbs.X+btnSz.X and pos.Y >= btnAbs.Y and pos.Y <= btnAbs.Y+btnSz.Y
-            if not inside and not insideBtn then toggleSearch(false) end
+            
+            -- Check if click is inside the entire library window (root frame)
+            local rootAbs = root.AbsolutePosition
+            local rootSz = root.AbsoluteSize
+            local insideLibrary = pos.X >= rootAbs.X and pos.X <= rootAbs.X+rootSz.X and pos.Y >= rootAbs.Y and pos.Y <= rootAbs.Y+rootSz.Y
+            
+            -- Only close search if clicking outside the entire library window
+            if not insideLibrary then 
+                toggleSearch(false) 
+            end
         end
     end)
+    -- Create "No results" indicator (hidden by default)
+    local noResultsFrame = Create("Frame", {
+        BackgroundColor3 = Theme.Bg,
+        BackgroundTransparency = 0.1,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, -10, 0, 60),
+        Position = UDim2.fromOffset(5, 80),
+        Visible = false,
+        ZIndex = z + 10,
+        Parent = catContainer
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.6})
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -20, 1, 0),
+        Position = UDim2.fromOffset(10, 0),
+        Text = "🔍 No results found",
+        Font = Fonts.Medium,
+        TextSize = 14,
+        TextColor3 = Theme.SubText,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Parent = noResultsFrame
+    })
+    
     local function applyFilter()
         local term = searchBox.Text or ""
         if term == "" then
             restoreColumns()
+            noResultsFrame.Visible = false
             return
         end
+        
+        -- Update search box appearance based on results
         local match = Window:Search(term, true) -- returns entry, suppress highlight flash
         if match and match.page and match.groupFrame then
+            -- Hide no results indicator
+            noResultsFrame.Visible = false
+            
+            -- Update search box to show success (subtle green tint)
+            local searchStroke = searchPopup:FindFirstChild("Stroke")
+            if searchStroke then
+                T(searchStroke, 0.2, {Color = Theme.Accent, Transparency = 0.3}):Play()
+            end
+            
             -- hide other columns in that page
             local page = match.page
             if page._columnsFrames then
@@ -550,12 +609,33 @@ function Library:CreateLibrary(opts)
                 stroke.Transparency = 0.15
                 T(stroke,0.35,{Thickness = 2}):Play()
             end
+        else
+            -- No results found - show feedback
+            noResultsFrame.Visible = true
+            
+            -- Update search box to show no results (subtle red tint)  
+            local searchStroke = searchPopup:FindFirstChild("Stroke")
+            if searchStroke then
+                T(searchStroke, 0.2, {Color = Color3.fromRGB(220, 100, 100), Transparency = 0.4}):Play()
+            end
+            
+            -- Restore all columns but keep them dimmed
+            restoreColumns()
         end
     end
     local lastChange = 0
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
         if not searchPopup.Visible then return end
-        if searchBox.Text == "" then restoreColumns() return end
+        if searchBox.Text == "" then 
+            restoreColumns()
+            noResultsFrame.Visible = false
+            -- Reset search box appearance
+            local searchStroke = searchPopup:FindFirstChild("Stroke")
+            if searchStroke then
+                T(searchStroke, 0.2, {Color = Theme.Stroke, Transparency = 0.4}):Play()
+            end
+            return 
+        end
         lastChange = lastChange + 1
         local version = lastChange
         task.delay(0.15, function() if version == lastChange then applyFilter() end end)
@@ -722,11 +802,25 @@ function Library:CreateLibrary(opts)
                 end
                 local function nextY(h) local o=y; y=y+h+6; return o end
                 -- search registration helper (captures Category/Page/Group)
-                local function registerSearch(text)
+                local function registerSearch(text, searchType)
                     if not text or text == "" then return end
-                    Library._searchEntries[#Library._searchEntries+1] = {textLower = string.lower(text), category = Category, page = Page, groupFrame = gFrame}
+                    Library._searchEntries[#Library._searchEntries+1] = {
+                        textLower = string.lower(text), 
+                        category = Category, 
+                        page = Page, 
+                        groupFrame = gFrame,
+                        originalText = text,
+                        searchType = searchType or "control"
+                    }
                 end
-                -- removed group name registration so search only matches control titles
+                
+                -- Register group name, category name, and page name for search
+                registerSearch(gName, "group")
+                registerSearch(Category.Name, "category") 
+                registerSearch(Page.Name, "page")
+                if desc and desc ~= "" then
+                    registerSearch(desc, "description")
+                end
                 -- Toggle
                 function Group:AddToggle(o)
                     o = o or {}
@@ -1377,14 +1471,64 @@ function Library:CreateLibrary(opts)
         end)
     end
     Window.AddTab = Window.AddCategory
-    -- perform search across indexed entries (first match)
+    -- enhanced search with fuzzy matching and ranking
     function Window:Search(term, suppressHighlight)
-        term = tostring(term or ""):lower()
+        term = tostring(term or ""):lower():gsub("%s+", " "):gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
         if term == "" then return end
-        local match
+        
+        local matches = {}
+        local exactMatches = {}
+        local fuzzyMatches = {}
+        
         for _, entry in ipairs(Library._searchEntries) do
-            if entry.textLower:find(term, 1, true) then match = entry break end
+            local text = entry.textLower
+            local score = 0
+            
+            -- Exact matches (highest priority)
+            if text == term then
+                score = 1000
+                exactMatches[#exactMatches + 1] = {entry = entry, score = score}
+            -- Starts with term (high priority)  
+            elseif text:find("^" .. term:gsub("[%-%^%$%(%)%%%.%[%]%*%+%?]", "%%%1")) then
+                score = 800 + (100 - #text) -- shorter matches rank higher
+                exactMatches[#exactMatches + 1] = {entry = entry, score = score}
+            -- Contains term (medium priority)
+            elseif text:find(term, 1, true) then
+                score = 600 + (100 - #text)
+                matches[#matches + 1] = {entry = entry, score = score}
+            else
+                -- Fuzzy matching - check if all characters of term exist in order
+                local termChars = {}
+                for i = 1, #term do termChars[i] = term:sub(i,i) end
+                
+                local textPos = 1
+                local matchedChars = 0
+                for _, char in ipairs(termChars) do
+                    local found = text:find(char, textPos, true)
+                    if found then
+                        textPos = found + 1
+                        matchedChars = matchedChars + 1
+                    else
+                        break
+                    end
+                end
+                
+                if matchedChars == #termChars and #termChars >= 3 then -- min 3 chars for fuzzy
+                    score = 300 + matchedChars * 10
+                    fuzzyMatches[#fuzzyMatches + 1] = {entry = entry, score = score}
+                end
+            end
         end
+        
+        -- Combine and sort all matches by score
+        local allMatches = {}
+        for _, match in ipairs(exactMatches) do allMatches[#allMatches + 1] = match end
+        for _, match in ipairs(matches) do allMatches[#allMatches + 1] = match end  
+        for _, match in ipairs(fuzzyMatches) do allMatches[#allMatches + 1] = match end
+        
+        table.sort(allMatches, function(a, b) return a.score > b.score end)
+        
+        local match = allMatches[1] and allMatches[1].entry
         if not match then return nil end
         -- select category & page
         if Window._selectedCategory ~= match.category then match.category:Select() end
