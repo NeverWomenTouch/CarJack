@@ -1030,25 +1030,34 @@ function Library:CreateLibrary(opts)
                     function Slider:Get() return self._value end
                     local function formatValue(v)
                         if precise then
-                            return tostring(string.format("%.3f", v)):gsub("0+$","%%"):gsub("%.%%$",".")
+                            local s = string.format("%.3f", v)
+                            s = s:gsub("0+$", "")
+                            s = s:gsub("%.$", "")
+                            return s
                         else
-                            return tostring(v)
+                            return tostring(math.floor(v + 0.5))
                         end
                     end
                     function Slider:Set(v, silent)
-                        if precise then
-                            local scaledStep = step
-                            if scaledStep < 0.0001 then scaledStep = 0.0001 end
-                            v = Clamp(v, min, max)
-                        else
-                            v = Clamp(Round(v, step), min, max)
+                        local num = tonumber(v)
+                        if not num or num ~= num or num == math.huge or num == -math.huge then
+                            return
                         end
-                        self._value = v
-                        local pct = (v - min) / (max - min)
+                        -- Clamp and round appropriately
+                        if precise then
+                            if step and step > 0 then
+                                num = Round(num, step)
+                            end
+                            num = Clamp(num, min, max)
+                        else
+                            num = Clamp(Round(num, step or 1), min, max)
+                        end
+                        self._value = num
+                        local pct = (num - min) / (max - min)
                         fill.Size = UDim2.new(pct,0,1,0)
                         knob.Position = UDim2.new(pct,0,0.5,0)
-                        valueBox.Text = formatValue(v)
-                        if not silent and type(cb)=="function" then pcall(cb,v) end
+                        valueBox.Text = formatValue(num)
+                        if not silent and type(cb)=="function" then pcall(cb,num) end
                     end
                     -- dragging / fine control logic
                     local dragging = false
@@ -1137,9 +1146,15 @@ function Library:CreateLibrary(opts)
                     end)
                     valueBox:GetPropertyChangedSignal("Text"):Connect(function()
                         if precise then return end
-                        -- limit to numeric characters when not precise; allow minus
-                        local filtered = valueBox.Text:gsub("[^%d%-]","")
-                        if filtered ~= valueBox.Text then valueBox.Text = filtered end
+                        -- Limit to digits and optional leading minus
+                        local t = valueBox.Text
+                        -- Remove non-digits
+                        t = t:gsub("[^%d%-]", "")
+                        -- Keep only first minus sign at start
+                        local neg = t:match("^%-") and "-" or ""
+                        t = t:gsub("%-", "")
+                        t = neg .. t
+                        if t ~= valueBox.Text then valueBox.Text = t end
                     end)
                     -- init
                     Slider:Set(default,true)
