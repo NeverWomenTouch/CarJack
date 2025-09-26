@@ -414,177 +414,6 @@ function Library:CreateLibrary(opts)
         addCornerGrip("tr", false)
         addCornerGrip("tl", false)
     end
-    
-    -- Global search system (created once for entire window)
-    Window._globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = root}, {
-        Create("UICorner", {CornerRadius = UDim.new(0,6)}),
-        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
-        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,4)})
-    })
-    Window._globalSearchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = Window._globalSearchPopup})
-    
-    -- Global search state
-    Window._filteredPage = nil
-    Window._activeHighlightStroke = nil
-    Window._activeStrokeOrigColor = nil
-    Window._activeStrokeOrigThickness = nil
-    Window._activeStrokeOrigTrans = nil
-    
-    function Window:RestoreColumns()
-        if self._filteredPage and self._filteredPage._columnsFrames then
-            for _, cfr in ipairs(self._filteredPage._columnsFrames) do cfr.Visible = true end
-        end
-        self._filteredPage = nil
-        if self._activeHighlightStroke and self._activeHighlightStroke.Parent then
-            self._activeHighlightStroke.Color = self._activeStrokeOrigColor or self._activeHighlightStroke.Color
-            self._activeHighlightStroke.Thickness = self._activeStrokeOrigThickness or 1
-            self._activeHighlightStroke.Transparency = self._activeStrokeOrigTrans or self._activeHighlightStroke.Transparency
-        end
-        self._activeHighlightStroke = nil
-    end
-    
-    function Window:ToggleSearch(show)
-        show = (show == nil) and (not self._globalSearchPopup.Visible) or show
-        if show then
-            self._globalSearchPopup.Visible = true
-            -- Position popup correctly relative to search button (fixed positioning)
-            if Window._currentSearchBtn then
-                local btnAbs = Window._currentSearchBtn.AbsolutePosition
-                local rootAbs = root.AbsolutePosition
-                local btnSize = Window._currentSearchBtn.AbsoluteSize
-                -- Position to the right of the button, not center
-                local px = btnAbs.X - rootAbs.X + btnSize.X - 210
-                if px < 4 then px = 4 end
-                self._globalSearchPopup.Position = UDim2.fromOffset(px, btnAbs.Y - rootAbs.Y + btnSize.Y + 6)
-            end
-            
-            -- Animation
-            local stroke = self._globalSearchPopup:FindFirstChild("Stroke")
-            if stroke then stroke.Thickness = 2.2 stroke.Transparency = 0.75 end
-            self._globalSearchPopup.BackgroundTransparency = 1
-            self._globalSearchPopup.Size = UDim2.fromOffset(0,0)
-            T(self._globalSearchPopup,0.22,{Size = UDim2.fromOffset(210,30)}):Play()
-            T(self._globalSearchPopup,0.25,{BackgroundTransparency = 0}):Play()
-            if stroke then T(stroke,0.35,{Thickness = 1, Transparency = 0.4}):Play() end
-            task.defer(function() pcall(function() self._globalSearchBox:CaptureFocus() end) end)
-        else
-            self._globalSearchPopup.Visible = false
-            self._globalSearchBox.Text = ""
-            self:RestoreColumns()
-        end
-    end
-    
-    function Window:ApplySearchFilter()
-        local term = self._globalSearchBox.Text or ""
-        if term == "" then
-            self:RestoreColumns()
-            return
-        end
-        local match = self:Search(term, true)
-        if match and match.page and match.groupFrame then
-            local wasSearchOpen = self._globalSearchPopup.Visible
-            
-            -- Switch to correct category if needed
-            if self._selectedCategory ~= match.category then
-                match.category:Select()
-            end
-            if match.category._selectedPage ~= match.page then
-                match.page:Select()
-            end
-            
-            -- If search was open and we switched categories, keep it open and reposition
-            if wasSearchOpen then
-                self._globalSearchPopup.Visible = true
-                -- Reposition popup correctly
-                if self._currentSearchBtn and self._currentSearchBtn.Parent then
-                    local btnAbs = self._currentSearchBtn.AbsolutePosition
-                    local rootAbs = root.AbsolutePosition
-                    local btnSize = self._currentSearchBtn.AbsoluteSize
-                    -- Position to the right of the button, not center
-                    local px = btnAbs.X - rootAbs.X + btnSize.X - 210
-                    if px < 4 then px = 4 end
-                    self._globalSearchPopup.Position = UDim2.fromOffset(px, btnAbs.Y - rootAbs.Y + btnSize.Y + 6)
-                end
-            end
-            
-            -- Hide other columns in that page
-            local page = match.page
-            if page._columnsFrames then
-                self._filteredPage = page
-                for _, cfr in ipairs(page._columnsFrames) do
-                    cfr.Visible = (cfr == match.groupFrame.Parent)
-                end
-            end
-            
-            -- Highlight the found element
-            local stroke = nil
-            for _, child in ipairs(match.groupFrame:GetChildren()) do
-                if child:IsA("UIStroke") then stroke = child break end
-            end
-            if stroke then
-                if self._activeHighlightStroke ~= stroke then
-                    if self._activeHighlightStroke and self._activeHighlightStroke.Parent then
-                        self._activeHighlightStroke.Color = self._activeStrokeOrigColor or self._activeHighlightStroke.Color
-                        self._activeHighlightStroke.Thickness = self._activeStrokeOrigThickness or 1
-                        self._activeHighlightStroke.Transparency = self._activeStrokeOrigTrans or self._activeHighlightStroke.Transparency
-                    end
-                    self._activeHighlightStroke = stroke
-                    self._activeStrokeOrigColor = stroke.Color
-                    self._activeStrokeOrigThickness = stroke.Thickness
-                    self._activeStrokeOrigTrans = stroke.Transparency
-                end
-                stroke.Color = Theme.Accent
-                stroke.Transparency = 0.15
-                T(stroke,0.35,{Thickness = 2}):Play()
-            end
-        end
-    end
-    
-    -- Global search event handlers
-    local lastChange = 0
-    Window._globalSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        if not Window._globalSearchPopup.Visible then return end
-        if Window._globalSearchBox.Text == "" then Window:RestoreColumns() return end
-        lastChange = lastChange + 1
-        local version = lastChange
-        task.delay(0.15, function() if version == lastChange then Window:ApplySearchFilter() end end)
-    end)
-    
-    Window._globalSearchBox.FocusLost:Connect(function(enter)
-        if enter then Window:ApplySearchFilter() end
-    end)
-    
-    Window._globalSearchBox.ReturnPressedFromOnScreenKeyboard:Connect(function() Window:ApplySearchFilter() end)
-    
-    UserInputService.InputBegan:Connect(function(inp)
-        if Window._globalSearchPopup.Visible and (inp.KeyCode == Enum.KeyCode.Escape) then Window:ToggleSearch(false) end
-    end)
-    
-    UserInputService.InputBegan:Connect(function(inp)
-        if not Window._globalSearchPopup.Visible then return end
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            local pos = UserInputService:GetMouseLocation()
-            
-            -- Check if click is inside search popup
-            local searchAbs = Window._globalSearchPopup.AbsolutePosition
-            local searchSz = Window._globalSearchPopup.AbsoluteSize
-            local insideSearch = pos.X >= searchAbs.X and pos.X <= searchAbs.X+searchSz.X and pos.Y >= searchAbs.Y and pos.Y <= searchAbs.Y+searchSz.Y
-            
-            -- Check if click is inside search button
-            local insideBtn = false
-            if Window._currentSearchBtn then
-                local btnAbs = Window._currentSearchBtn.AbsolutePosition
-                local btnSz = Window._currentSearchBtn.AbsoluteSize
-                insideBtn = pos.X >= btnAbs.X and pos.X <= btnAbs.X+btnSz.X and pos.Y >= btnAbs.Y and pos.Y <= btnAbs.Y+btnSz.Y
-            end
-            
-            -- Close search if clicking anywhere except search popup or button
-            if not insideSearch and not insideBtn then
-                Window:ToggleSearch(false)
-            end
-        end
-    end)
-    
     function Window:AddCategory(o)
         o = o or {}
         local name = tostring(o.Name or "Category")
@@ -604,36 +433,48 @@ function Library:CreateLibrary(opts)
         btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.SubText}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.SubText}):Play() end end end)
         local catContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = content})
     local subBar = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -10, 0, 24), Position = UDim2.fromOffset(5, 5), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = z + 1, Parent = catContainer}, {Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left})})
-    -- Create search button for this category (references global search system)
-    local searchBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(32,22), Text = "🔍", Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.Text, ZIndex = z + 2, Parent = subBar}, {
-        Create("UICorner", {CornerRadius = UDim.new(0,5)}),
-        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
-    })
-    
-    searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
-    searchBtn.MouseLeave:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Button}):Play() end)
-    searchBtn.MouseButton1Click:Connect(function() 
-        Window._currentSearchBtn = searchBtn
-        -- Proper toggle behavior
-        if Window._globalSearchPopup.Visible then
-            Window:ToggleSearch(false)
-        else
-            Window:ToggleSearch(true)
+    -- search popup + button (only create once for the entire window)
+    if not Window._globalSearchCreated then
+        Window._globalSearchCreated = true
+        Window._globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = content}, {
+            Create("UICorner", {CornerRadius = UDim.new(0,6)}),
+            Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
+            Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8), PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,4)})
+        })
+        Window._globalSearchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = Window._globalSearchPopup})
+        
+        -- Global search state
+        Window._filteredPage = nil
+        Window._activeHighlightStroke = nil
+        Window._activeStrokeOrigColor = nil
+        Window._activeStrokeOrigThickness = nil
+        Window._activeStrokeOrigTrans = nil
+        
+        function Window:RestoreColumns()
+            if self._filteredPage and self._filteredPage._columnsFrames then
+                for _, cfr in ipairs(self._filteredPage._columnsFrames) do cfr.Visible = true end
+            end
+            self._filteredPage = nil
+            if self._activeHighlightStroke and self._activeHighlightStroke.Parent then
+                self._activeHighlightStroke.Color = self._activeStrokeOrigColor or self._activeHighlightStroke.Color
+                self._activeHighlightStroke.Thickness = self._activeStrokeOrigThickness or 1
+                self._activeHighlightStroke.Transparency = self._activeStrokeOrigTrans or self._activeHighlightStroke.Transparency
+            end
+            self._activeHighlightStroke = nil
         end
-    end)
-    local pageArea = Create("Frame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(1, -10, 1, -(24 + 10 + 6)), Position = UDim2.fromOffset(5, 24 + 9), Parent = catContainer})
-        function Category:Select()
+        
+        function Window:ToggleSearch(show)
             show = (show == nil) and (not self._globalSearchPopup.Visible) or show
             if show then
                 self._globalSearchPopup.Visible = true
                 -- Position popup relative to current search button
                 if Window._currentSearchBtn then
                     local btnAbs = Window._currentSearchBtn.AbsolutePosition
-                    local rootAbs = root.AbsolutePosition
+                    local contentAbs = content.AbsolutePosition
                     local btnSize = Window._currentSearchBtn.AbsoluteSize
-                    local px = btnAbs.X - rootAbs.X - (210/2) + (btnSize.X/2)
+                    local px = btnAbs.X - contentAbs.X - (210/2) + (btnSize.X/2)
                     if px < 4 then px = 4 end
-                    self._globalSearchPopup.Position = UDim2.fromOffset(px, btnAbs.Y - rootAbs.Y + btnSize.Y + 6)
+                    self._globalSearchPopup.Position = UDim2.fromOffset(px, btnAbs.Y - contentAbs.Y + btnSize.Y + 6)
                 end
                 
                 -- Animation
@@ -790,10 +631,6 @@ function Library:CreateLibrary(opts)
             catInd.Visible = true
             -- underline now expands full inner width (minus padding) for aggressive look
             T(catInd, 0.2, {Size = UDim2.new(1, -8, 0, 2), Position = UDim2.new(0,4,1,0)}):Play()
-            
-            -- Update current search button reference for this category
-            Window._currentSearchBtn = searchBtn
-            
             if not Category._selectedPage and #Category._pages > 0 then Category._pages[1]:Select() end
         end
         btn.MouseButton1Click:Connect(function() Category:Select() end)
