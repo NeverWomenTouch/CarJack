@@ -466,7 +466,24 @@ function Library:CreateLibrary(opts)
         function Window:ToggleSearch(show)
             show = (show == nil) and (not self._globalSearchPopup.Visible) or show
             if show then
+                -- If already open with same owner, just reposition and return
+                if self._globalSearchPopup.Visible and self._searchOwner and self._searchOwner == self._currentSearchBtn then
+                    if self._currentSearchBtn and self._currentSearchBtn.Parent then
+                        local btnAbs = self._currentSearchBtn.AbsolutePosition
+                        local rootAbs = root.AbsolutePosition
+                        local btnSize = self._currentSearchBtn.AbsoluteSize
+                        local popupW = 210
+                        local px = btnAbs.X - rootAbs.X
+                        local maxX = root.AbsoluteSize.X - popupW - 4
+                        if px < 4 then px = 4 elseif px > maxX then px = maxX end
+                        local py = btnAbs.Y - rootAbs.Y + btnSize.Y + 6
+                        self._globalSearchPopup.Position = UDim2.fromOffset(px, py)
+                    end
+                    return
+                end
                 self._globalSearchPopup.Visible = true
+        -- Remember which button owns this open instance
+        self._searchOwner = self._currentSearchBtn
                 -- Position popup relative to current search button
                 if Window._currentSearchBtn then
                     local btnAbs = Window._currentSearchBtn.AbsolutePosition
@@ -494,6 +511,7 @@ function Library:CreateLibrary(opts)
                 self._globalSearchPopup.Visible = false
                 self._globalSearchBox.Text = ""
                 self:RestoreColumns()
+                self._searchOwner = nil
             end
         end
         
@@ -522,6 +540,8 @@ function Library:CreateLibrary(opts)
                     self._currentSearchBtn = match.category and match.category._searchBtn or self._currentSearchBtn
                     -- Reposition popup relative to current category's search button aligned to right edge
                     if self._currentSearchBtn and self._currentSearchBtn.Parent then
+                        -- Update owner to the active category's button
+                        self._searchOwner = self._currentSearchBtn
                         local btnAbs = self._currentSearchBtn.AbsolutePosition
                         local rootAbs = root.AbsolutePosition
                         local btnSize = self._currentSearchBtn.AbsoluteSize
@@ -631,12 +651,13 @@ function Library:CreateLibrary(opts)
     searchBtn.MouseLeave:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Button}):Play() end)
     searchBtn.MouseButton1Click:Connect(function()
         local isOpen = Window._globalSearchPopup and Window._globalSearchPopup.Visible
-        if isOpen and Window._currentSearchBtn == searchBtn then
+        local owner = Window._searchOwner
+        if isOpen and owner == searchBtn then
             -- Same button while open -> close
             Window:ToggleSearch(false)
             return
         end
-        if isOpen and Window._currentSearchBtn ~= searchBtn then
+        if isOpen and owner ~= searchBtn then
             -- Different button while open -> keep open and reposition
             Window._currentSearchBtn = searchBtn
             Window:ToggleSearch(true)
