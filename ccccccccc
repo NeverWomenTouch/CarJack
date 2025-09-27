@@ -1340,6 +1340,22 @@ function Library:CreateLibrary(opts)
                         listFrame.CanvasPosition = Vector2.new(0,0)
                     end
 
+                    -- Robust inside-check using GuiService hit-testing to avoid inset/offset issues
+                    local GuiService = game:GetService("GuiService")
+                    local function isInsidePanelOrTrigger(screenPos)
+                        local at = GuiService:GetGuiObjectsAtPosition(screenPos.X, screenPos.Y)
+                        for _, obj in ipairs(at) do
+                            local p = obj
+                            while p do
+                                if p == panel or p == trigger then
+                                    return true
+                                end
+                                p = p.Parent
+                            end
+                        end
+                        return false
+                    end
+
                     local function openPanel()
                         if open or anim then return end
                         anim = true; open = true
@@ -1372,12 +1388,10 @@ function Library:CreateLibrary(opts)
                         table.insert(conns, UserInputService.InputBegan:Connect(function(input)
                             if not panel.Visible or not open then return end
                             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                                local pos = (input.UserInputType==Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
-                                local p = panel.AbsolutePosition; local ps = panel.AbsoluteSize
-                                local insideP = pos.X >= p.X and pos.X <= p.X+ps.X and pos.Y >= p.Y and pos.Y <= p.Y+ps.Y
-                                local b = trigger.AbsolutePosition; local bs = trigger.AbsoluteSize
-                                local insideB = pos.X >= b.X and pos.X <= b.X+bs.X and pos.Y >= b.Y and pos.Y <= b.Y+bs.Y
-                                if not insideP and not insideB then Dropdown:_closePanel() end
+                                local pos = Vector2.new(input.Position.X, input.Position.Y)
+                                if not isInsidePanelOrTrigger(pos) then
+                                    Dropdown:_closePanel()
+                                end
                             elseif input.KeyCode == Enum.KeyCode.Escape then
                                 Dropdown:_closePanel()
                             elseif input.KeyCode == Enum.KeyCode.Up then
