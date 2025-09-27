@@ -1185,70 +1185,71 @@ function Library:CreateLibrary(opts)
                         Step = precise and ( (high - low) / 300 ) or 1,
                     })
                 end
-                -- Dropdown (redesigned)
+                -- Dropdown (fresh rewrite)
                 function Group:AddDropdown(o)
                     o = o or {}
                     local label = tostring(o.Name or "Dropdown")
-                    local list = o.Options or {}
+                    local options = o.Options or {}
                     local default = o.Default
                     local cb = o.Callback
-                    local enableFilter = (o.Filter ~= false) -- filter enabled by default
+                    local enableSearch = (o.Filter ~= false)
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
 
                     local rowH = 34
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0, nextY(rowH)), Parent = gFrame})
                     local labelWidth = 0.42
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(labelWidth,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
 
-                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1-labelWidth,-4,1,0), Position = UDim2.new(labelWidth,4,0,0), Parent = row}, {
+                    -- Trigger button: match panel/rows styling
+                    local trigger = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1-labelWidth,-4,1,0), Position = UDim2.new(labelWidth,4,0,0), Parent = row}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                        Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
-                        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,30)})
+                        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,28)})
                     })
-                    local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 0.2, Parent = box})
-                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Text = default and tostring(default) or "Select...", Font = Fonts.Medium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = box})
-                    -- caret icon (clean text glyph)
-                    local caretLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(20,16), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-8,0.5,0), Text = "▾", Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.SubText, Parent = box})
+                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Text = default and tostring(default) or "Select...", Font = Fonts.Medium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = trigger})
+                    local caret = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(20,16), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-8,0.5,0), Text = "▾", Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.SubText, Parent = trigger})
 
-                    -- floating panel under box
+                    -- Floating panel (root-parented)
                     local panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 350, Parent = root}, {
-                        Create("UICorner", {CornerRadius = UDim.new(0,6)}),
-                        Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
                     })
                     local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
                     shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
 
+                    -- Layout vars
                     local innerPad = 6
-                    local contentY = innerPad
-                    local filterBox
-                    local panelScroll
-                    local listLayout
+                    local searchBox, listFrame
                     local itemHeight = 26
                     local maxVisible = 7
-                    local opening = false
-                    local connections = {}
+                    local isOpen = false
+                    local isAnimating = false
+                    local conns = {}
+
+                    local Dropdown = { id = id, _value = default, _options = {}, _filtered = {}, _itemMap = {} }
 
                     local function disconnectAll()
-                        for i = #connections, 1, -1 do
-                            local c = connections[i]
+                        for i = #conns, 1, -1 do
+                            local c = conns[i]
                             if c and c.Disconnect then pcall(function() c:Disconnect() end) end
-                            connections[i] = nil
+                            conns[i] = nil
                         end
                     end
 
-                    local function positionPanel(finalHeight)
-                        -- Default below the box, positioned relative to the window root
-                        local rootAbs = root.AbsolutePosition
-                        local relX = box.AbsolutePosition.X - rootAbs.X
-                        local relYBelow = box.AbsolutePosition.Y - rootAbs.Y + box.AbsoluteSize.Y + 2
-                        local width = box.AbsoluteSize.X
+                    local function currentSource()
+                        return Dropdown._filtered[1] and Dropdown._filtered or Dropdown._options
+                    end
 
-                        -- Flip above if not enough space below in viewport
+                    local function positionPanel(finalHeight)
+                        local rootAbs = root.AbsolutePosition
+                        local relX = trigger.AbsolutePosition.X - rootAbs.X
+                        local relYBelow = trigger.AbsolutePosition.Y - rootAbs.Y + trigger.AbsoluteSize.Y + 2
+                        local width = trigger.AbsoluteSize.X
                         local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
-                        local globalBottom = box.AbsolutePosition.Y + box.AbsoluteSize.Y + 2 + (finalHeight or 0)
+                        local globalBottom = trigger.AbsolutePosition.Y + trigger.AbsoluteSize.Y + 2 + (finalHeight or 0)
                         local openAbove = (globalBottom + 8) > viewport.Y
                         if openAbove then
-                            panel.Position = UDim2.fromOffset(relX, relYBelow - (finalHeight or 0) - box.AbsoluteSize.Y - 4)
+                            panel.Position = UDim2.fromOffset(relX, relYBelow - (finalHeight or 0) - trigger.AbsoluteSize.Y - 4)
                         else
                             panel.Position = UDim2.fromOffset(relX, relYBelow)
                         end
@@ -1257,96 +1258,100 @@ function Library:CreateLibrary(opts)
 
                     local function buildPanel()
                         for _, c in ipairs(panel:GetChildren()) do if c:IsA("ScrollingFrame") or c:IsA("TextBox") then c:Destroy() end end
-                        contentY = innerPad
-                        if enableFilter then
-                            filterBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 12, Size = UDim2.new(1, -innerPad*2, 0, 22), Position = UDim2.fromOffset(innerPad, contentY), Parent = panel}, {
+                        local y = innerPad
+                        if enableSearch then
+                            searchBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 12, Size = UDim2.new(1, -innerPad*2, 0, 22), Position = UDim2.fromOffset(innerPad, y), Parent = panel}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.5}),
-                                Create("UIPadding", {PaddingLeft = UDim.new(0,20), PaddingRight = UDim.new(0,6)})
+                                Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
+                                Create("UIPadding", {PaddingLeft = UDim.new(0,30), PaddingRight = UDim.new(0,6)})
                             })
-                            -- search icon inside the search box
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,22), Position = UDim2.fromOffset(4,0), Text = "🔍", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = filterBox})
-                            contentY = contentY + 22 + innerPad
+                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,22), Position = UDim2.fromOffset(10,0), Text = "🔍", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = searchBox})
+                            y = y + 22 + innerPad
                         end
-                        panelScroll = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, contentY), Size = UDim2.new(1, -innerPad*2, 1, -contentY - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Accent, ZIndex = panel.ZIndex + 1, Parent = panel}, {
+                        listFrame = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, y), Size = UDim2.new(1, -innerPad*2, 1, -y - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Accent, ZIndex = panel.ZIndex + 1, Parent = panel}, {
                             Create("UIListLayout", {Padding = UDim.new(0,4), SortOrder = Enum.SortOrder.LayoutOrder})
                         })
-                        listLayout = panelScroll:FindFirstChildOfClass("UIListLayout")
                     end
 
-                    local Dropdown = { id = id, _value = default, _options = {}, _filtered = {}, _itemMap = {} }
+                    local function updateDots()
+                        for val, ref in pairs(Dropdown._itemMap) do
+                            if ref and ref.dot then ref.dot.Visible = (Dropdown._value == val) end
+                        end
+                    end
 
                     local function renderItems()
-                        for _, c in ipairs(panelScroll:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+                        for _, c in ipairs(listFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
                         Dropdown._itemMap = {}
-                        local function addItem(val)
-                            local item = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,itemHeight), Text = "", Parent = panelScroll, ZIndex = panel.ZIndex + 2}, {
+                        for _, val in ipairs(currentSource()) do
+                            local item = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,itemHeight), Text = "", Parent = listFrame, ZIndex = panel.ZIndex + 2}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}),
+                                Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
                                 Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
                             })
-                            local radio = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0,0.5), Position = UDim2.new(0,0,0.5,0), Parent = item}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})})
+                            local radio = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0,0.5), Position = UDim2.new(0,0,0.5,0), Parent = item}, {
+                                Create("UICorner", {CornerRadius = UDim.new(1,0)}),
+                                Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
+                            })
                             local dot = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = radio}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
                             dot.Visible = (Dropdown._value == val)
-                            local txt = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(24,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
-                            item.MouseEnter:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(item.Stroke,0.12,{Transparency = 0.3}):Play() end)
-                            item.MouseLeave:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Button}):Play() T(item.Stroke,0.12,{Transparency = 0.55}):Play() end)
-                            item.MouseButton1Click:Connect(function() Dropdown:Set(val) end)
-                            Dropdown._itemMap[val] = {item = item, dot = dot}
+                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(24,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
+                            item.MouseEnter:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(item.Stroke,0.12,{Transparency = 0.25}):Play() end)
+                            item.MouseLeave:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Button}):Play() T(item.Stroke,0.12,{Transparency = 0.45}):Play() end)
+                            item.MouseButton1Click:Connect(function()
+                                Dropdown:Set(val)
+                            end)
+                            Dropdown._itemMap[val] = { item = item, dot = dot }
                         end
-                        local src = Dropdown._filtered[1] and Dropdown._filtered or Dropdown._options
-                        for _, v in ipairs(src) do addItem(v) end
-                        panelScroll.CanvasPosition = Vector2.new(0,0)
+                        listFrame.CanvasPosition = Vector2.new(0,0)
                     end
 
                     local function openPanel()
-                        if opening then return end
-                        opening = true
-                        T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play()
-                        T(box.Stroke,0.12,{Transparency = 0.22}):Play()
-                        T(underline,0.16,{Size = UDim2.new(1,0,0,2)}):Play()
-                        T(caretLbl,0.16,{TextColor3 = Theme.Text}):Play()
-                        caretLbl.Text = "▴"
+                        if isOpen or isAnimating then return end
+                        isAnimating = true
+                        isOpen = true
+                        T(trigger,0.12,{BackgroundColor3 = Theme.Hover}):Play()
+                        T(trigger.Stroke,0.12,{Transparency = 0.25}):Play()
+                        T(caret,0.16,{TextColor3 = Theme.Text}):Play(); caret.Text = "▴"
+
                         buildPanel()
                         Dropdown._filtered = {}
                         renderItems()
                         panel.Visible = true
                         panel.ClipsDescendants = true
-                        local count = #(Dropdown._filtered[1] and Dropdown._filtered or Dropdown._options)
+
+                        local count = #currentSource()
                         local listH = math.min(count, maxVisible) * (itemHeight + 4)
-                        local headerH = enableFilter and (22 + innerPad) or 0
-                        local targetH = headerH + listH + innerPad
-                        targetH = math.max(targetH, enableFilter and (22 + innerPad*2 + itemHeight) or (innerPad*2 + itemHeight))
+                        local headerH = enableSearch and (22 + innerPad) or 0
+                        local targetH = math.max(headerH + listH + innerPad, enableSearch and (22 + innerPad*2 + itemHeight) or (innerPad*2 + itemHeight))
                         positionPanel(targetH)
                         panel.Size = UDim2.fromOffset(panel.AbsoluteSize.X, 0)
-                        T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, targetH)}):Play()
+                        local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, targetH)})
+                        tw:Play()
+                        tw.Completed:Connect(function() isAnimating = false end)
+                        if enableSearch and searchBox then task.defer(function() pcall(function() searchBox:CaptureFocus() end) end) end
 
-                        -- filter behavior
-                        if enableFilter and filterBox then
-                            table.insert(connections, filterBox:GetPropertyChangedSignal("Text"):Connect(function()
-                                local q = (filterBox.Text or ""):lower()
+                        -- search behavior
+                        if enableSearch and searchBox then
+                            table.insert(conns, searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+                                local q = (searchBox.Text or ""):lower()
                                 Dropdown._filtered = {}
                                 if q ~= "" then
-                                    for _, v in ipairs(Dropdown._options) do
-                                        if tostring(v):lower():find(q, 1, true) then table.insert(Dropdown._filtered, v) end
-                                    end
+                                    for _, v in ipairs(Dropdown._options) do if tostring(v):lower():find(q,1,true) then table.insert(Dropdown._filtered, v) end end
                                 end
                                 renderItems()
                             end))
                         end
 
-                        -- outside click / esc / keyboard
-                        table.insert(connections, UserInputService.InputBegan:Connect(function(input)
-                            if not panel.Visible or not opening then return end
+                        -- outside click / esc
+                        table.insert(conns, UserInputService.InputBegan:Connect(function(input)
+                            if not panel.Visible or not isOpen then return end
                             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                                 local pos = (input.UserInputType==Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
-                                local absP = panel.AbsolutePosition
-                                local pSz = panel.AbsoluteSize
-                                local insidePanel = pos.X >= absP.X and pos.X <= absP.X+pSz.X and pos.Y >= absP.Y and pos.Y <= absP.Y+pSz.Y
-                                local absB = box.AbsolutePosition
-                                local bSz = box.AbsoluteSize
-                                local insideBox = pos.X >= absB.X and pos.X <= absB.X+bSz.X and pos.Y >= absB.Y and pos.Y <= absB.Y+bSz.Y
-                                if not insidePanel and not insideBox then Dropdown:_closePanel() end
+                                local p = panel.AbsolutePosition; local ps = panel.AbsoluteSize
+                                local insideP = pos.X >= p.X and pos.X <= p.X+ps.X and pos.Y >= p.Y and pos.Y <= p.Y+ps.Y
+                                local b = trigger.AbsolutePosition; local bs = trigger.AbsoluteSize
+                                local insideB = pos.X >= b.X and pos.X <= b.X+bs.X and pos.Y >= b.Y and pos.Y <= b.Y+bs.Y
+                                if not insideP and not insideB then Dropdown:_closePanel() end
                             elseif input.KeyCode == Enum.KeyCode.Escape then
                                 Dropdown:_closePanel()
                             end
@@ -1354,54 +1359,44 @@ function Library:CreateLibrary(opts)
                     end
 
                     function Dropdown:_closePanel()
-                        if not opening then return end
-                        opening = false
-                        T(box,0.12,{BackgroundColor3 = Theme.Button}):Play()
-                        T(box.Stroke,0.12,{Transparency = 0.45}):Play()
-                        T(underline,0.16,{Size = UDim2.new(0,0,0,2)}):Play()
-                        T(caretLbl,0.16,{TextColor3 = Theme.SubText}):Play()
-                        caretLbl.Text = "▾"
-                        local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X,0)})
+                        if not isOpen or isAnimating then return end
+                        isOpen = false
+                        isAnimating = true
+                        T(trigger,0.12,{BackgroundColor3 = Theme.Button}):Play()
+                        T(trigger.Stroke,0.12,{Transparency = 0.35}):Play()
+                        T(caret,0.16,{TextColor3 = Theme.SubText}):Play(); caret.Text = "▾"
+                        local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, 0)})
                         tw:Play()
                         tw.Completed:Connect(function()
-                            if not opening then panel.Visible = false end
+                            panel.Visible = false
+                            isAnimating = false
                         end)
                         disconnectAll()
                     end
 
-                    box.MouseEnter:Connect(function()
-                        if not opening then T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(box.Stroke,0.12,{Transparency = 0.38}):Play() end
+                    trigger.MouseEnter:Connect(function()
+                        if not isOpen and not isAnimating then T(trigger,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(trigger.Stroke,0.12,{Transparency = 0.28}):Play() end
                     end)
-                    box.MouseLeave:Connect(function()
-                        if not opening then T(box,0.12,{BackgroundColor3 = Theme.Button}):Play() T(box.Stroke,0.12,{Transparency = 0.45}):Play() end
+                    trigger.MouseLeave:Connect(function()
+                        if not isOpen and not isAnimating then T(trigger,0.12,{BackgroundColor3 = Theme.Button}):Play() T(trigger.Stroke,0.12,{Transparency = 0.35}):Play() end
                     end)
-                    box.MouseButton1Click:Connect(function()
-                        if opening then Dropdown:_closePanel() else openPanel() end
+                    trigger.MouseButton1Click:Connect(function()
+                        if isOpen then Dropdown:_closePanel() else openPanel() end
                     end)
 
                     function Dropdown:Get() return self._value end
                     local function resolveOption(v)
-                        -- prefer exact match, then string-equivalent match
                         if table.find(Dropdown._options, v) then return v end
                         local sv = tostring(v)
-                        for _, opt in ipairs(Dropdown._options) do
-                            if tostring(opt) == sv then return opt end
-                        end
+                        for _, opt in ipairs(Dropdown._options) do if tostring(opt) == sv then return opt end end
                         return nil
-                    end
-                    local function updateDots()
-                        for val, ref in pairs(Dropdown._itemMap) do
-                            if ref and ref.dot then
-                                ref.dot.Visible = (Dropdown._value == val)
-                            end
-                        end
                     end
                     function Dropdown:Set(v, silent)
                         if v == nil then
-                            self._value=nil
-                            valueLbl.Text="Select..."
+                            self._value = nil
+                            valueLbl.Text = "Select..."
                             valueLbl.TextColor3 = Theme.SubText
-                            Dropdown:_closePanel()
+                            if isOpen then Dropdown:_closePanel() end
                             return
                         end
                         local resolved = resolveOption(v)
@@ -1409,34 +1404,27 @@ function Library:CreateLibrary(opts)
                         self._value = resolved
                         valueLbl.Text = tostring(resolved)
                         valueLbl.TextColor3 = Theme.Text
-                        Dropdown:_closePanel()
                         updateDots()
-                        if not silent and type(cb)=="function" then pcall(cb, resolved) end
+                        if isOpen then Dropdown:_closePanel() end
+                        if not silent and type(cb) == "function" then pcall(cb, resolved) end
                     end
-
                     function Dropdown:SetOptions(nl)
                         self._options = {}
                         for _, val in ipairs(nl or {}) do table.insert(self._options, val) end
-                        if panel.Visible then buildPanel() end
                         Dropdown._filtered = {}
-                        if panel.Visible then renderItems() end
-                        -- keep current selection if still present, otherwise reset text
+                        if panel.Visible then buildPanel(); renderItems() end
                         if self._value ~= nil and not table.find(self._options, self._value) then
                             self._value = nil
                             valueLbl.Text = "Select..."
                             valueLbl.TextColor3 = Theme.SubText
                         else
-                            -- ensure dots reflect current selection
                             updateDots()
                         end
                     end
 
-                    Dropdown:SetOptions(list)
+                    Dropdown:SetOptions(options)
                     if default ~= nil then Dropdown:Set(default, true) end
-                    if Dropdown._value == nil then
-                        valueLbl.Text = "Select..."
-                        valueLbl.TextColor3 = Theme.SubText
-                    end
+                    if Dropdown._value == nil then valueLbl.Text = "Select..." valueLbl.TextColor3 = Theme.SubText end
                     Library:_registerControl(Dropdown)
                     table.insert(Group._controls, Dropdown)
                     registerSearch(label)
