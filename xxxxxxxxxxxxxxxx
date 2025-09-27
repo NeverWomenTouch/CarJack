@@ -1205,6 +1205,7 @@ function Library:CreateLibrary(opts)
                         Create("UIStroke", {Name="Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
                         Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,30)})
                     })
+                    local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 0.2, Parent = box})
                     local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Text = default and tostring(default) or "Select...", Font = Fonts.Medium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = box})
                     -- caret icon (clean text glyph)
                     local caretLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(20,16), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-8,0.5,0), Text = "▾", Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.SubText, Parent = box})
@@ -1258,14 +1259,16 @@ function Library:CreateLibrary(opts)
                         for _, c in ipairs(panel:GetChildren()) do if c:IsA("ScrollingFrame") or c:IsA("TextBox") then c:Destroy() end end
                         contentY = innerPad
                         if enableFilter then
-                            filterBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "Filter...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 12, Size = UDim2.new(1, -innerPad*2, 0, 22), Position = UDim2.fromOffset(innerPad, contentY), Parent = panel}, {
+                            filterBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 12, Size = UDim2.new(1, -innerPad*2, 0, 22), Position = UDim2.fromOffset(innerPad, contentY), Parent = panel}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                                 Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.5}),
-                                Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})
+                                Create("UIPadding", {PaddingLeft = UDim.new(0,20), PaddingRight = UDim.new(0,6)})
                             })
+                            -- search icon inside the search box
+                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,22), Position = UDim2.fromOffset(4,0), Text = "🔍", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = filterBox})
                             contentY = contentY + 22 + innerPad
                         end
-                        panelScroll = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, contentY), Size = UDim2.new(1, -innerPad*2, 1, -contentY - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, ZIndex = panel.ZIndex + 1, Parent = panel}, {
+                        panelScroll = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, contentY), Size = UDim2.new(1, -innerPad*2, 1, -contentY - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Accent, ZIndex = panel.ZIndex + 1, Parent = panel}, {
                             Create("UIListLayout", {Padding = UDim.new(0,4), SortOrder = Enum.SortOrder.LayoutOrder})
                         })
                         listLayout = panelScroll:FindFirstChildOfClass("UIListLayout")
@@ -1301,6 +1304,7 @@ function Library:CreateLibrary(opts)
                         opening = true
                         T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play()
                         T(box.Stroke,0.12,{Transparency = 0.22}):Play()
+                        T(underline,0.16,{Size = UDim2.new(1,0,0,2)}):Play()
                         T(caretLbl,0.16,{TextColor3 = Theme.Text}):Play()
                         caretLbl.Text = "▴"
                         buildPanel()
@@ -1353,7 +1357,8 @@ function Library:CreateLibrary(opts)
                         if not opening then return end
                         opening = false
                         T(box,0.12,{BackgroundColor3 = Theme.Button}):Play()
-                        T(box.Stroke,0.12,{Transparency = 0.32}):Play()
+                        T(box.Stroke,0.12,{Transparency = 0.45}):Play()
+                        T(underline,0.16,{Size = UDim2.new(0,0,0,2)}):Play()
                         T(caretLbl,0.16,{TextColor3 = Theme.SubText}):Play()
                         caretLbl.Text = "▾"
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X,0)})
@@ -1364,6 +1369,12 @@ function Library:CreateLibrary(opts)
                         disconnectAll()
                     end
 
+                    box.MouseEnter:Connect(function()
+                        if not opening then T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(box.Stroke,0.12,{Transparency = 0.38}):Play() end
+                    end)
+                    box.MouseLeave:Connect(function()
+                        if not opening then T(box,0.12,{BackgroundColor3 = Theme.Button}):Play() T(box.Stroke,0.12,{Transparency = 0.45}):Play() end
+                    end)
                     box.MouseButton1Click:Connect(function()
                         if opening then Dropdown:_closePanel() else openPanel() end
                     end)
@@ -1400,7 +1411,7 @@ function Library:CreateLibrary(opts)
                         valueLbl.TextColor3 = Theme.Text
                         Dropdown:_closePanel()
                         updateDots()
-                        if not silent and type(cb)=="function" then pcall(cb,v) end
+                        if not silent and type(cb)=="function" then pcall(cb, resolved) end
                     end
 
                     function Dropdown:SetOptions(nl)
@@ -1422,6 +1433,10 @@ function Library:CreateLibrary(opts)
 
                     Dropdown:SetOptions(list)
                     if default ~= nil then Dropdown:Set(default, true) end
+                    if Dropdown._value == nil then
+                        valueLbl.Text = "Select..."
+                        valueLbl.TextColor3 = Theme.SubText
+                    end
                     Library:_registerControl(Dropdown)
                     table.insert(Group._controls, Dropdown)
                     registerSearch(label)
