@@ -1198,7 +1198,7 @@ function Library:CreateLibrary(opts)
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
 
                     -- Row + label
-                    local rowH = 30
+                    local rowH = 28
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
                     local labelWidth = 0.42
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(labelWidth,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
@@ -1207,10 +1207,11 @@ function Library:CreateLibrary(opts)
                     local trigger = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1-labelWidth,-4,1,0), Position = UDim2.new(labelWidth,4,0,0), Parent = row}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,5)}),
                         Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
-                        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,24)})
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,20)})
                     })
-                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Text = default and tostring(default) or placeholder, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = trigger})
-                    local caret = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,14), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-6,0.5,0), Text = "▾", Font = Fonts.Bold, TextSize = 12, TextColor3 = Theme.SubText, Parent = trigger})
+                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-18,1,0), Text = default and tostring(default) or placeholder, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = trigger})
+                    local caret = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(12,10), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-6,0.5,0), Text = "v", Font = Fonts.Bold, TextSize = 12, TextColor3 = Theme.SubText, Parent = trigger})
+                    caret.ZIndex = (trigger.ZIndex or 1) + 1
 
                     -- Panel (root-parented), width follows trigger; horizontally clamped to root
                     local panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 350, Parent = root}, {
@@ -1223,7 +1224,7 @@ function Library:CreateLibrary(opts)
                     -- Internals
                     local innerPad = 6
                     local searchBox, listFrame, header
-                    local itemHeight = 24
+                    local itemHeight = 22
                     local maxVisible = 7
                     local open = false
                     local anim = false
@@ -1279,8 +1280,9 @@ function Library:CreateLibrary(opts)
                         })
                     end
                     local function updateSelection()
-                        for val, ref in pairs(Dropdown._itemMap) do
-                            if ref and ref.sel then ref.sel.Visible = (Dropdown._value == val) end
+                        local cur = tostring(Dropdown._value)
+                        for key, ref in pairs(Dropdown._itemMap) do
+                            if ref and ref.selBg then ref.selBg.Visible = (key == cur) end
                         end
                     end
                     local function ensureVisible(index)
@@ -1311,13 +1313,17 @@ function Library:CreateLibrary(opts)
                                 Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
                                 Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
                             })
-                            local sel = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.2, BorderSizePixel = 0, Size = UDim2.new(0,3,1,0), Position = UDim2.fromOffset(0,0), Parent = item})
-                            sel.Visible = (Dropdown._value == val)
-                            local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-4,1,0), Position = UDim2.fromOffset(6,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
+                            -- Rounded selection overlay
+                            local selBg = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.88, BorderSizePixel = 0, Size = UDim2.new(1,-4,1,-4), Position = UDim2.fromOffset(2,2), Parent = item})
+                            Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = selBg})
+                            selBg.ZIndex = (item.ZIndex or 1)
+                            selBg.Visible = (tostring(Dropdown._value) == tostring(val))
+                            local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-8,1,0), Position = UDim2.fromOffset(8,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
                             item.MouseEnter:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(item.Stroke,0.12,{Transparency = 0.35}):Play() end)
                             item.MouseLeave:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Button}):Play() T(item.Stroke,0.12,{Transparency = 0.45}):Play() end)
                             item.MouseButton1Click:Connect(function() Dropdown:Set(val) end)
-                            Dropdown._itemMap[val] = {item = item, sel = sel}
+                            local key = tostring(val)
+                            Dropdown._itemMap[key] = {item = item, selBg = selBg}
                         end
                         if #src == 0 then
                             local empty = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,itemHeight), Text = "No matches", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = listFrame, ZIndex = panel.ZIndex + 2})
@@ -1330,7 +1336,7 @@ function Library:CreateLibrary(opts)
                         anim = true; open = true
                         T(trigger,0.12,{BackgroundColor3 = Theme.Hover}):Play()
                         T(trigger.Stroke,0.12,{Transparency = 0.35}):Play()
-                        T(caret,0.16,{TextColor3 = Theme.Text}):Play(); caret.Text = "▴"
+                        T(caret,0.16,{TextColor3 = Theme.Text}):Play(); caret.Text = "ʌ"
 
                         buildPanel(); Dropdown._filtered = {}; renderItems();
                         panel.Visible = true; panel.ClipsDescendants = true
@@ -1391,7 +1397,7 @@ function Library:CreateLibrary(opts)
                         open = false; anim = true
                         T(trigger,0.12,{BackgroundColor3 = Theme.Button}):Play()
                         T(trigger.Stroke,0.12,{Transparency = 0.45}):Play()
-                        T(caret,0.16,{TextColor3 = Theme.SubText}):Play(); caret.Text = "▾"
+                        T(caret,0.16,{TextColor3 = Theme.SubText}):Play(); caret.Text = "v"
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, 0)})
                         tw:Play(); tw.Completed:Connect(function() panel.Visible = false; anim = false if type(Dropdown._onClose)=="function" then pcall(Dropdown._onClose) end end)
                         disconnectAll()
@@ -1429,7 +1435,8 @@ function Library:CreateLibrary(opts)
                         local resolved = resolveOption(v); if not self._options or not resolved then return end
                         self._value = resolved
                         valueLbl.Text = tostring(resolved); valueLbl.TextColor3 = Theme.Text
-                        updateSelection(); if open then Dropdown:_closePanel() end
+                        updateSelection();
+                        if open then Dropdown:_closePanel() end
                         if not silent and type(cb)=="function" then pcall(cb, resolved) end
                     end
                     function Dropdown:SetOptions(nl)
