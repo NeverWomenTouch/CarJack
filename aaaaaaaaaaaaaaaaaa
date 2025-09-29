@@ -1865,6 +1865,43 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Textbox
                 end
+                -- Paragraph (note text / read-only, flag updatable)
+                function Group:AddParagraph(o)
+                    o = o or {}
+                    local label = tostring(o.Name or "Paragraph")
+                    local text = tostring(o.Text or o.Value or "")
+                    local cb = o.Callback -- optional: fire when text changes via Set
+                    local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
+                    local h = tonumber(o.Height) or 48
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,h), Position = UDim2.fromOffset(0,nextY(h)), Parent = gFrame})
+                    local box = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,1,0), Parent = row}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,8), PaddingBottom = UDim.new(0,8)})
+                    })
+                    local txt = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), TextWrapped = true, Text = text, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Parent = box})
+                    -- hover feedback like other controls
+                    box.MouseEnter:Connect(function()
+                        T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play()
+                        local s = box:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end
+                    end)
+                    box.MouseLeave:Connect(function()
+                        T(box,0.12,{BackgroundColor3 = Theme.Button}):Play()
+                        local s = box:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.45}):Play() end
+                    end)
+                    local Paragraph = { id = id, _value = text, _label = label, _row = row, _box = box, _text = txt }
+                    function Paragraph:Get() return self._value end
+                    function Paragraph:Set(v, silent)
+                        v = tostring(v or "")
+                        self._value = v
+                        txt.Text = v
+                        if not silent and type(cb) == "function" then pcall(cb, v) end
+                    end
+                    Library:_registerControl(Paragraph)
+                    table.insert(Group._controls, Paragraph)
+                    registerSearch(label)
+                    return Paragraph
+                end
                 -- Keybind
                 function Group:AddKeybind(o)
                     o = o or {}
