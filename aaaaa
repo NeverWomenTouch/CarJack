@@ -1266,30 +1266,50 @@ function Library:CreateLibrary(opts)
                         if ctxMenu and ctxMenu.Parent then ctxMenu:Destroy() end
                         ctxMenu = nil
                         ctxDisconnectAll()
+                        if Library and Library._openDropdownCtx == closeCtxMenu then
+                            Library._openDropdownCtx = nil
+                        end
                     end
                     local function openCtxMenu(input)
                         if not Dropdown._multi then return end
-                        closeCtxMenu()
+                        -- toggle if already open
+                        if ctxOpen then closeCtxMenu(); return end
+                        -- Close any other dropdown context menu globally
+                        if Library and Library._openDropdownCtx and Library._openDropdownCtx ~= closeCtxMenu then
+                            pcall(Library._openDropdownCtx)
+                        end
                         ctxOpen = true
                         -- build menu
-                        local menuW, itemH, pad = 160, 24, 6
-                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW, itemH*2 + pad*2 + 4), ZIndex = z + 360, Parent = root}, {
-                            Create("UICorner", {CornerRadius = UDim.new(0,6)}),
-                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
+                        local menuW, itemH, pad, gap = 148, 20, 6, 3
+                        local finalH = itemH*2 + pad*2 + gap
+                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW, 0), ZIndex = z + 360, ClipsDescendants = true, Parent = root}, {
+                            Create("UICorner", {CornerRadius = UDim.new(0,7)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.30})
                         })
-                        local shadow2 = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.88, Size = UDim2.fromScale(1,1), ZIndex = (ctxMenu.ZIndex or 1) - 1, Parent = ctxMenu})
+                        local shadow2 = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.92, Size = UDim2.fromScale(1,1), ZIndex = (ctxMenu.ZIndex or 1) - 1, Parent = ctxMenu})
                         shadow2.ScaleType = Enum.ScaleType.Slice; shadow2.SliceCenter = Rect.new(20,20,280,280)
+                        -- subtle inner gradient for modern look
+                        local grad = Create("UIGradient", {Rotation = 90, Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Theme.Bg),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(math.clamp(Theme.Bg.R*255-3,0,255), math.clamp(Theme.Bg.G*255-3,0,255), math.clamp(Theme.Bg.B*255-3,0,255)))
+                        })})
+                        grad.Parent = ctxMenu
                         local y = pad
-                        local function makeItem(text, onClick)
-                            local btn = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1, -pad*2, 0, itemH), Position = UDim2.fromOffset(pad, y), Text = text, Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, ZIndex = ctxMenu.ZIndex + 1, Parent = ctxMenu}, {
+                        local function makeItem(text, icon, onClick)
+                            local btn = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1, -pad*2, 0, itemH), Position = UDim2.fromOffset(pad, y), Text = "", ZIndex = ctxMenu.ZIndex + 1, Parent = ctxMenu}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,5)}),
-                                Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
+                                Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
+                                Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
                             })
+                            local ic = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,itemH), Position = UDim2.fromOffset(6,0), Text = icon or "", Font = Fonts.Bold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Theme.SubText, Parent = btn})
+                            local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-26,1,0), Position = UDim2.fromOffset(24,0), Text = text, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
                             btn.MouseEnter:Connect(function()
                                 T(btn,0.10,{BackgroundColor3 = Theme.Hover}):Play()
+                                T(ic,0.10,{TextColor3 = Theme.Text}):Play()
                             end)
                             btn.MouseLeave:Connect(function()
                                 T(btn,0.10,{BackgroundColor3 = Theme.Button}):Play()
+                                T(ic,0.10,{TextColor3 = Theme.SubText}):Play()
                             end)
                             if btn.Activated then
                                 table.insert(ctxConns, btn.Activated:Connect(function()
@@ -1302,20 +1322,28 @@ function Library:CreateLibrary(opts)
                                     onClick()
                                 end))
                             end
-                            y = y + itemH + 4
+                            y = y + itemH + gap
                             return btn
                         end
-                        makeItem("Select All", function() Dropdown:SelectAll() end)
-                        makeItem("Unselect All", function() Dropdown:UnselectAll() end)
-                        -- position near mouse, clamped to root
-                        local pos = getMouseGuiPosition(input)
+                        makeItem("Select All", "✓", function() Dropdown:SelectAll() end)
+                        makeItem("Unselect All", "✕", function() Dropdown:UnselectAll() end)
+                        -- position anchored to the right side of the trigger; vertically centered on trigger
+                        local tAbs = trigger.AbsolutePosition
+                        local tSz = trigger.AbsoluteSize
                         local rootAbs = root.AbsolutePosition
                         local rootSz = root.AbsoluteSize
-                        local px = pos.X - rootAbs.X
-                        local py = pos.Y - rootAbs.Y
-                        px = math.clamp(px, 0, math.max(0, rootSz.X - menuW))
-                        py = math.clamp(py, 0, math.max(0, rootSz.Y - (itemH*2 + pad*2 + 4)))
+                        local menuH = finalH
+                        local px = (tAbs.X - rootAbs.X) + tSz.X + 8
+                        local py = (tAbs.Y - rootAbs.Y) + math.floor((tSz.Y - menuH)/2)
+                        -- clamp; if off right edge, flip to left side
+                        if px + menuW > rootSz.X - 4 then px = (tAbs.X - rootAbs.X) - menuW - 8 end
+                        if py < 4 then py = 4 end
+                        if py + menuH > rootSz.Y - 4 then py = rootSz.Y - menuH - 4 end
                         ctxMenu.Position = UDim2.fromOffset(px, py)
+                        -- open animation
+                        ctxMenu.Size = UDim2.fromOffset(menuW, 0)
+                        local openTw = T(ctxMenu, 0.16, {Size = UDim2.fromOffset(menuW, finalH)})
+                        openTw:Play()
                         -- outside click / esc to close
                         table.insert(ctxConns, UserInputService.InputBegan:Connect(function(inp)
                             if not ctxOpen or not ctxMenu or not ctxMenu.Parent then return end
@@ -1328,6 +1356,7 @@ function Library:CreateLibrary(opts)
                                 closeCtxMenu()
                             end
                         end))
+                        if Library then Library._openDropdownCtx = closeCtxMenu end
                     end
 
                     local function refreshLabelFromSelection()
