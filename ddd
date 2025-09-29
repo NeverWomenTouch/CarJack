@@ -1210,7 +1210,7 @@ function Library:CreateLibrary(opts)
                         Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,18)})
                     })
                     local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-18,1,0), Text = default and tostring(default) or placeholder, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = trigger})
-                    local caret = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(12,10), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-3,0.5,0), Text = "v", Font = Fonts.Bold, TextSize = 12, TextColor3 = Theme.SubText, Parent = trigger})
+                    local caret = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(12,10), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-3,0.5,0), Text = "▼", Font = Fonts.Bold, TextSize = 12, TextColor3 = Theme.SubText, Parent = trigger})
                     caret.ZIndex = (trigger.ZIndex or 1) + 1
 
                     -- Panel (root-parented), width follows trigger; horizontally clamped to root
@@ -1274,15 +1274,6 @@ function Library:CreateLibrary(opts)
                                 Create("UICorner", {CornerRadius = UDim.new(0,5)}),
                                 Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
                             })
-                            -- Make the icon clickable to focus the search box
-                            local iconHit = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(16,24), Position = UDim2.fromOffset(innerPad, searchY), Parent = panel})
-                            iconHit.ZIndex = (searchBox.ZIndex or (panel.ZIndex + 1)) + 1
-                            iconHit.MouseButton1Down:Connect(function()
-                                if enableSearch and searchBox then pcall(function() searchBox:CaptureFocus() end) end
-                            end)
-                            iconHit.MouseButton1Click:Connect(function()
-                                if enableSearch and searchBox then pcall(function() searchBox:CaptureFocus() end) end
-                            end)
                             y = y + 24 + innerPad
                         end
                         listFrame = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, y), Size = UDim2.new(1, -innerPad*2, 1, -y - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Accent, ZIndex = panel.ZIndex + 1, Parent = panel}, {
@@ -1382,7 +1373,7 @@ function Library:CreateLibrary(opts)
                         T(trigger,0.12,{BackgroundColor3 = Theme.Hover}):Play()
                         local tStroke = trigger:FindFirstChild("Stroke")
                         if tStroke then T(tStroke,0.12,{Transparency = 0.35}):Play() end
-                        T(caret,0.16,{TextColor3 = Theme.Text}):Play(); caret.Text = "ʌ"
+                        T(caret,0.16,{TextColor3 = Theme.Text}):Play(); caret.Text = "▲"
 
                         buildPanel(); Dropdown._filtered = {}; renderItems();
                         panel.Visible = true; panel.ClipsDescendants = true
@@ -1395,7 +1386,6 @@ function Library:CreateLibrary(opts)
                         panel.Size = UDim2.fromOffset(panel.AbsoluteSize.X, 0)
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, targetH)})
                         tw:Play(); tw.Completed:Connect(function() anim = false if type(Dropdown._onOpen)=="function" then pcall(Dropdown._onOpen) end end)
-                        if enableSearch and searchBox then task.defer(function() pcall(function() searchBox:CaptureFocus() end) end) end
 
                         if enableSearch and searchBox then
                             table.insert(conns, searchBox:GetPropertyChangedSignal("Text"):Connect(function()
@@ -1444,7 +1434,7 @@ function Library:CreateLibrary(opts)
                         T(trigger,0.12,{BackgroundColor3 = Theme.Button}):Play()
                         local tStroke = trigger:FindFirstChild("Stroke")
                         if tStroke then T(tStroke,0.12,{Transparency = 0.45}):Play() end
-                        T(caret,0.16,{TextColor3 = Theme.SubText}):Play(); caret.Text = "v"
+                        T(caret,0.16,{TextColor3 = Theme.SubText}):Play(); caret.Text = "▼"
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, 0)})
                         tw:Play(); tw.Completed:Connect(function() panel.Visible = false; anim = false if type(Dropdown._onClose)=="function" then pcall(Dropdown._onClose) end end)
                         -- Safety unlock in case tween completion is skipped by engine race
