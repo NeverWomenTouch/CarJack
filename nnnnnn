@@ -1308,7 +1308,7 @@ function Library:CreateLibrary(opts)
                         end
                         ctxOpen = true
                         -- create a full-screen modal blocker to prevent hover/click on other UI and allow right-click-to-close
-                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = z + 359, Parent = root})
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = z + 509, Parent = root})
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function()
                             closeCtxMenu()
                         end))
@@ -2160,6 +2160,7 @@ function Library:CreateLibrary(opts)
 
                     -- panel singleton per control
                     local panel, open, anim = nil, false, false
+                    local panelBlocker = nil
                     local activeIndex = 1
                     local conns = {}
                     local function disconnectAll()
@@ -2204,7 +2205,7 @@ function Library:CreateLibrary(opts)
                         table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
                         local menuW, sidePad, vPad, gap = 130, 8, 8, 6
-                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = z + 360, Parent = root}, {
+                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = z + 510, Parent = root}, {
                             Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
                         })
@@ -2291,6 +2292,11 @@ function Library:CreateLibrary(opts)
 
                     local function openPanel(btnFor, index)
                         if anim then return end
+                        -- toggle close if clicking the same swatch while open
+                        if open and panel and activeIndex == index then
+                            if Library._openColorPanelClose then pcall(Library._openColorPanelClose); Library._openColorPanelClose = nil end
+                            return
+                        end
                         if open and panel then
                             -- retarget existing panel to new slot
                             activeIndex = index
@@ -2305,17 +2311,17 @@ function Library:CreateLibrary(opts)
                             panel.Position = UDim2.fromOffset(px, py)
                             -- refresh UI to the selected slot
                             local h,s,v = table.unpack(slots[index].hsv)
-                            updateValSliderBackground(h,s)
-                            if hsCursor and hs then hsCursor.Position = UDim2.fromOffset(h*(hs.AbsoluteSize.X), s*(hs.AbsoluteSize.Y)) end
-                            if valGrab and valSlider then valGrab.Position = UDim2.fromOffset(11, (1-v)*(valSlider.AbsoluteSize.Y)) end
+                            updateSVBackground(h)
+                            if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                            if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                             if rgbBox then local r,g,b = toRGB255(slots[index].color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                             if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
-                            if rainbowToggle then local slot = slots[index]; setToggle(slot.rainbow) end
+                            if setCheckbox then local slot = slots[index]; setCheckbox(slot.rainbow) end
                             return
                         end
                         open = true; anim = true; activeIndex = index
                         if not panel then
-                            panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 350, Parent = root}, {
+                            panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 500, Parent = root}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                                 Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
                             })
@@ -2328,8 +2334,8 @@ function Library:CreateLibrary(opts)
                                 Create("UIListLayout", {Padding = UDim.new(0,6), FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder})
                             })
                             -- Left: SV square (S across X, V across Y), base hue set by slider; plus RGB/Hex inputs
-                            local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 200), Parent = content})
-                            sv = Create("Frame", {BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 140), Parent = leftCol})
+                            local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 210), Parent = content})
+                            sv = Create("Frame", {BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), Parent = leftCol})
                             Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = sv})
                             -- White overlay: left side white (S=0) to right transparent (S=1)
                             svWhite = Create("Frame", {BackgroundTransparency = 1, BackgroundColor3 = Color3.fromRGB(255,255,255), Size = UDim2.fromScale(1,1), Parent = sv})
@@ -2344,8 +2350,9 @@ function Library:CreateLibrary(opts)
                             hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 174), Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
 
                             -- Right: Hue slider + rainbow toggle
-                            local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(42, 200), Parent = content})
-                            hueSlider = Create("Frame", {BackgroundColor3 = Theme.Button, BorderSizePixel = 0, Size = UDim2.fromOffset(22, 140), Position = UDim2.fromOffset(10, 0), Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
+                            local HUE_W, HUE_H = 24, 160
+                            local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(42, 210), Parent = content})
+                            hueSlider = Create("Frame", {BackgroundColor3 = Theme.Button, BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(math.floor((42 - HUE_W)/2), 0), Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -2357,26 +2364,34 @@ function Library:CreateLibrary(opts)
                                 ColorSequenceKeypoint.new(1.00, Color3.fromHSV(1,1,1)),
                             })
                             hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
-                            hueGrab = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(22, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(11, 0), Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
+                            hueGrab = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
-                            -- Rainbow toggle (mini)
-                            -- tiny label above toggle
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(42,12), Position = UDim2.fromOffset(0, 146), Text = "Rainbow", Font = Fonts.Medium, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = rightCol})
-                            local toggleRow = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(22, 24), Position = UDim2.fromOffset(10, 160), Parent = rightCol})
-                            local tShell = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(22, 12), Position = UDim2.fromOffset(0, 6), Parent = toggleRow}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
-                            local tKnob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Parent = tShell}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
-                            rainbowToggle = Create("TextButton", {BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Size = tShell.Size, Position = tShell.Position, Parent = toggleRow})
-                            local function setToggle(on)
-                                if on then T(tKnob,0.18,{Position = UDim2.fromOffset(22-6,6), BackgroundColor3 = Theme.Text}):Play() else T(tKnob,0.18,{Position = UDim2.fromOffset(6,6), BackgroundColor3 = Theme.Scrollbar}):Play() end
+                            -- Rainbow checkbox + label
+                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(42, 16), Position = UDim2.fromOffset(0, HUE_H + 10), Parent = rightCol})
+                            local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,2), Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
+                            local cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
+                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-16,1,0), Position = UDim2.fromOffset(14,0), Text = "Rainbow", Font = Fonts.Medium, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, Parent = cbRow})
+                            local function setCheckbox(on)
+                                cbMark.Visible = on and true or false
                             end
-                            setToggle(false)
+                            setCheckbox(false)
 
                             -- interactions: SV drag (S across X, V across Y)
+                            local function getScreenPos(inp)
+                                local inset = game:GetService("GuiService"):GetGuiInset()
+                                if inp and inp.Position then
+                                    return Vector2.new(inp.Position.X - inset.X, inp.Position.Y - inset.Y)
+                                else
+                                    local m = UserInputService:GetMouseLocation()
+                                    return Vector2.new(m.X - inset.X, m.Y - inset.Y)
+                                end
+                            end
                             local svDragging = false
                             table.insert(conns, sv.InputBegan:Connect(function(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     svDragging = true
-                                    local rel = inp.Position and Vector2.new(inp.Position.X - sv.AbsolutePosition.X, inp.Position.Y - sv.AbsolutePosition.Y) or Vector2.new(UserInputService:GetMouseLocation().X - sv.AbsolutePosition.X, UserInputService:GetMouseLocation().Y - sv.AbsolutePosition.Y)
+                                    local p = getScreenPos(inp)
+                                    local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
@@ -2385,9 +2400,8 @@ function Library:CreateLibrary(opts)
                             end))
                             table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                                    local mx = (inp.UserInputType==Enum.UserInputType.Touch) and inp.Position.X or UserInputService:GetMouseLocation().X
-                                    local my = (inp.UserInputType==Enum.UserInputType.Touch) and inp.Position.Y or UserInputService:GetMouseLocation().Y
-                                    local rel = Vector2.new(mx - sv.AbsolutePosition.X, my - sv.AbsolutePosition.Y)
+                                    local p = getScreenPos(inp)
+                                    local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
@@ -2403,18 +2417,18 @@ function Library:CreateLibrary(opts)
                             table.insert(conns, hueSlider.InputBegan:Connect(function(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     hueDragging = true
-                                    local y = (inp.UserInputType==Enum.UserInputType.Touch) and inp.Position.Y or UserInputService:GetMouseLocation().Y
-                                    local relY = math.clamp(y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
-                                    hueGrab.Position = UDim2.fromOffset(11, relY)
+                                    local p = getScreenPos(inp)
+                                    local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
+                                    hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
                                     setHSV(activeIndex, h, nil, nil); updateSVBackground(h)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                                    local y = (inp.UserInputType==Enum.UserInputType.Touch) and inp.Position.Y or UserInputService:GetMouseLocation().Y
-                                    local relY = math.clamp(y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
-                                    hueGrab.Position = UDim2.fromOffset(11, relY)
+                                    local p = getScreenPos(inp)
+                                    local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
+                                    hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
                                     setHSV(activeIndex, h, nil, nil); updateSVBackground(h)
                                 end
@@ -2434,7 +2448,7 @@ function Library:CreateLibrary(opts)
                                     updateSVBackground(h)
                                     -- update cursors
                                     svCursor.Position = UDim2.fromOffset(s*sv.AbsoluteSize.X, (1-v)*sv.AbsoluteSize.Y)
-                                    hueGrab.Position = UDim2.fromOffset(11, h*hueSlider.AbsoluteSize.Y)
+                                    hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*hueSlider.AbsoluteSize.Y)
                                     applyColorFromHSV(activeIndex)
                                 else
                                     local c = slots[activeIndex].color
@@ -2450,7 +2464,7 @@ function Library:CreateLibrary(opts)
                                     slots[activeIndex].hsv = {h,s,v}
                                     updateSVBackground(h)
                                     svCursor.Position = UDim2.fromOffset(s*sv.AbsoluteSize.X, (1-v)*sv.AbsoluteSize.Y)
-                                    hueGrab.Position = UDim2.fromOffset(11, h*hueSlider.AbsoluteSize.Y)
+                                    hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*hueSlider.AbsoluteSize.Y)
                                     applyColorFromHSV(activeIndex)
                                 else
                                     local c = slots[activeIndex].color
@@ -2458,18 +2472,18 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
 
-                            -- rainbow toggle logic
-                            rainbowToggle.MouseButton1Click:Connect(function()
+                            -- rainbow checkbox logic
+                            cbRow.MouseButton1Click:Connect(function()
                                 local slot = slots[activeIndex]
                                 slot.rainbow = not slot.rainbow
-                                setToggle(slot.rainbow)
+                                setCheckbox(slot.rainbow)
                                 if slot.rainbow then
                                     if not slot.rainbowHook then
                                         slot.rainbowHook = rainbowAdd(function(h)
                                             local s,v = slot.hsv[2], slot.hsv[3]
                                             slot.hsv = {h,s,v}
                                             updateSVBackground(h)
-                                            if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(11, h * hueSlider.AbsoluteSize.Y) end
+                                            if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h * hueSlider.AbsoluteSize.Y) end
                                             applyColorFromHSV(activeIndex)
                                         end)
                                     end
@@ -2481,10 +2495,15 @@ function Library:CreateLibrary(opts)
 
                         -- position panel near btnFor (above/right)
                         panel.Visible = true; panel.ClipsDescendants = true
+                        -- Create a blocker to intercept outside clicks and block underlying UI
+                        if panelBlocker and panelBlocker.Parent then pcall(function() panelBlocker:Destroy() end) end
+                        panelBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (panel.ZIndex or 1) - 1, Parent = root})
                         -- Close any other open color panel globally
                         local function closePanel()
                             if not panel or not panel.Visible then return end
                             panel.Visible = false; open=false; anim=false; disconnectAll()
+                            if panelBlocker and panelBlocker.Parent then pcall(function() panelBlocker:Destroy() end) end
+                            panelBlocker = nil
                             if Library._openColorPanelClose == closePanel then Library._openColorPanelClose = nil end
                         end
                         if Library._openColorPanelClose and Library._openColorPanelClose ~= closePanel then pcall(Library._openColorPanelClose) end
@@ -2493,7 +2512,7 @@ function Library:CreateLibrary(opts)
 
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        local width, height = 260, 210
+                        local width, height = 260, 220
                         local px = (tAbs.X - rootAbs.X) + tSz.X - width
                         local py = (tAbs.Y - rootAbs.Y) - height - 6
                         px = math.clamp(px, 4, rootSz.X - width - 4)
@@ -2505,17 +2524,17 @@ function Library:CreateLibrary(opts)
                         local h,s,v = table.unpack(slots[index].hsv)
                         updateSVBackground(h)
                         if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
-                        if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(11, h*(hueSlider.AbsoluteSize.Y)) end
+                        if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                         if rgbBox then local r,g,b = toRGB255(slots[index].color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                         if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
-                        if rainbowToggle then -- reflect slot state
+                        if setCheckbox then -- reflect slot state
                             local slot = slots[index]
                             if slot.rainbow and not slot.rainbowHook then
                                 slot.rainbowHook = rainbowAdd(function(h)
                                     local s,v = slot.hsv[2], slot.hsv[3]
                                     slot.hsv = {h,s,v}
                                     updateSVBackground(h)
-                                    if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(11, h * hueSlider.AbsoluteSize.Y) end
+                                    if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h * hueSlider.AbsoluteSize.Y) end
                                     applyColorFromHSV(activeIndex)
                                 end)
                             end
@@ -2526,14 +2545,12 @@ function Library:CreateLibrary(opts)
                         anim=false
                         local justOpened = true; task.defer(function() justOpened = false end)
                         -- outside close / esc
-                        table.insert(conns, UserInputService.InputBegan:Connect(function(inp)
-                            if justOpened then return end
-                            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                                local p = UserInputService:GetMouseLocation()
-                                local abs = panel.AbsolutePosition; local sz=panel.AbsoluteSize
-                                if not (p.X>=abs.X and p.X<=abs.X+sz.X and p.Y>=abs.Y and p.Y<=abs.Y+sz.Y) then closePanel() end
-                            end
-                        end))
+                        -- close when clicking on blocker
+                        if panelBlocker then
+                            table.insert(conns, panelBlocker.MouseButton1Click:Connect(function() closePanel() end))
+                            table.insert(conns, panelBlocker.MouseButton2Click:Connect(function() closePanel() end))
+                            table.insert(conns, panelBlocker.TouchTap:Connect(function() closePanel() end))
+                        end
                     end
 
                     -- open/ctx events per slot
