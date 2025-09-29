@@ -2056,7 +2056,8 @@ function Library:CreateLibrary(opts)
                     local label = tostring(o.Name or "Color")
                     local cb = o.Callback
                     local amount = math.max(1, tonumber(o.Amount) or 1)
-                    local startRainbow = (o.RGB == true) -- if true, rainbow mode starts on
+                    -- Always start with Rainbow off; per-slot toggle only
+                    local startRainbow = false
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     -- helpers
                     local function clamp01(x) if x < 0 then return 0 elseif x > 1 then return 1 else return x end end
@@ -2177,13 +2178,20 @@ function Library:CreateLibrary(opts)
 
                     -- context menu (right click)
                     local ctxMenu, ctxOpen
+                    local ctxConns = {}
+                    local function ctxDisconnectAll()
+                        for i=#ctxConns,1,-1 do ctxConns[i]:Disconnect(); table.remove(ctxConns,i) end
+                    end
                     local function closeCtx()
                         if not ctxOpen or not ctxMenu then return end
                         ctxOpen = false
+                        ctxDisconnectAll()
                         local tw = T(ctxMenu,0.14,{Size = UDim2.fromOffset(ctxMenu.AbsoluteSize.X,0), BackgroundTransparency = 0.2})
                         tw:Play(); tw.Completed:Connect(function() if ctxMenu then ctxMenu:Destroy() end end)
+                        if Library._openColorCtxClose == closeCtx then Library._openColorCtxClose = nil end
                     end
                     local function openCtx(btnFor)
+                        if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
                         closeCtx()
                         local menuW, sidePad, vPad, gap = 130, 8, 8, 6
                         ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = z + 360, Parent = root}, {
@@ -2233,9 +2241,12 @@ function Library:CreateLibrary(opts)
                         ctxMenu.Size = UDim2.fromOffset(menuW,0)
                         local tw = T(ctxMenu,0.14,{Size = UDim2.fromOffset(menuW, finalH), BackgroundTransparency = 0})
                         tw:Play(); ctxOpen = true
-                        table.insert(conns, UserInputService.InputBegan:Connect(function(inp)
+                        local justOpened = true; task.defer(function() justOpened = false end)
+                        table.insert(ctxConns, UserInputService.InputBegan:Connect(function(inp)
+                            if justOpened then return end
                             if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.KeyCode == Enum.KeyCode.Escape then closeCtx() end
                         end))
+                        Library._openColorCtxClose = closeCtx
                     end
 
                     -- Build color panel (once)
@@ -2291,6 +2302,7 @@ function Library:CreateLibrary(opts)
                             if valGrab and valSlider then valGrab.Position = UDim2.fromOffset(11, (1-v)*(valSlider.AbsoluteSize.Y)) end
                             if rgbBox then local r,g,b = toRGB255(slots[index].color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                             if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
+                            if rainbowToggle then local slot = slots[index]; setToggle(slot.rainbow) end
                             return
                         end
                         open = true; anim = true; activeIndex = index
@@ -2339,13 +2351,13 @@ function Library:CreateLibrary(opts)
                             -- Right: Value (brightness) slider + rainbow toggle
                             local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(42, 200), Parent = content})
                             valSlider = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.fromOffset(22, 140), Position = UDim2.fromOffset(10, 0), Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
-                            -- overlay a black gradient: transparent at top (full brightness) to opaque at bottom (black)
+                            -- black overlay child to darken bottom; uses transparency gradient
+                            local valDark = Create("Frame", {BackgroundColor3 = Color3.new(0,0,0), BackgroundTransparency = 0, Size = UDim2.fromScale(1,1), Parent = valSlider})
                             local valGrad = Instance.new("UIGradient")
                             valGrad.Rotation = 0 -- top to bottom
-                            -- transparent at top (show full-bright base), opaque at bottom (darken to black)
                             valGrad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1), NumberSequenceKeypoint.new(1,0)})
                             valGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.new(0,0,0)), ColorSequenceKeypoint.new(1, Color3.new(0,0,0))})
-                            valGrad.Parent = valSlider
+                            valGrad.Parent = valDark
                             valGrab = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(22, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(11, 0), Parent = valSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                             -- Rainbow toggle (mini)
@@ -2362,7 +2374,7 @@ function Library:CreateLibrary(opts)
 
                             -- interactions: HS drag (H across X, S across Y)
                             local hsDragging = false
-                            hs.InputBegan:Connect(function(inp)
+                            table.insert(conns, hs.InputBegan:Connect(function(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     hsDragging = true
                                     local rel = inp.Position and Vector2.new(inp.Position.X - hs.AbsolutePosition.X, inp.Position.Y - hs.AbsolutePosition.Y) or Vector2.new(UserInputService:GetMouseLocation().X - hs.AbsolutePosition.X, UserInputService:GetMouseLocation().Y - hs.AbsolutePosition.Y)
@@ -2371,8 +2383,8 @@ function Library:CreateLibrary(opts)
                                     hsCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,hs.AbsoluteSize.X), math.clamp(rel.Y,0,hs.AbsoluteSize.Y))
                                     setHSV(activeIndex, h, s, nil)
                                 end
-                            end)
-                            UserInputService.InputChanged:Connect(function(inp)
+                            end))
+                            table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
                                 if hsDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                                     local mx = (inp.UserInputType==Enum.UserInputType.Touch) and inp.Position.X or UserInputService:GetMouseLocation().X
                                     local my = (inp.UserInputType==Enum.UserInputType.Touch) and inp.Position.Y or UserInputService:GetMouseLocation().Y
@@ -2382,14 +2394,14 @@ function Library:CreateLibrary(opts)
                                     hsCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,hs.AbsoluteSize.X), math.clamp(rel.Y,0,hs.AbsoluteSize.Y))
                                     setHSV(activeIndex, h, s, nil)
                                 end
-                            end)
-                            UserInputService.InputEnded:Connect(function(inp)
+                            end))
+                            table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
                                 if hsDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then hsDragging = false end
-                            end)
+                            end))
 
                             -- value drag
                             local valDragging = false
-                            valSlider.InputBegan:Connect(function(inp)
+                            table.insert(conns, valSlider.InputBegan:Connect(function(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     valDragging = true
                                     local y = (inp.UserInputType==Enum.UserInputType.Touch) and inp.Position.Y or UserInputService:GetMouseLocation().Y
@@ -2398,8 +2410,8 @@ function Library:CreateLibrary(opts)
                                     local v = 1 - clamp01(relY / math.max(1, valSlider.AbsoluteSize.Y))
                                     setHSV(activeIndex, nil, nil, v)
                                 end
-                            end)
-                            UserInputService.InputChanged:Connect(function(inp)
+                            end))
+                            table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
                                 if valDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                                     local y = (inp.UserInputType==Enum.UserInputType.Touch) and inp.Position.Y or UserInputService:GetMouseLocation().Y
                                     local relY = math.clamp(y - valSlider.AbsolutePosition.Y, 0, valSlider.AbsoluteSize.Y)
@@ -2407,10 +2419,10 @@ function Library:CreateLibrary(opts)
                                     local v = 1 - clamp01(relY / math.max(1, valSlider.AbsoluteSize.Y))
                                     setHSV(activeIndex, nil, nil, v)
                                 end
-                            end)
-                            UserInputService.InputEnded:Connect(function(inp)
+                            end))
+                            table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
                                 if valDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then valDragging = false end
-                            end)
+                            end))
 
                             -- inputs
                             rgbBox.FocusLost:Connect(function()
@@ -2518,19 +2530,17 @@ function Library:CreateLibrary(opts)
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(width, height)})
                         tw:Play(); tw.Completed:Connect(function() anim=false end)
                         anim=false
+                        local justOpened = true; task.defer(function() justOpened = false end)
                         -- outside close / esc
                         table.insert(conns, UserInputService.InputBegan:Connect(function(inp)
+                            if justOpened then return end
                             if inp.KeyCode == Enum.KeyCode.Escape then
-                                if panel and panel.Visible then panel.Visible = false end
-                                open=false; disconnectAll(); if Library._openColorPanelClose then Library._openColorPanelClose() end
+                                closePanel()
                             end
                             if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                                 local p = UserInputService:GetMouseLocation()
                                 local abs = panel.AbsolutePosition; local sz=panel.AbsoluteSize
-                                if not (p.X>=abs.X and p.X<=abs.X+sz.X and p.Y>=abs.Y and p.Y<=abs.Y+sz.Y) then
-                                    if panel and panel.Visible then panel.Visible=false end
-                                    open=false; disconnectAll(); if Library._openColorPanelClose then Library._openColorPanelClose() end
-                                end
+                                if not (p.X>=abs.X and p.X<=abs.X+sz.X and p.Y>=abs.Y and p.Y<=abs.Y+sz.Y) then closePanel() end
                             end
                         end))
                     end
@@ -2598,7 +2608,7 @@ function Library:CreateLibrary(opts)
                     for i=1,#slots do
                         local h,s,v = Color3.toHSV(slots[i].color)
                         slots[i].hsv = {h,s,v}
-                        if startRainbow then Colorpicker:SetRainbow(true, i) end
+                        -- Rainbow default is always off
                     end
 
                     Library:_registerControl(Colorpicker)
