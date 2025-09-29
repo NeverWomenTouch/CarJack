@@ -2243,10 +2243,15 @@ function Library:CreateLibrary(opts)
                         local finalH = 2*22 + vPad*2 + gap
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        local px = (tAbs.X - rootAbs.X) + tSz.X - menuW
-                        local py = (tAbs.Y - rootAbs.Y) - 6
+                        -- center horizontally over the pressed swatch
+                        local centerX = (tAbs.X - rootAbs.X) + (tSz.X / 2)
+                        local px = math.floor(centerX - (menuW / 2))
+                        -- prefer above; if not enough space, flip below
+                        local pyAbove = (tAbs.Y - rootAbs.Y) - finalH - 6
+                        local pyBelow = (tAbs.Y - rootAbs.Y) + tSz.Y + 6
+                        local py = pyAbove >= 4 and pyAbove or pyBelow
+                        -- clamp within root
                         px = math.clamp(px, 4, rootSz.X - menuW - 4)
-                        if py < 4 then py = (tAbs.Y - rootAbs.Y) + tSz.Y + 6 end
                         py = math.clamp(py, 4, rootSz.Y - finalH - 4)
                         ctxMenu.Position = UDim2.fromOffset(px, py)
                         ctxMenu.Size = UDim2.fromOffset(menuW,0)
