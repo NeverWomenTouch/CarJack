@@ -1249,6 +1249,8 @@ function Library:CreateLibrary(opts)
                     local conns = {}
                     local activeIndex = 1
                     local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti, _clickGate = false }
+                    -- forward declaration for helper used by context menu below (assigned later)
+                    local getMouseGuiPosition
 
                     -- Context menu state (for multi-select): right-click -> Select All / Unselect All
                     local ctxMenu, ctxOpen = nil, false
@@ -1280,36 +1282,33 @@ function Library:CreateLibrary(opts)
                         end
                         ctxOpen = true
                         -- build menu
-                        local menuW, itemH, pad, gap = 148, 20, 6, 3
+                        local menuW, itemH, pad, gap = 140, 18, 6, 3
                         local finalH = itemH*2 + pad*2 + gap
-                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW, 0), ZIndex = z + 360, ClipsDescendants = true, Parent = root}, {
+                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0.1, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW, 0), ZIndex = z + 360, ClipsDescendants = true, Parent = root}, {
                             Create("UICorner", {CornerRadius = UDim.new(0,7)}),
-                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.30})
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.40})
                         })
                         local shadow2 = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.92, Size = UDim2.fromScale(1,1), ZIndex = (ctxMenu.ZIndex or 1) - 1, Parent = ctxMenu})
                         shadow2.ScaleType = Enum.ScaleType.Slice; shadow2.SliceCenter = Rect.new(20,20,280,280)
                         -- subtle inner gradient for modern look
                         local grad = Create("UIGradient", {Rotation = 90, Color = ColorSequence.new({
                             ColorSequenceKeypoint.new(0, Theme.Bg),
-                            ColorSequenceKeypoint.new(1, Color3.fromRGB(math.clamp(Theme.Bg.R*255-3,0,255), math.clamp(Theme.Bg.G*255-3,0,255), math.clamp(Theme.Bg.B*255-3,0,255)))
+                            ColorSequenceKeypoint.new(1, Theme.Button)
                         })})
                         grad.Parent = ctxMenu
                         local y = pad
-                        local function makeItem(text, icon, onClick)
+                        local function makeItem(text, onClick)
                             local btn = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1, -pad*2, 0, itemH), Position = UDim2.fromOffset(pad, y), Text = "", ZIndex = ctxMenu.ZIndex + 1, Parent = ctxMenu}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,5)}),
                                 Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
                                 Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
                             })
-                            local ic = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,itemH), Position = UDim2.fromOffset(6,0), Text = icon or "", Font = Fonts.Bold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Theme.SubText, Parent = btn})
-                            local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-26,1,0), Position = UDim2.fromOffset(24,0), Text = text, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
+                            local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Text = text, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
                             btn.MouseEnter:Connect(function()
                                 T(btn,0.10,{BackgroundColor3 = Theme.Hover}):Play()
-                                T(ic,0.10,{TextColor3 = Theme.Text}):Play()
                             end)
                             btn.MouseLeave:Connect(function()
                                 T(btn,0.10,{BackgroundColor3 = Theme.Button}):Play()
-                                T(ic,0.10,{TextColor3 = Theme.SubText}):Play()
                             end)
                             if btn.Activated then
                                 table.insert(ctxConns, btn.Activated:Connect(function()
@@ -1325,36 +1324,55 @@ function Library:CreateLibrary(opts)
                             y = y + itemH + gap
                             return btn
                         end
-                        makeItem("Select All", "✓", function() Dropdown:SelectAll() end)
-                        makeItem("Unselect All", "✕", function() Dropdown:UnselectAll() end)
-                        -- position anchored to the right side of the trigger; vertically centered on trigger
+                        makeItem("Select All", function() Dropdown:SelectAll() end)
+                        makeItem("Unselect All", function() Dropdown:UnselectAll() end)
+                        -- position above the dropdown, aligned to right edge; flip below when needed
                         local tAbs = trigger.AbsolutePosition
                         local tSz = trigger.AbsoluteSize
                         local rootAbs = root.AbsolutePosition
                         local rootSz = root.AbsoluteSize
                         local menuH = finalH
-                        local px = (tAbs.X - rootAbs.X) + tSz.X + 8
-                        local py = (tAbs.Y - rootAbs.Y) + math.floor((tSz.Y - menuH)/2)
-                        -- clamp; if off right edge, flip to left side
-                        if px + menuW > rootSz.X - 4 then px = (tAbs.X - rootAbs.X) - menuW - 8 end
-                        if py < 4 then py = 4 end
+                        local px = (tAbs.X - rootAbs.X) + tSz.X - menuW
+                        local py = (tAbs.Y - rootAbs.Y) - menuH - 6
+                        if px < 4 then px = 4 end
+                        if px + menuW > rootSz.X - 4 then px = rootSz.X - menuW - 4 end
+                        if py < 4 then py = (tAbs.Y - rootAbs.Y) + tSz.Y + 6 end
                         if py + menuH > rootSz.Y - 4 then py = rootSz.Y - menuH - 4 end
                         ctxMenu.Position = UDim2.fromOffset(px, py)
                         -- open animation
                         ctxMenu.Size = UDim2.fromOffset(menuW, 0)
-                        local openTw = T(ctxMenu, 0.16, {Size = UDim2.fromOffset(menuW, finalH)})
+                        local openTw = T(ctxMenu, 0.16, {Size = UDim2.fromOffset(menuW, finalH), BackgroundTransparency = 0})
                         openTw:Play()
                         -- outside click / esc to close
                         table.insert(ctxConns, UserInputService.InputBegan:Connect(function(inp)
                             if not ctxOpen or not ctxMenu or not ctxMenu.Parent then return end
                             if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.MouseButton2 or inp.UserInputType == Enum.UserInputType.Touch then
-                                local m = getMouseGuiPosition(inp)
+                                -- inline-adjusted mouse position (avoid dependency on helper creation order)
+                                local m
+                                if inp and (inp.UserInputType == Enum.UserInputType.Touch) then
+                                    m = Vector2.new(inp.Position.X, inp.Position.Y)
+                                else
+                                    m = UserInputService:GetMouseLocation()
+                                end
+                                local ok, inset = pcall(function()
+                                    return game:GetService("GuiService"):GetGuiInset()
+                                end)
+                                if ok and typeof(inset) == "Vector2" then
+                                    m = Vector2.new(m.X, m.Y - inset.Y)
+                                end
                                 local p = ctxMenu.AbsolutePosition; local s = ctxMenu.AbsoluteSize
                                 local inside = m.X >= p.X and m.X <= p.X+s.X and m.Y >= p.Y and m.Y <= p.Y+s.Y
                                 if not inside then closeCtxMenu() end
                             elseif inp.KeyCode == Enum.KeyCode.Escape then
                                 closeCtxMenu()
                             end
+                        end))
+                        -- also close context menu if trigger becomes hidden or removed
+                        table.insert(ctxConns, trigger:GetPropertyChangedSignal("Visible"):Connect(function()
+                            if ctxOpen and trigger.Visible == false then closeCtxMenu() end
+                        end))
+                        table.insert(ctxConns, trigger.AncestryChanged:Connect(function()
+                            if ctxOpen and not trigger:IsDescendantOf(root) then closeCtxMenu() end
                         end))
                         if Library then Library._openDropdownCtx = closeCtxMenu end
                     end
@@ -1524,7 +1542,7 @@ function Library:CreateLibrary(opts)
                     end
 
                     -- Helper: mouse position adjusted for GUI inset (so we can do accurate bounds checks)
-                    local function getMouseGuiPosition(input)
+                    getMouseGuiPosition = function(input)
                         local pos
                         if input and (input.UserInputType == Enum.UserInputType.Touch) then
                             pos = Vector2.new(input.Position.X, input.Position.Y)
@@ -1579,7 +1597,12 @@ function Library:CreateLibrary(opts)
                                 local insideP = pos.X >= p.X and pos.X <= p.X+ps.X and pos.Y >= p.Y and pos.Y <= p.Y+ps.Y
                                 local b = trigger.AbsolutePosition; local bs = trigger.AbsoluteSize
                                 local insideB = pos.X >= b.X and pos.X <= b.X+bs.X and pos.Y >= b.Y and pos.Y <= b.Y+bs.Y
-                                if not insideP and not insideB then Dropdown:_closePanel() end
+                                local insideC = false
+                                if ctxMenu and ctxMenu.Parent then
+                                    local c = ctxMenu.AbsolutePosition; local cs = ctxMenu.AbsoluteSize
+                                    insideC = pos.X >= c.X and pos.X <= c.X+cs.X and pos.Y >= c.Y and pos.Y <= c.Y+cs.Y
+                                end
+                                if not insideP and not insideB and not insideC then Dropdown:_closePanel() end
                             elseif input.KeyCode == Enum.KeyCode.Escape then
                                 Dropdown:_closePanel()
                             elseif input.KeyCode == Enum.KeyCode.Up then
@@ -1601,6 +1624,13 @@ function Library:CreateLibrary(opts)
                         end))
                         table.insert(conns, root:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                             if open then positionPanel(panel.AbsoluteSize.Y) end
+                        end))
+                        -- auto-close when trigger hides or is removed (category/section change)
+                        table.insert(conns, trigger:GetPropertyChangedSignal("Visible"):Connect(function()
+                            if open and trigger.Visible == false then Dropdown:_closePanel() end
+                        end))
+                        table.insert(conns, trigger.AncestryChanged:Connect(function()
+                            if open and not trigger:IsDescendantOf(root) then Dropdown:_closePanel() end
                         end))
                     end
                     function Dropdown:_closePanel()
