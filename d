@@ -1322,8 +1322,16 @@ function Library:CreateLibrary(opts)
                             Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dot})
                             dot.Visible = (tostring(Dropdown._value) == tostring(val))
                             local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(22,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
-                            item.MouseEnter:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(item.Stroke,0.12,{Transparency = 0.35}):Play() end)
-                            item.MouseLeave:Connect(function() T(item,0.12,{BackgroundColor3 = Theme.Button}):Play() T(item.Stroke,0.12,{Transparency = 0.45}):Play() end)
+                            item.MouseEnter:Connect(function()
+                                T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play()
+                                local stroke = item:FindFirstChild("Stroke")
+                                if stroke then T(stroke,0.12,{Transparency = 0.35}):Play() end
+                            end)
+                            item.MouseLeave:Connect(function()
+                                T(item,0.12,{BackgroundColor3 = Theme.Button}):Play()
+                                local stroke = item:FindFirstChild("Stroke")
+                                if stroke then T(stroke,0.12,{Transparency = 0.45}):Play() end
+                            end)
                             item.MouseButton1Down:Connect(function() Dropdown:Set(val) end)
                             item.MouseButton1Click:Connect(function() Dropdown:Set(val) end)
                             -- Topmost invisible click-catcher to prevent visual children from blocking selection
@@ -1340,27 +1348,30 @@ function Library:CreateLibrary(opts)
                         listFrame.CanvasPosition = Vector2.new(0,0)
                     end
 
-                    -- Robust inside-check using GuiService hit-testing to avoid inset/offset issues
-                    local GuiService = game:GetService("GuiService")
-                    local function isInsidePanelOrTrigger(screenPos)
-                        local at = GuiService:GetGuiObjectsAtPosition(screenPos.X, screenPos.Y)
-                        for _, obj in ipairs(at) do
-                            local p = obj
-                            while p do
-                                if p == panel or p == trigger then
-                                    return true
-                                end
-                                p = p.Parent
-                            end
+                    -- Helper: mouse position adjusted for GUI inset (so we can do accurate bounds checks)
+                    local function getMouseGuiPosition(input)
+                        local pos
+                        if input and (input.UserInputType == Enum.UserInputType.Touch) then
+                            pos = Vector2.new(input.Position.X, input.Position.Y)
+                        else
+                            pos = UserInputService:GetMouseLocation()
                         end
-                        return false
+                        -- Subtract top GUI inset so coordinates match AbsolutePosition space
+                        local ok, inset = pcall(function()
+                            return game:GetService("GuiService"):GetGuiInset()
+                        end)
+                        if ok and typeof(inset) == "Vector2" then
+                            return Vector2.new(pos.X, pos.Y - inset.Y)
+                        end
+                        return pos
                     end
 
                     local function openPanel()
                         if open or anim then return end
                         anim = true; open = true
                         T(trigger,0.12,{BackgroundColor3 = Theme.Hover}):Play()
-                        T(trigger.Stroke,0.12,{Transparency = 0.35}):Play()
+                        local tStroke = trigger:FindFirstChild("Stroke")
+                        if tStroke then T(tStroke,0.12,{Transparency = 0.35}):Play() end
                         T(caret,0.16,{TextColor3 = Theme.Text}):Play(); caret.Text = "ʌ"
 
                         buildPanel(); Dropdown._filtered = {}; renderItems();
@@ -1388,10 +1399,12 @@ function Library:CreateLibrary(opts)
                         table.insert(conns, UserInputService.InputBegan:Connect(function(input)
                             if not panel.Visible or not open then return end
                             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                                local pos = Vector2.new(input.Position.X, input.Position.Y)
-                                if not isInsidePanelOrTrigger(pos) then
-                                    Dropdown:_closePanel()
-                                end
+                                local pos = getMouseGuiPosition(input)
+                                local p = panel.AbsolutePosition; local ps = panel.AbsoluteSize
+                                local insideP = pos.X >= p.X and pos.X <= p.X+ps.X and pos.Y >= p.Y and pos.Y <= p.Y+ps.Y
+                                local b = trigger.AbsolutePosition; local bs = trigger.AbsoluteSize
+                                local insideB = pos.X >= b.X and pos.X <= b.X+bs.X and pos.Y >= b.Y and pos.Y <= b.Y+bs.Y
+                                if not insideP and not insideB then Dropdown:_closePanel() end
                             elseif input.KeyCode == Enum.KeyCode.Escape then
                                 Dropdown:_closePanel()
                             elseif input.KeyCode == Enum.KeyCode.Up then
@@ -1419,7 +1432,8 @@ function Library:CreateLibrary(opts)
                         if not open or anim then return end
                         open = false; anim = true
                         T(trigger,0.12,{BackgroundColor3 = Theme.Button}):Play()
-                        T(trigger.Stroke,0.12,{Transparency = 0.45}):Play()
+                        local tStroke = trigger:FindFirstChild("Stroke")
+                        if tStroke then T(tStroke,0.12,{Transparency = 0.45}):Play() end
                         T(caret,0.16,{TextColor3 = Theme.SubText}):Play(); caret.Text = "v"
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, 0)})
                         tw:Play(); tw.Completed:Connect(function() panel.Visible = false; anim = false if type(Dropdown._onClose)=="function" then pcall(Dropdown._onClose) end end)
@@ -1433,8 +1447,18 @@ function Library:CreateLibrary(opts)
                         disconnectAll()
                     end
 
-                    trigger.MouseEnter:Connect(function() if not open and not anim then T(trigger,0.12,{BackgroundColor3 = Theme.Hover}):Play() T(trigger.Stroke,0.12,{Transparency = 0.35}):Play() end end)
-                    trigger.MouseLeave:Connect(function() if not open and not anim then T(trigger,0.12,{BackgroundColor3 = Theme.Button}):Play() T(trigger.Stroke,0.12,{Transparency = 0.45}):Play() end end)
+                    trigger.MouseEnter:Connect(function()
+                        if not open and not anim then
+                            T(trigger,0.12,{BackgroundColor3 = Theme.Hover}):Play()
+                            local s = trigger:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end
+                        end
+                    end)
+                    trigger.MouseLeave:Connect(function()
+                        if not open and not anim then
+                            T(trigger,0.12,{BackgroundColor3 = Theme.Button}):Play()
+                            local s = trigger:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.45}):Play() end
+                        end
+                    end)
                     trigger.MouseButton1Click:Connect(function() if open then Dropdown:_closePanel() else openPanel() end end)
 
                     -- Public controls
