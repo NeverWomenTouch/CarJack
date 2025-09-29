@@ -2247,9 +2247,7 @@ function Library:CreateLibrary(opts)
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                         -- align to bottom-right of the swatch (like the colorpicker panel)
                         local px = (tAbs.X - rootAbs.X) + tSz.X - menuW
-                        local pyBelow = (tAbs.Y - rootAbs.Y) + tSz.Y + 6
-                        -- always open below; clamp to bottom if needed
-                        local py = pyBelow
+                        local py = (tAbs.Y - rootAbs.Y) + tSz.Y + 6
                         -- clamp within root
                         px = math.clamp(px, 4, rootSz.X - menuW - 4)
                         py = math.clamp(py, 4, rootSz.Y - finalH - 4)
@@ -2330,7 +2328,6 @@ function Library:CreateLibrary(opts)
                             local px = tAbs.X + tSz.X - width
                             local py = tAbs.Y - height - 6
                             px = math.clamp(px, rootAbs.X + 4, rootAbs.X + rootSz.X - width - 4)
-                            if py < rootAbs.Y + 4 then py = tAbs.Y + tSz.Y + 6 end
                             py = math.clamp(py, rootAbs.Y + 4, rootAbs.Y + rootSz.Y - height - 4)
                             panel.Position = UDim2.fromOffset(px, py)
                             -- refresh UI to the selected slot
@@ -2369,7 +2366,7 @@ function Library:CreateLibrary(opts)
                             svBlack = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(0,0,0), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 2, Parent = sv})
                             local gBlack = Instance.new("UIGradient"); gBlack.Rotation = 90; gBlack.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1), NumberSequenceKeypoint.new(1,0)}); gBlack.Parent = svBlack
                             -- Cursor
-                            svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), ZIndex = sv.ZIndex + 3, Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})})
+                            svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), ZIndex = sv.ZIndex + 3, Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                             rgbBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "R, G, B", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
                             hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 190), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
@@ -2377,7 +2374,7 @@ function Library:CreateLibrary(opts)
                             -- Right: Hue slider + rainbow toggle
                             local HUE_W, HUE_H = 26, 160
                             local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
-                            hueSlider = Create("Frame", {Active = true, BackgroundColor3 = Theme.Button, BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(0, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})})
+                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(0, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -2389,7 +2386,7 @@ function Library:CreateLibrary(opts)
                                 ColorSequenceKeypoint.new(1.00, Color3.fromHSV(1,1,1)),
                             })
                             hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
-                            hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})})
+                            hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                             -- Rainbow checkbox + label
                             local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(60, 16), Position = UDim2.fromOffset(0, HUE_H + 10), ZIndex = rightCol.ZIndex + 1, Parent = rightCol})
@@ -2574,10 +2571,8 @@ function Library:CreateLibrary(opts)
                         local width, height = 260, 220
                         -- compute desired position in root-space, then convert to screen-space for RootGui
                         local pxRoot = (tAbs.X - rootAbs.X) + tSz.X - width
-                        -- open above aligned to the right; if not enough space, flip below
-                        local pyAbove = (tAbs.Y - rootAbs.Y) - height - 6
-                        local pyBelow = (tAbs.Y - rootAbs.Y) + tSz.Y + 6
-                        local pyRoot = (pyAbove >= 4) and pyAbove or pyBelow
+                        -- always open above aligned to the right
+                        local pyRoot = (tAbs.Y - rootAbs.Y) - height - 6
                         pxRoot = math.clamp(pxRoot, 4, rootSz.X - width - 4)
                         local px = rootAbs.X + pxRoot
                         local py = rootAbs.Y + pyRoot
