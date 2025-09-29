@@ -699,7 +699,7 @@ function Library:CreateLibrary(opts)
             if not Category._selectedPage and #Category._pages > 0 then Category._pages[1]:Select() end
         end
         btn.MouseButton1Click:Connect(function() Category:Select() end)
-        function Category:AddPage(p)
+    function Category:AddSection(p)
             p = p or {}
             local pname = tostring(p.Name or "Page")
             local Page = { Name = pname, _blocks = {}, _columns = Clamp(tonumber(p.Columns) or 2, 1, 3) }
@@ -734,7 +734,9 @@ function Library:CreateLibrary(opts)
                 T(subInd, 0.2, {Size = UDim2.new(1, -8, 0, 2), Position = UDim2.new(0,4,1,0)}):Play()
             end
             subBtn.MouseButton1Click:Connect(function() Page:Select() end)
-            function Page:AddBlock(g)
+            -- Back-compat alias: Category:AddPage now Category:AddSection
+            Category.AddPage = Category.AddSection
+            function Page:AddPage(g)
                 g = g or {}
                 local gName = tostring(g.Name or "Block")
                 local desc = g.Description
@@ -856,6 +858,8 @@ function Library:CreateLibrary(opts)
                 registerSearch(gName, "group")
                 registerSearch(Category.Name, "category") 
                 registerSearch(Page.Name, "page")
+                -- Back-compat alias: Page:AddBlock now Page:AddPage
+                Page.AddBlock = Page.AddPage
                 if desc and desc ~= "" then
                     registerSearch(desc, "description")
                 end
@@ -1186,12 +1190,25 @@ function Library:CreateLibrary(opts)
                     })
                 end
                 -- Dropdown (new design v2)
-                function Group:AddDropdown(o)
+                function Group:AddDropdown(...)
+                    -- Accept both table-based and positional API:
+                    -- AddDropdown({ Name=label, Options=options, Default=default, Multi=isMulti, Callback=cb, Flag=flag, Search=true/false, Placeholder=.. })
+                    -- AddDropdown(label, options, default, isMulti, cb, flag)
+                    local argc = select("#", ...)
+                    local _first = ...
+                    local o
+                    if argc == 1 and type(_first) == "table" then
+                        o = _first or {}
+                    else
+                        local labelArg, optionsArg, defaultArg, isMultiArg, cbArg, flagArg = ...
+                        o = { Name = labelArg, Options = optionsArg, Default = defaultArg, Multi = isMultiArg, Callback = cbArg, Flag = flagArg }
+                    end
                     o = o or {}
                     local label = tostring(o.Name or "Dropdown")
                     local options = o.Options or {}
                     local default = o.Default
                     local cb = o.Callback
+                    local isMulti = (o.Multi == true) or (o.IsMulti == true)
                     -- Back-compat: allow either Filter or Search to toggle
                     local enableSearch = (o.Search ~= false) and (o.Filter ~= false)
                     local placeholder = tostring(o.Placeholder or "Choose...")
@@ -1209,7 +1226,8 @@ function Library:CreateLibrary(opts)
                         Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
                         Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,0)})
                     })
-                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-18,1,0), Text = default and tostring(default) or placeholder, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = default and Theme.Text or Theme.SubText, Parent = trigger})
+                    -- Always start with placeholder; defaults are applied via Set() after options initialize
+                    local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-18,1,0), Text = placeholder, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.SubText, Parent = trigger})
                     local caret = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,14), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-2,0.5,0), Text = "▼", Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.SubText, Parent = trigger})
                     caret.ZIndex = (trigger.ZIndex or 1) + 1
 
@@ -1230,7 +1248,33 @@ function Library:CreateLibrary(opts)
                     local anim = false
                     local conns = {}
                     local activeIndex = 1
-                    local Dropdown = { id = id, _value = default, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil }
+                    local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti }
+
+                    local function refreshLabelFromSelection()
+                        if Dropdown._multi then
+                            local selectedTexts = {}
+                            for _, opt in ipairs(Dropdown._options) do
+                                if Dropdown._values[tostring(opt)] then table.insert(selectedTexts, tostring(opt)) end
+                            end
+                            local count = #selectedTexts
+                            if count == 0 then
+                                valueLbl.Text = placeholder; valueLbl.TextColor3 = Theme.SubText
+                            else
+                                if count <= 2 then
+                                    valueLbl.Text = table.concat(selectedTexts, ", ")
+                                else
+                                    valueLbl.Text = ("%d selected"):format(count)
+                                end
+                                valueLbl.TextColor3 = Theme.Text
+                            end
+                        else
+                            if Dropdown._value == nil then
+                                valueLbl.Text = placeholder; valueLbl.TextColor3 = Theme.SubText
+                            else
+                                valueLbl.Text = tostring(Dropdown._value); valueLbl.TextColor3 = Theme.Text
+                            end
+                        end
+                    end
 
                     local function disconnectAll()
                         for i = #conns, 1, -1 do
@@ -1281,9 +1325,15 @@ function Library:CreateLibrary(opts)
                         })
                     end
                     local function updateSelection()
-                        local cur = tostring(Dropdown._value)
-                        for key, ref in pairs(Dropdown._itemMap) do
-                            if ref and ref.dot then ref.dot.Visible = (key == cur) end
+                        if Dropdown._multi then
+                            for key, ref in pairs(Dropdown._itemMap) do
+                                if ref and ref.dot then ref.dot.Visible = (Dropdown._values[key] == true) end
+                            end
+                        else
+                            local cur = tostring(Dropdown._value)
+                            for key, ref in pairs(Dropdown._itemMap) do
+                                if ref and ref.dot then ref.dot.Visible = (key == cur) end
+                            end
                         end
                     end
                     local function ensureVisible(index)
@@ -1321,7 +1371,7 @@ function Library:CreateLibrary(opts)
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = ring})
                             local dot = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = ring})
                             Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dot})
-                            dot.Visible = (tostring(Dropdown._value) == tostring(val))
+                            dot.Visible = (Dropdown._multi and Dropdown._values[tostring(val)] == true) or (tostring(Dropdown._value) == tostring(val))
                             local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(22,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
                             item.MouseEnter:Connect(function()
                                 T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play()
@@ -1472,7 +1522,14 @@ function Library:CreateLibrary(opts)
                         if open then self:_closePanel() else openPanel() end
                     end
 
-                    function Dropdown:Get() return self._value end
+                    function Dropdown:Get()
+                        if self._multi then
+                            local list = {}
+                            for _, opt in ipairs(self._options) do if self._values[tostring(opt)] then table.insert(list, opt) end end
+                            return list
+                        end
+                        return self._value
+                    end
                     local function resolveOption(v)
                         if table.find(Dropdown._options, v) then return v end
                         local sv = tostring(v)
@@ -1480,16 +1537,38 @@ function Library:CreateLibrary(opts)
                         return nil
                     end
                     function Dropdown:Set(v, silent)
+                        if self._multi then
+                            if v == nil then
+                                self._values = {}
+                            else
+                                if type(v) == "table" then
+                                    local newSet = {}
+                                    for _, item in ipairs(v) do
+                                        local r = resolveOption(item)
+                                        if r ~= nil then newSet[tostring(r)] = true end
+                                    end
+                                    self._values = newSet
+                                else
+                                    local resolved = resolveOption(v); if not self._options or not resolved then return end
+                                    local key = tostring(resolved)
+                                    if self._values[key] then self._values[key] = nil else self._values[key] = true end
+                                end
+                            end
+                            updateSelection(); refreshLabelFromSelection()
+                            -- Don't auto-close for multi-select
+                            if not silent and type(cb)=="function" then pcall(cb, self:Get()) end
+                            return
+                        end
+                        -- single-select behavior
                         if v == nil then
                             self._value = nil
-                            valueLbl.Text = placeholder; valueLbl.TextColor3 = Theme.SubText
+                            refreshLabelFromSelection()
                             if open then Dropdown:_closePanel() end
                             return
                         end
                         local resolved = resolveOption(v); if not self._options or not resolved then return end
                         self._value = resolved
-                        valueLbl.Text = tostring(resolved); valueLbl.TextColor3 = Theme.Text
-                        updateSelection();
+                        refreshLabelFromSelection(); updateSelection();
                         if open then Dropdown:_closePanel() end
                         if not silent and type(cb)=="function" then pcall(cb, resolved) end
                     end
@@ -1497,12 +1576,14 @@ function Library:CreateLibrary(opts)
                         self._options = {}
                         for _, val in ipairs(nl or {}) do table.insert(self._options, val) end
                         Dropdown._filtered = {}
-                        if panel.Visible then buildPanel(); renderItems() end
-                        if self._value ~= nil and not table.find(self._options, self._value) then
-                            self._value = nil; valueLbl.Text = placeholder; valueLbl.TextColor3 = Theme.SubText
-                        else
-                            updateSelection()
+                        if self._multi then
+                            -- prune selections that no longer exist
+                            local valid = {}
+                            for _, opt in ipairs(self._options) do valid[tostring(opt)] = true end
+                            for key, _ in pairs(self._values) do if not valid[key] then self._values[key] = nil end end
                         end
+                        if panel.Visible then buildPanel(); renderItems(); updateSelection() end
+                        refreshLabelFromSelection()
                     end
                     function Dropdown:OnOpen(fn) self._onOpen = fn end
                     function Dropdown:OnClose(fn) self._onClose = fn end
@@ -1510,7 +1591,7 @@ function Library:CreateLibrary(opts)
 
                     Dropdown:SetOptions(options)
                     if default ~= nil then Dropdown:Set(default, true) end
-                    if Dropdown._value == nil then valueLbl.Text = placeholder valueLbl.TextColor3 = Theme.SubText end
+                    refreshLabelFromSelection()
                     Library:_registerControl(Dropdown)
                     table.insert(Group._controls, Dropdown)
                     registerSearch(label)
