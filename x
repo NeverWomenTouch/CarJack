@@ -2360,8 +2360,8 @@ function Library:CreateLibrary(opts)
                             local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), ZIndex = container.ZIndex + 1, Parent = container}, {
                                 Create("UIListLayout", {Padding = UDim.new(0,4), FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder})
                             })
-                            -- Top-layer border overlay so the outline is above the textboxes and all inner content
-                            local borderOverlay = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (content.ZIndex or panel.ZIndex) + 100, Parent = panel}, {
+                            -- Top-layer border overlay on the main holder (container), above all its children (content + controls)
+                            local borderOverlay = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (content.ZIndex or container.ZIndex) + 100, Parent = container}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                                 Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
                             })
