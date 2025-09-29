@@ -2243,13 +2243,12 @@ function Library:CreateLibrary(opts)
                         local finalH = 2*22 + vPad*2 + gap
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        -- center horizontally over the pressed swatch
-                        local centerX = (tAbs.X - rootAbs.X) + (tSz.X / 2)
-                        local px = math.floor(centerX - (menuW / 2))
-                        -- prefer above; if not enough space, flip below
-                        local pyAbove = (tAbs.Y - rootAbs.Y) - finalH - 6
+                        -- align to bottom-right of the swatch (like the colorpicker panel)
+                        local px = (tAbs.X - rootAbs.X) + tSz.X - menuW
                         local pyBelow = (tAbs.Y - rootAbs.Y) + tSz.Y + 6
-                        local py = pyAbove >= 4 and pyAbove or pyBelow
+                        local pyAbove = (tAbs.Y - rootAbs.Y) - finalH - 6
+                        -- prefer below; if not enough space, flip above
+                        local py = (pyBelow + finalH <= rootSz.Y - 4) and pyBelow or pyAbove
                         -- clamp within root
                         px = math.clamp(px, 4, rootSz.X - menuW - 4)
                         py = math.clamp(py, 4, rootSz.Y - finalH - 4)
