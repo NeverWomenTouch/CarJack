@@ -2402,33 +2402,30 @@ function Library:CreateLibrary(opts)
                             setCheckbox(false)
 
                             -- interactions: SV drag (S across X, V across Y)
-                            local function getScreenPos(inp)
+                            local function getScreenPos()
                                 local inset = game:GetService("GuiService"):GetGuiInset()
-                                if inp and inp.Position then
-                                    return Vector2.new(inp.Position.X - inset.X, inp.Position.Y - inset.Y)
-                                else
-                                    local m = UserInputService:GetMouseLocation()
-                                    return Vector2.new(m.X - inset.X, m.Y - inset.Y)
-                                end
+                                local m = UserInputService:GetMouseLocation()
+                                return Vector2.new(m.X - inset.X, m.Y - inset.Y)
                             end
                             local svDragging = false
+                            local svDragIndex = nil
                             local function handleSVDown(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     svDragging = true
+                                    svDragIndex = activeIndex
                                     -- pause rainbow for this slot while dragging, if active
-                                    local dragIndex = activeIndex
-                                    local slot = slots[dragIndex]
+                                    local slot = slots[svDragIndex]
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
                                         slot._resumeRainbow = true
                                         slot.rainbowHook = nil
                                     end
-                                    local p = getScreenPos(inp)
+                                    local p = getScreenPos()
                                     local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSV(dragIndex, nil, s, v)
+                                    setHSV(svDragIndex, nil, s, v)
                                 end
                             end
                             table.insert(conns, sv.InputBegan:Connect(handleSVDown))
@@ -2436,68 +2433,71 @@ function Library:CreateLibrary(opts)
                             table.insert(conns, svBlack.InputBegan:Connect(handleSVDown))
                             table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                                    local p = getScreenPos(inp)
+                                    local p = getScreenPos()
                                     local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSV(activeIndex, nil, s, v)
+                                    setHSV(svDragIndex or activeIndex, nil, s, v)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     svDragging = false
+                                    local dragIndex = svDragIndex or activeIndex
                                     -- resume rainbow if it was paused
-                                    local dragIndex = activeIndex
                                     local slot = slots[dragIndex]
                                     if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
                                         slot.rainbowHook = attachRainbow(dragIndex)
                                         slot._resumeRainbow = nil
                                     end
+                                    svDragIndex = nil
                                 end
                             end))
 
                             -- hue drag
                             local hueDragging = false
+                            local hueDragIndex = nil
                             local function handleHueDown(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     hueDragging = true
+                                    hueDragIndex = activeIndex
                                     -- pause rainbow for this slot while dragging, if active
-                                    local dragIndex = activeIndex
-                                    local slot = slots[dragIndex]
+                                    local slot = slots[hueDragIndex]
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
                                         slot._resumeRainbow = true
                                         slot.rainbowHook = nil
                                     end
-                                    local p = getScreenPos(inp)
+                                    local p = getScreenPos()
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    setHSV(dragIndex, h, nil, nil); updateSVBackground(h)
+                                    setHSV(hueDragIndex, h, nil, nil); updateSVBackground(h)
                                 end
                             end
                             table.insert(conns, hueSlider.InputBegan:Connect(handleHueDown))
                             table.insert(conns, hueGrab.InputBegan:Connect(handleHueDown))
                             table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                                    local p = getScreenPos(inp)
+                                    local p = getScreenPos()
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    setHSV(activeIndex, h, nil, nil); updateSVBackground(h)
+                                    setHSV(hueDragIndex or activeIndex, h, nil, nil); updateSVBackground(h)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     hueDragging = false
+                                    local dragIndex = hueDragIndex or activeIndex
                                     -- resume rainbow if it was paused
-                                    local dragIndex = activeIndex
                                     local slot = slots[dragIndex]
                                     if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
                                         slot.rainbowHook = attachRainbow(dragIndex)
                                         slot._resumeRainbow = nil
                                     end
+                                    hueDragIndex = nil
                                 end
                             end))
 
