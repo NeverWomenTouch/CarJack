@@ -6,6 +6,7 @@ local CoreGui = SRV("CoreGui")
 local TweenService = SRV("TweenService")
 local TextService = SRV("TextService")
 local UserInputService = SRV("UserInputService")
+local ContextActionService = SRV("ContextActionService")
 local HttpService = SRV("HttpService")
 local MarketplaceService = SRV("MarketplaceService")
 local _isfile = (isfile or function() return false end)
@@ -75,7 +76,7 @@ local function Signal()
         end
     }
 end
-local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {} }
+local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {} }
 -- stronger pre-destroy: remove ANY ScreenGui named DendriteUI before creating new root
 do
     for _, child in ipairs(CoreGui:GetChildren()) do
@@ -88,7 +89,13 @@ local RootGui = (function()
     local g = Create("ScreenGui", {Name = "DendriteUI", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, ResetOnSpawn = false, Parent = CoreGui})
     return g
 end)()
-function Library:_registerControl(c) self._controls[c.id] = c end
+function Library:_registerControl(c)
+    self._controls[c.id] = c
+    -- If the control id is a simple flag (no path separators), expose via Library.Flags
+    if type(c.id) == "string" and not string.find(c.id, "/", 1, true) then
+        self.Flags[c.id] = c
+    end
+end
 function Library:_setValue(id, v, s) local c = self._controls[id]; if c and c.Set then c:Set(v, s) end end
 function Library:_getSnapshot() local d = {} for id, c in pairs(self._controls) do if c.Get then d[id] = c:Get() end end return d end
 function Library:SaveConfig(n) return Config.Save(n, self:_getSnapshot()) end
@@ -105,6 +112,8 @@ function Library:CreateLibrary(opts)
     end
     -- reset search entries on new window
     self._searchEntries = {}
+    -- reset public Flags mapping for the new UI instance
+    self.Flags = {}
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
     local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static | type
@@ -1851,13 +1860,96 @@ function Library:CreateLibrary(opts)
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,30), Position = UDim2.fromOffset(0,nextY(30)), Parent = gFrame})
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.5,-8,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5,-4,1,0), Position = UDim2.new(0.5,4,0,0), Text = default and default.Name or "Press a key...", Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                    local waiting=false
+                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5,-4,1,0), Position = UDim2.new(0.5,4,0,0), Text = default and default.Name or "Press a key...", Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    -- Subtle accent overlay used during capture
+                    local overlay = Create("Frame", {Name = "CaptureOverlay", BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), ZIndex = (box.ZIndex or 1) + 1, Parent = box}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)})
+                    })
+                    local stroke = box:FindFirstChild("Stroke")
+                    local waiting = false
+                    local actionName = "DendriteKeybindCapture_" .. id
+                    local pulseToken = 0
+
+                    local function startVisual()
+                        pulseToken = pulseToken + 1
+                        local myToken = pulseToken
+                        -- highlight box and start overlay pulse
+                        if stroke then T(stroke,0.12,{Color = Theme.Accent, Transparency = 0.18}):Play() end
+                        T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play()
+                        overlay.BackgroundTransparency = 1
+                        T(overlay,0.18,{BackgroundTransparency = 0.82}):Play()
+                        task.spawn(function()
+                            while waiting and pulseToken == myToken and overlay.Parent do
+                                T(overlay,0.45,{BackgroundTransparency = 0.70}):Play()
+                                task.wait(0.45)
+                                T(overlay,0.60,{BackgroundTransparency = 0.88}):Play()
+                                task.wait(0.60)
+                            end
+                        end)
+                    end
+
+                    local function stopVisual()
+                        pulseToken = pulseToken + 1 -- stop any running loop
+                        if stroke then T(stroke,0.16,{Color = Theme.Stroke, Transparency = 0.3}):Play() end
+                        T(box,0.16,{BackgroundColor3 = Theme.Button}):Play()
+                        T(overlay,0.20,{BackgroundTransparency = 1}):Play()
+                    end
+
                     local Keybind = { id = id, _value = default }
                     function Keybind:Get() return self._value end
-                    function Keybind:Set(keycode, silent) self._value = keycode box.Text = keycode and keycode.Name or "None" box.TextColor3 = keycode and Theme.Text or Theme.SubText if keycode and not silent and type(cb)=="function" then pcall(cb,keycode) end end
-                    box.MouseButton1Click:Connect(function() box.Text="Press any key..." box.TextColor3=Theme.Text waiting=true end)
-                    UserInputService.InputBegan:Connect(function(input) if waiting and input.UserInputType==Enum.UserInputType.Keyboard then waiting=false Keybind:Set(input.KeyCode) end end)
+                    function Keybind:Set(keycode, silent)
+                        self._value = keycode
+                        box.Text = keycode and keycode.Name or "None"
+                        box.TextColor3 = keycode and Theme.Text or Theme.SubText
+                        if keycode and not silent and type(cb) == "function" then pcall(cb, keycode) end
+                    end
+
+                    local function unbindSink()
+                        pcall(function() ContextActionService:UnbindAction(actionName) end)
+                    end
+
+                    local function bindSink()
+                        local function handler(_, state, input)
+                            if not waiting then return Enum.ContextActionResult.Pass end
+                            if state ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Sink end
+                            if input.UserInputType == Enum.UserInputType.Keyboard then
+                                waiting = false
+                                Keybind:Set(input.KeyCode)
+                                stopVisual()
+                                unbindSink()
+                            end
+                            return Enum.ContextActionResult.Sink
+                        end
+                        -- sink all keyboard keys while capturing
+                        local keys = Enum.KeyCode:GetEnumItems()
+                        ContextActionService:BindAction(actionName, handler, false, table.unpack(keys))
+                    end
+
+                    box.MouseButton1Click:Connect(function()
+                        waiting = true
+                        box.Text = "Press any key..."
+                        box.TextColor3 = Theme.Text
+                        startVisual()
+                        bindSink()
+                    end)
+
+                    -- Fallback: still listen to InputBegan (in case CAS is unavailable)
+                    UserInputService.InputBegan:Connect(function(input)
+                        if waiting and input.UserInputType == Enum.UserInputType.Keyboard then
+                            waiting = false
+                            Keybind:Set(input.KeyCode)
+                            stopVisual()
+                            unbindSink()
+                        elseif waiting and input.KeyCode == Enum.KeyCode.Escape then
+                            -- cancel capture with ESC
+                            waiting = false
+                            stopVisual()
+                            unbindSink()
+                            box.Text = Keybind._value and Keybind._value.Name or "None"
+                            box.TextColor3 = Keybind._value and Theme.Text or Theme.SubText
+                        end
+                    end)
+
                     Library:_registerControl(Keybind)
                     table.insert(Group._controls, Keybind)
                     registerSearch(label)
@@ -2095,4 +2187,11 @@ function Library:MakeWindow(o) return self:CreateLibrary(o) end
 function Library:NewWindow(o) return self:CreateLibrary(o) end
 function Library:SetTheme(t) for k, v in pairs(t or {}) do if Theme[k] ~= nil then Theme[k] = v end end end
 function Library:SetFonts(f) for k, v in pairs(f or {}) do if Fonts[k] ~= nil then Fonts[k] = v end end end
+function Library:GetFlag(name)
+    return (self.Flags and self.Flags[name]) or self._controls[name]
+end
+function Library:SetFlag(name, value, silent)
+    local c = (self.Flags and self.Flags[name]) or self._controls[name]
+    if c and c.Set then c:Set(value, silent) end
+end
 return Library
