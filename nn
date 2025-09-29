@@ -2186,13 +2186,15 @@ function Library:CreateLibrary(opts)
                         if not ctxOpen or not ctxMenu then return end
                         ctxOpen = false
                         ctxDisconnectAll()
-                        local tw = T(ctxMenu,0.14,{Size = UDim2.fromOffset(ctxMenu.AbsoluteSize.X,0), BackgroundTransparency = 0.2})
-                        tw:Play(); tw.Completed:Connect(function() if ctxMenu then ctxMenu:Destroy() end end)
+                        -- Destroy immediately to avoid stuck animation when spamming clicks
+                        pcall(function() if ctxMenu then ctxMenu:Destroy() end end)
+                        ctxMenu = nil
                         if Library._openColorCtxClose == closeCtx then Library._openColorCtxClose = nil end
                     end
                     local function openCtx(btnFor)
                         if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
                         closeCtx()
+                        if ctxMenu then pcall(function() ctxMenu:Destroy() end); ctxMenu=nil end
                         local menuW, sidePad, vPad, gap = 130, 8, 8, 6
                         ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = z + 360, Parent = root}, {
                             Create("UICorner", {CornerRadius = UDim.new(0,4)}),
@@ -2244,7 +2246,12 @@ function Library:CreateLibrary(opts)
                         local justOpened = true; task.defer(function() justOpened = false end)
                         table.insert(ctxConns, UserInputService.InputBegan:Connect(function(inp)
                             if justOpened then return end
-                            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.KeyCode == Enum.KeyCode.Escape then closeCtx() end
+                            if inp.KeyCode == Enum.KeyCode.Escape then closeCtx(); return end
+                            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.MouseButton2 or inp.UserInputType == Enum.UserInputType.MouseButton3 then closeCtx() end
+                        end))
+                        table.insert(ctxConns, UserInputService.InputChanged:Connect(function(inp)
+                            if justOpened then return end
+                            if inp.UserInputType == Enum.UserInputType.MouseWheel then closeCtx() end
                         end))
                         Library._openColorCtxClose = closeCtx
                     end
