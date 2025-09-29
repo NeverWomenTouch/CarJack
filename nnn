@@ -2178,6 +2178,7 @@ function Library:CreateLibrary(opts)
 
                     -- context menu (right click)
                     local ctxMenu, ctxOpen
+                    local ctxBlocker = nil
                     local ctxConns = {}
                     local function ctxDisconnectAll()
                         for i=#ctxConns,1,-1 do ctxConns[i]:Disconnect(); table.remove(ctxConns,i) end
@@ -2186,6 +2187,8 @@ function Library:CreateLibrary(opts)
                         if not ctxOpen or not ctxMenu then return end
                         ctxOpen = false
                         ctxDisconnectAll()
+                        if ctxBlocker and ctxBlocker.Parent then pcall(function() ctxBlocker:Destroy() end) end
+                        ctxBlocker = nil
                         -- Destroy immediately to avoid stuck animation when spamming clicks
                         pcall(function() if ctxMenu then ctxMenu:Destroy() end end)
                         ctxMenu = nil
@@ -2195,6 +2198,11 @@ function Library:CreateLibrary(opts)
                         if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
                         closeCtx()
                         if ctxMenu then pcall(function() ctxMenu:Destroy() end); ctxMenu=nil end
+                        -- Create modal blocker to capture outside clicks; keep menu clickable
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = z + 359, Parent = root})
+                        table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function() closeCtx() end))
+                        table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
+                        table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
                         local menuW, sidePad, vPad, gap = 130, 8, 8, 6
                         ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = z + 360, Parent = root}, {
                             Create("UICorner", {CornerRadius = UDim.new(0,4)}),
@@ -2232,27 +2240,19 @@ function Library:CreateLibrary(opts)
                             end
                         end)
                         -- position near btnFor
+                        local finalH = 2*22 + vPad*2 + gap
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                         local px = (tAbs.X - rootAbs.X) + tSz.X - menuW
-                        local py = (tAbs.Y - rootAbs.Y) - 6 - 44
+                        local py = (tAbs.Y - rootAbs.Y) - 6
                         px = math.clamp(px, 4, rootSz.X - menuW - 4)
-                        py = math.clamp(py, 4, rootSz.Y - 4 - 44)
+                        if py < 4 then py = (tAbs.Y - rootAbs.Y) + tSz.Y + 6 end
+                        py = math.clamp(py, 4, rootSz.Y - finalH - 4)
                         ctxMenu.Position = UDim2.fromOffset(px, py)
-                        local finalH = 2*22 + vPad*2 + gap
                         ctxMenu.Size = UDim2.fromOffset(menuW,0)
                         local tw = T(ctxMenu,0.14,{Size = UDim2.fromOffset(menuW, finalH), BackgroundTransparency = 0})
                         tw:Play(); ctxOpen = true
-                        local justOpened = true; task.defer(function() justOpened = false end)
-                        table.insert(ctxConns, UserInputService.InputBegan:Connect(function(inp)
-                            if justOpened then return end
-                            if inp.KeyCode == Enum.KeyCode.Escape then closeCtx(); return end
-                            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.MouseButton2 or inp.UserInputType == Enum.UserInputType.MouseButton3 then closeCtx() end
-                        end))
-                        table.insert(ctxConns, UserInputService.InputChanged:Connect(function(inp)
-                            if justOpened then return end
-                            if inp.UserInputType == Enum.UserInputType.MouseWheel then closeCtx() end
-                        end))
+                        -- No ESC handler; close via mouse/touch/blocker only
                         Library._openColorCtxClose = closeCtx
                     end
 
@@ -2524,9 +2524,6 @@ function Library:CreateLibrary(opts)
                         -- outside close / esc
                         table.insert(conns, UserInputService.InputBegan:Connect(function(inp)
                             if justOpened then return end
-                            if inp.KeyCode == Enum.KeyCode.Escape then
-                                closePanel()
-                            end
                             if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                                 local p = UserInputService:GetMouseLocation()
                                 local abs = panel.AbsolutePosition; local sz=panel.AbsoluteSize
@@ -2543,6 +2540,14 @@ function Library:CreateLibrary(opts)
                             if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
                             openCtx(slot.btn)
                             Library._openColorCtxClose = function() closeCtx(); if Library._openColorCtxClose then Library._openColorCtxClose = nil end end
+                        end)
+                        slot.btn.InputBegan:Connect(function(inp)
+                            if inp.UserInputType == Enum.UserInputType.MouseButton2 then
+                                activeIndex = i
+                                if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
+                                openCtx(slot.btn)
+                                Library._openColorCtxClose = function() closeCtx(); if Library._openColorCtxClose then Library._openColorCtxClose = nil end end
+                            end
                         end)
                     end
 
