@@ -1268,11 +1268,21 @@ function Library:CreateLibrary(opts)
                         local y = innerPad
                         if enableSearch then
                             -- external icon on the left of the search box
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,24), Position = UDim2.fromOffset(innerPad, y), Text = "🔎", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = panel})
-                            searchBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, -(innerPad*2 + 16 + 6), 0, 24), Position = UDim2.fromOffset(innerPad + 16 + 6, y), Parent = panel}, {
+                            local searchY = y
+                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,24), Position = UDim2.fromOffset(innerPad, searchY), Text = "🔎", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = panel})
+                            searchBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, -(innerPad*2 + 16 + 6), 0, 24), Position = UDim2.fromOffset(innerPad + 16 + 6, searchY), Parent = panel}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,5)}),
                                 Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
                             })
+                            -- Make the icon clickable to focus the search box
+                            local iconHit = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(16,24), Position = UDim2.fromOffset(innerPad, searchY), Parent = panel})
+                            iconHit.ZIndex = (searchBox.ZIndex or (panel.ZIndex + 1)) + 1
+                            iconHit.MouseButton1Down:Connect(function()
+                                if enableSearch and searchBox then pcall(function() searchBox:CaptureFocus() end) end
+                            end)
+                            iconHit.MouseButton1Click:Connect(function()
+                                if enableSearch and searchBox then pcall(function() searchBox:CaptureFocus() end) end
+                            end)
                             y = y + 24 + innerPad
                         end
                         listFrame = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, y), Size = UDim2.new(1, -innerPad*2, 1, -y - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Accent, ZIndex = panel.ZIndex + 1, Parent = panel}, {
