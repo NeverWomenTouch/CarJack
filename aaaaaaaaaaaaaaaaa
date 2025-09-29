@@ -1036,6 +1036,19 @@ function Library:CreateLibrary(opts)
                     knob.MouseEnter:Connect(function() hover(true) end)
                     -- early declare interaction state so hover callbacks capture them
                     local dragging, fine, lastClick = false, false, 0
+                    -- sink game input while dragging to avoid A/D or other keys affecting gameplay/camera
+                    local dragSinkAction = "DendriteSliderDrag_" .. id
+                    local function bindDragSink()
+                        local keys = Enum.KeyCode:GetEnumItems()
+                        ContextActionService:BindAction(dragSinkAction, function(_, state, input)
+                            if not dragging then return Enum.ContextActionResult.Pass end
+                            -- While dragging the slider, sink keyboard/gamepad inputs
+                            return Enum.ContextActionResult.Sink
+                        end, false, table.unpack(keys))
+                    end
+                    local function unbindDragSink()
+                        pcall(function() ContextActionService:UnbindAction(dragSinkAction) end)
+                    end
                     knob.MouseLeave:Connect(function() if not dragging then hover(false) end end)
                     valueBox.Focused:Connect(function() T(vbStroke,0.15,{Transparency = 0.25}):Play() end)
                     valueBox.FocusLost:Connect(function() T(vbStroke,0.18,{Transparency = 0.45}):Play() end)
@@ -1072,11 +1085,9 @@ function Library:CreateLibrary(opts)
                         valueBox.Text = formatValue(num)
                         if not silent and type(cb)=="function" then pcall(cb,num) end
                     end
-                    -- dragging / fine control logic
-                    local dragging = false
-                    local fine = false -- ctrl-held fine adjustment
-                    -- double click reset support
-                    local lastClick = 0
+                    -- dragging / fine control logic (state already declared above)
+                    -- ctrl-held fine adjustment flag is 'fine'
+                    -- double click reset support uses 'lastClick'
                     local function updateFromX(x)
                         local rel = (x - bar.AbsolutePosition.X)/math.max(1, bar.AbsoluteSize.X)
                         rel = math.clamp(rel,0,1)
@@ -1089,6 +1100,7 @@ function Library:CreateLibrary(opts)
                     end
                     local function beginDrag(input)
                         dragging = true
+                        bindDragSink()
                         -- start pulse
                         dragPulse.BackgroundTransparency = 0.9
                         dragPulse.Size = UDim2.new(1,0,1,0)
@@ -1129,12 +1141,14 @@ function Library:CreateLibrary(opts)
                             if dragging then
                                 -- end pulse
                                 T(dragPulse,0.18,{BackgroundTransparency = 1}):Play()
+                                unbindDragSink()
                             end
                             dragging=false
                         end
                     end)
                     UserInputService.InputBegan:Connect(function(input)
                         if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then fine = true end
+                        if dragging then return end -- ignore arrow adjustments while dragging
                         if input.KeyCode == Enum.KeyCode.Left then
                             if fine then Slider:Set(Slider._value - (precise and (step*0.25) or step)) else Slider:Set(Slider._value - step) end
                         elseif input.KeyCode == Enum.KeyCode.Right then
