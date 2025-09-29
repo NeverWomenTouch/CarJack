@@ -2259,8 +2259,8 @@ function Library:CreateLibrary(opts)
                         local finalH = vPad*2 + (itemH*2) + gap
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        -- align to bottom-left of the swatch (same horizontal as colorpicker panel, which opens above-left)
-                        local px = (tAbs.X - rootAbs.X)
+                        -- align to bottom-right of the swatch (same right edge as the colorpicker panel above)
+                        local px = (tAbs.X - rootAbs.X) + tSz.X - menuW
                         local py = (tAbs.Y - rootAbs.Y) + tSz.Y + 6
                         -- clamp within root
                         px = math.clamp(px, 4, rootSz.X - menuW - 4)
@@ -2339,8 +2339,8 @@ function Library:CreateLibrary(opts)
                             local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                             local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            -- Always align left and place above by 6px
-                            local px = tAbs.X
+                            -- Align right edge of panel with swatch; place above by 6px
+                            local px = tAbs.X + tSz.X - width
                             local py = tAbs.Y - height - 6
                             px = math.clamp(px, rootAbs.X + 4, rootAbs.X + rootSz.X - width - 4)
                             py = math.clamp(py, rootAbs.Y + 4, rootAbs.Y + rootSz.Y - height - 4)
@@ -2593,8 +2593,8 @@ function Library:CreateLibrary(opts)
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                         local width, height = 260, 220
                         -- compute desired position in root-space, then convert to screen-space for RootGui
-                        -- Always open above-left: align left edge with trigger, position above by 6px gap
-                        local pxRoot = (tAbs.X - rootAbs.X)
+                        -- Open above-right: align panel's right edge to swatch right, with 6px gap
+                        local pxRoot = (tAbs.X - rootAbs.X) + tSz.X - width
                         local pyRoot = (tAbs.Y - rootAbs.Y) - height - 6
                         pxRoot = math.clamp(pxRoot, 4, rootSz.X - width - 4)
                         local px = rootAbs.X + pxRoot
