@@ -2294,6 +2294,26 @@ function Library:CreateLibrary(opts)
                         applyColorFromHSV(index)
                     end
 
+                    -- helper: attach rainbow animation to a specific slot index, updating UI only if it's the active one
+                    local function attachRainbow(i)
+                        local slot = slots[i]
+                        return rainbowAdd(function(h)
+                            local s,v = slot.hsv[2], slot.hsv[3]
+                            slot.hsv = {h,s,v}
+                            if open and activeIndex == i then
+                                updateSVBackground(h)
+                                if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h * hueSlider.AbsoluteSize.Y) end
+                                applyColorFromHSV(i)
+                            else
+                                -- update color silently when not active
+                                local c = hsvToColor(slot.hsv)
+                                slot.color = c
+                                slot.fill.BackgroundColor3 = c
+                                if type(cb) == "function" then pcall(cb, c, i) end
+                            end
+                        end)
+                    end
+
                     local function openPanel(btnFor, index)
                         if anim then return end
                         -- toggle close if clicking the same swatch while open
@@ -2395,12 +2415,20 @@ function Library:CreateLibrary(opts)
                             local function handleSVDown(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     svDragging = true
+                                    -- pause rainbow for this slot while dragging, if active
+                                    local dragIndex = activeIndex
+                                    local slot = slots[dragIndex]
+                                    if slot and slot.rainbow and slot.rainbowHook then
+                                        rainbowRemove(slot.rainbowHook)
+                                        slot._resumeRainbow = true
+                                        slot.rainbowHook = nil
+                                    end
                                     local p = getScreenPos(inp)
                                     local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSV(activeIndex, nil, s, v)
+                                    setHSV(dragIndex, nil, s, v)
                                 end
                             end
                             table.insert(conns, sv.InputBegan:Connect(handleSVDown))
@@ -2417,7 +2445,16 @@ function Library:CreateLibrary(opts)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
-                                if svDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then svDragging = false end
+                                if svDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
+                                    svDragging = false
+                                    -- resume rainbow if it was paused
+                                    local dragIndex = activeIndex
+                                    local slot = slots[dragIndex]
+                                    if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
+                                        slot.rainbowHook = attachRainbow(dragIndex)
+                                        slot._resumeRainbow = nil
+                                    end
+                                end
                             end))
 
                             -- hue drag
@@ -2425,11 +2462,19 @@ function Library:CreateLibrary(opts)
                             local function handleHueDown(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     hueDragging = true
+                                    -- pause rainbow for this slot while dragging, if active
+                                    local dragIndex = activeIndex
+                                    local slot = slots[dragIndex]
+                                    if slot and slot.rainbow and slot.rainbowHook then
+                                        rainbowRemove(slot.rainbowHook)
+                                        slot._resumeRainbow = true
+                                        slot.rainbowHook = nil
+                                    end
                                     local p = getScreenPos(inp)
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    setHSV(activeIndex, h, nil, nil); updateSVBackground(h)
+                                    setHSV(dragIndex, h, nil, nil); updateSVBackground(h)
                                 end
                             end
                             table.insert(conns, hueSlider.InputBegan:Connect(handleHueDown))
@@ -2444,7 +2489,16 @@ function Library:CreateLibrary(opts)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
-                                if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then hueDragging = false end
+                                if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
+                                    hueDragging = false
+                                    -- resume rainbow if it was paused
+                                    local dragIndex = activeIndex
+                                    local slot = slots[dragIndex]
+                                    if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
+                                        slot.rainbowHook = attachRainbow(dragIndex)
+                                        slot._resumeRainbow = nil
+                                    end
+                                end
                             end))
 
                             -- inputs
@@ -2484,21 +2538,16 @@ function Library:CreateLibrary(opts)
 
                             -- rainbow checkbox logic
                             cbRow.MouseButton1Click:Connect(function()
-                                local slot = slots[activeIndex]
+                                local idx = activeIndex
+                                local slot = slots[idx]
                                 slot.rainbow = not slot.rainbow
                                 setCheckbox(slot.rainbow)
                                 if slot.rainbow then
-                                    if not slot.rainbowHook then
-                                        slot.rainbowHook = rainbowAdd(function(h)
-                                            local s,v = slot.hsv[2], slot.hsv[3]
-                                            slot.hsv = {h,s,v}
-                                            updateSVBackground(h)
-                                            if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h * hueSlider.AbsoluteSize.Y) end
-                                            applyColorFromHSV(activeIndex)
-                                        end)
-                                    end
+                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                    slot.rainbowHook = attachRainbow(idx)
                                 else
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                    slot._resumeRainbow = nil
                                 end
                             end)
                         end
@@ -2543,13 +2592,7 @@ function Library:CreateLibrary(opts)
                         if setCheckbox then -- reflect slot state
                             local slot = slots[index]
                             if slot.rainbow and not slot.rainbowHook then
-                                slot.rainbowHook = rainbowAdd(function(h)
-                                    local s,v = slot.hsv[2], slot.hsv[3]
-                                    slot.hsv = {h,s,v}
-                                    updateSVBackground(h)
-                                    if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h * hueSlider.AbsoluteSize.Y) end
-                                    applyColorFromHSV(activeIndex)
-                                end)
+                                slot.rainbowHook = attachRainbow(index)
                             end
                         end
 
@@ -2621,15 +2664,23 @@ function Library:CreateLibrary(opts)
                             local slot = self._slots[i]
                             slot.rainbow = (onv == true)
                             if slot.rainbow then
-                                if not slot.rainbowHook then
+                                if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                -- reuse attachRainbow if available in scope; otherwise, fallback to basic hook
+                                if type(attachRainbow) == "function" then
+                                    slot.rainbowHook = attachRainbow(i)
+                                else
                                     slot.rainbowHook = rainbowAdd(function(h)
                                         local s,v = slot.hsv[2], slot.hsv[3]
                                         slot.hsv = {h,s,v}
-                                        applyColorFromHSV(i)
+                                        local c = hsvToColor(slot.hsv)
+                                        slot.color = c
+                                        slot.fill.BackgroundColor3 = c
+                                        if type(cb) == "function" then pcall(cb, c, i) end
                                     end)
                                 end
                             else
                                 if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                slot._resumeRainbow = nil
                             end
                         end
                         if index then setOne(index, on) else for i=1,#self._slots do setOne(i, on) end end
