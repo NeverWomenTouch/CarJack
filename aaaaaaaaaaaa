@@ -124,16 +124,16 @@ function Library:CreateLibrary(opts)
     local showMobileBtn = isMobile or forceShowMobileBtn
     local root = Create("Frame", {Name = "Window", Size = size, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z, Parent = RootGui}, {
         rootStroke,
-        -- unify rounding with category frames (4px)
-        Create("UICorner", {CornerRadius = UDim.new(0,4)})
+        -- added gentle rounding (was square); adjust 12 -> different look if needed
+        Create("UICorner", {CornerRadius = UDim.new(0,12)})
     })
     self._singletonRoot = root
     -- Simplified header: clean bar + single accent line
     -- header color lightened (was Theme.Bg) to match panel tone for preview
     local header = Create("Frame", {Name = "Header", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ZIndex = z + 1, Parent = root}, {
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25}),
-        -- mirror rounding so top edge matches window curvature (now 4px to match category frames)
-        Create("UICorner", {CornerRadius = UDim.new(0,4)})
+        -- mirror rounding so top edge matches window curvature (bottom stays visually seamless)
+        Create("UICorner", {CornerRadius = UDim.new(0,12)})
     })
     -- removed accent line per request
     local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -160, 1, 0), Position = UDim2.fromOffset(12, 0), Text = title:upper(), TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
@@ -1807,8 +1807,9 @@ function Library:CreateLibrary(opts)
                     local cb = o.Callback
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,30), Position = UDim2.fromOffset(0,nextY(30)), Parent = gFrame})
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.44,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local box = Create("TextBox", {BackgroundColor3 = Theme.Button, Size = UDim2.new(0.56,-2,1,0), Position = UDim2.new(0.44,6,0,0), ClearTextOnFocus = false, PlaceholderText = placeholder, Text = default, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Parent = row}, {
+                    -- Align label/input split with dropdown (label 42%, input 58%), and match right margin (-4/+4)
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.42,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    local box = Create("TextBox", {BackgroundColor3 = Theme.Button, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), ClearTextOnFocus = false, PlaceholderText = placeholder, Text = default, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Parent = row}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,3)}),
                         Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}),
                         Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})
@@ -1817,7 +1818,13 @@ function Library:CreateLibrary(opts)
                     local Textbox = { id = id, _value = default }
                     function Textbox:Get() return self._value end
                     function Textbox:Set(v, silent) v = tostring(v or "") self._value = v box.Text = v if not silent and type(cb)=="function" then pcall(cb,v) end end
+                    -- One-time clear on first focus if it's still showing the default text
+                    local _clearedOnce = false
                     box.Focused:Connect(function()
+                        if not _clearedOnce and (box.Text == tostring(default or "")) then
+                            box.Text = ""
+                            _clearedOnce = true
+                        end
                         focusBar.BackgroundTransparency = 0
                         focusBar.Size = UDim2.new(0,0,0,2)
                         T(focusBar,0.20,{Size = UDim2.new(1,0,0,2)}):Play()
