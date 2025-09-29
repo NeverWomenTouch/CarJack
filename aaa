@@ -1248,7 +1248,7 @@ function Library:CreateLibrary(opts)
                     local anim = false
                     local conns = {}
                     local activeIndex = 1
-                    local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti }
+                    local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti, _clickGate = false }
 
                     local function refreshLabelFromSelection()
                         if Dropdown._multi then
@@ -1383,13 +1383,28 @@ function Library:CreateLibrary(opts)
                                 local stroke = item:FindFirstChild("Stroke")
                                 if stroke then T(stroke,0.12,{Transparency = 0.45}):Play() end
                             end)
-                            item.MouseButton1Down:Connect(function() Dropdown:Set(val) end)
-                            item.MouseButton1Click:Connect(function() Dropdown:Set(val) end)
+                            local function selectUI()
+                                if Dropdown._multi then
+                                    if Dropdown._clickGate then return end
+                                    Dropdown._clickGate = true
+                                    Dropdown:Set(val)
+                                    task.delay(0.08, function()
+                                        Dropdown._clickGate = false
+                                    end)
+                                else
+                                    Dropdown:Set(val)
+                                end
+                            end
+                            -- Use overlay only for click handling to avoid duplicate Down/Click toggles
                             -- Topmost invisible click-catcher to prevent visual children from blocking selection
                             local hit = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Parent = item})
                             hit.ZIndex = (item.ZIndex or 1) + 100
-                            hit.MouseButton1Down:Connect(function() Dropdown:Set(val) end)
-                            hit.MouseButton1Click:Connect(function() Dropdown:Set(val) end)
+                            if hit.Activated then
+                                hit.Activated:Connect(selectUI)
+                            else
+                                -- Fallback for environments without Activated
+                                hit.MouseButton1Click:Connect(selectUI)
+                            end
                             local key = tostring(val)
                             Dropdown._itemMap[key] = {item = item, dot = dot}
                         end
@@ -1590,7 +1605,14 @@ function Library:CreateLibrary(opts)
                     function Dropdown:FocusSearch() if enableSearch and searchBox then pcall(function() searchBox:CaptureFocus() end) end end
 
                     Dropdown:SetOptions(options)
-                    if default ~= nil then Dropdown:Set(default, true) end
+                    -- Initialize default(s)
+                    if default ~= nil then
+                        if isMulti then
+                            if type(default) == "table" then Dropdown:Set(default, true) else Dropdown:Set({default}, true) end
+                        else
+                            Dropdown:Set(default, true)
+                        end
+                    end
                     refreshLabelFromSelection()
                     Library:_registerControl(Dropdown)
                     table.insert(Group._controls, Dropdown)
