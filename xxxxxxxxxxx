@@ -1465,12 +1465,12 @@ function Library:CreateLibrary(opts)
                         local px = tAbs.X - rootAbs.X
                         px = clamp(px, 0, math.max(0, rootSz.X - width))
                         local openBelowY = (tAbs.Y - rootAbs.Y) + tSz.Y + 2
-                        local openAboveY = openBelowY - (finalH or 0) - tSz.Y - 4
-                        local viewportH = rootSz.Y
-                        local globalBottom = (tAbs.Y - rootAbs.Y) + tSz.Y + 2 + (finalH or 0)
-                        local flip = (globalBottom + 8) > viewportH
-                        -- Always open dropdown panels below the trigger (no flip)
-                        panel.Position = UDim2.fromOffset(px, openBelowY)
+                        -- Always open dropdown panels below the trigger (no flip), and clamp within root height
+                        local py = openBelowY
+                        if finalH then
+                            py = math.clamp(py, 4, math.max(4, rootSz.Y - finalH - 4))
+                        end
+                        panel.Position = UDim2.fromOffset(px, py)
                         panel.Size = UDim2.fromOffset(width, finalH or 0)
                     end
                     local function buildPanel()
@@ -2339,7 +2339,8 @@ function Library:CreateLibrary(opts)
                             local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                             local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            local px = tAbs.X + tSz.X - width
+                            -- Always align left and place above by 6px
+                            local px = tAbs.X
                             local py = tAbs.Y - height - 6
                             px = math.clamp(px, rootAbs.X + 4, rootAbs.X + rootSz.X - width - 4)
                             py = math.clamp(py, rootAbs.Y + 4, rootAbs.Y + rootSz.Y - height - 4)
