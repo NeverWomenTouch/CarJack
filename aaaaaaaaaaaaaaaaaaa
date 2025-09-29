@@ -1880,6 +1880,42 @@ function Library:CreateLibrary(opts)
                         Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,8), PaddingBottom = UDim.new(0,8)})
                     })
                     local txt = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), TextWrapped = true, Text = text, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Parent = box})
+                    -- Auto-resize helpers: compute required height and reflow following controls
+                    local function measureNeededHeight(str)
+                        local availW = math.max(20, row.AbsoluteSize.X - 20) -- account for 10px left/right padding
+                        local sz = TextService:GetTextSize(tostring(str or ""), 13, Fonts.Regular, Vector2.new(availW, math.huge))
+                        local innerPadY = 8 + 8
+                        local need = math.max(h, sz.Y + innerPadY)
+                        return need
+                    end
+                    local function reflowToHeight(newH)
+                        newH = math.floor(newH + 0.5)
+                        local oldH = row.Size.Y.Offset
+                        if newH == oldH then return end
+                        local baseY = row.Position.Y.Offset
+                        local delta = newH - oldH
+                        row.Size = UDim2.new(row.Size.X.Scale, row.Size.X.Offset, 0, newH)
+                        -- Shift subsequent siblings down/up by delta
+                        for _, child in ipairs(gFrame:GetChildren()) do
+                            if child ~= row and child:IsA("GuiObject") then
+                                local pos = child.Position
+                                if pos.Y.Scale == 0 and pos.X.Scale == 0 and pos.Y.Offset > baseY then
+                                    child.Position = UDim2.new(pos.X.Scale, pos.X.Offset, pos.Y.Scale, pos.Y.Offset + delta)
+                                end
+                            end
+                        end
+                        -- Update running y so future nextY placements are correct
+                        y = y + delta
+                    end
+                    local function resizeNow()
+                        -- Defer if width is zero (not laid out yet)
+                        if row.AbsoluteSize.X <= 0 then
+                            task.defer(resizeNow)
+                            return
+                        end
+                        local need = measureNeededHeight(txt.Text)
+                        reflowToHeight(need)
+                    end
                     -- hover feedback like other controls
                     box.MouseEnter:Connect(function()
                         T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play()
@@ -1895,8 +1931,18 @@ function Library:CreateLibrary(opts)
                         v = tostring(v or "")
                         self._value = v
                         txt.Text = v
+                        resizeNow()
                         if not silent and type(cb) == "function" then pcall(cb, v) end
                     end
+                    -- react to width changes (window resize / column change)
+                    row:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                        resizeNow()
+                    end)
+                    gFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                        resizeNow()
+                    end)
+                    -- initial size pass (after mount)
+                    task.defer(resizeNow)
                     Library:_registerControl(Paragraph)
                     table.insert(Group._controls, Paragraph)
                     registerSearch(label)
