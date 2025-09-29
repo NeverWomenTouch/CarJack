@@ -1254,6 +1254,7 @@ function Library:CreateLibrary(opts)
 
                     -- Context menu state (for multi-select): right-click -> Select All / Unselect All
                     local ctxMenu, ctxOpen = nil, false
+                    local ctxBlocker = nil
                     local ctxConns = {}
                     local function ctxDisconnectAll()
                         for i = #ctxConns, 1, -1 do
@@ -1265,6 +1266,8 @@ function Library:CreateLibrary(opts)
                     local function closeCtxMenu()
                         if not ctxOpen then return end
                         ctxOpen = false
+                        if ctxBlocker and ctxBlocker.Parent then ctxBlocker:Destroy() end
+                        ctxBlocker = nil
                         if ctxMenu and ctxMenu.Parent then ctxMenu:Destroy() end
                         ctxMenu = nil
                         ctxDisconnectAll()
@@ -1281,6 +1284,17 @@ function Library:CreateLibrary(opts)
                             pcall(Library._openDropdownCtx)
                         end
                         ctxOpen = true
+                        -- create a full-screen modal blocker to prevent hover/click on other UI and allow right-click-to-close
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = z + 359, Parent = root})
+                        table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function()
+                            closeCtxMenu()
+                        end))
+                        table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function()
+                            closeCtxMenu()
+                        end))
+                        table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function()
+                            closeCtxMenu()
+                        end))
                         -- build menu (match library style: solid lib background, standard outline, simple items)
                         local textService = game:GetService("TextService")
                         local labelFont = Fonts.Medium
