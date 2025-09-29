@@ -86,7 +86,7 @@ do
     end
 end
 local RootGui = (function()
-    local g = Create("ScreenGui", {Name = "DendriteUI", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, ResetOnSpawn = false, Parent = CoreGui})
+    local g = Create("ScreenGui", {Name = "DendriteUI", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 999999, Parent = CoreGui})
     return g
 end)()
 function Library:_registerControl(c)
@@ -1308,7 +1308,7 @@ function Library:CreateLibrary(opts)
                         end
                         ctxOpen = true
                         -- create a full-screen modal blocker to prevent hover/click on other UI and allow right-click-to-close
-                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = z + 509, Parent = root})
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = 10999, Parent = RootGui})
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function()
                             closeCtxMenu()
                         end))
@@ -2205,7 +2205,7 @@ function Library:CreateLibrary(opts)
                         table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
                         local menuW, sidePad, vPad, gap = 130, 8, 8, 6
-                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = z + 510, Parent = root}, {
+                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = 11000, Parent = root}, {
                             Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
                         })
@@ -2321,7 +2321,7 @@ function Library:CreateLibrary(opts)
                         end
                         open = true; anim = true; activeIndex = index
                         if not panel then
-                            panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 500, Parent = root}, {
+                            panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 10000, Parent = root}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                                 Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
                             })
@@ -2335,24 +2335,24 @@ function Library:CreateLibrary(opts)
                             })
                             -- Left: SV square (S across X, V across Y), base hue set by slider; plus RGB/Hex inputs
                             local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 210), Parent = content})
-                            sv = Create("Frame", {BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), Parent = leftCol})
+                            sv = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), Parent = leftCol})
                             Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = sv})
                             -- White overlay: left side white (S=0) to right transparent (S=1)
-                            svWhite = Create("Frame", {BackgroundTransparency = 1, BackgroundColor3 = Color3.fromRGB(255,255,255), Size = UDim2.fromScale(1,1), Parent = sv})
+                            svWhite = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), Size = UDim2.fromScale(1,1), Parent = sv})
                             local gWhite = Instance.new("UIGradient"); gWhite.Rotation = 0; gWhite.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)}); gWhite.Parent = svWhite
                             -- Black overlay: top transparent (V=1) to bottom black (V=0)
-                            svBlack = Create("Frame", {BackgroundTransparency = 1, BackgroundColor3 = Color3.fromRGB(0,0,0), Size = UDim2.fromScale(1,1), Parent = sv})
+                            svBlack = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(0,0,0), Size = UDim2.fromScale(1,1), Parent = sv})
                             local gBlack = Instance.new("UIGradient"); gBlack.Rotation = 90; gBlack.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1), NumberSequenceKeypoint.new(1,0)}); gBlack.Parent = svBlack
                             -- Cursor
                             svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Text, Thickness = 1, Transparency = 0})})
 
-                            rgbBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "R, G, B", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 146), Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
-                            hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 174), Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
+                            rgbBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "R, G, B", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 158), Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
+                            hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 186), Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
 
                             -- Right: Hue slider + rainbow toggle
-                            local HUE_W, HUE_H = 24, 160
-                            local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(42, 210), Parent = content})
-                            hueSlider = Create("Frame", {BackgroundColor3 = Theme.Button, BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(math.floor((42 - HUE_W)/2), 0), Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
+                            local HUE_W, HUE_H = 26, 160
+                            local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(60, 210), Parent = content})
+                            hueSlider = Create("Frame", {Active = true, BackgroundColor3 = Theme.Button, BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(0, 0), Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -2364,10 +2364,10 @@ function Library:CreateLibrary(opts)
                                 ColorSequenceKeypoint.new(1.00, Color3.fromHSV(1,1,1)),
                             })
                             hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
-                            hueGrab = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
+                            hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                             -- Rainbow checkbox + label
-                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(42, 16), Position = UDim2.fromOffset(0, HUE_H + 10), Parent = rightCol})
+                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(60, 16), Position = UDim2.fromOffset(0, HUE_H + 10), Parent = rightCol})
                             local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,2), Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})})
                             local cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-16,1,0), Position = UDim2.fromOffset(14,0), Text = "Rainbow", Font = Fonts.Medium, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, Parent = cbRow})
@@ -2387,7 +2387,7 @@ function Library:CreateLibrary(opts)
                                 end
                             end
                             local svDragging = false
-                            table.insert(conns, sv.InputBegan:Connect(function(inp)
+                            local function handleSVDown(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     svDragging = true
                                     local p = getScreenPos(inp)
@@ -2397,7 +2397,10 @@ function Library:CreateLibrary(opts)
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
                                     setHSV(activeIndex, nil, s, v)
                                 end
-                            end))
+                            end
+                            table.insert(conns, sv.InputBegan:Connect(handleSVDown))
+                            table.insert(conns, svWhite.InputBegan:Connect(handleSVDown))
+                            table.insert(conns, svBlack.InputBegan:Connect(handleSVDown))
                             table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                                     local p = getScreenPos(inp)
@@ -2414,7 +2417,7 @@ function Library:CreateLibrary(opts)
 
                             -- hue drag
                             local hueDragging = false
-                            table.insert(conns, hueSlider.InputBegan:Connect(function(inp)
+                            local function handleHueDown(inp)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     hueDragging = true
                                     local p = getScreenPos(inp)
@@ -2423,7 +2426,9 @@ function Library:CreateLibrary(opts)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
                                     setHSV(activeIndex, h, nil, nil); updateSVBackground(h)
                                 end
-                            end))
+                            end
+                            table.insert(conns, hueSlider.InputBegan:Connect(handleHueDown))
+                            table.insert(conns, hueGrab.InputBegan:Connect(handleHueDown))
                             table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                                     local p = getScreenPos(inp)
@@ -2497,7 +2502,7 @@ function Library:CreateLibrary(opts)
                         panel.Visible = true; panel.ClipsDescendants = true
                         -- Create a blocker to intercept outside clicks and block underlying UI
                         if panelBlocker and panelBlocker.Parent then pcall(function() panelBlocker:Destroy() end) end
-                        panelBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (panel.ZIndex or 1) - 1, Parent = root})
+                        panelBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (panel.ZIndex or 1) - 1, Parent = RootGui})
                         -- Close any other open color panel globally
                         local function closePanel()
                             if not panel or not panel.Visible then return end
