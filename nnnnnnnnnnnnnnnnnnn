@@ -2345,21 +2345,25 @@ function Library:CreateLibrary(opts)
                         if not panel then
                             panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = 12000, Parent = RootGui}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                -- Match library outline color/transparency
-                                Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
+                                -- Keep panel stroke but hide it; we'll draw a top-layer border overlay so it sits above inner content
+                                Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 1})
                             })
                             local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
                             shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
 
                             -- content
                             local pad = 6
-                            -- Main inner container with outline (the frame that holds SV, inputs, and hue/checkbox)
+                            -- Main inner container (the frame that holds SV, inputs, and hue/checkbox)
                             local container = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-pad*2,1,-pad*2), Position = UDim2.fromOffset(pad,pad), ZIndex = panel.ZIndex + 1, Parent = panel}, {
-                                Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
+                                Create("UICorner", {CornerRadius = UDim.new(0,4)})
                             })
                             local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), ZIndex = container.ZIndex + 1, Parent = container}, {
                                 Create("UIListLayout", {Padding = UDim.new(0,4), FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder})
+                            })
+                            -- Top-layer border overlay so the outline is above the textboxes and all inner content
+                            local borderOverlay = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (content.ZIndex or panel.ZIndex) + 100, Parent = panel}, {
+                                Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                                Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
                             })
                             -- Left: SV square (S across X, V across Y), base hue set by slider; plus RGB/Hex inputs
                             local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 210), ZIndex = content.ZIndex + 1, Parent = content})
