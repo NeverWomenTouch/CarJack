@@ -2205,24 +2205,36 @@ function Library:CreateLibrary(opts)
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
-                        local menuW, sidePad, vPad, gap = 130, 8, 8, 6
-                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = menuZBase + 1, Parent = RootGui}, {
-                            Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                            -- Match library outline color/transparency
-                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
+                        -- Match multi-dropdown menu visuals (padding, corner radius, outline, hover behavior)
+                        local textService = game:GetService("TextService")
+                        local labelFont = Fonts.Medium
+                        local labelSize = 12
+                        local sidePad, vPad, gap, itemH = 10, 6, 2, 24
+                        local function measure(text)
+                            local sz = textService:GetTextSize(text or "", labelSize, labelFont, Vector2.new(1000, itemH))
+                            return sz.X
+                        end
+                        local maxTextW = math.max(measure("Copy Value"), measure("Paste Value"))
+                        local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 8), 140, 220)
+                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = menuZBase + 1, ClipsDescendants = true, Parent = RootGui}, {
+                            Create("UICorner", {CornerRadius = UDim.new(0,6)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.40})
                         })
-                        Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.92, Size = UDim2.fromScale(1,1), ZIndex = (ctxMenu.ZIndex or 1)-1, Parent = ctxMenu}).SliceCenter = Rect.new(20,20,280,280)
+                        local shadow2 = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.92, Size = UDim2.fromScale(1,1), ZIndex = (ctxMenu.ZIndex or 1)-1, Parent = ctxMenu})
+                        shadow2.ScaleType = Enum.ScaleType.Slice; shadow2.SliceCenter = Rect.new(20,20,280,280)
                         local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -(sidePad*2), 1, -(vPad*2)), Position = UDim2.fromOffset(sidePad, vPad), ZIndex = ctxMenu.ZIndex + 1, Parent = ctxMenu}, {
                             Create("UIListLayout", {Padding = UDim.new(0,gap), SortOrder = Enum.SortOrder.LayoutOrder})
                         })
                         local function item(text, on)
-                            local it = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = text, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 12, Size = UDim2.new(1,0,0,22), Parent = content}, {
+                            local btn = Create("TextButton", {AutoButtonColor = false, BackgroundTransparency = 0, BackgroundColor3 = Theme.Bg, Size = UDim2.new(1,0,0,itemH), Text = "", ZIndex = content.ZIndex + 1, Parent = content}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
+                                Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
                             })
-                            it.MouseEnter:Connect(function() T(it,0.10,{BackgroundColor3 = Theme.Hover}):Play() end)
-                            it.MouseLeave:Connect(function() T(it,0.10,{BackgroundColor3 = Theme.Button}):Play() end)
-                            it.MouseButton1Click:Connect(function() on(); closeCtx() end)
+                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Text = text, Font = labelFont, TextSize = labelSize, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
+                            btn.MouseEnter:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Hover}):Play() end)
+                            btn.MouseLeave:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Bg}):Play() end)
+                            btn.MouseButton1Click:Connect(function() on(); closeCtx() end)
+                            return btn
                         end
                         item("Copy Value", function()
                             local c = slots[activeIndex].color
@@ -2243,7 +2255,7 @@ function Library:CreateLibrary(opts)
                             end
                         end)
                         -- position near btnFor
-                        local finalH = 2*22 + vPad*2 + gap
+                        local finalH = vPad*2 + (itemH*2) + gap
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                         -- align to bottom-right of the swatch (like the colorpicker panel)
@@ -2360,8 +2372,8 @@ function Library:CreateLibrary(opts)
                             local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), ZIndex = container.ZIndex + 1, Parent = container}, {
                                 Create("UIListLayout", {Padding = UDim.new(0,4), FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder})
                             })
-                            -- Top-layer border overlay aligned to the inner padded area (true main holder)
-                            local borderOverlay = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -pad*2, 1, -pad*2), Position = UDim2.fromOffset(pad,pad), ZIndex = (content.ZIndex or panel.ZIndex) + 200, Parent = panel}, {
+                            -- Top-layer border overlay covering the full panel (outermost holder)
+                            local borderOverlay = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (content.ZIndex or panel.ZIndex) + 200, Parent = panel}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                                 Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
                             })
