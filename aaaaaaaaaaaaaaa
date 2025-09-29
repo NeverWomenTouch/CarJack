@@ -1890,9 +1890,17 @@ function Library:CreateLibrary(opts)
 
                     local function stopVisual()
                         pulseToken = pulseToken + 1 -- stop any running loop
-                        if stroke then T(stroke,0.16,{Color = Theme.Stroke, Transparency = 0.3}):Play() end
-                        T(box,0.16,{BackgroundColor3 = Theme.Button}):Play()
-                        T(overlay,0.20,{BackgroundTransparency = 1}):Play()
+                        -- Hard reset visuals first to avoid any tween race leaving accent state
+                        if stroke then
+                            stroke.Color = Theme.Stroke
+                            stroke.Transparency = 0.3
+                        end
+                        box.BackgroundColor3 = Theme.Button
+                        overlay.BackgroundTransparency = 1
+                        -- Optional gentle tween back to the same values for consistency
+                        if stroke then T(stroke,0.12,{Color = Theme.Stroke, Transparency = 0.3}):Play() end
+                        T(box,0.12,{BackgroundColor3 = Theme.Button}):Play()
+                        T(overlay,0.12,{BackgroundTransparency = 1}):Play()
                     end
 
                     local Keybind = { id = id, _value = default }
@@ -1929,7 +1937,7 @@ function Library:CreateLibrary(opts)
                     box.MouseButton1Click:Connect(function()
                         waiting = true
                         box.Text = "..."
-                        box.Font = Fonts.Regular
+                        box.Font = Fonts.Medium
                         box.TextColor3 = Theme.Text
                         startVisual()
                         bindSink()
