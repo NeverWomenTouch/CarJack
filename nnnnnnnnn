@@ -1308,7 +1308,7 @@ function Library:CreateLibrary(opts)
                         end
                         ctxOpen = true
                         -- create a full-screen modal blocker to prevent hover/click on other UI and allow right-click-to-close
-                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = 10999, Parent = RootGui})
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = 10999, Parent = RootGui})
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function()
                             closeCtxMenu()
                         end))
@@ -2201,7 +2201,7 @@ function Library:CreateLibrary(opts)
                         if ctxMenu then pcall(function() ctxMenu:Destroy() end); ctxMenu=nil end
                         -- Create modal blocker to capture outside clicks and block underlying UI across the whole screen
                         local menuZBase = 12000
-                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = menuZBase, Parent = RootGui})
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = menuZBase, Parent = RootGui})
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
@@ -2261,6 +2261,8 @@ function Library:CreateLibrary(opts)
                         tw:Play(); ctxOpen = true
                         -- No ESC handler; close via mouse/touch/blocker only
                         Library._openColorCtxClose = closeCtx
+                        -- Swallow clicks on menu content so they don't bubble to blocker
+                        table.insert(ctxConns, ctxMenu.InputBegan:Connect(function() end))
                     end
 
                     -- Build color panel (once)
@@ -2324,7 +2326,7 @@ function Library:CreateLibrary(opts)
                         end
                         open = true; anim = true; activeIndex = index
                         if not panel then
-                            panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = 12000, Parent = RootGui}, {
+                            panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = 12000, Parent = RootGui}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                                 Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
                             })
@@ -2505,7 +2507,7 @@ function Library:CreateLibrary(opts)
                         panel.Visible = true; panel.ClipsDescendants = true
                         -- Create a blocker to intercept outside clicks and block underlying UI
                         if panelBlocker and panelBlocker.Parent then pcall(function() panelBlocker:Destroy() end) end
-                        panelBlocker = Create("TextButton", {AutoButtonColor = false, Modal = true, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (panel.ZIndex or 1) - 1, Parent = RootGui})
+                        panelBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (panel.ZIndex or 1) - 1, Parent = RootGui})
                         -- Close any other open color panel globally
                         local function closePanel()
                             if not panel or not panel.Visible then return end
@@ -2551,6 +2553,8 @@ function Library:CreateLibrary(opts)
                             end
                         end
 
+                        -- Swallow background clicks on the panel itself so blocker doesn't see them
+                        table.insert(conns, panel.InputBegan:Connect(function() end))
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(width, height)})
                         tw:Play(); tw.Completed:Connect(function() anim=false end)
                         anim=false
