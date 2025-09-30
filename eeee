@@ -445,7 +445,7 @@ function Library:CreateLibrary(opts)
                 local avail = (inner.AbsoluteSize.X or 100) - leftPad - 10
                 if not avail or avail <= 0 then return end
                 local size = 14
-                while size >= 10 do
+                while size >= 12 do
                     local tb = ts:GetTextSize(name or "", size, Fonts.Medium, Vector2.new(1000, 38))
                     if tb.X <= avail then break end
                     size = size - 1
@@ -2231,7 +2231,7 @@ function Library:CreateLibrary(opts)
                         })
                         btn.MouseEnter:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
                         btn.MouseLeave:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
-                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0 }
+                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0 }
                     end
 
                     -- panel singleton per control
@@ -2593,10 +2593,16 @@ function Library:CreateLibrary(opts)
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
                                     setHSVDrag(svDragIndex, nil, s, v)
-                                    -- Adjust offset if rainbow active
-                                    if slot and slot.rainbow and Library._rainbowBus and Library._rainbowBus.h then
+                                    -- Adjust offsets if effects active
+                                    if slot and Library._rainbowBus and Library._rainbowBus.h then
+                                        if slot.rainbow then
                                         local currentH = slot.hsv[1] or 0
                                         slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
+                                        end
+                                        if slot.pulse then
+                                            local currentH = slot.hsv[1] or 0
+                                            slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1
+                                        end
                                     end
                                 end
                             end
@@ -2618,10 +2624,11 @@ function Library:CreateLibrary(opts)
                                     svDragging = false
                                     local dragIndex = svDragIndex or activeIndex
                                     local slot = slots[dragIndex]
-                                    -- Nothing to resume; we never disabled. If rainbow is on, ensure offset matches current
-                                    if slot and slot.rainbow and Library._rainbowBus and Library._rainbowBus.h then
+                                    -- Keep offsets synced to current manual position
+                                    if slot and Library._rainbowBus and Library._rainbowBus.h then
                                         local currentH = slot.hsv[1] or 0
-                                        slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
+                                        if slot.rainbow then slot.hueOffset = (currentH - Library._rainbowBus.h) % 1 end
+                                        if slot.pulse then slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1 end
                                     end
                                     svDragIndex = nil
                                 end
@@ -2640,9 +2647,10 @@ function Library:CreateLibrary(opts)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
                                     setHSVDrag(hueDragIndex, h, nil, nil); updateSVBackground(h)
-                                    -- If rainbow is on, update offset live
-                                    if slot and slot.rainbow and Library._rainbowBus and Library._rainbowBus.h then
-                                        slot.hueOffset = (h - Library._rainbowBus.h) % 1
+                                    -- If effects are on, update offsets live
+                                    if slot and Library._rainbowBus and Library._rainbowBus.h then
+                                        if slot.rainbow then slot.hueOffset = (h - Library._rainbowBus.h) % 1 end
+                                        if slot.pulse then slot.pulseHueOffset = (h - Library._rainbowBus.h) % 1 end
                                     end
                                 end
                             end
@@ -2663,10 +2671,11 @@ function Library:CreateLibrary(opts)
                                     local dragIndex = hueDragIndex or activeIndex
                                     local slot = slots[dragIndex]
                                     
-                                    -- No resume needed; keep offset synced
-                                    if slot and slot.rainbow and Library._rainbowBus and Library._rainbowBus.h then
+                                    -- Keep offsets synced
+                                    if slot and Library._rainbowBus and Library._rainbowBus.h then
                                         local currentH = slot.hsv[1] or 0
-                                        slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
+                                        if slot.rainbow then slot.hueOffset = (currentH - Library._rainbowBus.h) % 1 end
+                                        if slot.pulse then slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1 end
                                     end
                                     hueDragIndex = nil
                                 end
@@ -2805,7 +2814,7 @@ function Library:CreateLibrary(opts)
                                 slot.pulse = not slot.pulse
                                 setPulseCheckbox(slot.pulse)
                                 if slot.pulse then
-                                    -- Clean shutdown of rainbow
+                                    -- Turn off rainbow and prepare pulse state
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                     slot.rainbow = false
                                     setCheckbox(false)
@@ -2815,7 +2824,12 @@ function Library:CreateLibrary(opts)
                                     local syncId = tostring(math.random(1000000, 9999999))
                                     slot._pulseSyncId = syncId
                                     
-                                    -- Register sync listener
+                                    -- Seed pulse hue offset off current hue
+                                    if Library._rainbowBus and Library._rainbowBus.h then
+                                        local currentH = slot.hsv[1] or 0
+                                        slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1
+                                    end
+                                    
                                     Library._globalPulseSync.listeners[syncId] = function(syncColor, syncIndex)
                                         if slot.pulse and open and activeIndex == idx then
                                             slot.color = syncColor
@@ -2824,36 +2838,32 @@ function Library:CreateLibrary(opts)
                                         end
                                     end
                                     
-                                    -- Clean shutdown and restart pulse
+                                    -- HSV-based full-spectrum pulse with brightness breathing
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                    slot.pulseHook = rainbowAdd(function(t)
-                                        local cycle = (t * 2) % 3 -- Cycle every 1.5 seconds through 3 states
-                                        local pulse = (math.sin(t * 8) + 1) / 2 -- Fast pulse for visibility
-                                        local r, g, b = 0, 0, 0
-                                        if cycle < 1 then -- Red phase
-                                            r = pulse
-                                        elseif cycle < 2 then -- Green phase  
-                                            g = pulse
-                                        else -- Blue phase
-                                            b = pulse
-                                        end
-                                        local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                        slot.color = pulsedColor
-                                        slot.fill.BackgroundColor3 = pulsedColor
+                                    slot.pulseHook = rainbowAdd(function(h)
+                                        -- Cycle hue with offset, pulse value
+                                        local s = slot.hsv[2] or 1
+                                        local baseV = slot.hsv[3] or 1
+                                        local hh = (h + (slot.pulseHueOffset or 0)) % 1
+                                        local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4)) -- nice breathing between 0.35..1.0
+                                        local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                                        slot.hsv = {hh, s, baseV}
+                                        slot.color = c
+                                        slot.fill.BackgroundColor3 = c
                                         
-                                        -- Sync to other pulse colorpickers
-                                        syncPulseColor(pulsedColor, idx, slot._pulseSyncId)
+                                        syncPulseColor(c, idx, slot._pulseSyncId)
+                                        if type(cb) == "function" then pcall(cb, c, idx) end
                                         
                                         if open and activeIndex == idx then
-                                            -- Update UI inputs without triggering feedback loops
                                             if rgbBox and not rgbBox:IsFocused() then
-                                                rgbBox.Text = string.format("%d, %d, %d", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+                                                local r,g,b = math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5)
+                                                rgbBox.Text = string.format("%d, %d, %d", r,g,b)
                                             end
                                             if hexBox and not hexBox:IsFocused() then
-                                                hexBox.Text = string.format("#%02X%02X%02X", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+                                                local r,g,b = math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5)
+                                                hexBox.Text = string.format("#%02X%02X%02X", r, g, b)
                                             end
                                         end
-                                        if type(cb) == "function" then pcall(cb, pulsedColor, idx) end
                                     end)
                                 else
                                     -- Clean shutdown of pulse and restore manual control
@@ -2926,6 +2936,20 @@ function Library:CreateLibrary(opts)
                             local slot = slots[index]
                             if slot.rainbow and not slot.rainbowHook then
                                 slot.rainbowHook = attachRainbow(index)
+                            end
+                            if slot.pulse and not slot.pulseHook then
+                                -- Recreate pulse hook using HSV-based pulsing
+                                slot.pulseHook = rainbowAdd(function(h)
+                                    local s = slot.hsv[2] or 1
+                                    local baseV = slot.hsv[3] or 1
+                                    local hh = (h + (slot.pulseHueOffset or 0)) % 1
+                                    local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4))
+                                    local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                                    slot.hsv = {hh, s, baseV}
+                                    slot.color = c
+                                    slot.fill.BackgroundColor3 = c
+                                    if type(cb) == "function" then pcall(cb, c, index) end
+                                end)
                             end
                         end
 
