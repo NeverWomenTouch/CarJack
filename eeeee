@@ -2764,18 +2764,32 @@ function Library:CreateLibrary(opts)
                                     local syncId = tostring(math.random(1000000, 9999999))
                                     slot._syncId = syncId
                                     
-                                    -- Register sync listener
+                                    -- Register sync listener (RGB-only)
                                     Library._globalRGBSync.listeners[syncId] = function(syncColor, syncIndex)
-                                        if slot.rainbow and open and activeIndex == idx then
-                                            slot.color = syncColor
-                                            slot.fill.BackgroundColor3 = syncColor
-                                            if type(cb) == "function" then pcall(cb, syncColor, idx) end
+                                        if not slot.rainbow then return end
+                                        local h,s,v = Color3.toHSV(syncColor)
+                                        slot.hsv = {h,s,v}
+                                        if Library._rainbowBus and Library._rainbowBus.h then
+                                            slot.hueOffset = (h - Library._rainbowBus.h) % 1
+                                        end
+                                        slot.color = syncColor
+                                        slot.fill.BackgroundColor3 = syncColor
+                                        if type(cb) == "function" then pcall(cb, syncColor, idx) end
+                                        if open and activeIndex == idx then
+                                            updateSVBackground(h)
+                                            if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                                            if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
+                                            if rgbBox and not rgbBox:IsFocused() then local r,g,b = math.floor(syncColor.R*255+0.5), math.floor(syncColor.G*255+0.5), math.floor(syncColor.B*255+0.5); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                                            if hexBox and not hexBox:IsFocused() then local r,g,b = math.floor(syncColor.R*255+0.5), math.floor(syncColor.G*255+0.5), math.floor(syncColor.B*255+0.5); hexBox.Text = string.format("#%02X%02X%02X", r,g,b) end
                                         end
                                     end
                                     
                                     -- Clean shutdown and restart rainbow
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                     slot.rainbowHook = attachRainbow(idx)
+                                    -- Immediately sync starting color so all RGB pickers align
+                                    local c0 = hsvToColor(slot.hsv)
+                                    if slot._syncId then syncRGBColor(c0, idx, slot._syncId) end
                                 else
                                     -- Clean shutdown of rainbow and restore manual control
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
@@ -2831,10 +2845,21 @@ function Library:CreateLibrary(opts)
                                     end
                                     
                                     Library._globalPulseSync.listeners[syncId] = function(syncColor, syncIndex)
-                                        if slot.pulse and open and activeIndex == idx then
-                                            slot.color = syncColor
-                                            slot.fill.BackgroundColor3 = syncColor
-                                            if type(cb) == "function" then pcall(cb, syncColor, idx) end
+                                        if not slot.pulse then return end
+                                        local h,s,v = Color3.toHSV(syncColor)
+                                        slot.hsv = {h,s,slot.hsv[3] or v}
+                                        if Library._rainbowBus and Library._rainbowBus.h then
+                                            slot.pulseHueOffset = (h - Library._rainbowBus.h) % 1
+                                        end
+                                        slot.color = syncColor
+                                        slot.fill.BackgroundColor3 = syncColor
+                                        if type(cb) == "function" then pcall(cb, syncColor, idx) end
+                                        if open and activeIndex == idx then
+                                            updateSVBackground(h)
+                                            if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                                            if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
+                                            if rgbBox and not rgbBox:IsFocused() then local r,g,b = math.floor(syncColor.R*255+0.5), math.floor(syncColor.G*255+0.5), math.floor(syncColor.B*255+0.5); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                                            if hexBox and not hexBox:IsFocused() then local r,g,b = math.floor(syncColor.R*255+0.5), math.floor(syncColor.G*255+0.5), math.floor(syncColor.B*255+0.5); hexBox.Text = string.format("#%02X%02X%02X", r,g,b) end
                                         end
                                     end
                                     
@@ -2865,6 +2890,9 @@ function Library:CreateLibrary(opts)
                                             end
                                         end
                                     end)
+                                    -- Immediately sync starting color so all Pulse pickers align
+                                    local c0 = hsvToColor(slot.hsv)
+                                    if slot._pulseSyncId then syncPulseColor(c0, idx, slot._pulseSyncId) end
                                 else
                                     -- Clean shutdown of pulse and restore manual control
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
