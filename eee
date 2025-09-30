@@ -436,7 +436,25 @@ function Library:CreateLibrary(opts)
             if type(icon) == "number" or tostring(icon):match("^%d+$") then icon = "rbxassetid://" .. tostring(icon) end
             iconImg = Create("ImageLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), Position = UDim2.fromOffset(4, 11), Image = icon, ImageColor3 = Theme.SubText, ZIndex = z + 3, Parent = inner})
         end
-    local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -10, 1, 0), Position = UDim2.fromOffset( (icon and 24) or 24, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 3, Parent = inner})
+        local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -10, 1, 0), Position = UDim2.fromOffset( (icon and 24) or 24, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 3, Parent = inner})
+        -- Dynamically shrink category label text to fit sidebar
+        do
+            local ts = game:GetService("TextService")
+            local function fitCategoryLabel()
+                local leftPad = (icon and 24) or 24
+                local avail = (inner.AbsoluteSize.X or 100) - leftPad - 10
+                if not avail or avail <= 0 then return end
+                local size = 14
+                while size >= 10 do
+                    local tb = ts:GetTextSize(name or "", size, Fonts.Medium, Vector2.new(1000, 38))
+                    if tb.X <= avail then break end
+                    size = size - 1
+                end
+                lbl.TextSize = size
+            end
+            task.defer(fitCategoryLabel)
+            btn:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitCategoryLabel)
+        end
         local catInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), Visible = false, ZIndex = z + 3, Parent = inner})
         btn.MouseEnter:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.Text}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.Text}):Play() end end end)
         btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.SubText}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.SubText}):Play() end end end)
