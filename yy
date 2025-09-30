@@ -2231,7 +2231,7 @@ function Library:CreateLibrary(opts)
                         })
                         btn.MouseEnter:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
                         btn.MouseLeave:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
-                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0 }
+                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0, _uiRainbow = false, _uiPulse = false }
                     end
 
                     -- panel singleton per control
@@ -2496,9 +2496,9 @@ function Library:CreateLibrary(opts)
                             if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
                             if setCheckbox then
                                 local slot = slots[index]
-                                -- Always refresh to show ONLY this slot's state
-                                setCheckbox(slot.rainbow or false)
-                                setPulseCheckbox(slot.pulse or false)
+                                -- Restore UI to show ONLY this slot's stored checkbox state
+                                cbMark.Visible = slot._uiRainbow or false
+                                pulseMark.Visible = slot._uiPulse or false
                             end
                             return
                         end
@@ -2569,13 +2569,21 @@ function Library:CreateLibrary(opts)
                             local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
-                            local function setCheckbox(on)
-                                -- Only update if this is for the active slot
-                                cbMark.Visible = on and true or false
+                            local function setCheckbox(on, slotIndex)
+                                local idx = slotIndex or activeIndex
+                                if slots[idx] then slots[idx]._uiRainbow = on and true or false end
+                                -- Only update visual if this is for the currently active slot
+                                if idx == activeIndex then
+                                    cbMark.Visible = on and true or false
+                                end
                             end
-                            local function setPulseCheckbox(on)
-                                -- Only update if this is for the active slot
-                                pulseMark.Visible = on and true or false
+                            local function setPulseCheckbox(on, slotIndex)
+                                local idx = slotIndex or activeIndex
+                                if slots[idx] then slots[idx]._uiPulse = on and true or false end
+                                -- Only update visual if this is for the currently active slot
+                                if idx == activeIndex then
+                                    pulseMark.Visible = on and true or false
+                                end
                             end
                             -- Initialize as off
                             setCheckbox(false)
@@ -2761,13 +2769,15 @@ function Library:CreateLibrary(opts)
                                 
                                 -- Toggle ONLY this slot's rainbow state
                                 slot.rainbow = not slot.rainbow
-                                -- Update checkbox to reflect ONLY this slot
-                                setCheckbox(slot.rainbow)
+                                slot._uiRainbow = slot.rainbow
+                                -- Update checkbox visual for active slot only
+                                cbMark.Visible = slot.rainbow
                                 if slot.rainbow then
                                     -- Clean shutdown of pulse
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                     slot.pulse = false
-                                    setPulseCheckbox(false)
+                                    slot._uiPulse = false
+                                    pulseMark.Visible = false
                                     
                                     -- Enable global RGB sync
                                     Library._globalRGBSync.active = true
@@ -2837,13 +2847,15 @@ function Library:CreateLibrary(opts)
                                 
                                 -- Toggle ONLY this slot's pulse state
                                 slot.pulse = not slot.pulse
-                                -- Update checkbox to reflect ONLY this slot
-                                setPulseCheckbox(slot.pulse)
+                                slot._uiPulse = slot.pulse
+                                -- Update checkbox visual for active slot only
+                                pulseMark.Visible = slot.pulse
                                 if slot.pulse then
                                     -- Turn off rainbow and prepare pulse state
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                     slot.rainbow = false
-                                    setCheckbox(false)
+                                    slot._uiRainbow = false
+                                    cbMark.Visible = false
                                     
                                     -- Enable global Pulse sync
                                     Library._globalPulseSync.active = true
