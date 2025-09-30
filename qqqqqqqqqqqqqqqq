@@ -2725,8 +2725,13 @@ function Library:CreateLibrary(opts)
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                     slot.rainbowHook = attachRainbow(idx)
                                 else
-                                    -- Clean shutdown of rainbow
+                                    -- Clean shutdown of rainbow and restore manual control
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                    -- Ensure UI reflects current HSV values
+                                    local h,s,v = table.unpack(slot.hsv)
+                                    updateSVBackground(h)
+                                    if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                                    if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                                 end
                             end)
                             
@@ -2775,8 +2780,16 @@ function Library:CreateLibrary(opts)
                                         if type(cb) == "function" then pcall(cb, pulsedColor, idx) end
                                     end)
                                 else
-                                    -- Clean shutdown of pulse
+                                    -- Clean shutdown of pulse and restore manual control
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
+                                    -- Ensure UI reflects current HSV values
+                                    local h,s,v = table.unpack(slot.hsv)
+                                    updateSVBackground(h)
+                                    if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                                    if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
+                                    -- Update input boxes to match current color
+                                    if rgbBox then local r,g,b = toRGB255(slot.color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                                    if hexBox then local r,g,b = toRGB255(slot.color); hexBox.Text = rgbToHex(r,g,b) end
                                 end
                             end)
                         end
