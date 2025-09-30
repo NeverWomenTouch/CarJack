@@ -2298,9 +2298,31 @@ function Library:CreateLibrary(opts)
                         if type(cb)=="function" then pcall(cb, c, index) end
                     end
                     local function setHSV(index, h,s,v)
-                        local H,S,V = slots[index].hsv[1], slots[index].hsv[2], slots[index].hsv[3]
+                        local slot = slots[index]
+                        if not slot then return end
+                        
+                        -- Temporarily disable effects during manual control
+                        local wasRainbow = slot.rainbow
+                        local wasPulse = slot.pulse
+                        if wasRainbow and slot.rainbowHook then 
+                            rainbowRemove(slot.rainbowHook)
+                            slot.rainbowHook = nil
+                        end
+                        if wasPulse and slot.pulseHook then 
+                            rainbowRemove(slot.pulseHook)
+                            slot.pulseHook = nil
+                        end
+                        -- Clear resume flags to prevent re-enabling
+                        slot._resumeRainbow = nil
+                        slot._resumePulse = nil
+                        slot.rainbow = false
+                        slot.pulse = false
+                        if setCheckbox then setCheckbox(false) end
+                        if setPulseCheckbox then setPulseCheckbox(false) end
+                        
+                        local H,S,V = slot.hsv[1], slot.hsv[2], slot.hsv[3]
                         if h~=nil then H=h end; if s~=nil then S=s end; if v~=nil then V=v end
-                        slots[index].hsv = { clamp01(H), clamp01(S), clamp01(V) }
+                        slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
                         updateSVBackground(H)
                         applyColorFromHSV(index)
                     end
@@ -2445,6 +2467,10 @@ function Library:CreateLibrary(opts)
                                     svDragIndex = activeIndex
                                     -- pause rainbow/pulse for this slot while dragging, if active
                                     local slot = slots[svDragIndex]
+                                    -- Clear any leftover resume flags
+                                    slot._resumeRainbow = nil
+                                    slot._resumePulse = nil
+                                    
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
                                         slot._resumeRainbow = true
@@ -2515,6 +2541,10 @@ function Library:CreateLibrary(opts)
                                     hueDragIndex = activeIndex
                                     -- pause rainbow/pulse for this slot while dragging, if active
                                     local slot = slots[hueDragIndex]
+                                    -- Clear any leftover resume flags
+                                    slot._resumeRainbow = nil
+                                    slot._resumePulse = nil
+                                    
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
                                         slot._resumeRainbow = true
@@ -2618,18 +2648,25 @@ function Library:CreateLibrary(opts)
                             cbRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
                                 local slot = slots[idx]
+                                
+                                -- Clear all state flags first
+                                slot._resumeRainbow = nil
+                                slot._resumePulse = nil
+                                
                                 slot.rainbow = not slot.rainbow
                                 setCheckbox(slot.rainbow)
                                 if slot.rainbow then
-                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                    slot.rainbowHook = attachRainbow(idx)
-                                    -- Disable pulse if rainbow is enabled
+                                    -- Clean shutdown of pulse
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                     slot.pulse = false
                                     setPulseCheckbox(false)
-                                else
+                                    
+                                    -- Clean shutdown and restart rainbow
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                    slot._resumeRainbow = nil
+                                    slot.rainbowHook = attachRainbow(idx)
+                                else
+                                    -- Clean shutdown of rainbow
+                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                 end
                             end)
                             
@@ -2637,9 +2674,20 @@ function Library:CreateLibrary(opts)
                             pulseRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
                                 local slot = slots[idx]
+                                
+                                -- Clear all state flags first
+                                slot._resumeRainbow = nil
+                                slot._resumePulse = nil
+                                
                                 slot.pulse = not slot.pulse
                                 setPulseCheckbox(slot.pulse)
                                 if slot.pulse then
+                                    -- Clean shutdown of rainbow
+                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                    slot.rainbow = false
+                                    setCheckbox(false)
+                                    
+                                    -- Clean shutdown and restart pulse
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                     slot.pulseHook = rainbowAdd(function(t)
                                         local cycle = (t * 2) % 3 -- Cycle every 1.5 seconds through 3 states
@@ -2666,11 +2714,8 @@ function Library:CreateLibrary(opts)
                                         end
                                         if type(cb) == "function" then pcall(cb, pulsedColor, idx) end
                                     end)
-                                    -- Disable rainbow if pulse is enabled
-                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                    slot.rainbow = false
-                                    setCheckbox(false)
                                 else
+                                    -- Clean shutdown of pulse
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                 end
                             end)
