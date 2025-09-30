@@ -1366,18 +1366,8 @@ function Library:CreateLibrary(opts)
                             end
                             return btn
                         end
-                        makeItem("Select All", function() 
-                            closeCtxMenu()
-                            task.defer(function()
-                                Dropdown:SelectAll()
-                            end)
-                        end)
-                        makeItem("Unselect All", function() 
-                            closeCtxMenu()
-                            task.defer(function()
-                                Dropdown:UnselectAll()
-                            end)
-                        end)
+                        makeItem("Select All", function() Dropdown:SelectAll() end)
+                        makeItem("Unselect All", function() Dropdown:UnselectAll() end)
                         -- position above the dropdown, aligned to right edge; flip below when needed
                         local tAbs = trigger.AbsolutePosition
                         local tSz = trigger.AbsoluteSize
@@ -1804,35 +1794,13 @@ function Library:CreateLibrary(opts)
                         local newSet = {}
                         for _, opt in ipairs(self._options) do newSet[tostring(opt)] = true end
                         self._values = newSet
-                        
-                        -- Force UI updates
-                        pcall(updateSelection)
-                        pcall(refreshLabelFromSelection)
-                        
-                        -- If panel is visible, rebuild it to reflect changes
-                        if panel and panel.Visible then
-                            pcall(buildPanel)
-                            pcall(renderItems)
-                            pcall(updateSelection)
-                        end
-                        
+                        updateSelection(); refreshLabelFromSelection()
                         if not silent and type(cb)=="function" then pcall(cb, self:Get()) end
                     end
                     function Dropdown:UnselectAll(silent)
                         if not self._multi then return end
                         self._values = {}
-                        
-                        -- Force UI updates
-                        pcall(updateSelection)
-                        pcall(refreshLabelFromSelection)
-                        
-                        -- If panel is visible, rebuild it to reflect changes
-                        if panel and panel.Visible then
-                            pcall(buildPanel)
-                            pcall(renderItems)
-                            pcall(updateSelection)
-                        end
-                        
+                        updateSelection(); refreshLabelFromSelection()
                         if not silent and type(cb)=="function" then pcall(cb, self:Get()) end
                     end
                     function Dropdown:OnOpen(fn) self._onOpen = fn end
@@ -2119,28 +2087,6 @@ function Library:CreateLibrary(opts)
 
                     -- rainbow sync bus
                     Library._rainbowBus = Library._rainbowBus or { listeners = {}, conn = nil }
-                    
-                    -- Global sync system for RGB and Pulse modes
-                    Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {} }
-                    Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {} }
-                    
-                    local function syncRGBColor(color, sourceIndex, sourceId)
-                        if not Library._globalRGBSync.active then return end
-                        for id, listener in pairs(Library._globalRGBSync.listeners) do
-                            if id ~= sourceId then
-                                pcall(listener, color, sourceIndex)
-                            end
-                        end
-                    end
-                    
-                    local function syncPulseColor(color, sourceIndex, sourceId)
-                        if not Library._globalPulseSync.active then return end
-                        for id, listener in pairs(Library._globalPulseSync.listeners) do
-                            if id ~= sourceId then
-                                pcall(listener, color, sourceIndex)
-                            end
-                        end
-                    end
                     local function rainbowStart()
                         if Library._rainbowBus.conn then return end
                         local RS = game:GetService("RunService")
@@ -2210,7 +2156,7 @@ function Library:CreateLibrary(opts)
                         })
                         btn.MouseEnter:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
                         btn.MouseLeave:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
-                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil }
+                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil }
                     end
 
                     -- panel singleton per control
@@ -2352,43 +2298,9 @@ function Library:CreateLibrary(opts)
                         if type(cb)=="function" then pcall(cb, c, index) end
                     end
                     local function setHSV(index, h,s,v)
-                        local slot = slots[index]
-                        if not slot then return end
-                        
-                        -- Temporarily disable effects during manual control
-                        local wasRainbow = slot.rainbow
-                        local wasPulse = slot.pulse
-                        if wasRainbow and slot.rainbowHook then 
-                            rainbowRemove(slot.rainbowHook)
-                            slot.rainbowHook = nil
-                        end
-                        if wasPulse and slot.pulseHook then 
-                            rainbowRemove(slot.pulseHook)
-                            slot.pulseHook = nil
-                        end
-                        -- Clear resume flags to prevent re-enabling
-                        slot._resumeRainbow = nil
-                        slot._resumePulse = nil
-                        slot.rainbow = false
-                        slot.pulse = false
-                        if setCheckbox then setCheckbox(false) end
-                        if setPulseCheckbox then setPulseCheckbox(false) end
-                        
-                        local H,S,V = slot.hsv[1], slot.hsv[2], slot.hsv[3]
+                        local H,S,V = slots[index].hsv[1], slots[index].hsv[2], slots[index].hsv[3]
                         if h~=nil then H=h end; if s~=nil then S=s end; if v~=nil then V=v end
-                        slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
-                        updateSVBackground(H)
-                        applyColorFromHSV(index)
-                    end
-                    
-                    -- Separate function for drag operations that doesn't permanently disable effects
-                    local function setHSVDrag(index, h,s,v)
-                        local slot = slots[index]
-                        if not slot then return end
-                        
-                        local H,S,V = slot.hsv[1], slot.hsv[2], slot.hsv[3]
-                        if h~=nil then H=h end; if s~=nil then S=s end; if v~=nil then V=v end
-                        slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
+                        slots[index].hsv = { clamp01(H), clamp01(S), clamp01(V) }
                         updateSVBackground(H)
                         applyColorFromHSV(index)
                     end
@@ -2399,21 +2311,15 @@ function Library:CreateLibrary(opts)
                         return rainbowAdd(function(h)
                             local s,v = slot.hsv[2], slot.hsv[3]
                             slot.hsv = {h,s,v}
-                            local c = hsvToColor(slot.hsv)
-                            slot.color = c
-                            slot.fill.BackgroundColor3 = c
-                            
-                            -- Sync to other RGB colorpickers
-                            if slot._syncId then
-                                syncRGBColor(c, i, slot._syncId)
-                            end
-                            
                             if open and activeIndex == i then
                                 updateSVBackground(h)
                                 if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h * hueSlider.AbsoluteSize.Y) end
                                 applyColorFromHSV(i)
                             else
                                 -- update color silently when not active
+                                local c = hsvToColor(slot.hsv)
+                                slot.color = c
+                                slot.fill.BackgroundColor3 = c
                                 if type(cb) == "function" then pcall(cb, c, i) end
                             end
                         end)
@@ -2446,7 +2352,7 @@ function Library:CreateLibrary(opts)
                             if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                             if rgbBox then local r,g,b = toRGB255(slots[index].color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                             if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
-                            if setCheckbox then local slot = slots[index]; setCheckbox(slot.rainbow); setPulseCheckbox(slot.pulse) end
+                            if setCheckbox then local slot = slots[index]; setCheckbox(slot.rainbow) end
                             return
                         end
                         open = true; anim = true; activeIndex = index
@@ -2484,14 +2390,14 @@ function Library:CreateLibrary(opts)
                             svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), ZIndex = sv.ZIndex + 3, Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                             rgbBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "R, G, B", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
-                            hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
+                            hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 190), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
 
                             -- Right: Hue slider + rainbow toggle
                             local HUE_W, HUE_H = 26, 150
                             local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             -- Make the hue slider background opaque white so the UIGradient is visible and vibrant
-                            -- Position slider slightly more left to align above the checkbox box itself
-                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(-7, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                            -- Slight left nudge for centering
+                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(8, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -2505,25 +2411,15 @@ function Library:CreateLibrary(opts)
                             hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
                             hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
-                            -- RGB checkbox + label centered between RGB textbox end and frame boundary
-                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 22), Position = UDim2.fromOffset(197, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
-                            local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = cbRow.ZIndex + 1, Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                            -- RGB checkbox + label placed next to the RGB textbox (keep RGB textbox original width)
+                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(30, 22), Position = UDim2.fromOffset(180, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
+                            local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,2), ZIndex = cbRow.ZIndex + 1, Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = cbBox.ZIndex + 1, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(24,22), Position = UDim2.fromOffset(16,0), Text = "RGB", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = cbRow.ZIndex + 1, Parent = cbRow})
-                            
-                            -- Pulse RGB checkbox + label positioned at hex textbox Y level, same X as RGB checkbox
-                            local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(197, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
-                            local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
+                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,22), Position = UDim2.fromOffset(14,0), Text = "RGB", Font = Fonts.Medium, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = cbRow.ZIndex + 1, Parent = cbRow})
                             local function setCheckbox(on)
                                 cbMark.Visible = on and true or false
                             end
-                            local function setPulseCheckbox(on)
-                                pulseMark.Visible = on and true or false
-                            end
                             setCheckbox(false)
-                            setPulseCheckbox(false)
 
                             -- interactions: SV drag (S across X, V across Y)
                             local function getScreenPos()
@@ -2537,28 +2433,19 @@ function Library:CreateLibrary(opts)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     svDragging = true
                                     svDragIndex = activeIndex
-                                    -- pause rainbow/pulse for this slot while dragging, if active
+                                    -- pause rainbow for this slot while dragging, if active
                                     local slot = slots[svDragIndex]
-                                    -- Clear any leftover resume flags
-                                    slot._resumeRainbow = nil
-                                    slot._resumePulse = nil
-                                    
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
                                         slot._resumeRainbow = true
                                         slot.rainbowHook = nil
-                                    end
-                                    if slot and slot.pulse and slot.pulseHook then
-                                        rainbowRemove(slot.pulseHook)
-                                        slot._resumePulse = true
-                                        slot.pulseHook = nil
                                     end
                                     local p = getScreenPos()
                                     local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSVDrag(svDragIndex, nil, s, v)
+                                    setHSV(svDragIndex, nil, s, v)
                                 end
                             end
                             table.insert(conns, sv.InputBegan:Connect(handleSVDown))
@@ -2571,34 +2458,18 @@ function Library:CreateLibrary(opts)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSVDrag(svDragIndex or activeIndex, nil, s, v)
+                                    setHSV(svDragIndex or activeIndex, nil, s, v)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     svDragging = false
                                     local dragIndex = svDragIndex or activeIndex
-                                    -- resume rainbow/pulse if it was paused
+                                    -- resume rainbow if it was paused
                                     local slot = slots[dragIndex]
                                     if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
                                         slot.rainbowHook = attachRainbow(dragIndex)
                                         slot._resumeRainbow = nil
-                                    end
-                                    if slot and slot._resumePulse and slot.pulse and not slot.pulseHook then
-                                        -- Re-create pulse hook
-                                        slot.pulseHook = rainbowAdd(function(t)
-                                            local cycle = (t * 2) % 3
-                                            local pulse = (math.sin(t * 8) + 1) / 2
-                                            local r, g, b = 0, 0, 0
-                                            if cycle < 1 then r = pulse
-                                            elseif cycle < 2 then g = pulse
-                                            else b = pulse end
-                                            local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                            slot.color = pulsedColor
-                                            slot.fill.BackgroundColor3 = pulsedColor
-                                            if type(cb) == "function" then pcall(cb, pulsedColor, dragIndex) end
-                                        end)
-                                        slot._resumePulse = nil
                                     end
                                     svDragIndex = nil
                                 end
@@ -2611,30 +2482,18 @@ function Library:CreateLibrary(opts)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     hueDragging = true
                                     hueDragIndex = activeIndex
-                                    -- pause rainbow/pulse for this slot while dragging, if active
+                                    -- pause rainbow for this slot while dragging, if active
                                     local slot = slots[hueDragIndex]
-                                    -- Clear any leftover resume flags
-                                    slot._resumeRainbow = nil
-                                    slot._resumePulse = nil
-                                    
-                                    -- Store original states for manual override
-                                    slot._wasRainbow = slot.rainbow
-                                    slot._wasPulse = slot.pulse
-                                    slot._manualOverride = true
-                                    
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
+                                        slot._resumeRainbow = true
                                         slot.rainbowHook = nil
-                                    end
-                                    if slot and slot.pulse and slot.pulseHook then
-                                        rainbowRemove(slot.pulseHook)
-                                        slot.pulseHook = nil
                                     end
                                     local p = getScreenPos()
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    setHSVDrag(hueDragIndex, h, nil, nil); updateSVBackground(h)
+                                    setHSV(hueDragIndex, h, nil, nil); updateSVBackground(h)
                                 end
                             end
                             table.insert(conns, hueSlider.InputBegan:Connect(handleHueDown))
@@ -2645,57 +2504,18 @@ function Library:CreateLibrary(opts)
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    setHSVDrag(hueDragIndex or activeIndex, h, nil, nil); updateSVBackground(h)
+                                    setHSV(hueDragIndex or activeIndex, h, nil, nil); updateSVBackground(h)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     hueDragging = false
                                     local dragIndex = hueDragIndex or activeIndex
+                                    -- resume rainbow if it was paused
                                     local slot = slots[dragIndex]
-                                    
-                                    -- Resume effects from new manual position if they were active
-                                    if slot and slot._wasRainbow and slot.rainbow and not slot.rainbowHook then
-                                        -- Start rainbow from current hue position
-                                        local currentH = slot.hsv[1]
-                                        slot.rainbowHook = rainbowAdd(function(h)
-                                            -- Use manual position as base and continue cycling from there
-                                            local adjustedH = (currentH + h) % 1
-                                            local s,v = slot.hsv[2], slot.hsv[3]
-                                            slot.hsv = {adjustedH,s,v}
-                                            if open and activeIndex == dragIndex then
-                                                updateSVBackground(adjustedH)
-                                                if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), adjustedH * hueSlider.AbsoluteSize.Y) end
-                                                applyColorFromHSV(dragIndex)
-                                            else
-                                                local c = hsvToColor(slot.hsv)
-                                                slot.color = c
-                                                slot.fill.BackgroundColor3 = c
-                                                if type(cb) == "function" then pcall(cb, c, dragIndex) end
-                                            end
-                                        end)
-                                    end
-                                    if slot and slot._wasPulse and slot.pulse and not slot.pulseHook then
-                                        -- Continue pulse from current color
-                                        slot.pulseHook = rainbowAdd(function(t)
-                                            local cycle = (t * 2) % 3
-                                            local pulse = (math.sin(t * 8) + 1) / 2
-                                            local r, g, b = 0, 0, 0
-                                            if cycle < 1 then r = pulse
-                                            elseif cycle < 2 then g = pulse
-                                            else b = pulse end
-                                            local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                            slot.color = pulsedColor
-                                            slot.fill.BackgroundColor3 = pulsedColor
-                                            if type(cb) == "function" then pcall(cb, pulsedColor, dragIndex) end
-                                        end)
-                                    end
-                                    
-                                    -- Clear manual override flags
-                                    if slot then
-                                        slot._wasRainbow = nil
-                                        slot._wasPulse = nil
-                                        slot._manualOverride = nil
+                                    if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
+                                        slot.rainbowHook = attachRainbow(dragIndex)
+                                        slot._resumeRainbow = nil
                                     end
                                     hueDragIndex = nil
                                 end
@@ -2703,17 +2523,6 @@ function Library:CreateLibrary(opts)
 
                             -- inputs
                             rgbBox.FocusLost:Connect(function()
-                                local slot = slots[activeIndex]
-                                -- Disable effects temporarily during manual input
-                                local wasRainbow = slot.rainbow
-                                local wasPulse = slot.pulse
-                                if wasRainbow and slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                if wasPulse and slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                slot.rainbow = false
-                                slot.pulse = false
-                                setCheckbox(false)
-                                setPulseCheckbox(false)
-                                
                                 local r,g,b = parseRGBText(rgbBox.Text or "")
                                 if r then
                                     r,g,b = math.clamp(r,0,255), math.clamp(g,0,255), math.clamp(b,0,255)
@@ -2732,17 +2541,6 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
                             hexBox.FocusLost:Connect(function()
-                                local slot = slots[activeIndex]
-                                -- Disable effects temporarily during manual input
-                                local wasRainbow = slot.rainbow
-                                local wasPulse = slot.pulse
-                                if wasRainbow and slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                if wasPulse and slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                slot.rainbow = false
-                                slot.pulse = false
-                                setCheckbox(false)
-                                setPulseCheckbox(false)
-                                
                                 local r,g,b = hexToRGB(hexBox.Text or "")
                                 if r then
                                     local c = Color3.fromRGB(r,g,b)
@@ -2762,150 +2560,14 @@ function Library:CreateLibrary(opts)
                             cbRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
                                 local slot = slots[idx]
-                                
-                                -- Clear all state flags first
-                                slot._resumeRainbow = nil
-                                slot._resumePulse = nil
-                                
                                 slot.rainbow = not slot.rainbow
                                 setCheckbox(slot.rainbow)
                                 if slot.rainbow then
-                                    -- Clean shutdown of pulse
-                                    if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                    slot.pulse = false
-                                    setPulseCheckbox(false)
-                                    
-                                    -- Enable global RGB sync
-                                    Library._globalRGBSync.active = true
-                                    local syncId = tostring(math.random(1000000, 9999999))
-                                    slot._syncId = syncId
-                                    
-                                    -- Register sync listener
-                                    Library._globalRGBSync.listeners[syncId] = function(syncColor, syncIndex)
-                                        if slot.rainbow and open and activeIndex == idx then
-                                            slot.color = syncColor
-                                            slot.fill.BackgroundColor3 = syncColor
-                                            if type(cb) == "function" then pcall(cb, syncColor, idx) end
-                                        end
-                                    end
-                                    
-                                    -- Clean shutdown and restart rainbow
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                     slot.rainbowHook = attachRainbow(idx)
                                 else
-                                    -- Clean shutdown of rainbow and restore manual control
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                    
-                                    -- Remove from global RGB sync
-                                    if slot._syncId then
-                                        Library._globalRGBSync.listeners[slot._syncId] = nil
-                                        slot._syncId = nil
-                                    end
-                                    
-                                    -- Check if any other colorpickers still have RGB active
-                                    local hasActiveRGB = false
-                                    for _, listener in pairs(Library._globalRGBSync.listeners) do
-                                        hasActiveRGB = true
-                                        break
-                                    end
-                                    Library._globalRGBSync.active = hasActiveRGB
-                                    
-                                    -- Ensure UI reflects current HSV values
-                                    local h,s,v = table.unpack(slot.hsv)
-                                    updateSVBackground(h)
-                                    if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
-                                    if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
-                                end
-                            end)
-                            
-                            -- pulse RGB checkbox logic
-                            pulseRow.MouseButton1Click:Connect(function()
-                                local idx = activeIndex
-                                local slot = slots[idx]
-                                
-                                -- Clear all state flags first
-                                slot._resumeRainbow = nil
-                                slot._resumePulse = nil
-                                
-                                slot.pulse = not slot.pulse
-                                setPulseCheckbox(slot.pulse)
-                                if slot.pulse then
-                                    -- Clean shutdown of rainbow
-                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                    slot.rainbow = false
-                                    setCheckbox(false)
-                                    
-                                    -- Enable global Pulse sync
-                                    Library._globalPulseSync.active = true
-                                    local syncId = tostring(math.random(1000000, 9999999))
-                                    slot._pulseSyncId = syncId
-                                    
-                                    -- Register sync listener
-                                    Library._globalPulseSync.listeners[syncId] = function(syncColor, syncIndex)
-                                        if slot.pulse and open and activeIndex == idx then
-                                            slot.color = syncColor
-                                            slot.fill.BackgroundColor3 = syncColor
-                                            if type(cb) == "function" then pcall(cb, syncColor, idx) end
-                                        end
-                                    end
-                                    
-                                    -- Clean shutdown and restart pulse
-                                    if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                    slot.pulseHook = rainbowAdd(function(t)
-                                        local cycle = (t * 2) % 3 -- Cycle every 1.5 seconds through 3 states
-                                        local pulse = (math.sin(t * 8) + 1) / 2 -- Fast pulse for visibility
-                                        local r, g, b = 0, 0, 0
-                                        if cycle < 1 then -- Red phase
-                                            r = pulse
-                                        elseif cycle < 2 then -- Green phase  
-                                            g = pulse
-                                        else -- Blue phase
-                                            b = pulse
-                                        end
-                                        local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                        slot.color = pulsedColor
-                                        slot.fill.BackgroundColor3 = pulsedColor
-                                        
-                                        -- Sync to other pulse colorpickers
-                                        syncPulseColor(pulsedColor, idx, slot._pulseSyncId)
-                                        
-                                        if open and activeIndex == idx then
-                                            -- Update UI inputs without triggering feedback loops
-                                            if rgbBox and not rgbBox:IsFocused() then
-                                                rgbBox.Text = string.format("%d, %d, %d", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                            end
-                                            if hexBox and not hexBox:IsFocused() then
-                                                hexBox.Text = string.format("#%02X%02X%02X", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                            end
-                                        end
-                                        if type(cb) == "function" then pcall(cb, pulsedColor, idx) end
-                                    end)
-                                else
-                                    -- Clean shutdown of pulse and restore manual control
-                                    if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                    
-                                    -- Remove from global Pulse sync
-                                    if slot._pulseSyncId then
-                                        Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
-                                        slot._pulseSyncId = nil
-                                    end
-                                    
-                                    -- Check if any other colorpickers still have Pulse active
-                                    local hasActivePulse = false
-                                    for _, listener in pairs(Library._globalPulseSync.listeners) do
-                                        hasActivePulse = true
-                                        break
-                                    end
-                                    Library._globalPulseSync.active = hasActivePulse
-                                    
-                                    -- Ensure UI reflects current HSV values
-                                    local h,s,v = table.unpack(slot.hsv)
-                                    updateSVBackground(h)
-                                    if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
-                                    if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
-                                    -- Update input boxes to match current color
-                                    if rgbBox then local r,g,b = toRGB255(slot.color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                    if hexBox then local r,g,b = toRGB255(slot.color); hexBox.Text = rgbToHex(r,g,b) end
+                                    slot._resumeRainbow = nil
                                 end
                             end)
                         end
@@ -3022,9 +2684,6 @@ function Library:CreateLibrary(opts)
                             local slot = self._slots[i]
                             slot.rainbow = (onv == true)
                             if slot.rainbow then
-                                -- Disable pulse if rainbow is enabled
-                                if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                slot.pulse = false
                                 if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                 -- reuse attachRainbow if available in scope; otherwise, fallback to basic hook
                                 if type(attachRainbow) == "function" then
@@ -3042,38 +2701,6 @@ function Library:CreateLibrary(opts)
                             else
                                 if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                 slot._resumeRainbow = nil
-                            end
-                        end
-                        if index then setOne(index, on) else for i=1,#self._slots do setOne(i, on) end end
-                    end
-                    function Colorpicker:SetPulse(on, index)
-                        local function setOne(i, onv)
-                            local slot = self._slots[i]
-                            slot.pulse = (onv == true)
-                            if slot.pulse then
-                                -- Disable rainbow if pulse is enabled
-                                if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                slot.rainbow = false
-                                slot._resumeRainbow = nil
-                                if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                slot.pulseHook = rainbowAdd(function(t)
-                                    local cycle = (t * 2) % 3 -- Cycle every 1.5 seconds through 3 states
-                                    local pulse = (math.sin(t * 8) + 1) / 2 -- Fast pulse for visibility
-                                    local r, g, b = 0, 0, 0
-                                    if cycle < 1 then -- Red phase
-                                        r = pulse
-                                    elseif cycle < 2 then -- Green phase  
-                                        g = pulse
-                                    else -- Blue phase
-                                        b = pulse
-                                    end
-                                    local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                    slot.color = pulsedColor
-                                    slot.fill.BackgroundColor3 = pulsedColor
-                                    if type(cb) == "function" then pcall(cb, pulsedColor, i) end
-                                end)
-                            else
-                                if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                             end
                         end
                         if index then setOne(index, on) else for i=1,#self._slots do setOne(i, on) end end
