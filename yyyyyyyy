@@ -2231,14 +2231,13 @@ function Library:CreateLibrary(opts)
                         })
                         btn.MouseEnter:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
                         btn.MouseLeave:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
-                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0, panel = nil, open = false }
+                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0 }
                     end
 
-                    -- panel per slot instead of shared
+                    -- shared panel for all slots
+                    local panel, open, anim = nil, false, false
                     local panelBlocker = nil
                     local activeIndex = 1
-                    local open, anim = false, false  -- backwards compatibility
-                    local panel = nil  -- current active panel
                     local conns = {}
                     local function disconnectAll()
                         for i=#conns,1,-1 do conns[i]:Disconnect(); table.remove(conns,i) end
@@ -2470,23 +2469,10 @@ function Library:CreateLibrary(opts)
 
                     local function openPanel(btnFor, index)
                         if anim then return end
-                        local slot = slots[index]
                         -- toggle close if clicking the same swatch while open
-                        if slot.open and slot.panel and activeIndex == index then
-                            slot.open = false; open = false
-                            if panelBlocker then panelBlocker:Destroy(); panelBlocker = nil end
-                            T(slot.panel,0.2,{Size = UDim2.fromOffset(0,0), Position = btnFor.AbsolutePosition + btnFor.AbsoluteSize*0.5}):Play()
+                        if open and panel and activeIndex == index then
                             if Library._openColorPanelClose then pcall(Library._openColorPanelClose); Library._openColorPanelClose = nil end
                             return
-                        end
-                        
-                        -- Close any other open panels first
-                        for i, otherSlot in pairs(slots) do
-                            if otherSlot.open and otherSlot.panel then
-                                otherSlot.open = false
-                                if panelBlocker then panelBlocker:Destroy(); panelBlocker = nil end
-                                T(otherSlot.panel,0.2,{Size = UDim2.fromOffset(0,0), Position = btnFor.AbsolutePosition + btnFor.AbsoluteSize*0.5}):Play()
-                            end
                         end
                         if open and panel then
                             -- retarget existing panel to new slot
@@ -2511,21 +2497,45 @@ function Library:CreateLibrary(opts)
                             if setCheckbox then
                                 local slot = slots[index]
                                 -- Restore UI to show ONLY this slot's actual functional state
-                                if slot.cbMark then slot.cbMark.Visible = slot.rainbow or false end
-                                if slot.pulseMark then slot.pulseMark.Visible = slot.pulse or false end
+                                cbMark.Visible = slot.rainbow or false
+                                pulseMark.Visible = slot.pulse or false
                             end
                             return
                         end
-                        slot.open = true; open = true; anim = true; activeIndex = index
-                        local slot = slots[index]
-                        if not slot.panel then
-                            slot.panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = 12000, Parent = RootGui}, {
+                        if open and panel then
+                            -- retarget existing panel to new slot
+                            activeIndex = index
+                            -- reposition near new button
+                            local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
+                            local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
+                            local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
+                            -- Align right edge of panel with swatch; place above by 6px
+                            local px = tAbs.X + tSz.X - width
+                            local py = tAbs.Y - height
+                            px = math.clamp(px, rootAbs.X + 4, rootAbs.X + rootSz.X - width - 4)
+                            py = math.clamp(py, rootAbs.Y + 4, rootAbs.Y + rootSz.Y - height - 4)
+                            panel.Position = UDim2.fromOffset(px, py)
+                            -- refresh UI to the selected slot
+                            local h,s,v = table.unpack(slots[index].hsv)
+                            updateSVBackground(h)
+                            if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                            if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
+                            if rgbBox then local r,g,b = toRGB255(slots[index].color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                            if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
+                            if setCheckbox then
+                                -- Restore UI to show ONLY this slot's actual functional state
+                                setCheckbox(slot.rainbow or false)
+                                setPulseCheckbox(slot.pulse or false)
+                            end
+                            return
+                        end
+                        open = true; anim = true; activeIndex = index
+                        if not panel then
+                            panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = 12000, Parent = RootGui}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                                 -- Main holder outline (panel)
                                 Create("UIStroke", {Name = "Stroke", ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
                             })
-                        end
-                        panel = slot.panel  -- set current active panel
                             local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
                             shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
 
