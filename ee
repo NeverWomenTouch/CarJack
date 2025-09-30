@@ -436,7 +436,7 @@ function Library:CreateLibrary(opts)
             if type(icon) == "number" or tostring(icon):match("^%d+$") then icon = "rbxassetid://" .. tostring(icon) end
             iconImg = Create("ImageLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), Position = UDim2.fromOffset(4, 11), Image = icon, ImageColor3 = Theme.SubText, ZIndex = z + 3, Parent = inner})
         end
-        local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -10, 1, 0), Position = UDim2.fromOffset( (icon and 24) or 24, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 3, Parent = inner})
+    local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -10, 1, 0), Position = UDim2.fromOffset( (icon and 24) or 24, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 3, Parent = inner})
         local catInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), Visible = false, ZIndex = z + 3, Parent = inner})
         btn.MouseEnter:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.Text}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.Text}):Play() end end end)
         btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.SubText}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.SubText}):Play() end end end)
@@ -712,10 +712,10 @@ function Library:CreateLibrary(opts)
             p = p or {}
             local pname = tostring(p.Name or "Page")
             local Page = { Name = pname, _blocks = {}, _columns = Clamp(tonumber(p.Columns) or 2, 1, 3) }
-            local tb = TextService:GetTextSize(pname, 11, Fonts.Medium, Vector2.new(1000, 22))
-            -- Clamp text width to prevent overflow and ensure it fits in the tab area
-            local maxWidth = math.min(tb.X + 16, 120)
-            local subBtn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = pname, TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 11, Size = UDim2.fromOffset(maxWidth, 22), TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 2, Parent = subBar})
+            local tb = TextService:GetTextSize(pname, 12, Fonts.Medium, Vector2.new(1000, 22))
+            -- Keep original size, but clamp max width reasonably and truncate to avoid spill
+            local maxWidth = math.min(tb.X + 16, 140)
+            local subBtn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = pname, TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 12, Size = UDim2.fromOffset(maxWidth, 22), TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 2, Parent = subBar})
             local subInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,4,1,0), Visible = false, ZIndex = z + 3, Parent = subBtn})
             subBtn.MouseEnter:Connect(function() if Category._selectedPage ~= Page then T(subBtn, 0.12, {TextColor3 = Theme.Text}):Play() end end)
             subBtn.MouseLeave:Connect(function() if Category._selectedPage ~= Page then T(subBtn, 0.12, {TextColor3 = Theme.SubText}):Play() end end)
@@ -2150,6 +2150,7 @@ function Library:CreateLibrary(opts)
                         Library._rainbowBus.conn = RS.RenderStepped:Connect(function()
                             local t = (tick() - t0) * 0.08 -- speed
                             local h = t % 1
+                            Library._rainbowBus.h = h -- expose current hue for offset calculations
                             for _, fn in ipairs(Library._rainbowBus.listeners) do
                                 pcall(fn, h)
                             end
@@ -2212,7 +2213,7 @@ function Library:CreateLibrary(opts)
                         })
                         btn.MouseEnter:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
                         btn.MouseLeave:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
-                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil }
+                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0 }
                     end
 
                     -- panel singleton per control
@@ -2419,9 +2420,15 @@ function Library:CreateLibrary(opts)
                     -- helper: attach rainbow animation to a specific slot index, updating UI only if it's the active one
                     local function attachRainbow(i)
                         local slot = slots[i]
+                        -- Seed offset from current hue vs global rainbow hue
+                        if Library._rainbowBus and Library._rainbowBus.h then
+                            local currentH = slot.hsv[1] or 0
+                            slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
+                        end
                         return rainbowAdd(function(h)
                             local s,v = slot.hsv[2], slot.hsv[3]
-                            slot.hsv = {h,s,v}
+                            local hh = (h + (slot.hueOffset or 0)) % 1
+                            slot.hsv = {hh,s,v}
                             local c = hsvToColor(slot.hsv)
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
@@ -2432,8 +2439,8 @@ function Library:CreateLibrary(opts)
                             end
                             
                             if open and activeIndex == i then
-                                updateSVBackground(h)
-                                if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h * hueSlider.AbsoluteSize.Y) end
+                                updateSVBackground(hh)
+                                if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), hh * hueSlider.AbsoluteSize.Y) end
                                 applyColorFromHSV(i)
                             else
                                 -- update color silently when not active
@@ -2560,28 +2567,19 @@ function Library:CreateLibrary(opts)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     svDragging = true
                                     svDragIndex = activeIndex
-                                    -- pause rainbow/pulse for this slot while dragging, if active
+                                    -- While dragging, update color live; if rainbow is on, update hueOffset so it continues from here
                                     local slot = slots[svDragIndex]
-                                    -- Clear any leftover resume flags
-                                    slot._resumeRainbow = nil
-                                    slot._resumePulse = nil
-                                    
-                                    if slot and slot.rainbow and slot.rainbowHook then
-                                        rainbowRemove(slot.rainbowHook)
-                                        slot._resumeRainbow = true
-                                        slot.rainbowHook = nil
-                                    end
-                                    if slot and slot.pulse and slot.pulseHook then
-                                        rainbowRemove(slot.pulseHook)
-                                        slot._resumePulse = true
-                                        slot.pulseHook = nil
-                                    end
                                     local p = getScreenPos()
                                     local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
                                     setHSVDrag(svDragIndex, nil, s, v)
+                                    -- Adjust offset if rainbow active
+                                    if slot and slot.rainbow and Library._rainbowBus and Library._rainbowBus.h then
+                                        local currentH = slot.hsv[1] or 0
+                                        slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
+                                    end
                                 end
                             end
                             table.insert(conns, sv.InputBegan:Connect(handleSVDown))
@@ -2601,27 +2599,11 @@ function Library:CreateLibrary(opts)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     svDragging = false
                                     local dragIndex = svDragIndex or activeIndex
-                                    -- resume rainbow/pulse if it was paused
                                     local slot = slots[dragIndex]
-                                    if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
-                                        slot.rainbowHook = attachRainbow(dragIndex)
-                                        slot._resumeRainbow = nil
-                                    end
-                                    if slot and slot._resumePulse and slot.pulse and not slot.pulseHook then
-                                        -- Re-create pulse hook
-                                        slot.pulseHook = rainbowAdd(function(t)
-                                            local cycle = (t * 2) % 3
-                                            local pulse = (math.sin(t * 8) + 1) / 2
-                                            local r, g, b = 0, 0, 0
-                                            if cycle < 1 then r = pulse
-                                            elseif cycle < 2 then g = pulse
-                                            else b = pulse end
-                                            local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                            slot.color = pulsedColor
-                                            slot.fill.BackgroundColor3 = pulsedColor
-                                            if type(cb) == "function" then pcall(cb, pulsedColor, dragIndex) end
-                                        end)
-                                        slot._resumePulse = nil
+                                    -- Nothing to resume; we never disabled. If rainbow is on, ensure offset matches current
+                                    if slot and slot.rainbow and Library._rainbowBus and Library._rainbowBus.h then
+                                        local currentH = slot.hsv[1] or 0
+                                        slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
                                     end
                                     svDragIndex = nil
                                 end
@@ -2634,30 +2616,16 @@ function Library:CreateLibrary(opts)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     hueDragging = true
                                     hueDragIndex = activeIndex
-                                    -- pause rainbow/pulse for this slot while dragging, if active
                                     local slot = slots[hueDragIndex]
-                                    -- Clear any leftover resume flags
-                                    slot._resumeRainbow = nil
-                                    slot._resumePulse = nil
-                                    
-                                    -- Store original states for manual override
-                                    slot._wasRainbow = slot.rainbow
-                                    slot._wasPulse = slot.pulse
-                                    slot._manualOverride = true
-                                    
-                                    if slot and slot.rainbow and slot.rainbowHook then
-                                        rainbowRemove(slot.rainbowHook)
-                                        slot.rainbowHook = nil
-                                    end
-                                    if slot and slot.pulse and slot.pulseHook then
-                                        rainbowRemove(slot.pulseHook)
-                                        slot.pulseHook = nil
-                                    end
                                     local p = getScreenPos()
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
                                     setHSVDrag(hueDragIndex, h, nil, nil); updateSVBackground(h)
+                                    -- If rainbow is on, update offset live
+                                    if slot and slot.rainbow and Library._rainbowBus and Library._rainbowBus.h then
+                                        slot.hueOffset = (h - Library._rainbowBus.h) % 1
+                                    end
                                 end
                             end
                             table.insert(conns, hueSlider.InputBegan:Connect(handleHueDown))
@@ -2677,48 +2645,10 @@ function Library:CreateLibrary(opts)
                                     local dragIndex = hueDragIndex or activeIndex
                                     local slot = slots[dragIndex]
                                     
-                                    -- Resume effects from new manual position if they were active
-                                    if slot and slot._wasRainbow and slot.rainbow and not slot.rainbowHook then
-                                        -- Start rainbow from current hue position
-                                        local currentH = slot.hsv[1]
-                                        slot.rainbowHook = rainbowAdd(function(h)
-                                            -- Use manual position as base and continue cycling from there
-                                            local adjustedH = (currentH + h) % 1
-                                            local s,v = slot.hsv[2], slot.hsv[3]
-                                            slot.hsv = {adjustedH,s,v}
-                                            if open and activeIndex == dragIndex then
-                                                updateSVBackground(adjustedH)
-                                                if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), adjustedH * hueSlider.AbsoluteSize.Y) end
-                                                applyColorFromHSV(dragIndex)
-                                            else
-                                                local c = hsvToColor(slot.hsv)
-                                                slot.color = c
-                                                slot.fill.BackgroundColor3 = c
-                                                if type(cb) == "function" then pcall(cb, c, dragIndex) end
-                                            end
-                                        end)
-                                    end
-                                    if slot and slot._wasPulse and slot.pulse and not slot.pulseHook then
-                                        -- Continue pulse from current color
-                                        slot.pulseHook = rainbowAdd(function(t)
-                                            local cycle = (t * 2) % 3
-                                            local pulse = (math.sin(t * 8) + 1) / 2
-                                            local r, g, b = 0, 0, 0
-                                            if cycle < 1 then r = pulse
-                                            elseif cycle < 2 then g = pulse
-                                            else b = pulse end
-                                            local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
-                                            slot.color = pulsedColor
-                                            slot.fill.BackgroundColor3 = pulsedColor
-                                            if type(cb) == "function" then pcall(cb, pulsedColor, dragIndex) end
-                                        end)
-                                    end
-                                    
-                                    -- Clear manual override flags
-                                    if slot then
-                                        slot._wasRainbow = nil
-                                        slot._wasPulse = nil
-                                        slot._manualOverride = nil
+                                    -- No resume needed; keep offset synced
+                                    if slot and slot.rainbow and Library._rainbowBus and Library._rainbowBus.h then
+                                        local currentH = slot.hsv[1] or 0
+                                        slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
                                     end
                                     hueDragIndex = nil
                                 end
