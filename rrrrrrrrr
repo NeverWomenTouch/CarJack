@@ -2396,9 +2396,8 @@ function Library:CreateLibrary(opts)
                             local HUE_W, HUE_H = 26, 150
                             local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             -- Make the hue slider background opaque white so the UIGradient is visible and vibrant
-                            -- Center across the full blank area: [SV right edge (180) .. panel inner right], not just inside rightCol
-                            -- Calculation with current constants: blank = (leftCol extra 30) + gap 2 + rightCol 52 = 84; center offset = -3 inside rightCol
-                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(-3, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                            -- Slight left nudge for centering
+                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(8, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -2411,19 +2410,6 @@ function Library:CreateLibrary(opts)
                             })
                             hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
                             hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
-
-                            -- Precisely center the hue slider in the actual empty space (SV right border to panel inner right border)
-                            local function centerHue()
-                                if not (sv and rightCol and hueSlider and container) then return end
-                                -- left bound: SV right edge (includes its stroke visually)
-                                local leftX = sv.AbsolutePosition.X + sv.AbsoluteSize.X
-                                -- right bound: inner right edge of panel (container fills panel minus padding)
-                                local rightX = container.AbsolutePosition.X + container.AbsoluteSize.X
-                                local centerX = (leftX + rightX) * 0.5
-                                -- convert to rightCol local space
-                                local localX = math.floor(centerX - rightCol.AbsolutePosition.X - (HUE_W/2) + 0.5)
-                                hueSlider.Position = UDim2.fromOffset(localX, 0)
-                            end
 
                             -- RGB checkbox + label placed next to the RGB textbox (keep RGB textbox original width)
                             local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(30, 22), Position = UDim2.fromOffset(180, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
@@ -2605,7 +2591,7 @@ function Library:CreateLibrary(opts)
 
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        local width, height = 276, 222
+                        local width, height = 260, 220
                         -- compute desired position in root-space, then convert to screen-space for RootGui
                         -- Open above-right: align panel's right edge to swatch right, with 6px gap
                         local pxRoot = (tAbs.X - rootAbs.X) + tSz.X - width
@@ -2615,8 +2601,6 @@ function Library:CreateLibrary(opts)
                         local py = rootAbs.Y + pyRoot
                         panel.Position = UDim2.fromOffset(px, py)
                         panel.Size = UDim2.fromOffset(width, 0)
-                        -- Now that widths are known, center hue precisely
-                        centerHue()
 
                         -- set UI to current slot
                         local h,s,v = table.unpack(slots[index].hsv)
@@ -2635,10 +2619,7 @@ function Library:CreateLibrary(opts)
                         -- Swallow background clicks on the panel itself so blocker doesn't see them
                         table.insert(conns, panel.InputBegan:Connect(function() end))
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(width, height)})
-                        tw:Play(); tw.Completed:Connect(function()
-                            anim=false
-                            centerHue() -- re-center after final size in case rounding changed
-                        end)
+                        tw:Play(); tw.Completed:Connect(function() anim=false end)
                         anim=false
                         local justOpened = true; task.defer(function() justOpened = false end)
                         -- outside close / esc
