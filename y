@@ -2496,9 +2496,9 @@ function Library:CreateLibrary(opts)
                             if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
                             if setCheckbox then
                                 local slot = slots[index]
-                                -- Always reflect the active slot's toggles visually
-                                setCheckbox(slot.rainbow)
-                                setPulseCheckbox(slot.pulse)
+                                -- Always refresh to show ONLY this slot's state
+                                setCheckbox(slot.rainbow or false)
+                                setPulseCheckbox(slot.pulse or false)
                             end
                             return
                         end
@@ -2570,11 +2570,14 @@ function Library:CreateLibrary(opts)
                             local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
                             local function setCheckbox(on)
+                                -- Only update if this is for the active slot
                                 cbMark.Visible = on and true or false
                             end
                             local function setPulseCheckbox(on)
+                                -- Only update if this is for the active slot
                                 pulseMark.Visible = on and true or false
                             end
+                            -- Initialize as off
                             setCheckbox(false)
                             setPulseCheckbox(false)
 
@@ -2756,7 +2759,9 @@ function Library:CreateLibrary(opts)
                                 slot._resumeRainbow = nil
                                 slot._resumePulse = nil
                                 
+                                -- Toggle ONLY this slot's rainbow state
                                 slot.rainbow = not slot.rainbow
+                                -- Update checkbox to reflect ONLY this slot
                                 setCheckbox(slot.rainbow)
                                 if slot.rainbow then
                                     -- Clean shutdown of pulse
@@ -2830,7 +2835,9 @@ function Library:CreateLibrary(opts)
                                 slot._resumeRainbow = nil
                                 slot._resumePulse = nil
                                 
+                                -- Toggle ONLY this slot's pulse state
                                 slot.pulse = not slot.pulse
+                                -- Update checkbox to reflect ONLY this slot
                                 setPulseCheckbox(slot.pulse)
                                 if slot.pulse then
                                     -- Turn off rainbow and prepare pulse state
