@@ -2503,6 +2503,14 @@ function Library:CreateLibrary(opts)
                         -- turn off pulse for this slot
                         if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                         slot.pulse = false
+                        -- if pulse sync was active, remove listener for this slot
+                        if doSync and slot._pulseSyncId then
+                            Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
+                            slot._pulseSyncId = nil
+                            local hasActivePulse = false
+                            for _, _ in pairs(Library._globalPulseSync.listeners) do hasActivePulse = true break end
+                            Library._globalPulseSync.active = hasActivePulse
+                        end
                         -- set up optional sync
                         if doSync then
                             Library._globalRGBSync.active = true
@@ -2555,6 +2563,14 @@ function Library:CreateLibrary(opts)
                         -- turn off rainbow for this slot
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         slot.rainbow = false
+                        -- if RGB sync was active, remove listener for this slot
+                        if doSync and slot._syncId then
+                            Library._globalRGBSync.listeners[slot._syncId] = nil
+                            slot._syncId = nil
+                            local hasActiveRGB = false
+                            for _, _ in pairs(Library._globalRGBSync.listeners) do hasActiveRGB = true break end
+                            Library._globalRGBSync.active = hasActiveRGB
+                        end
                         -- optional sync setup
                         if doSync then
                             Library._globalPulseSync.active = true
@@ -2908,195 +2924,23 @@ function Library:CreateLibrary(opts)
                             -- rainbow checkbox logic
                             cbRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
-                                local slot = slots[idx]
-                                
-                                -- Clear all state flags first
-                                slot._resumeRainbow = nil
-                                slot._resumePulse = nil
-                                
-                                -- Toggle ONLY this slot's rainbow state
-                                slot.rainbow = not slot.rainbow
-                                -- Update checkbox visual
-                                if slot.setCheckbox then slot.setCheckbox(slot.rainbow) end
-                                if slot.rainbow then
-                                    -- Clean shutdown of pulse
-                                    if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                    slot.pulse = false
-                                    if slot.setPulseCheckbox then slot.setPulseCheckbox(false) end
-                                    
-                                    -- Optional: enable global RGB sync
-                                    if doSync then
-                                        Library._globalRGBSync.active = true
-                                        local syncId = tostring(math.random(1000000, 9999999))
-                                        slot._syncId = syncId
-                                        
-                                        -- Register sync listener (RGB-only)
-                                        Library._globalRGBSync.listeners[syncId] = function(syncColor, syncIndex)
-                                            if not slot.rainbow then return end
-                                            local h,s,v = Color3.toHSV(syncColor)
-                                            slot.hsv = {h,s,v}
-                                            if Library._rainbowBus and Library._rainbowBus.h then
-                                                slot.hueOffset = (h - Library._rainbowBus.h) % 1
-                                            end
-                                            slot.color = syncColor
-                                            slot.fill.BackgroundColor3 = syncColor
-                                            if type(cb) == "function" then pcall(cb, syncColor, idx) end
-                                            if open and activeIndex == idx then
-                                                if slot.updateSVBackground then slot.updateSVBackground(h) end
-                                                if slot.svCursor and slot.sv then slot.svCursor.Position = UDim2.fromOffset(s*(slot.sv.AbsoluteSize.X), (1-v)*(slot.sv.AbsoluteSize.Y)) end
-                                                if slot.hueGrab and slot.hueSlider then slot.hueGrab.Position = UDim2.fromOffset(math.floor(slot.hueSlider.AbsoluteSize.X/2), h*(slot.hueSlider.AbsoluteSize.Y)) end
-                                                if slot.rgbBox and not slot.rgbBox:IsFocused() then local r,g,b = math.floor(syncColor.R*255+0.5), math.floor(syncColor.G*255+0.5), math.floor(syncColor.B*255+0.5); slot.rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                                if slot.hexBox and not slot.hexBox:IsFocused() then local r,g,b = math.floor(syncColor.R*255+0.5), math.floor(syncColor.G*255+0.5), math.floor(syncColor.B*255+0.5); slot.hexBox.Text = string.format("#%02X%02X%02X", r,g,b) end
-                                            end
-                                        end
-                                    end
-                                    
-                                    -- Clean shutdown and restart rainbow
-                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                    slot.rainbowHook = attachRainbow(idx)
-                                    -- Immediately sync starting color so all RGB pickers align
-                                    if doSync then
-                                        local c0 = hsvToColor(slot.hsv)
-                                        if slot._syncId then syncRGBColor(c0, idx, slot._syncId) end
-                                    end
+                                local s = slots[idx]
+                                -- flip desired state and delegate to helpers
+                                if s.rainbow then
+                                    disableRainbow(idx)
                                 else
-                                    -- Clean shutdown of rainbow and restore manual control
-                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                    
-                                    -- Remove from global RGB sync
-                                    if doSync then
-                                        if slot._syncId then
-                                            Library._globalRGBSync.listeners[slot._syncId] = nil
-                                            slot._syncId = nil
-                                        end
-                                        -- Check if any other colorpickers still have RGB active
-                                        local hasActiveRGB = false
-                                        for _, listener in pairs(Library._globalRGBSync.listeners) do
-                                            hasActiveRGB = true
-                                            break
-                                        end
-                                        Library._globalRGBSync.active = hasActiveRGB
-                                    end
-                                    
-                                    -- Ensure UI reflects current HSV values
-                                    local h,s,v = table.unpack(slot.hsv)
-                                    if slot.updateSVBackground then slot.updateSVBackground(h) end
-                                    if slot.svCursor and slot.sv then slot.svCursor.Position = UDim2.fromOffset(s*(slot.sv.AbsoluteSize.X), (1-v)*(slot.sv.AbsoluteSize.Y)) end
-                                    if slot.hueGrab and slot.hueSlider then slot.hueGrab.Position = UDim2.fromOffset(math.floor(slot.hueSlider.AbsoluteSize.X/2), h*(slot.hueSlider.AbsoluteSize.Y)) end
+                                    enableRainbow(idx)
                                 end
                             end)
                             
                             -- pulse RGB checkbox logic
                             pulseRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
-                                local slot = slots[idx]
-                                
-                                -- Clear all state flags first
-                                slot._resumeRainbow = nil
-                                slot._resumePulse = nil
-                                
-                                -- Toggle ONLY this slot's pulse state
-                                slot.pulse = not slot.pulse
-                                -- Update checkbox visual
-                                if slot.setPulseCheckbox then slot.setPulseCheckbox(slot.pulse) end
-                                if slot.pulse then
-                                    -- Turn off rainbow and prepare pulse state
-                                    if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                    slot.rainbow = false
-                                    if slot.setCheckbox then slot.setCheckbox(false) end
-                                    
-                                    -- Optional: Enable global Pulse sync
-                                    if doSync then
-                                        Library._globalPulseSync.active = true
-                                        local syncId = tostring(math.random(1000000, 9999999))
-                                        slot._pulseSyncId = syncId
-                                    end
-                                    -- Seed pulse hue offset off current hue
-                                    if Library._rainbowBus and Library._rainbowBus.h then
-                                        local currentH = slot.hsv[1] or 0
-                                        slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1
-                                    end
-                                    
-                                    if doSync and slot._pulseSyncId then
-                                        Library._globalPulseSync.listeners[slot._pulseSyncId] = function(syncColor, syncIndex)
-                                            if not slot.pulse then return end
-                                            local h,s,v = Color3.toHSV(syncColor)
-                                            slot.hsv = {h,s,slot.hsv[3] or v}
-                                            if Library._rainbowBus and Library._rainbowBus.h then
-                                                slot.pulseHueOffset = (h - Library._rainbowBus.h) % 1
-                                            end
-                                            slot.color = syncColor
-                                            slot.fill.BackgroundColor3 = syncColor
-                                            if type(cb) == "function" then pcall(cb, syncColor, idx) end
-                                            if open and activeIndex == idx then
-                                                if slot.updateSVBackground then slot.updateSVBackground(h) end
-                                                if slot.svCursor and slot.sv then slot.svCursor.Position = UDim2.fromOffset(s*(slot.sv.AbsoluteSize.X), (1-v)*(slot.sv.AbsoluteSize.Y)) end
-                                                if slot.hueGrab and slot.hueSlider then slot.hueGrab.Position = UDim2.fromOffset(math.floor(slot.hueSlider.AbsoluteSize.X/2), h*(slot.hueSlider.AbsoluteSize.Y)) end
-                                                if slot.rgbBox and not slot.rgbBox:IsFocused() then local r,g,b = math.floor(syncColor.R*255+0.5), math.floor(syncColor.G*255+0.5), math.floor(syncColor.B*255+0.5); slot.rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                                if slot.hexBox and not slot.hexBox:IsFocused() then local r,g,b = math.floor(syncColor.R*255+0.5), math.floor(syncColor.G*255+0.5), math.floor(syncColor.B*255+0.5); slot.hexBox.Text = string.format("#%02X%02X%02X", r,g,b) end
-                                            end
-                                        end
-                                    end
-                                    
-                                    -- HSV-based full-spectrum pulse with brightness breathing
-                                    if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                    slot.pulseHook = rainbowAdd(function(h)
-                                        -- Cycle hue with offset, pulse value
-                                        local s = slot.hsv[2] or 1
-                                        local baseV = slot.hsv[3] or 1
-                                        local hh = (h + (slot.pulseHueOffset or 0)) % 1
-                                        local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4)) -- nice breathing between 0.35..1.0
-                                        local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
-                                        slot.hsv = {hh, s, baseV}
-                                        slot.color = c
-                                        slot.fill.BackgroundColor3 = c
-                                        
-                                        if doSync and slot._pulseSyncId then syncPulseColor(c, idx, slot._pulseSyncId) end
-                                        if type(cb) == "function" then pcall(cb, c, idx) end
-                                        
-                                        if open and activeIndex == idx then
-                                            if rgbBox and not rgbBox:IsFocused() then
-                                                local r,g,b = math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5)
-                                                rgbBox.Text = string.format("%d, %d, %d", r,g,b)
-                                            end
-                                            if hexBox and not hexBox:IsFocused() then
-                                                local r,g,b = math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5)
-                                                hexBox.Text = string.format("#%02X%02X%02X", r, g, b)
-                                            end
-                                        end
-                                    end)
-                                    -- Immediately sync starting color so all Pulse pickers align
-                                    if doSync and slot._pulseSyncId then
-                                        local c0 = hsvToColor(slot.hsv)
-                                        syncPulseColor(c0, idx, slot._pulseSyncId)
-                                    end
+                                local s = slots[idx]
+                                if s.pulse then
+                                    disablePulse(idx)
                                 else
-                                    -- Clean shutdown of pulse and restore manual control
-                                    if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                    
-                                    -- Remove from global Pulse sync
-                                    if doSync then
-                                        if slot._pulseSyncId then
-                                            Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
-                                            slot._pulseSyncId = nil
-                                        end
-                                        -- Check if any other colorpickers still have Pulse active
-                                        local hasActivePulse = false
-                                        for _, listener in pairs(Library._globalPulseSync.listeners) do
-                                            hasActivePulse = true
-                                            break
-                                        end
-                                        Library._globalPulseSync.active = hasActivePulse
-                                    end
-                                    
-                                    -- Ensure UI reflects current HSV values
-                                    local h,s,v = table.unpack(slot.hsv)
-                                    if slot.updateSVBackground then slot.updateSVBackground(h) end
-                                    if slot.svCursor and slot.sv then slot.svCursor.Position = UDim2.fromOffset(s*(slot.sv.AbsoluteSize.X), (1-v)*(slot.sv.AbsoluteSize.Y)) end
-                                    if slot.hueGrab and slot.hueSlider then slot.hueGrab.Position = UDim2.fromOffset(math.floor(slot.hueSlider.AbsoluteSize.X/2), h*(slot.hueSlider.AbsoluteSize.Y)) end
-                                    -- Update input boxes to match current color
-                                    if rgbBox then local r,g,b = toRGB255(slot.color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                    if hexBox then local r,g,b = toRGB255(slot.color); hexBox.Text = rgbToHex(r,g,b) end
+                                    enablePulse(idx)
                                 end
                             end)
                         end
