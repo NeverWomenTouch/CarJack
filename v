@@ -2470,6 +2470,127 @@ function Library:CreateLibrary(opts)
                         end)
                     end
 
+                    -- Unified helpers for stable per-slot toggles
+                    local function updateSlotUI(i)
+                        local slot = slots[i]
+                        if open and activeIndex == i then
+                            if slot.setCheckbox then slot.setCheckbox(slot.rainbow or false) end
+                            if slot.setPulseCheckbox then slot.setPulseCheckbox(slot.pulse or false) end
+                        end
+                    end
+                    local function disableRainbow(i)
+                        local slot = slots[i]
+                        slot.rainbow = false
+                        if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                        if doSync and slot._syncId then
+                            Library._globalRGBSync.listeners[slot._syncId] = nil
+                            slot._syncId = nil
+                            local hasActiveRGB = false
+                            for _, _ in pairs(Library._globalRGBSync.listeners) do hasActiveRGB = true break end
+                            Library._globalRGBSync.active = hasActiveRGB
+                        end
+                        updateSlotUI(i)
+                        -- refresh UI cursors to match HSV when open
+                        if open and activeIndex == i then
+                            local h,s,v = table.unpack(slot.hsv)
+                            if slot.updateSVBackground then slot.updateSVBackground(h) end
+                            if slot.svCursor and slot.sv then slot.svCursor.Position = UDim2.fromOffset(s*(slot.sv.AbsoluteSize.X), (1-v)*(slot.sv.AbsoluteSize.Y)) end
+                            if slot.hueGrab and slot.hueSlider then slot.hueGrab.Position = UDim2.fromOffset(math.floor(slot.hueSlider.AbsoluteSize.X/2), h*(slot.hueSlider.AbsoluteSize.Y)) end
+                        end
+                    end
+                    local function enableRainbow(i)
+                        local slot = slots[i]
+                        -- turn off pulse for this slot
+                        if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
+                        slot.pulse = false
+                        -- set up optional sync
+                        if doSync then
+                            Library._globalRGBSync.active = true
+                            local syncId = tostring(math.random(1000000, 9999999))
+                            slot._syncId = syncId
+                            Library._globalRGBSync.listeners[syncId] = nil -- ensure clean slate
+                            Library._globalRGBSync.listeners[syncId] = function(syncColor)
+                                if not slot.rainbow then return end
+                                local h,s,v = Color3.toHSV(syncColor)
+                                slot.hsv = {h,s,v}
+                                if Library._rainbowBus and Library._rainbowBus.h then
+                                    slot.hueOffset = (h - Library._rainbowBus.h) % 1
+                                end
+                                slot.color = syncColor
+                                slot.fill.BackgroundColor3 = syncColor
+                                if type(cb) == "function" then pcall(cb, syncColor, i) end
+                                if open and activeIndex == i then
+                                    if slot.updateSVBackground then slot.updateSVBackground(h) end
+                                    if slot.svCursor and slot.sv then slot.svCursor.Position = UDim2.fromOffset(s*(slot.sv.AbsoluteSize.X), (1-v)*(slot.sv.AbsoluteSize.Y)) end
+                                    if slot.hueGrab and slot.hueSlider then slot.hueGrab.Position = UDim2.fromOffset(math.floor(slot.hueSlider.AbsoluteSize.X/2), h*(slot.hueSlider.AbsoluteSize.Y)) end
+                                    if slot.rgbBox and not slot.rgbBox:IsFocused() then local r,g,b = toRGB255(syncColor); slot.rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                                    if slot.hexBox and not slot.hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); slot.hexBox.Text = rgbToHex(r,g,b) end
+                                end
+                            end
+                        end
+                        if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                        slot.rainbow = true
+                        slot.rainbowHook = attachRainbow(i)
+                        if doSync and slot._syncId then
+                            local c0 = hsvToColor(slot.hsv)
+                            syncRGBColor(c0, i, slot._syncId)
+                        end
+                        updateSlotUI(i)
+                    end
+                    local function disablePulse(i)
+                        local slot = slots[i]
+                        slot.pulse = false
+                        if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
+                        if doSync and slot._pulseSyncId then
+                            Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
+                            slot._pulseSyncId = nil
+                            local hasActivePulse = false
+                            for _, _ in pairs(Library._globalPulseSync.listeners) do hasActivePulse = true break end
+                            Library._globalPulseSync.active = hasActivePulse
+                        end
+                        updateSlotUI(i)
+                    end
+                    local function enablePulse(i)
+                        local slot = slots[i]
+                        -- turn off rainbow for this slot
+                        if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                        slot.rainbow = false
+                        -- optional sync setup
+                        if doSync then
+                            Library._globalPulseSync.active = true
+                            local syncId = tostring(math.random(1000000, 9999999))
+                            slot._pulseSyncId = syncId
+                        end
+                        -- seed pulse offset vs global hue
+                        if Library._rainbowBus and Library._rainbowBus.h then
+                            local currentH = slot.hsv[1] or 0
+                            slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1
+                        end
+                        if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
+                        slot.pulse = true
+                        slot.pulseHook = rainbowAdd(function(h)
+                            local s = slot.hsv[2] or 1
+                            local baseV = slot.hsv[3] or 1
+                            local hh = (h + (slot.pulseHueOffset or 0)) % 1
+                            local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4))
+                            local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                            slot.hsv = {hh, s, baseV}
+                            slot.color = c
+                            slot.fill.BackgroundColor3 = c
+                            if doSync and slot._pulseSyncId then syncPulseColor(c, i, slot._pulseSyncId) end
+                            if type(cb) == "function" then pcall(cb, c, i) end
+                            if open and activeIndex == i then
+                                if slot.rgbBox and not slot.rgbBox:IsFocused() then local r,g,b = toRGB255(c); slot.rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                                if slot.hexBox and not slot.hexBox:IsFocused() then local r,g,b = toRGB255(c); slot.hexBox.Text = rgbToHex(r,g,b) end
+                            end
+                        end)
+                        if doSync and slot._pulseSyncId then
+                            local c0 = hsvToColor(slot.hsv)
+                            syncPulseColor(c0, i, slot._pulseSyncId)
+                        end
+                        updateSlotUI(i)
+                    end
+
                     local function openPanel(btnFor, index)
                         if anim then return end
                         -- toggle close if clicking the same swatch while open
@@ -2488,6 +2609,7 @@ function Library:CreateLibrary(opts)
                             if targetPanel and targetPanel ~= panel then
                                 panel.Visible = false
                                 panel = targetPanel
+                                panel.Visible = true
                             end
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
                             -- Align right edge of panel with swatch; place above by 6px
