@@ -2494,7 +2494,12 @@ function Library:CreateLibrary(opts)
                             if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                             if rgbBox then local r,g,b = toRGB255(slots[index].color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                             if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
-                            if setCheckbox then local slot = slots[index]; setCheckbox(slot.rainbow); setPulseCheckbox(slot.pulse) end
+                            if setCheckbox then
+                                local slot = slots[index]
+                                -- Always reflect the active slot's toggles visually
+                                setCheckbox(slot.rainbow)
+                                setPulseCheckbox(slot.pulse)
+                            end
                             return
                         end
                         open = true; anim = true; activeIndex = index
@@ -2962,6 +2967,9 @@ function Library:CreateLibrary(opts)
                         if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
                         if setCheckbox then -- reflect slot state
                             local slot = slots[index]
+                            -- Update checkmark visuals to match selected slot
+                            setCheckbox(slot.rainbow)
+                            setPulseCheckbox(slot.pulse)
                             if slot.rainbow and not slot.rainbowHook then
                                 slot.rainbowHook = attachRainbow(index)
                             end
@@ -3070,9 +3078,14 @@ function Library:CreateLibrary(opts)
                                         if type(cb) == "function" then pcall(cb, c, i) end
                                     end)
                                 end
+                                -- If panel open on this control and swatch, update checkbox visuals
+                                if open and activeIndex == i and setCheckbox then
+                                    setCheckbox(true); setPulseCheckbox(false)
+                                end
                             else
                                 if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                 slot._resumeRainbow = nil
+                                if open and activeIndex == i and setCheckbox then setCheckbox(false) end
                             end
                         end
                         if not index then index = self:_getActiveIndex() end
@@ -3104,8 +3117,12 @@ function Library:CreateLibrary(opts)
                                     slot.fill.BackgroundColor3 = pulsedColor
                                     if type(cb) == "function" then pcall(cb, pulsedColor, i) end
                                 end)
+                                if open and activeIndex == i and setPulseCheckbox then
+                                    setPulseCheckbox(true); if setCheckbox then setCheckbox(false) end
+                                end
                             else
                                 if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
+                                if open and activeIndex == i and setPulseCheckbox then setPulseCheckbox(false) end
                             end
                         end
                         if not index then index = self:_getActiveIndex() end
