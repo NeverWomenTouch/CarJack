@@ -242,7 +242,7 @@ function Library:CreateLibrary(opts)
         end
     end)
     local body = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -12, 1, -(46 + 12)), Position = UDim2.fromOffset(6, 46 + 6), ZIndex = z, Parent = root})
-    local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 100, 1, 0), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
+    local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 100, 1, 0), ScrollBarThickness = 0, ScrollBarImageColor3 = Color3.fromRGB(0,0,0), ScrollBarImageTransparency = 1, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
     local content = Create("Frame", {Name = "Content", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ClipsDescendants = true, Size = UDim2.new(1, -(100 + 6), 1, 0), Position = UDim2.new(0, 100 + 6, 0, 0), ZIndex = z, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
     do
         -- Smooth, resilient dragging (supports mouse & touch) without stutter.
@@ -712,8 +712,10 @@ function Library:CreateLibrary(opts)
             p = p or {}
             local pname = tostring(p.Name or "Page")
             local Page = { Name = pname, _blocks = {}, _columns = Clamp(tonumber(p.Columns) or 2, 1, 3) }
-            local tb = TextService:GetTextSize(pname, 13, Fonts.Medium, Vector2.new(1000, 22))
-            local subBtn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = pname, TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 13, Size = UDim2.fromOffset(tb.X + 18, 22), ZIndex = z + 2, Parent = subBar})
+            local tb = TextService:GetTextSize(pname, 12, Fonts.Medium, Vector2.new(1000, 22))
+            -- Clamp text width to prevent overflow
+            local maxWidth = math.min(tb.X + 16, 120) -- Limit to 120px max width
+            local subBtn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = pname, TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 12, Size = UDim2.fromOffset(maxWidth, 22), TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 2, Parent = subBar})
             local subInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,4,1,0), Visible = false, ZIndex = z + 3, Parent = subBtn})
             subBtn.MouseEnter:Connect(function() if Category._selectedPage ~= Page then T(subBtn, 0.12, {TextColor3 = Theme.Text}):Play() end end)
             subBtn.MouseLeave:Connect(function() if Category._selectedPage ~= Page then T(subBtn, 0.12, {TextColor3 = Theme.SubText}):Play() end end)
@@ -2355,30 +2357,51 @@ function Library:CreateLibrary(opts)
                         local slot = slots[index]
                         if not slot then return end
                         
-                        -- Temporarily disable effects during manual control
+                        -- Store current effect states to preserve them
                         local wasRainbow = slot.rainbow
                         local wasPulse = slot.pulse
+                        
+                        -- Temporarily pause effects during manual control without disabling them
                         if wasRainbow and slot.rainbowHook then 
                             rainbowRemove(slot.rainbowHook)
                             slot.rainbowHook = nil
+                            slot._resumeRainbow = true  -- Mark for resumption
                         end
                         if wasPulse and slot.pulseHook then 
                             rainbowRemove(slot.pulseHook)
                             slot.pulseHook = nil
+                            slot._resumePulse = true    -- Mark for resumption
                         end
-                        -- Clear resume flags to prevent re-enabling
-                        slot._resumeRainbow = nil
-                        slot._resumePulse = nil
-                        slot.rainbow = false
-                        slot.pulse = false
-                        if setCheckbox then setCheckbox(false) end
-                        if setPulseCheckbox then setPulseCheckbox(false) end
                         
                         local H,S,V = slot.hsv[1], slot.hsv[2], slot.hsv[3]
                         if h~=nil then H=h end; if s~=nil then S=s end; if v~=nil then V=v end
                         slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
                         updateSVBackground(H)
                         applyColorFromHSV(index)
+                        
+                        -- Resume effects after a brief delay to allow manual adjustment to complete
+                        game:GetService("RunService").Heartbeat:Wait()
+                        if slot._resumeRainbow and wasRainbow and not slot.rainbowHook then
+                            slot.rainbowHook = attachRainbow(index)
+                            slot._resumeRainbow = nil
+                        end
+                        if slot._resumePulse and wasPulse and not slot.pulseHook then
+                            -- Re-create pulse hook
+                            slot.pulseHook = rainbowAdd(function(t)
+                                local cycle = (t * 2) % 3
+                                local pulse = (math.sin(t * 8) + 1) / 2
+                                local r, g, b = 0, 0, 0
+                                if cycle < 1 then r = pulse
+                                elseif cycle < 2 then g = pulse
+                                else b = pulse end
+                                local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+                                slot.color = pulsedColor
+                                slot.fill.BackgroundColor3 = pulsedColor
+                                syncPulseColor(pulsedColor, index, slot._pulseSyncId)
+                                if type(cb) == "function" then pcall(cb, pulsedColor, index) end
+                            end)
+                            slot._resumePulse = nil
+                        end
                     end
                     
                     -- Separate function for drag operations that doesn't permanently disable effects
@@ -2704,15 +2727,9 @@ function Library:CreateLibrary(opts)
                             -- inputs
                             rgbBox.FocusLost:Connect(function()
                                 local slot = slots[activeIndex]
-                                -- Disable effects temporarily during manual input
+                                -- Store current effect states to preserve them
                                 local wasRainbow = slot.rainbow
                                 local wasPulse = slot.pulse
-                                if wasRainbow and slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                if wasPulse and slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                slot.rainbow = false
-                                slot.pulse = false
-                                setCheckbox(false)
-                                setPulseCheckbox(false)
                                 
                                 local r,g,b = parseRGBText(rgbBox.Text or "")
                                 if r then
@@ -2725,6 +2742,14 @@ function Library:CreateLibrary(opts)
                                     svCursor.Position = UDim2.fromOffset(s*sv.AbsoluteSize.X, (1-v)*sv.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*hueSlider.AbsoluteSize.Y)
                                     applyColorFromHSV(activeIndex)
+                                    
+                                    -- Update color for effects without disrupting them
+                                    if wasRainbow then
+                                        slot.hsv = {h,s,v} -- Update base HSV for rainbow to use
+                                    end
+                                    if wasPulse then
+                                        -- Let pulse continue with its own color generation
+                                    end
                                 else
                                     local c = slots[activeIndex].color
                                     local rr,gg,bb = toRGB255(c)
@@ -2733,15 +2758,9 @@ function Library:CreateLibrary(opts)
                             end)
                             hexBox.FocusLost:Connect(function()
                                 local slot = slots[activeIndex]
-                                -- Disable effects temporarily during manual input
+                                -- Store current effect states to preserve them
                                 local wasRainbow = slot.rainbow
                                 local wasPulse = slot.pulse
-                                if wasRainbow and slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                                if wasPulse and slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                                slot.rainbow = false
-                                slot.pulse = false
-                                setCheckbox(false)
-                                setPulseCheckbox(false)
                                 
                                 local r,g,b = hexToRGB(hexBox.Text or "")
                                 if r then
@@ -2752,6 +2771,14 @@ function Library:CreateLibrary(opts)
                                     svCursor.Position = UDim2.fromOffset(s*sv.AbsoluteSize.X, (1-v)*sv.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*hueSlider.AbsoluteSize.Y)
                                     applyColorFromHSV(activeIndex)
+                                    
+                                    -- Update color for effects without disrupting them
+                                    if wasRainbow then
+                                        slot.hsv = {h,s,v} -- Update base HSV for rainbow to use
+                                    end
+                                    if wasPulse then
+                                        -- Let pulse continue with its own color generation
+                                    end
                                 else
                                     local c = slots[activeIndex].color
                                     hexBox.Text = (function() local r,g,b = toRGB255(c); return rgbToHex(r,g,b) end)()
