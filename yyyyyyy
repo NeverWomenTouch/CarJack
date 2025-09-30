@@ -2231,13 +2231,14 @@ function Library:CreateLibrary(opts)
                         })
                         btn.MouseEnter:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
                         btn.MouseLeave:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
-                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0 }
+                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0, panel = nil, open = false }
                     end
 
-                    -- panel singleton per control
-                    local panel, open, anim = nil, false, false
+                    -- panel per slot instead of shared
                     local panelBlocker = nil
                     local activeIndex = 1
+                    local open, anim = false, false  -- backwards compatibility
+                    local panel = nil  -- current active panel
                     local conns = {}
                     local function disconnectAll()
                         for i=#conns,1,-1 do conns[i]:Disconnect(); table.remove(conns,i) end
@@ -2469,10 +2470,23 @@ function Library:CreateLibrary(opts)
 
                     local function openPanel(btnFor, index)
                         if anim then return end
+                        local slot = slots[index]
                         -- toggle close if clicking the same swatch while open
-                        if open and panel and activeIndex == index then
+                        if slot.open and slot.panel and activeIndex == index then
+                            slot.open = false; open = false
+                            if panelBlocker then panelBlocker:Destroy(); panelBlocker = nil end
+                            T(slot.panel,0.2,{Size = UDim2.fromOffset(0,0), Position = btnFor.AbsolutePosition + btnFor.AbsoluteSize*0.5}):Play()
                             if Library._openColorPanelClose then pcall(Library._openColorPanelClose); Library._openColorPanelClose = nil end
                             return
+                        end
+                        
+                        -- Close any other open panels first
+                        for i, otherSlot in pairs(slots) do
+                            if otherSlot.open and otherSlot.panel then
+                                otherSlot.open = false
+                                if panelBlocker then panelBlocker:Destroy(); panelBlocker = nil end
+                                T(otherSlot.panel,0.2,{Size = UDim2.fromOffset(0,0), Position = btnFor.AbsolutePosition + btnFor.AbsoluteSize*0.5}):Play()
+                            end
                         end
                         if open and panel then
                             -- retarget existing panel to new slot
@@ -2497,18 +2511,21 @@ function Library:CreateLibrary(opts)
                             if setCheckbox then
                                 local slot = slots[index]
                                 -- Restore UI to show ONLY this slot's actual functional state
-                                cbMark.Visible = slot.rainbow or false
-                                pulseMark.Visible = slot.pulse or false
+                                if slot.cbMark then slot.cbMark.Visible = slot.rainbow or false end
+                                if slot.pulseMark then slot.pulseMark.Visible = slot.pulse or false end
                             end
                             return
                         end
-                        open = true; anim = true; activeIndex = index
-                        if not panel then
-                            panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = 12000, Parent = RootGui}, {
+                        slot.open = true; open = true; anim = true; activeIndex = index
+                        local slot = slots[index]
+                        if not slot.panel then
+                            slot.panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = 12000, Parent = RootGui}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
                                 -- Main holder outline (panel)
                                 Create("UIStroke", {Name = "Stroke", ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
                             })
+                        end
+                        panel = slot.panel  -- set current active panel
                             local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
                             shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
 
@@ -2570,10 +2587,16 @@ function Library:CreateLibrary(opts)
                             local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
                             local function setCheckbox(on)
-                                cbMark.Visible = on and true or false
+                                local slot = slots[activeIndex]
+                                if slot and slot.cbMark then
+                                    slot.cbMark.Visible = on and true or false
+                                end
                             end
                             local function setPulseCheckbox(on)
-                                pulseMark.Visible = on and true or false
+                                local slot = slots[activeIndex]
+                                if slot and slot.pulseMark then
+                                    slot.pulseMark.Visible = on and true or false
+                                end
                             end
                             -- Initialize as off
                             setCheckbox(false)
@@ -2760,12 +2783,12 @@ function Library:CreateLibrary(opts)
                                 -- Toggle ONLY this slot's rainbow state
                                 slot.rainbow = not slot.rainbow
                                 -- Update checkbox visual
-                                setCheckbox(slot.rainbow)
+                                if slot.cbMark then slot.cbMark.Visible = slot.rainbow end
                                 if slot.rainbow then
                                     -- Clean shutdown of pulse
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                     slot.pulse = false
-                                    setPulseCheckbox(false)
+                                    if slot.pulseMark then slot.pulseMark.Visible = false end
                                     
                                     -- Enable global RGB sync
                                     Library._globalRGBSync.active = true
@@ -2836,12 +2859,12 @@ function Library:CreateLibrary(opts)
                                 -- Toggle ONLY this slot's pulse state
                                 slot.pulse = not slot.pulse
                                 -- Update checkbox visual
-                                setPulseCheckbox(slot.pulse)
+                                if slot.pulseMark then slot.pulseMark.Visible = slot.pulse end
                                 if slot.pulse then
                                     -- Turn off rainbow and prepare pulse state
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                     slot.rainbow = false
-                                    setCheckbox(false)
+                                    if slot.cbMark then slot.cbMark.Visible = false end
                                     
                                     -- Enable global Pulse sync
                                     Library._globalPulseSync.active = true
