@@ -2119,6 +2119,28 @@ function Library:CreateLibrary(opts)
 
                     -- rainbow sync bus
                     Library._rainbowBus = Library._rainbowBus or { listeners = {}, conn = nil }
+                    
+                    -- Global sync system for RGB and Pulse modes
+                    Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {} }
+                    Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {} }
+                    
+                    local function syncRGBColor(color, sourceIndex, sourceId)
+                        if not Library._globalRGBSync.active then return end
+                        for id, listener in pairs(Library._globalRGBSync.listeners) do
+                            if id ~= sourceId then
+                                pcall(listener, color, sourceIndex)
+                            end
+                        end
+                    end
+                    
+                    local function syncPulseColor(color, sourceIndex, sourceId)
+                        if not Library._globalPulseSync.active then return end
+                        for id, listener in pairs(Library._globalPulseSync.listeners) do
+                            if id ~= sourceId then
+                                pcall(listener, color, sourceIndex)
+                            end
+                        end
+                    end
                     local function rainbowStart()
                         if Library._rainbowBus.conn then return end
                         local RS = game:GetService("RunService")
@@ -2377,15 +2399,21 @@ function Library:CreateLibrary(opts)
                         return rainbowAdd(function(h)
                             local s,v = slot.hsv[2], slot.hsv[3]
                             slot.hsv = {h,s,v}
+                            local c = hsvToColor(slot.hsv)
+                            slot.color = c
+                            slot.fill.BackgroundColor3 = c
+                            
+                            -- Sync to other RGB colorpickers
+                            if slot._syncId then
+                                syncRGBColor(c, i, slot._syncId)
+                            end
+                            
                             if open and activeIndex == i then
                                 updateSVBackground(h)
                                 if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h * hueSlider.AbsoluteSize.Y) end
                                 applyColorFromHSV(i)
                             else
                                 -- update color silently when not active
-                                local c = hsvToColor(slot.hsv)
-                                slot.color = c
-                                slot.fill.BackgroundColor3 = c
                                 if type(cb) == "function" then pcall(cb, c, i) end
                             end
                         end)
@@ -2589,14 +2617,17 @@ function Library:CreateLibrary(opts)
                                     slot._resumeRainbow = nil
                                     slot._resumePulse = nil
                                     
+                                    -- Store original states for manual override
+                                    slot._wasRainbow = slot.rainbow
+                                    slot._wasPulse = slot.pulse
+                                    slot._manualOverride = true
+                                    
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
-                                        slot._resumeRainbow = true
                                         slot.rainbowHook = nil
                                     end
                                     if slot and slot.pulse and slot.pulseHook then
                                         rainbowRemove(slot.pulseHook)
-                                        slot._resumePulse = true
                                         slot.pulseHook = nil
                                     end
                                     local p = getScreenPos()
@@ -2621,14 +2652,31 @@ function Library:CreateLibrary(opts)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     hueDragging = false
                                     local dragIndex = hueDragIndex or activeIndex
-                                    -- resume rainbow/pulse if it was paused
                                     local slot = slots[dragIndex]
-                                    if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
-                                        slot.rainbowHook = attachRainbow(dragIndex)
-                                        slot._resumeRainbow = nil
+                                    
+                                    -- Resume effects from new manual position if they were active
+                                    if slot and slot._wasRainbow and slot.rainbow and not slot.rainbowHook then
+                                        -- Start rainbow from current hue position
+                                        local currentH = slot.hsv[1]
+                                        slot.rainbowHook = rainbowAdd(function(h)
+                                            -- Use manual position as base and continue cycling from there
+                                            local adjustedH = (currentH + h) % 1
+                                            local s,v = slot.hsv[2], slot.hsv[3]
+                                            slot.hsv = {adjustedH,s,v}
+                                            if open and activeIndex == dragIndex then
+                                                updateSVBackground(adjustedH)
+                                                if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), adjustedH * hueSlider.AbsoluteSize.Y) end
+                                                applyColorFromHSV(dragIndex)
+                                            else
+                                                local c = hsvToColor(slot.hsv)
+                                                slot.color = c
+                                                slot.fill.BackgroundColor3 = c
+                                                if type(cb) == "function" then pcall(cb, c, dragIndex) end
+                                            end
+                                        end)
                                     end
-                                    if slot and slot._resumePulse and slot.pulse and not slot.pulseHook then
-                                        -- Re-create pulse hook
+                                    if slot and slot._wasPulse and slot.pulse and not slot.pulseHook then
+                                        -- Continue pulse from current color
                                         slot.pulseHook = rainbowAdd(function(t)
                                             local cycle = (t * 2) % 3
                                             local pulse = (math.sin(t * 8) + 1) / 2
@@ -2641,7 +2689,13 @@ function Library:CreateLibrary(opts)
                                             slot.fill.BackgroundColor3 = pulsedColor
                                             if type(cb) == "function" then pcall(cb, pulsedColor, dragIndex) end
                                         end)
-                                        slot._resumePulse = nil
+                                    end
+                                    
+                                    -- Clear manual override flags
+                                    if slot then
+                                        slot._wasRainbow = nil
+                                        slot._wasPulse = nil
+                                        slot._manualOverride = nil
                                     end
                                     hueDragIndex = nil
                                 end
@@ -2721,12 +2775,41 @@ function Library:CreateLibrary(opts)
                                     slot.pulse = false
                                     setPulseCheckbox(false)
                                     
+                                    -- Enable global RGB sync
+                                    Library._globalRGBSync.active = true
+                                    local syncId = tostring(math.random(1000000, 9999999))
+                                    slot._syncId = syncId
+                                    
+                                    -- Register sync listener
+                                    Library._globalRGBSync.listeners[syncId] = function(syncColor, syncIndex)
+                                        if slot.rainbow and open and activeIndex == idx then
+                                            slot.color = syncColor
+                                            slot.fill.BackgroundColor3 = syncColor
+                                            if type(cb) == "function" then pcall(cb, syncColor, idx) end
+                                        end
+                                    end
+                                    
                                     -- Clean shutdown and restart rainbow
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                     slot.rainbowHook = attachRainbow(idx)
                                 else
                                     -- Clean shutdown of rainbow and restore manual control
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                    
+                                    -- Remove from global RGB sync
+                                    if slot._syncId then
+                                        Library._globalRGBSync.listeners[slot._syncId] = nil
+                                        slot._syncId = nil
+                                    end
+                                    
+                                    -- Check if any other colorpickers still have RGB active
+                                    local hasActiveRGB = false
+                                    for _, listener in pairs(Library._globalRGBSync.listeners) do
+                                        hasActiveRGB = true
+                                        break
+                                    end
+                                    Library._globalRGBSync.active = hasActiveRGB
+                                    
                                     -- Ensure UI reflects current HSV values
                                     local h,s,v = table.unpack(slot.hsv)
                                     updateSVBackground(h)
@@ -2752,6 +2835,20 @@ function Library:CreateLibrary(opts)
                                     slot.rainbow = false
                                     setCheckbox(false)
                                     
+                                    -- Enable global Pulse sync
+                                    Library._globalPulseSync.active = true
+                                    local syncId = tostring(math.random(1000000, 9999999))
+                                    slot._pulseSyncId = syncId
+                                    
+                                    -- Register sync listener
+                                    Library._globalPulseSync.listeners[syncId] = function(syncColor, syncIndex)
+                                        if slot.pulse and open and activeIndex == idx then
+                                            slot.color = syncColor
+                                            slot.fill.BackgroundColor3 = syncColor
+                                            if type(cb) == "function" then pcall(cb, syncColor, idx) end
+                                        end
+                                    end
+                                    
                                     -- Clean shutdown and restart pulse
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                     slot.pulseHook = rainbowAdd(function(t)
@@ -2768,6 +2865,10 @@ function Library:CreateLibrary(opts)
                                         local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
                                         slot.color = pulsedColor
                                         slot.fill.BackgroundColor3 = pulsedColor
+                                        
+                                        -- Sync to other pulse colorpickers
+                                        syncPulseColor(pulsedColor, idx, slot._pulseSyncId)
+                                        
                                         if open and activeIndex == idx then
                                             -- Update UI inputs without triggering feedback loops
                                             if rgbBox and not rgbBox:IsFocused() then
@@ -2782,6 +2883,21 @@ function Library:CreateLibrary(opts)
                                 else
                                     -- Clean shutdown of pulse and restore manual control
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
+                                    
+                                    -- Remove from global Pulse sync
+                                    if slot._pulseSyncId then
+                                        Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
+                                        slot._pulseSyncId = nil
+                                    end
+                                    
+                                    -- Check if any other colorpickers still have Pulse active
+                                    local hasActivePulse = false
+                                    for _, listener in pairs(Library._globalPulseSync.listeners) do
+                                        hasActivePulse = true
+                                        break
+                                    end
+                                    Library._globalPulseSync.active = hasActivePulse
+                                    
                                     -- Ensure UI reflects current HSV values
                                     local h,s,v = table.unpack(slot.hsv)
                                     updateSVBackground(h)
