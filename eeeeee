@@ -3017,6 +3017,10 @@ function Library:CreateLibrary(opts)
 
                     -- public API
                     local Colorpicker = { id = id, _slots = slots }
+                    -- expose current active slot index for this control
+                    function Colorpicker:_getActiveIndex()
+                        return activeIndex or 1
+                    end
                     function Colorpicker:Get(index)
                         if index then return self._slots[index] and self._slots[index].color end
                         if #self._slots == 1 then return self._slots[1].color end
@@ -3071,7 +3075,8 @@ function Library:CreateLibrary(opts)
                                 slot._resumeRainbow = nil
                             end
                         end
-                        if index then setOne(index, on) else for i=1,#self._slots do setOne(i, on) end end
+                        if not index then index = self:_getActiveIndex() end
+                        setOne(index, on)
                     end
                     function Colorpicker:SetPulse(on, index)
                         local function setOne(i, onv)
@@ -3103,7 +3108,8 @@ function Library:CreateLibrary(opts)
                                 if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                             end
                         end
-                        if index then setOne(index, on) else for i=1,#self._slots do setOne(i, on) end end
+                        if not index then index = self:_getActiveIndex() end
+                        setOne(index, on)
                     end
 
                     -- apply defaults & optional rainbow
