@@ -2390,7 +2390,7 @@ function Library:CreateLibrary(opts)
                             svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), ZIndex = sv.ZIndex + 3, Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                             rgbBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "R, G, B", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
-                            hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 190), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
+                            hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
 
                             -- Right: Hue slider + rainbow toggle
                             local HUE_W, HUE_H = 26, 150
@@ -2418,7 +2418,7 @@ function Library:CreateLibrary(opts)
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(24,22), Position = UDim2.fromOffset(16,0), Text = "RGB", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = cbRow.ZIndex + 1, Parent = cbRow})
                             
                             -- Pulse RGB checkbox + label positioned at hex textbox Y level, same X as RGB checkbox
-                            local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(197, 190), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
+                            local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(197, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
@@ -2594,13 +2594,13 @@ function Library:CreateLibrary(opts)
                                 if slot.pulse then
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                     slot.pulseHook = rainbowAdd(function(t)
-                                        local intensity = (math.sin(t * 8) + 1) / 2 -- Pulse between 0 and 1
-                                        local baseColor = hsvToColor(slot.hsv)
-                                        local pulsedColor = Color3.fromRGB(
-                                            math.floor(baseColor.R * 255 * intensity),
-                                            math.floor(baseColor.G * 255 * intensity),
-                                            math.floor(baseColor.B * 255 * intensity)
-                                        )
+                                        local phase = (math.sin(t * 6) + 1) / 2 -- Pulse between 0 and 1
+                                        local h = (t * 0.5) % 1 -- Cycle through hue
+                                        local s, v = slot.hsv[2], slot.hsv[3]
+                                        -- Mix between base color and rainbow hue based on pulse
+                                        local baseH = slot.hsv[1]
+                                        local finalH = baseH + (h - baseH) * phase
+                                        local pulsedColor = Color3.fromHSV(finalH, s, v)
                                         slot.color = pulsedColor
                                         slot.fill.BackgroundColor3 = pulsedColor
                                         if type(cb) == "function" then pcall(cb, pulsedColor, idx) end
@@ -2762,13 +2762,13 @@ function Library:CreateLibrary(opts)
                                 slot._resumeRainbow = nil
                                 if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                 slot.pulseHook = rainbowAdd(function(t)
-                                    local intensity = (math.sin(t * 8) + 1) / 2 -- Pulse between 0 and 1
-                                    local baseColor = hsvToColor(slot.hsv)
-                                    local pulsedColor = Color3.fromRGB(
-                                        math.floor(baseColor.R * 255 * intensity),
-                                        math.floor(baseColor.G * 255 * intensity),
-                                        math.floor(baseColor.B * 255 * intensity)
-                                    )
+                                    local phase = (math.sin(t * 6) + 1) / 2 -- Pulse between 0 and 1
+                                    local h = (t * 0.5) % 1 -- Cycle through hue
+                                    local s, v = slot.hsv[2], slot.hsv[3]
+                                    -- Mix between base color and rainbow hue based on pulse
+                                    local baseH = slot.hsv[1]
+                                    local finalH = baseH + (h - baseH) * phase
+                                    local pulsedColor = Color3.fromHSV(finalH, s, v)
                                     slot.color = pulsedColor
                                     slot.fill.BackgroundColor3 = pulsedColor
                                     if type(cb) == "function" then pcall(cb, pulsedColor, i) end
