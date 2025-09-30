@@ -2522,12 +2522,10 @@ function Library:CreateLibrary(opts)
                             if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                             if rgbBox then local r,g,b = toRGB255(slots[index].color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                             if hexBox then local r,g,b = toRGB255(slots[index].color); hexBox.Text = rgbToHex(r,g,b) end
-                            if setCheckbox then
-                                local slot = slots[index]
-                                -- Restore UI to show ONLY this slot's actual functional state
-                                setCheckbox(slot.rainbow or false)
-                                setPulseCheckbox(slot.pulse or false)
-                            end
+                            local slot = slots[index]
+                            -- Restore UI to show ONLY this slot's actual functional state
+                            if slot.setCheckbox then slot.setCheckbox(slot.rainbow or false) end
+                            if slot.setPulseCheckbox then slot.setPulseCheckbox(slot.pulse or false) end
                             return
                         end
                         slot.panelOpen = true; open = true; anim = true; activeIndex = index
@@ -2600,15 +2598,16 @@ function Library:CreateLibrary(opts)
                             local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
-                            local function setCheckbox(on)
+                            -- Store checkbox functions in the slot for this panel
+                            slot.setCheckbox = function(on)
                                 cbMark.Visible = on and true or false
                             end
-                            local function setPulseCheckbox(on)
+                            slot.setPulseCheckbox = function(on)
                                 pulseMark.Visible = on and true or false
                             end
                             -- Initialize as off
-                            setCheckbox(false)
-                            setPulseCheckbox(false)
+                            slot.setCheckbox(false)
+                            slot.setPulseCheckbox(false)
 
                             -- interactions: SV drag (S across X, V across Y)
                             local function getScreenPos()
@@ -2791,12 +2790,12 @@ function Library:CreateLibrary(opts)
                                 -- Toggle ONLY this slot's rainbow state
                                 slot.rainbow = not slot.rainbow
                                 -- Update checkbox visual
-                                setCheckbox(slot.rainbow)
+                                if slot.setCheckbox then slot.setCheckbox(slot.rainbow) end
                                 if slot.rainbow then
                                     -- Clean shutdown of pulse
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                     slot.pulse = false
-                                    setPulseCheckbox(false)
+                                    if slot.setPulseCheckbox then slot.setPulseCheckbox(false) end
                                     
                                     -- Enable global RGB sync
                                     Library._globalRGBSync.active = true
@@ -2867,12 +2866,12 @@ function Library:CreateLibrary(opts)
                                 -- Toggle ONLY this slot's pulse state
                                 slot.pulse = not slot.pulse
                                 -- Update checkbox visual
-                                setPulseCheckbox(slot.pulse)
+                                if slot.setPulseCheckbox then slot.setPulseCheckbox(slot.pulse) end
                                 if slot.pulse then
                                     -- Turn off rainbow and prepare pulse state
                                     if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                                     slot.rainbow = false
-                                    setCheckbox(false)
+                                    if slot.setCheckbox then slot.setCheckbox(false) end
                                     
                                     -- Enable global Pulse sync
                                     Library._globalPulseSync.active = true
