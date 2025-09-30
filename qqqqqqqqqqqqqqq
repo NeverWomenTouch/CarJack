@@ -1366,8 +1366,18 @@ function Library:CreateLibrary(opts)
                             end
                             return btn
                         end
-                        makeItem("Select All", function() Dropdown:SelectAll() end)
-                        makeItem("Unselect All", function() Dropdown:UnselectAll() end)
+                        makeItem("Select All", function() 
+                            closeCtxMenu()
+                            task.defer(function()
+                                Dropdown:SelectAll()
+                            end)
+                        end)
+                        makeItem("Unselect All", function() 
+                            closeCtxMenu()
+                            task.defer(function()
+                                Dropdown:UnselectAll()
+                            end)
+                        end)
                         -- position above the dropdown, aligned to right edge; flip below when needed
                         local tAbs = trigger.AbsolutePosition
                         local tSz = trigger.AbsoluteSize
@@ -1794,13 +1804,35 @@ function Library:CreateLibrary(opts)
                         local newSet = {}
                         for _, opt in ipairs(self._options) do newSet[tostring(opt)] = true end
                         self._values = newSet
-                        updateSelection(); refreshLabelFromSelection()
+                        
+                        -- Force UI updates
+                        pcall(updateSelection)
+                        pcall(refreshLabelFromSelection)
+                        
+                        -- If panel is visible, rebuild it to reflect changes
+                        if panel and panel.Visible then
+                            pcall(buildPanel)
+                            pcall(renderItems)
+                            pcall(updateSelection)
+                        end
+                        
                         if not silent and type(cb)=="function" then pcall(cb, self:Get()) end
                     end
                     function Dropdown:UnselectAll(silent)
                         if not self._multi then return end
                         self._values = {}
-                        updateSelection(); refreshLabelFromSelection()
+                        
+                        -- Force UI updates
+                        pcall(updateSelection)
+                        pcall(refreshLabelFromSelection)
+                        
+                        -- If panel is visible, rebuild it to reflect changes
+                        if panel and panel.Visible then
+                            pcall(buildPanel)
+                            pcall(renderItems)
+                            pcall(updateSelection)
+                        end
+                        
                         if not silent and type(cb)=="function" then pcall(cb, self:Get()) end
                     end
                     function Dropdown:OnOpen(fn) self._onOpen = fn end
@@ -2326,6 +2358,18 @@ function Library:CreateLibrary(opts)
                         updateSVBackground(H)
                         applyColorFromHSV(index)
                     end
+                    
+                    -- Separate function for drag operations that doesn't permanently disable effects
+                    local function setHSVDrag(index, h,s,v)
+                        local slot = slots[index]
+                        if not slot then return end
+                        
+                        local H,S,V = slot.hsv[1], slot.hsv[2], slot.hsv[3]
+                        if h~=nil then H=h end; if s~=nil then S=s end; if v~=nil then V=v end
+                        slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
+                        updateSVBackground(H)
+                        applyColorFromHSV(index)
+                    end
 
                     -- helper: attach rainbow animation to a specific slot index, updating UI only if it's the active one
                     local function attachRainbow(i)
@@ -2486,7 +2530,7 @@ function Library:CreateLibrary(opts)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSV(svDragIndex, nil, s, v)
+                                    setHSVDrag(svDragIndex, nil, s, v)
                                 end
                             end
                             table.insert(conns, sv.InputBegan:Connect(handleSVDown))
@@ -2499,7 +2543,7 @@ function Library:CreateLibrary(opts)
                                     local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSV(svDragIndex or activeIndex, nil, s, v)
+                                    setHSVDrag(svDragIndex or activeIndex, nil, s, v)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
@@ -2559,7 +2603,7 @@ function Library:CreateLibrary(opts)
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    setHSV(hueDragIndex, h, nil, nil); updateSVBackground(h)
+                                    setHSVDrag(hueDragIndex, h, nil, nil); updateSVBackground(h)
                                 end
                             end
                             table.insert(conns, hueSlider.InputBegan:Connect(handleHueDown))
@@ -2570,18 +2614,34 @@ function Library:CreateLibrary(opts)
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
                                     hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    setHSV(hueDragIndex or activeIndex, h, nil, nil); updateSVBackground(h)
+                                    setHSVDrag(hueDragIndex or activeIndex, h, nil, nil); updateSVBackground(h)
                                 end
                             end))
                             table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     hueDragging = false
                                     local dragIndex = hueDragIndex or activeIndex
-                                    -- resume rainbow if it was paused
+                                    -- resume rainbow/pulse if it was paused
                                     local slot = slots[dragIndex]
                                     if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
                                         slot.rainbowHook = attachRainbow(dragIndex)
                                         slot._resumeRainbow = nil
+                                    end
+                                    if slot and slot._resumePulse and slot.pulse and not slot.pulseHook then
+                                        -- Re-create pulse hook
+                                        slot.pulseHook = rainbowAdd(function(t)
+                                            local cycle = (t * 2) % 3
+                                            local pulse = (math.sin(t * 8) + 1) / 2
+                                            local r, g, b = 0, 0, 0
+                                            if cycle < 1 then r = pulse
+                                            elseif cycle < 2 then g = pulse
+                                            else b = pulse end
+                                            local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+                                            slot.color = pulsedColor
+                                            slot.fill.BackgroundColor3 = pulsedColor
+                                            if type(cb) == "function" then pcall(cb, pulsedColor, dragIndex) end
+                                        end)
+                                        slot._resumePulse = nil
                                     end
                                     hueDragIndex = nil
                                 end
