@@ -2443,12 +2443,17 @@ function Library:CreateLibrary(opts)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     svDragging = true
                                     svDragIndex = activeIndex
-                                    -- pause rainbow for this slot while dragging, if active
+                                    -- pause rainbow/pulse for this slot while dragging, if active
                                     local slot = slots[svDragIndex]
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
                                         slot._resumeRainbow = true
                                         slot.rainbowHook = nil
+                                    end
+                                    if slot and slot.pulse and slot.pulseHook then
+                                        rainbowRemove(slot.pulseHook)
+                                        slot._resumePulse = true
+                                        slot.pulseHook = nil
                                     end
                                     local p = getScreenPos()
                                     local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
@@ -2475,11 +2480,27 @@ function Library:CreateLibrary(opts)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     svDragging = false
                                     local dragIndex = svDragIndex or activeIndex
-                                    -- resume rainbow if it was paused
+                                    -- resume rainbow/pulse if it was paused
                                     local slot = slots[dragIndex]
                                     if slot and slot._resumeRainbow and slot.rainbow and not slot.rainbowHook then
                                         slot.rainbowHook = attachRainbow(dragIndex)
                                         slot._resumeRainbow = nil
+                                    end
+                                    if slot and slot._resumePulse and slot.pulse and not slot.pulseHook then
+                                        -- Re-create pulse hook
+                                        slot.pulseHook = rainbowAdd(function(t)
+                                            local cycle = (t * 2) % 3
+                                            local pulse = (math.sin(t * 8) + 1) / 2
+                                            local r, g, b = 0, 0, 0
+                                            if cycle < 1 then r = pulse
+                                            elseif cycle < 2 then g = pulse
+                                            else b = pulse end
+                                            local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+                                            slot.color = pulsedColor
+                                            slot.fill.BackgroundColor3 = pulsedColor
+                                            if type(cb) == "function" then pcall(cb, pulsedColor, dragIndex) end
+                                        end)
+                                        slot._resumePulse = nil
                                     end
                                     svDragIndex = nil
                                 end
@@ -2492,12 +2513,17 @@ function Library:CreateLibrary(opts)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     hueDragging = true
                                     hueDragIndex = activeIndex
-                                    -- pause rainbow for this slot while dragging, if active
+                                    -- pause rainbow/pulse for this slot while dragging, if active
                                     local slot = slots[hueDragIndex]
                                     if slot and slot.rainbow and slot.rainbowHook then
                                         rainbowRemove(slot.rainbowHook)
                                         slot._resumeRainbow = true
                                         slot.rainbowHook = nil
+                                    end
+                                    if slot and slot.pulse and slot.pulseHook then
+                                        rainbowRemove(slot.pulseHook)
+                                        slot._resumePulse = true
+                                        slot.pulseHook = nil
                                     end
                                     local p = getScreenPos()
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
@@ -2533,6 +2559,17 @@ function Library:CreateLibrary(opts)
 
                             -- inputs
                             rgbBox.FocusLost:Connect(function()
+                                local slot = slots[activeIndex]
+                                -- Disable effects temporarily during manual input
+                                local wasRainbow = slot.rainbow
+                                local wasPulse = slot.pulse
+                                if wasRainbow and slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                if wasPulse and slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
+                                slot.rainbow = false
+                                slot.pulse = false
+                                setCheckbox(false)
+                                setPulseCheckbox(false)
+                                
                                 local r,g,b = parseRGBText(rgbBox.Text or "")
                                 if r then
                                     r,g,b = math.clamp(r,0,255), math.clamp(g,0,255), math.clamp(b,0,255)
@@ -2551,6 +2588,17 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
                             hexBox.FocusLost:Connect(function()
+                                local slot = slots[activeIndex]
+                                -- Disable effects temporarily during manual input
+                                local wasRainbow = slot.rainbow
+                                local wasPulse = slot.pulse
+                                if wasRainbow and slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
+                                if wasPulse and slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
+                                slot.rainbow = false
+                                slot.pulse = false
+                                setCheckbox(false)
+                                setPulseCheckbox(false)
+                                
                                 local r,g,b = hexToRGB(hexBox.Text or "")
                                 if r then
                                     local c = Color3.fromRGB(r,g,b)
@@ -2594,15 +2642,28 @@ function Library:CreateLibrary(opts)
                                 if slot.pulse then
                                     if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                     slot.pulseHook = rainbowAdd(function(t)
-                                        local phase = (math.sin(t * 6) + 1) / 2 -- Pulse between 0 and 1
-                                        local h = (t * 0.5) % 1 -- Cycle through hue
-                                        local s, v = slot.hsv[2], slot.hsv[3]
-                                        -- Mix between base color and rainbow hue based on pulse
-                                        local baseH = slot.hsv[1]
-                                        local finalH = baseH + (h - baseH) * phase
-                                        local pulsedColor = Color3.fromHSV(finalH, s, v)
+                                        local cycle = (t * 2) % 3 -- Cycle every 1.5 seconds through 3 states
+                                        local pulse = (math.sin(t * 8) + 1) / 2 -- Fast pulse for visibility
+                                        local r, g, b = 0, 0, 0
+                                        if cycle < 1 then -- Red phase
+                                            r = pulse
+                                        elseif cycle < 2 then -- Green phase  
+                                            g = pulse
+                                        else -- Blue phase
+                                            b = pulse
+                                        end
+                                        local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
                                         slot.color = pulsedColor
                                         slot.fill.BackgroundColor3 = pulsedColor
+                                        if open and activeIndex == idx then
+                                            -- Update UI inputs without triggering feedback loops
+                                            if rgbBox and not rgbBox:IsFocused() then
+                                                rgbBox.Text = string.format("%d, %d, %d", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+                                            end
+                                            if hexBox and not hexBox:IsFocused() then
+                                                hexBox.Text = string.format("#%02X%02X%02X", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+                                            end
+                                        end
                                         if type(cb) == "function" then pcall(cb, pulsedColor, idx) end
                                     end)
                                     -- Disable rainbow if pulse is enabled
@@ -2762,13 +2823,17 @@ function Library:CreateLibrary(opts)
                                 slot._resumeRainbow = nil
                                 if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                                 slot.pulseHook = rainbowAdd(function(t)
-                                    local phase = (math.sin(t * 6) + 1) / 2 -- Pulse between 0 and 1
-                                    local h = (t * 0.5) % 1 -- Cycle through hue
-                                    local s, v = slot.hsv[2], slot.hsv[3]
-                                    -- Mix between base color and rainbow hue based on pulse
-                                    local baseH = slot.hsv[1]
-                                    local finalH = baseH + (h - baseH) * phase
-                                    local pulsedColor = Color3.fromHSV(finalH, s, v)
+                                    local cycle = (t * 2) % 3 -- Cycle every 1.5 seconds through 3 states
+                                    local pulse = (math.sin(t * 8) + 1) / 2 -- Fast pulse for visibility
+                                    local r, g, b = 0, 0, 0
+                                    if cycle < 1 then -- Red phase
+                                        r = pulse
+                                    elseif cycle < 2 then -- Green phase  
+                                        g = pulse
+                                    else -- Blue phase
+                                        b = pulse
+                                    end
+                                    local pulsedColor = Color3.fromRGB(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
                                     slot.color = pulsedColor
                                     slot.fill.BackgroundColor3 = pulsedColor
                                     if type(cb) == "function" then pcall(cb, pulsedColor, i) end
