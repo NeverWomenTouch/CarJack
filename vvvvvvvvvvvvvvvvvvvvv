@@ -2967,30 +2967,23 @@ function Library:CreateLibrary(opts)
                         if Library._openColorCtxClose then pcall(Library._openColorCtxClose); Library._openColorCtxClose = nil end
                         Library._openColorPanelClose = closePanel
 
-                        local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
-                        local width, height = 260, 220
+                        -- Get button and panel dimensions
+                        local buttonPos = btnFor.AbsolutePosition
+                        local buttonSize = btnFor.AbsoluteSize 
+                        local panelWidth, panelHeight = 260, 220
                         
-                        -- Simple and reliable positioning: use button position directly
-                        -- Panel is parented to RootGui so we use absolute screen coordinates
-                        local px = tAbs.X  -- Align left edges
-                        local py = tAbs.Y - height - 5  -- 5px gap above button
+                        -- Position panel directly above button, left-aligned
+                        -- Use UDim2.new with scale 0 and exact pixel offsets
+                        local panelX = buttonPos.X
+                        local panelY = buttonPos.Y - panelHeight - 8
                         
-                        -- Debug: ensure we have reasonable values
-                        print("Button pos:", tAbs.X, tAbs.Y, "Button size:", tSz.X, tSz.Y)
-                        print("Panel pos before clamp:", px, py)
-                        
-                        -- If panel would be cut off at top, place it below button
-                        if py < 50 then  -- More conservative check
-                            py = tAbs.Y + tSz.Y + 5  -- 5px below button
-                            print("Flipped to below button, new py:", py)
+                        -- If not enough room above, place below
+                        if panelY < 100 then
+                            panelY = buttonPos.Y + buttonSize.Y + 8
                         end
                         
-                        -- Keep panel on screen
-                        px = math.max(10, math.min(px, 1920 - width - 10))  -- Conservative screen bounds
-                        
-                        print("Final panel position:", px, py)
-                        panel.Position = UDim2.fromOffset(px, py)
-                        print("Panel actual position after setting:", panel.Position.X.Offset, panel.Position.Y.Offset)
+                        -- Set position using exact offset coordinates
+                        panel.Position = UDim2.new(0, panelX, 0, panelY)
                         panel.Size = UDim2.fromOffset(width, 0)
 
                         -- set UI to current slot
