@@ -2332,13 +2332,13 @@ function Library:CreateLibrary(opts)
                                 if type(cb)=="function" then pcall(cb, c, activeIndex) end
                             end
                         end)
-                        -- position near btnFor
+                        -- position near btnFor: left-aligned below the swatch (fallback clamped)
                         local finalH = vPad*2 + (itemH*2) + gap
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        -- align to bottom-right of the swatch (below the button)
-                        local px = (tAbs.X - rootAbs.X) + tSz.X - menuW
-                        local py = (tAbs.Y - rootAbs.Y) + tSz.Y + 4  -- Reduced gap to 4px
+                        -- align left edge with swatch, place below with small gap
+                        local px = (tAbs.X - rootAbs.X)
+                        local py = (tAbs.Y - rootAbs.Y) + tSz.Y + 4
                         -- clamp within root
                         px = math.clamp(px, 4, rootSz.X - menuW - 4)
                         py = math.clamp(py, 4, rootSz.Y - finalH - 4)
@@ -2689,18 +2689,16 @@ function Library:CreateLibrary(opts)
                                 panel.Visible = true
                             end
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            -- Left-align panel with swatch; prefer below by 6px, fallback above if no space
-                            local px = tAbs.X
-                            local belowPy = tAbs.Y + tSz.Y + 6
-                            local topBound = rootAbs.Y + 4
-                            local bottomBound = rootAbs.Y + rootSz.Y - height - 4
-                            local py
-                            if belowPy <= bottomBound then
-                                py = belowPy
-                            else
-                                py = math.max(topBound, tAbs.Y - height - 6)
+                            -- Left-align with swatch; prefer below with viewport clamping
+                            local viewport = workspace.CurrentCamera.ViewportSize
+                            local px = math.clamp(tAbs.X, 10, viewport.X - width - 10)
+                            local desiredBelow = tAbs.Y + tSz.Y + 6
+                            local desiredAbove = tAbs.Y - height - 6
+                            local bottomBound = viewport.Y - 10
+                            local py = desiredBelow
+                            if (py + height) > bottomBound then
+                                py = math.max(10, desiredAbove)
                             end
-                            px = math.clamp(px, rootAbs.X + 4, rootAbs.X + rootSz.X - width - 4)
                             panel.Position = UDim2.fromOffset(px, py)
                             -- refresh UI to the selected slot
                             local slot = slots[index]
@@ -2980,18 +2978,19 @@ function Library:CreateLibrary(opts)
 
                         -- Since panel is parented to RootGui, use screen coordinates
                         -- Default: open directly below the swatch; fallback above if it would overflow bottom
-                        local px = tAbs.X  -- Left edge alignment
-                        local desiredBelow = tAbs.Y + tSz.Y + 6
-                        local desiredAbove = tAbs.Y - height - 6
-                        local viewport = workspace.CurrentCamera.ViewportSize
-                        local bottomBound = viewport.Y - 10
-                        local py = desiredBelow
-                        if (py + height) > bottomBound then
-                            py = math.max(10, desiredAbove)
+                        local function placePanel()
+                            local viewport = workspace.CurrentCamera.ViewportSize
+                            local px = math.clamp(tAbs.X, 10, viewport.X - width - 10) -- left-aligned
+                            local desiredBelow = tAbs.Y + tSz.Y + 6
+                            local desiredAbove = tAbs.Y - height - 6
+                            local bottomBound = viewport.Y - 10
+                            local py = desiredBelow
+                            if (py + height) > bottomBound then
+                                py = math.max(10, desiredAbove)
+                            end
+                            panel.Position = UDim2.fromOffset(px, py)
                         end
-                        -- Clamp X to stay on screen
-                        px = math.clamp(px, 10, viewport.X - width - 10)
-                        panel.Position = UDim2.fromOffset(px, py)
+                        placePanel()
                         panel.Size = UDim2.fromOffset(width, 0)
 
                         -- set UI to current slot
@@ -3014,6 +3013,21 @@ function Library:CreateLibrary(opts)
                         table.insert(openConns, panel.InputBegan:Connect(function() end))
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(width, height)})
                         tw:Play(); tw.Completed:Connect(function() anim=false end)
+                        -- Keep the panel aligned while sizes/positions change
+                        table.insert(openConns, panel:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                            width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
+                            placePanel()
+                        end))
+                        table.insert(openConns, btnFor:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+                            tAbs = btnFor.AbsolutePosition; tSz = btnFor.AbsoluteSize
+                            placePanel()
+                        end))
+                        table.insert(openConns, root:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+                            placePanel()
+                        end))
+                        table.insert(openConns, root:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                            placePanel()
+                        end))
                         anim=false
                         local justOpened = true; task.defer(function() justOpened = false end)
                         -- outside close / esc
