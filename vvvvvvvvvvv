@@ -2524,6 +2524,29 @@ function Library:CreateLibrary(opts)
                                 if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); hexBox.Text = rgbToHex(r,g,b) end
                             end
                         end
+                        
+                        -- If there are existing RGB effects active, sync to them immediately
+                        if Library._globalRGBSync.active then
+                            local foundRGBSync = false
+                            for existingId, existingListener in pairs(Library._globalRGBSync.listeners) do
+                                if existingId ~= syncId and existingListener and not foundRGBSync then
+                                    -- Find an existing RGB slot to sync from
+                                    for checkId, checkSlot in pairs(Library._controls) do
+                                        if checkSlot._slots and not foundRGBSync then
+                                            for j, checkSlotData in ipairs(checkSlot._slots) do
+                                                if checkSlotData.rainbow and checkSlotData._syncId and checkSlotData._syncId ~= syncId then
+                                                    -- Sync to this existing RGB color
+                                                    local syncColor = checkSlotData.color
+                                                    Library._globalRGBSync.listeners[syncId](syncColor, checkSlotData._syncId)
+                                                    foundRGBSync = true
+                                                    break
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         slot.rainbow = true
                         slot.rainbowHook = attachRainbow(i)
@@ -2580,6 +2603,29 @@ function Library:CreateLibrary(opts)
                             if open and activeIndex == i then
                                 if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(syncColor); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                                 if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); hexBox.Text = rgbToHex(r,g,b) end
+                            end
+                        end
+                        
+                        -- If there are existing Pulse effects active, sync to them immediately
+                        if Library._globalPulseSync.active then
+                            local foundPulseSync = false
+                            for existingId, existingListener in pairs(Library._globalPulseSync.listeners) do
+                                if existingId ~= syncId and existingListener and not foundPulseSync then
+                                    -- Find an existing Pulse slot to sync from
+                                    for checkId, checkSlot in pairs(Library._controls) do
+                                        if checkSlot._slots and not foundPulseSync then
+                                            for j, checkSlotData in ipairs(checkSlot._slots) do
+                                                if checkSlotData.pulse and checkSlotData._pulseSyncId and checkSlotData._pulseSyncId ~= syncId then
+                                                    -- Sync to this existing Pulse color
+                                                    local syncColor = checkSlotData.color
+                                                    Library._globalPulseSync.listeners[syncId](syncColor, checkSlotData._pulseSyncId)
+                                                    foundPulseSync = true
+                                                    break
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
                             end
                         end
                         -- seed pulse offset vs global hue
