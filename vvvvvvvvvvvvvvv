@@ -2970,17 +2970,18 @@ function Library:CreateLibrary(opts)
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                         local width, height = 260, 220
-                        -- compute desired position in root-space, then convert to screen-space for RootGui
-                        -- Open directly above: align panel's left edge to swatch left edge
-                        local pxRoot = (tAbs.X - rootAbs.X)  -- Left edge alignment
-                        local pyRoot = (tAbs.Y - rootAbs.Y) - height - 4  -- Just 4px gap above button
-                        pxRoot = math.clamp(pxRoot, 4, rootSz.X - width - 4)
+                        -- Position panel above and to the left of the button (screen coordinates)
+                        local px = tAbs.X  -- Start from button's left edge
+                        local py = tAbs.Y - height - 4  -- Above button with 4px gap
+                        
+                        -- Clamp to screen bounds
+                        px = math.clamp(px, 4, CoreGui.AbsoluteSize.X - width - 4)
+                        py = math.clamp(py, 4, CoreGui.AbsoluteSize.Y - height - 4)
+                        
                         -- If panel would go above screen, place it below instead
-                        if pyRoot < 4 then
-                            pyRoot = (tAbs.Y - rootAbs.Y) + tSz.Y + 4  -- Below with 4px gap
+                        if py < 4 then
+                            py = tAbs.Y + tSz.Y + 4  -- Below button with 4px gap
                         end
-                        local px = rootAbs.X + pxRoot
-                        local py = rootAbs.Y + pyRoot
                         panel.Position = UDim2.fromOffset(px, py)
                         panel.Size = UDim2.fromOffset(width, 0)
 
