@@ -2678,7 +2678,7 @@ function Library:CreateLibrary(opts)
                         if open and panel then
                             -- retarget existing panel to new slot
                             activeIndex = index
-                            -- reposition near new button
+                            -- reposition near new button (prefer below the swatch)
                             local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                             local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                             -- If switching to a different slot's panel, swap panels
@@ -2689,11 +2689,18 @@ function Library:CreateLibrary(opts)
                                 panel.Visible = true
                             end
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            -- Align right edge of panel with swatch; place above by 6px
+                            -- Align right edge of panel with swatch; prefer below by 4px, fallback above if no space
                             local px = tAbs.X + tSz.X - width
-                            local py = tAbs.Y - height
+                            local belowPy = tAbs.Y + tSz.Y + 4
+                            local topBound = rootAbs.Y + 4
+                            local bottomBound = rootAbs.Y + rootSz.Y - height - 4
+                            local py
+                            if belowPy <= bottomBound then
+                                py = belowPy
+                            else
+                                py = math.max(topBound, tAbs.Y - height - 4)
+                            end
                             px = math.clamp(px, rootAbs.X + 4, rootAbs.X + rootSz.X - width - 4)
-                            py = math.clamp(py, rootAbs.Y + 4, rootAbs.Y + rootSz.Y - height - 4)
                             panel.Position = UDim2.fromOffset(px, py)
                             -- refresh UI to the selected slot
                             local slot = slots[index]
@@ -2950,7 +2957,7 @@ function Library:CreateLibrary(opts)
                             end)
                         end
 
-                        -- position panel near btnFor (above/right)
+                        -- position panel near btnFor (prefer below)
                         panel.Visible = true; panel.ClipsDescendants = true
                         -- Create a blocker to intercept outside clicks and block underlying UI
                         if panelBlocker and panelBlocker.Parent then pcall(function() panelBlocker:Destroy() end) end
@@ -2967,23 +2974,24 @@ function Library:CreateLibrary(opts)
                         if Library._openColorCtxClose then pcall(Library._openColorCtxClose); Library._openColorCtxClose = nil end
                         Library._openColorPanelClose = closePanel
 
-                        -- Get button and panel dimensions
-                        local buttonPos = btnFor.AbsolutePosition
-                        local buttonSize = btnFor.AbsoluteSize 
-                        local panelWidth, panelHeight = 260, 220
-                        
-                        -- Position panel directly above button, left-aligned
-                        -- Use UDim2.new with scale 0 and exact pixel offsets
-                        local panelX = buttonPos.X
-                        local panelY = buttonPos.Y - panelHeight - 8
-                        
-                        -- If not enough room above, place below
-                        if panelY < 100 then
-                            panelY = buttonPos.Y + buttonSize.Y + 8
+                        local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
+                        local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
+                        local width, height = 260, 220
+
+                        -- Since panel is parented to RootGui, use screen coordinates
+                        -- Default: open directly below the swatch; fallback above if it would overflow bottom
+                        local px = tAbs.X  -- Left edge alignment
+                        local desiredBelow = tAbs.Y + tSz.Y + 2
+                        local desiredAbove = tAbs.Y - height - 2
+                        local viewport = workspace.CurrentCamera.ViewportSize
+                        local bottomBound = viewport.Y - 10
+                        local py = desiredBelow
+                        if (py + height) > bottomBound then
+                            py = math.max(10, desiredAbove)
                         end
-                        
-                        -- Set position using exact offset coordinates
-                        panel.Position = UDim2.new(0, panelX, 0, panelY)
+                        -- Clamp X to stay on screen
+                        px = math.clamp(px, 10, viewport.X - width - 10)
+                        panel.Position = UDim2.fromOffset(px, py)
                         panel.Size = UDim2.fromOffset(width, 0)
 
                         -- set UI to current slot
