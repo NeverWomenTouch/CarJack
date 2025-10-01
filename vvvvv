@@ -2775,118 +2775,168 @@ function Library:CreateLibrary(opts)
                     end
                     
                     local function createSlotPanel(slot, index)
-                        if anim then return end
-                        -- toggle close if clicking the same swatch while open
-                        if open and panel and activeIndex == index then
-                            if Library._openColorPanelClose then pcall(Library._openColorPanelClose); Library._openColorPanelClose = nil end
-                            return
+                        -- Create the panel for this slot
+                        slot.panel = Create("TextButton", {
+                            AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, 
+                            BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(260, 220), 
+                            ZIndex = 12000, Parent = RootGui
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                            Create("UIStroke", {Name = "Stroke", ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
+                        })
+                        
+                        local panel = slot.panel
+                        
+                        -- Create basic UI for this slot's panel
+                        local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
+                        shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
+                        
+                        -- Create simplified UI elements for this slot
+                        local pad = 6
+                        local container = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-pad*2,1,-pad*2), Position = UDim2.fromOffset(pad,pad), ZIndex = panel.ZIndex + 1, Parent = panel})
+                        
+                        -- Store references in slot for per-slot checkbox management
+                        local cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), Visible = false, ZIndex = 100, Parent = container})
+                        local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), Visible = false, ZIndex = 100, Parent = container})
+                        
+                        slot.cbMark = cbMark
+                        slot.pulseMark = pulseMark
+                        
+                        slot.setCheckbox = function(on)
+                            cbMark.Visible = on and true or false
                         end
-                        if open and panel then
-                            -- retarget existing panel to new slot
-                            activeIndex = index
-                            -- reposition near new button
-                            local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
-                            local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                            -- If switching to a different slot's panel, swap panels
-                            local targetPanel = slots[index] and slots[index].panel
-                            if targetPanel and targetPanel ~= panel then
-                                panel.Visible = false
-                                panel = targetPanel
-                                panel.Visible = true
+                        slot.setPulseCheckbox = function(on)
+                            pulseMark.Visible = on and true or false
+                        end
+                        
+                        -- Initialize checkboxes to reflect current state
+                        slot.setCheckbox(slot.rainbow or false)
+                        slot.setPulseCheckbox(slot.pulse or false)
+                    end
+                    
+                    local function updateSlotDisplay(slot, index)
+                        -- Update this slot's checkboxes to match its state
+                        if slot.setCheckbox then slot.setCheckbox(slot.rainbow or false) end
+                        if slot.setPulseCheckbox then slot.setPulseCheckbox(slot.pulse or false) end
+                    end
+
+                    -- Setup slot button click events  
+                    for i, slot in ipairs(slots) do
+                        slot.btn.MouseButton1Click:Connect(function() 
+                            openPanel(slot.btn, i) 
+                        end)
+                        
+                        -- Setup checkbox click events that work per-slot
+                        if slot.cbMark then
+                            slot.cbMark.Parent.MouseButton1Click:Connect(function()
+                                if slot.rainbow then
+                                    disableRainbow(i)
+                                else
+                                    enableRainbow(i)
+                                end
+                            end)
+                        end
+                        
+                        if slot.pulseMark then
+                            slot.pulseMark.Parent.MouseButton1Click:Connect(function()
+                                if slot.pulse then
+                                    disablePulse(i)
+                                else
+                                    enablePulse(i)
+                                end
+                            end)
+                        end
+                    end
+
+                    -- Public API
+                    local Colorpicker = { 
+                        id = baseId, 
+                        _slots = slots 
+                    }
+                    
+                    function Colorpicker:Get(index)
+                        if index then 
+                            return self._slots[index] and self._slots[index].color 
+                        end
+                        if #self._slots == 1 then 
+                            return self._slots[1].color 
+                        end
+                        local arr = {}
+                        for i, s in ipairs(self._slots) do 
+                            arr[i] = s.color 
+                        end
+                        return arr
+                    end
+                    
+                    function Colorpicker:Set(value, index, silent)
+                        local function setOne(i, c)
+                            local h, s, v = Color3.toHSV(c)
+                            self._slots[i].hsv = {h, s, v}
+                            self._slots[i].color = c
+                            self._slots[i].fill.BackgroundColor3 = c
+                            if not silent and type(cb) == "function" then 
+                                pcall(cb, c, i) 
                             end
-                            local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            -- Align right edge of panel with swatch; place above by 6px
-                            local px = tAbs.X + tSz.X - width
-                            local py = tAbs.Y - height
-                            px = math.clamp(px, rootAbs.X + 4, rootAbs.X + rootSz.X - width - 4)
-                            py = math.clamp(py, rootAbs.Y + 4, rootAbs.Y + rootSz.Y - height - 4)
-                            panel.Position = UDim2.fromOffset(px, py)
-                            -- refresh UI to the selected slot using slot-specific elements
-                            local slot = slots[index]
-                            local h,s,v = table.unpack(slot.hsv)
-                            if slot.updateSVBackground then slot.updateSVBackground(h) end
-                            if slot.svCursor and slot.sv then slot.svCursor.Position = UDim2.fromOffset(s*(slot.sv.AbsoluteSize.X), (1-v)*(slot.sv.AbsoluteSize.Y)) end
-                            if slot.hueGrab and slot.hueSlider then slot.hueGrab.Position = UDim2.fromOffset(math.floor(slot.hueSlider.AbsoluteSize.X/2), h*(slot.hueSlider.AbsoluteSize.Y)) end
-                            if slot.rgbBox then local r,g,b = toRGB255(slot.color); slot.rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                            if slot.hexBox then local r,g,b = toRGB255(slot.color); slot.hexBox.Text = rgbToHex(r,g,b) end
-                            -- Restore UI to show ONLY this slot's actual functional state
-                            if slot.setCheckbox then slot.setCheckbox(slot.rainbow or false) end
-                            if slot.setPulseCheckbox then slot.setPulseCheckbox(slot.pulse or false) end
-                            -- If we switched to an existing target panel, we're done; otherwise, fall through to create it
-                            if targetPanel then return end
                         end
-                        local slot = slots[index]
-                        slot.panelOpen = true; open = true; anim = true; activeIndex = index
-                        if not slot.panel then
-                            slot.panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = 12000, Parent = RootGui}, {
-                                Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                -- Main holder outline (panel)
-                                Create("UIStroke", {Name = "Stroke", ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
-                            })
                         
-                        -- Create UI elements for this panel (only if panel is new)
-                        panel = slot.panel  -- Set for backward compatibility
-                        
-                            local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
-                            shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
+                        if index then
+                            local c = colorFromAny(value)
+                            setOne(index, c)
+                        else
+                            if type(value) == "table" and #value > 0 then
+                                for i = 1, math.min(#value, #self._slots) do 
+                                    setOne(i, colorFromAny(value[i])) 
+                                end
+                            else
+                                local c = colorFromAny(value)
+                                for i = 1, #self._slots do 
+                                    setOne(i, c) 
+                                end
+                            end
+                        end
+                    end
+                    
+                    function Colorpicker:SetRainbow(on, index)
+                        if index then
+                            if on then
+                                enableRainbow(index)
+                            else
+                                disableRainbow(index)
+                            end
+                        else
+                            for i = 1, #self._slots do
+                                if on then
+                                    enableRainbow(i)
+                                else
+                                    disableRainbow(i)
+                                end
+                            end
+                        end
+                    end
+                    
+                    function Colorpicker:SetPulse(on, index)
+                        if index then
+                            if on then
+                                enablePulse(index)
+                            else
+                                disablePulse(index)
+                            end
+                        else
+                            for i = 1, #self._slots do
+                                if on then
+                                    enablePulse(i)
+                                else
+                                    disablePulse(i)
+                                end
+                            end
+                        end
+                    end
 
-                            -- content
-                            local pad = 6
-                            -- Main inner container (the frame that holds SV, inputs, and hue/checkbox)
-                            local container = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-pad*2,1,-pad*2), Position = UDim2.fromOffset(pad,pad), ZIndex = panel.ZIndex + 1, Parent = panel}, {
-                                Create("UICorner", {CornerRadius = UDim.new(0,4)})
-                            })
-                            local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), ZIndex = container.ZIndex + 1, Parent = container}, {
-                                Create("UIListLayout", {Padding = UDim.new(0,2), FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder})
-                            })
-                            -- (Removed overlay border; using panel's own stroke so it outlines the true main holder)
-                            -- Left: SV square (S across X, V across Y), base hue set by slider; plus RGB/Hex inputs
-                            local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 210), ZIndex = content.ZIndex + 1, Parent = content})
-                            sv = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
-                            Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = sv})
-                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = sv})
-                            -- White overlay: left side white (S=0) to right transparent (S=1)
-                            svWhite = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 1, Parent = sv})
-                            local gWhite = Instance.new("UIGradient"); gWhite.Rotation = 0; gWhite.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)}); gWhite.Parent = svWhite
-                            -- Black overlay: top transparent (V=1) to bottom black (V=0)
-                            svBlack = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(0,0,0), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 2, Parent = sv})
-                            local gBlack = Instance.new("UIGradient"); gBlack.Rotation = 90; gBlack.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1), NumberSequenceKeypoint.new(1,0)}); gBlack.Parent = svBlack
-                            -- Cursor
-                            svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), ZIndex = sv.ZIndex + 3, Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
-
-                            rgbBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "R, G, B", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
-                            hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
-
-                            -- Right: Hue slider + rainbow toggle
-                            local HUE_W, HUE_H = 26, 150
-                            local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
-                            -- Make the hue slider background opaque white so the UIGradient is visible and vibrant
-                            -- Position slider slightly more left to align above the checkbox box itself
-                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(-7, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            local hueGrad = Instance.new("UIGradient")
-                            hueGrad.Color = ColorSequence.new({
-                                ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
-                                ColorSequenceKeypoint.new(0.17, Color3.fromHSV(1/6,1,1)),
-                                ColorSequenceKeypoint.new(0.33, Color3.fromHSV(2/6,1,1)),
-                                ColorSequenceKeypoint.new(0.50, Color3.fromHSV(3/6,1,1)),
-                                ColorSequenceKeypoint.new(0.67, Color3.fromHSV(4/6,1,1)),
-                                ColorSequenceKeypoint.new(0.83, Color3.fromHSV(5/6,1,1)),
-                                ColorSequenceKeypoint.new(1.00, Color3.fromHSV(1,1,1)),
-                            })
-                            hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
-                            hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
-
-                            -- RGB checkbox + label centered between RGB textbox end and frame boundary
-                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 22), Position = UDim2.fromOffset(197, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
-                            local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = cbRow.ZIndex + 1, Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            local cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = cbBox.ZIndex + 1, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(24,22), Position = UDim2.fromOffset(16,0), Text = "RGB", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = cbRow.ZIndex + 1, Parent = cbRow})
-                            
-                            -- Pulse RGB checkbox + label positioned at hex textbox Y level, same X as RGB checkbox
-                            local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(197, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
-                            local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
+                    Library:_registerControl(Colorpicker)
+                    table.insert(Group._controls, Colorpicker)
+                    registerSearch(label)
+                    return Colorpicker
+                end
                             -- Store UI elements and functions in the slot for this panel
                             slot.sv = sv
                             slot.svCursor = svCursor
