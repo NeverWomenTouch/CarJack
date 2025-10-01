@@ -2240,9 +2240,9 @@ function Library:CreateLibrary(opts)
                     local panel, open, anim = nil, false, false
                     local panelBlocker = nil
                     local activeIndex = 1
-                    local conns = {}
+                    local openConns = {}
                     local function disconnectAll()
-                        for i=#conns,1,-1 do conns[i]:Disconnect(); table.remove(conns,i) end
+                        for i=#openConns,1,-1 do openConns[i]:Disconnect(); table.remove(openConns,i) end
                     end
 
                     -- Clipboard helpers (exploit env)
@@ -2401,13 +2401,16 @@ function Library:CreateLibrary(opts)
                         if slot.updateSVBackground then slot.updateSVBackground(H) end
                         applyColorFromHSV(index)
                         
-                        -- Resume effects after a brief delay to allow manual adjustment to complete
+                        -- Resume effects after a brief delay to allow manual adjustment to complete,
+                        -- but only if the current toggle state still allows it (no user toggle-off meanwhile).
                         game:GetService("RunService").Heartbeat:Wait()
-                        if slot._resumeRainbow and wasRainbow and not slot.rainbowHook then
+                        if slot._resumeRainbow and wasRainbow and slot.rainbow and not slot.rainbowHook then
                             slot.rainbowHook = attachRainbow(index)
                             slot._resumeRainbow = nil
+                        else
+                            slot._resumeRainbow = nil
                         end
-                        if slot._resumePulse and wasPulse and not slot.pulseHook then
+                        if slot._resumePulse and wasPulse and slot.pulse and not slot.pulseHook then
                             -- Re-create pulse hook
                             slot.pulseHook = rainbowAdd(function(t)
                                 local cycle = (t * 2) % 3
@@ -2422,6 +2425,8 @@ function Library:CreateLibrary(opts)
                                 syncPulseColor(pulsedColor, index, slot._pulseSyncId)
                                 if type(cb) == "function" then pcall(cb, pulsedColor, index) end
                             end)
+                            slot._resumePulse = nil
+                        else
                             slot._resumePulse = nil
                         end
                     end
@@ -2481,6 +2486,7 @@ function Library:CreateLibrary(opts)
                     local function disableRainbow(i)
                         local slot = slots[i]
                         slot.rainbow = false
+                        slot._resumeRainbow = nil
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         if doSync and slot._syncId then
                             Library._globalRGBSync.listeners[slot._syncId] = nil
@@ -2548,6 +2554,7 @@ function Library:CreateLibrary(opts)
                     local function disablePulse(i)
                         local slot = slots[i]
                         slot.pulse = false
+                        slot._resumePulse = nil
                         if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                         if doSync and slot._pulseSyncId then
                             Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
@@ -2778,10 +2785,10 @@ function Library:CreateLibrary(opts)
                                     end
                                 end
                             end
-                            table.insert(conns, sv.InputBegan:Connect(handleSVDown))
-                            table.insert(conns, svWhite.InputBegan:Connect(handleSVDown))
-                            table.insert(conns, svBlack.InputBegan:Connect(handleSVDown))
-                            table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
+                            sv.InputBegan:Connect(handleSVDown)
+                            svWhite.InputBegan:Connect(handleSVDown)
+                            svBlack.InputBegan:Connect(handleSVDown)
+                            UserInputService.InputChanged:Connect(function(inp)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                                     local p = getScreenPos()
                                     local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
@@ -2790,8 +2797,8 @@ function Library:CreateLibrary(opts)
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
                                     setHSVDrag(svDragIndex or activeIndex, nil, s, v)
                                 end
-                            end))
-                            table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
+                            end)
+                            UserInputService.InputEnded:Connect(function(inp)
                                 if svDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     svDragging = false
                                     local dragIndex = svDragIndex or activeIndex
@@ -2804,7 +2811,7 @@ function Library:CreateLibrary(opts)
                                     end
                                     svDragIndex = nil
                                 end
-                            end))
+                            end)
 
                             -- hue drag
                             local hueDragging = false
@@ -2828,9 +2835,9 @@ function Library:CreateLibrary(opts)
                                     end
                                 end
                             end
-                            table.insert(conns, hueSlider.InputBegan:Connect(handleHueDown))
-                            table.insert(conns, hueGrab.InputBegan:Connect(handleHueDown))
-                            table.insert(conns, UserInputService.InputChanged:Connect(function(inp)
+                            hueSlider.InputBegan:Connect(handleHueDown)
+                            hueGrab.InputBegan:Connect(handleHueDown)
+                            UserInputService.InputChanged:Connect(function(inp)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                                     local p = getScreenPos()
                                     local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
@@ -2841,8 +2848,8 @@ function Library:CreateLibrary(opts)
                                     local slot = slots[idx]
                                     if slot and slot.updateSVBackground then slot.updateSVBackground(h) end
                                 end
-                            end))
-                            table.insert(conns, UserInputService.InputEnded:Connect(function(inp)
+                            end)
+                            UserInputService.InputEnded:Connect(function(inp)
                                 if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                                     hueDragging = false
                                     local dragIndex = hueDragIndex or activeIndex
@@ -2856,7 +2863,7 @@ function Library:CreateLibrary(opts)
                                     end
                                     hueDragIndex = nil
                                 end
-                            end))
+                            end)
 
                             -- inputs
                             rgbBox.FocusLost:Connect(function()
@@ -3004,7 +3011,9 @@ function Library:CreateLibrary(opts)
                         end
 
                         -- Swallow background clicks on the panel itself so blocker doesn't see them
-                        table.insert(conns, panel.InputBegan:Connect(function() end))
+                        -- Clear previous ephemeral open connections (if panel reopened)
+                        disconnectAll()
+                        table.insert(openConns, panel.InputBegan:Connect(function() end))
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(width, height)})
                         tw:Play(); tw.Completed:Connect(function() anim=false end)
                         anim=false
@@ -3012,9 +3021,9 @@ function Library:CreateLibrary(opts)
                         -- outside close / esc
                         -- close when clicking on blocker
                         if panelBlocker then
-                            table.insert(conns, panelBlocker.MouseButton1Click:Connect(function() closePanel() end))
-                            table.insert(conns, panelBlocker.MouseButton2Click:Connect(function() closePanel() end))
-                            table.insert(conns, panelBlocker.TouchTap:Connect(function() closePanel() end))
+                            table.insert(openConns, panelBlocker.MouseButton1Click:Connect(function() closePanel() end))
+                            table.insert(openConns, panelBlocker.MouseButton2Click:Connect(function() closePanel() end))
+                            table.insert(openConns, panelBlocker.TouchTap:Connect(function() closePanel() end))
                         end
                     end
 
