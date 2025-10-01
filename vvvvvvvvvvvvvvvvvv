@@ -2970,20 +2970,20 @@ function Library:CreateLibrary(opts)
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                         local width, height = 260, 220
-                        -- Position panel right above the button with minimal gap
-                        local px = tAbs.X  -- Align left edges
-                        local py = tAbs.Y - height - 2  -- Just 2px gap above button
                         
-                        -- Get screen size properly
-                        local viewport = workspace.CurrentCamera.ViewportSize
+                        -- Since panel is parented to RootGui, we need screen coordinates
+                        -- Button position relative to screen, panel should be just above it
+                        local px = tAbs.X  -- Left edge alignment
+                        local py = tAbs.Y - height - 2  -- 2px above button
                         
-                        -- Clamp to screen bounds
-                        px = math.clamp(px, 4, viewport.X - width - 4)
-                        
-                        -- If panel would go above screen, place it below instead
-                        if py < 4 then
-                            py = tAbs.Y + tSz.Y + 2  -- Below button with 2px gap
+                        -- If would go off top of screen, place below button instead
+                        if py < 10 then
+                            py = tAbs.Y + tSz.Y + 2  -- 2px below button
                         end
+                        
+                        -- Clamp X to stay on screen
+                        local viewport = workspace.CurrentCamera.ViewportSize
+                        px = math.clamp(px, 10, viewport.X - width - 10)
                         panel.Position = UDim2.fromOffset(px, py)
                         panel.Size = UDim2.fromOffset(width, 0)
 
