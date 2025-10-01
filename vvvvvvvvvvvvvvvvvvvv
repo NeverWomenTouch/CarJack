@@ -2970,23 +2970,27 @@ function Library:CreateLibrary(opts)
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local width, height = 260, 220
                         
-                        -- Get GUI inset to account for topbar
-                        local guiService = game:GetService("GuiService")
-                        local inset = guiService:GetGuiInset()
+                        -- Simple and reliable positioning: use button position directly
+                        -- Panel is parented to RootGui so we use absolute screen coordinates
+                        local px = tAbs.X  -- Align left edges
+                        local py = tAbs.Y - height - 5  -- 5px gap above button
                         
-                        -- Calculate position: button position minus panel height to place it above
-                        local px = tAbs.X  -- Left align with button
-                        local py = (tAbs.Y - inset.Y) - height - 2  -- Above button, accounting for inset
+                        -- Debug: ensure we have reasonable values
+                        print("Button pos:", tAbs.X, tAbs.Y, "Button size:", tSz.X, tSz.Y)
+                        print("Panel pos before clamp:", px, py)
                         
-                        -- If too high, place below button instead
-                        if py < 20 then
-                            py = (tAbs.Y - inset.Y) + tSz.Y + 2  -- Below button
+                        -- If panel would be cut off at top, place it below button
+                        if py < 50 then  -- More conservative check
+                            py = tAbs.Y + tSz.Y + 5  -- 5px below button
+                            print("Flipped to below button, new py:", py)
                         end
                         
-                        -- Keep panel on screen horizontally
-                        local viewport = workspace.CurrentCamera.ViewportSize  
-                        px = math.clamp(px, 10, viewport.X - width - 10)
+                        -- Keep panel on screen
+                        px = math.max(10, math.min(px, 1920 - width - 10))  -- Conservative screen bounds
+                        
+                        print("Final panel position:", px, py)
                         panel.Position = UDim2.fromOffset(px, py)
+                        print("Panel actual position after setting:", panel.Position.X.Offset, panel.Position.Y.Offset)
                         panel.Size = UDim2.fromOffset(width, 0)
 
                         -- set UI to current slot
