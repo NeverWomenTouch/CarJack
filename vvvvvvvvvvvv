@@ -2480,9 +2480,9 @@ function Library:CreateLibrary(opts)
                         -- refresh UI cursors to match HSV when open
                         if open and activeIndex == i then
                             local h,s,v = table.unpack(slot.hsv)
-                            if slot.updateSVBackground then slot.updateSVBackground(h) end
-                            if slot.svCursor and slot.sv then slot.svCursor.Position = UDim2.fromOffset(s*(slot.sv.AbsoluteSize.X), (1-v)*(slot.sv.AbsoluteSize.Y)) end
-                            if slot.hueGrab and slot.hueSlider then slot.hueGrab.Position = UDim2.fromOffset(math.floor(slot.hueSlider.AbsoluteSize.X/2), h*(slot.hueSlider.AbsoluteSize.Y)) end
+                            updateSVBackground(h)
+                            if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                            if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                         end
                     end
                     local function enableRainbow(i)
@@ -2525,27 +2525,32 @@ function Library:CreateLibrary(opts)
                             end
                         end
                         
-                        -- If there are existing RGB effects active, sync to them immediately
+                        -- If there are existing RGB effects active, sync to them after a small delay
                         if Library._globalRGBSync.active then
-                            local foundRGBSync = false
-                            for existingId, existingListener in pairs(Library._globalRGBSync.listeners) do
-                                if existingId ~= syncId and existingListener and not foundRGBSync then
-                                    -- Find an existing RGB slot to sync from
-                                    for checkId, checkSlot in pairs(Library._controls) do
-                                        if checkSlot._slots and not foundRGBSync then
-                                            for j, checkSlotData in ipairs(checkSlot._slots) do
-                                                if checkSlotData.rainbow and checkSlotData._syncId and checkSlotData._syncId ~= syncId then
-                                                    -- Sync to this existing RGB color
-                                                    local syncColor = checkSlotData.color
-                                                    Library._globalRGBSync.listeners[syncId](syncColor, checkSlotData._syncId)
-                                                    foundRGBSync = true
-                                                    break
+                            task.spawn(function()
+                                task.wait(0.1) -- Small delay to let the enable process complete
+                                local foundRGBSync = false
+                                for existingId, existingListener in pairs(Library._globalRGBSync.listeners) do
+                                    if existingId ~= syncId and existingListener and not foundRGBSync then
+                                        -- Find an existing RGB slot to sync from
+                                        for checkId, checkSlot in pairs(Library._controls) do
+                                            if checkSlot._slots and not foundRGBSync then
+                                                for j, checkSlotData in ipairs(checkSlot._slots) do
+                                                    if checkSlotData.rainbow and checkSlotData._syncId and checkSlotData._syncId ~= syncId then
+                                                        -- Sync to this existing RGB color
+                                                        local syncColor = checkSlotData.color
+                                                        if Library._globalRGBSync.listeners[syncId] then
+                                                            Library._globalRGBSync.listeners[syncId](syncColor, checkSlotData._syncId)
+                                                        end
+                                                        foundRGBSync = true
+                                                        break
+                                                    end
                                                 end
                                             end
                                         end
                                     end
                                 end
-                            end
+                            end)
                         end
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         slot.rainbow = true
@@ -2606,27 +2611,32 @@ function Library:CreateLibrary(opts)
                             end
                         end
                         
-                        -- If there are existing Pulse effects active, sync to them immediately
+                        -- If there are existing Pulse effects active, sync to them after a small delay
                         if Library._globalPulseSync.active then
-                            local foundPulseSync = false
-                            for existingId, existingListener in pairs(Library._globalPulseSync.listeners) do
-                                if existingId ~= syncId and existingListener and not foundPulseSync then
-                                    -- Find an existing Pulse slot to sync from
-                                    for checkId, checkSlot in pairs(Library._controls) do
-                                        if checkSlot._slots and not foundPulseSync then
-                                            for j, checkSlotData in ipairs(checkSlot._slots) do
-                                                if checkSlotData.pulse and checkSlotData._pulseSyncId and checkSlotData._pulseSyncId ~= syncId then
-                                                    -- Sync to this existing Pulse color
-                                                    local syncColor = checkSlotData.color
-                                                    Library._globalPulseSync.listeners[syncId](syncColor, checkSlotData._pulseSyncId)
-                                                    foundPulseSync = true
-                                                    break
+                            task.spawn(function()
+                                task.wait(0.1) -- Small delay to let the enable process complete
+                                local foundPulseSync = false
+                                for existingId, existingListener in pairs(Library._globalPulseSync.listeners) do
+                                    if existingId ~= syncId and existingListener and not foundPulseSync then
+                                        -- Find an existing Pulse slot to sync from
+                                        for checkId, checkSlot in pairs(Library._controls) do
+                                            if checkSlot._slots and not foundPulseSync then
+                                                for j, checkSlotData in ipairs(checkSlot._slots) do
+                                                    if checkSlotData.pulse and checkSlotData._pulseSyncId and checkSlotData._pulseSyncId ~= syncId then
+                                                        -- Sync to this existing Pulse color
+                                                        local syncColor = checkSlotData.color
+                                                        if Library._globalPulseSync.listeners[syncId] then
+                                                            Library._globalPulseSync.listeners[syncId](syncColor, checkSlotData._pulseSyncId)
+                                                        end
+                                                        foundPulseSync = true
+                                                        break
+                                                    end
                                                 end
                                             end
                                         end
                                     end
                                 end
-                            end
+                            end)
                         end
                         -- seed pulse offset vs global hue
                         if Library._rainbowBus and Library._rainbowBus.h then
@@ -2915,8 +2925,10 @@ function Library:CreateLibrary(opts)
                             cbRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
                                 local s = slots[idx]
-                                -- flip desired state and delegate to helpers
-                                if s.rainbow then
+                                -- Store current state to avoid reading it mid-transition
+                                local wasRainbow = s.rainbow
+                                
+                                if wasRainbow then
                                     disableRainbow(idx)
                                 else
                                     enableRainbow(idx)
@@ -2927,7 +2939,10 @@ function Library:CreateLibrary(opts)
                             pulseRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
                                 local s = slots[idx]
-                                if s.pulse then
+                                -- Store current state to avoid reading it mid-transition
+                                local wasPulse = s.pulse
+                                
+                                if wasPulse then
                                     disablePulse(idx)
                                 else
                                     enablePulse(idx)
