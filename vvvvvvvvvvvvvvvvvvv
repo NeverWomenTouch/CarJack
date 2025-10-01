@@ -2968,21 +2968,23 @@ function Library:CreateLibrary(opts)
                         Library._openColorPanelClose = closePanel
 
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
-                        local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                         local width, height = 260, 220
                         
-                        -- Since panel is parented to RootGui, we need screen coordinates
-                        -- Button position relative to screen, panel should be just above it
-                        local px = tAbs.X  -- Left edge alignment
-                        local py = tAbs.Y - height - 2  -- 2px above button
+                        -- Get GUI inset to account for topbar
+                        local guiService = game:GetService("GuiService")
+                        local inset = guiService:GetGuiInset()
                         
-                        -- If would go off top of screen, place below button instead
-                        if py < 10 then
-                            py = tAbs.Y + tSz.Y + 2  -- 2px below button
+                        -- Calculate position: button position minus panel height to place it above
+                        local px = tAbs.X  -- Left align with button
+                        local py = (tAbs.Y - inset.Y) - height - 2  -- Above button, accounting for inset
+                        
+                        -- If too high, place below button instead
+                        if py < 20 then
+                            py = (tAbs.Y - inset.Y) + tSz.Y + 2  -- Below button
                         end
                         
-                        -- Clamp X to stay on screen
-                        local viewport = workspace.CurrentCamera.ViewportSize
+                        -- Keep panel on screen horizontally
+                        local viewport = workspace.CurrentCamera.ViewportSize  
                         px = math.clamp(px, 10, viewport.X - width - 10)
                         panel.Position = UDim2.fromOffset(px, py)
                         panel.Size = UDim2.fromOffset(width, 0)
