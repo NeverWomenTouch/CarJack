@@ -2142,24 +2142,24 @@ function Library:CreateLibrary(opts)
                     -- rainbow sync bus
                     Library._rainbowBus = Library._rainbowBus or { listeners = {}, conn = nil }
                     
-                    -- Global sync system for RGB and Pulse modes
+                    -- Global sync system for RGB and Pulse modes across ALL colorpickers
                     Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {} }
                     Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {} }
                     
-                    local function syncRGBColor(color, sourceIndex, sourceId)
+                    local function syncRGBColor(color, sourceId)
                         if not Library._globalRGBSync.active then return end
                         for id, listener in pairs(Library._globalRGBSync.listeners) do
                             if id ~= sourceId then
-                                pcall(listener, color, sourceIndex)
+                                pcall(listener, color, sourceId)
                             end
                         end
                     end
                     
-                    local function syncPulseColor(color, sourceIndex, sourceId)
+                    local function syncPulseColor(color, sourceId)
                         if not Library._globalPulseSync.active then return end
                         for id, listener in pairs(Library._globalPulseSync.listeners) do
                             if id ~= sourceId then
-                                pcall(listener, color, sourceIndex)
+                                pcall(listener, color, sourceId)
                             end
                         end
                     end
@@ -2420,9 +2420,9 @@ function Library:CreateLibrary(opts)
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
                             
-                            -- Optional sync to other RGB colorpickers (opt-in)
-                            if doSync and slot._syncId then
-                                syncRGBColor(c, i, slot._syncId)
+                            -- Sync to other RGB colorpickers globally
+                            if slot._syncId then
+                                syncRGBColor(c, slot._syncId)
                             end
                             
                             if open and activeIndex == i then
@@ -2436,17 +2436,20 @@ function Library:CreateLibrary(opts)
                         end)
                     end
 
+                    -- Shared UI references (will be set when panel is created)
+                    local cbMark, pulseMark
+                    
                     -- Shared UI update functions (work with currently active panel)
                     local function updateSVBackground(h)
                         if sv then sv.BackgroundColor3 = Color3.fromHSV(h,1,1) end
                     end
                     
                     local function setCheckbox(on)
-                        if panel and cbMark then cbMark.Visible = on and true or false end
+                        if cbMark then cbMark.Visible = on and true or false end
                     end
                     
                     local function setPulseCheckbox(on)
-                        if panel and pulseMark then pulseMark.Visible = on and true or false end
+                        if pulseMark then pulseMark.Visible = on and true or false end
                     end
                     
                     -- Unified helpers for stable per-slot toggles
@@ -2463,7 +2466,7 @@ function Library:CreateLibrary(opts)
                         slot._resumeRainbow = nil
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         -- Properly cleanup global sync listeners
-                        if doSync and slot._syncId then
+                        if slot._syncId then
                             Library._globalRGBSync.listeners[slot._syncId] = nil
                             slot._syncId = nil
                             -- Check if there are any active RGB listeners left
@@ -2498,37 +2501,35 @@ function Library:CreateLibrary(opts)
                             end
                             Library._globalPulseSync.active = hasActivePulse
                         end
-                        -- set up optional sync
-                        if doSync then
-                            Library._globalRGBSync.active = true
-                            local syncId = tostring(math.random(1000000, 9999999))
-                            slot._syncId = syncId
-                            -- Create proper sync listener
-                            Library._globalRGBSync.listeners[syncId] = function(syncColor, sourceIndex)
-                                if not slot.rainbow or sourceIndex == i then return end -- Don't sync to self
-                                local h,s,v = Color3.toHSV(syncColor)
-                                slot.hsv = {h,s,v}
-                                if Library._rainbowBus and Library._rainbowBus.h then
-                                    slot.hueOffset = (h - Library._rainbowBus.h) % 1
-                                end
-                                slot.color = syncColor
-                                slot.fill.BackgroundColor3 = syncColor
-                                if type(cb) == "function" then pcall(cb, syncColor, i) end
-                                if open and activeIndex == i then
-                                    updateSVBackground(h)
-                                    if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
-                                    if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
-                                    if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(syncColor); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                    if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); hexBox.Text = rgbToHex(r,g,b) end
-                                end
+                        -- Always set up global sync for ALL colorpickers
+                        Library._globalRGBSync.active = true
+                        local syncId = tostring(id .. "_" .. i .. "_" .. math.random(1000000, 9999999))
+                        slot._syncId = syncId
+                        -- Create proper sync listener
+                        Library._globalRGBSync.listeners[syncId] = function(syncColor, sourceId)
+                            if not slot.rainbow or sourceId == syncId then return end -- Don't sync to self
+                            local h,s,v = Color3.toHSV(syncColor)
+                            slot.hsv = {h,s,v}
+                            if Library._rainbowBus and Library._rainbowBus.h then
+                                slot.hueOffset = (h - Library._rainbowBus.h) % 1
+                            end
+                            slot.color = syncColor
+                            slot.fill.BackgroundColor3 = syncColor
+                            if type(cb) == "function" then pcall(cb, syncColor, i) end
+                            if open and activeIndex == i then
+                                updateSVBackground(h)
+                                if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                                if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
+                                if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(syncColor); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                                if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); hexBox.Text = rgbToHex(r,g,b) end
                             end
                         end
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         slot.rainbow = true
                         slot.rainbowHook = attachRainbow(i)
-                        if doSync and slot._syncId then
+                        if slot._syncId then
                             local c0 = hsvToColor(slot.hsv)
-                            syncRGBColor(c0, i, slot._syncId)
+                            syncRGBColor(c0, slot._syncId)
                         end
                         updateSlotUI(i)
                     end
@@ -2538,7 +2539,7 @@ function Library:CreateLibrary(opts)
                         slot._resumePulse = nil
                         if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                         -- Properly cleanup global sync listeners
-                        if doSync and slot._pulseSyncId then
+                        if slot._pulseSyncId then
                             Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
                             slot._pulseSyncId = nil
                             -- Check if there are any active pulse listeners left
@@ -2557,7 +2558,7 @@ function Library:CreateLibrary(opts)
                         slot.rainbow = false
                         slot._resumeRainbow = nil
                         -- if RGB sync was active, remove listener for this slot
-                        if doSync and slot._syncId then
+                        if slot._syncId then
                             Library._globalRGBSync.listeners[slot._syncId] = nil
                             slot._syncId = nil
                             local hasActiveRGB = false
@@ -2566,21 +2567,19 @@ function Library:CreateLibrary(opts)
                             end
                             Library._globalRGBSync.active = hasActiveRGB
                         end
-                        -- optional sync setup
-                        if doSync then
-                            Library._globalPulseSync.active = true
-                            local syncId = tostring(math.random(1000000, 9999999))
-                            slot._pulseSyncId = syncId
-                            -- Create proper pulse sync listener
-                            Library._globalPulseSync.listeners[syncId] = function(syncColor, sourceIndex)
-                                if not slot.pulse or sourceIndex == i then return end -- Don't sync to self
-                                slot.color = syncColor
-                                slot.fill.BackgroundColor3 = syncColor
-                                if type(cb) == "function" then pcall(cb, syncColor, i) end
-                                if open and activeIndex == i then
-                                    if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(syncColor); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                    if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); hexBox.Text = rgbToHex(r,g,b) end
-                                end
+                        -- Always set up global sync for ALL colorpickers
+                        Library._globalPulseSync.active = true
+                        local syncId = tostring(id .. "_" .. i .. "_" .. math.random(1000000, 9999999))
+                        slot._pulseSyncId = syncId
+                        -- Create proper pulse sync listener
+                        Library._globalPulseSync.listeners[syncId] = function(syncColor, sourceId)
+                            if not slot.pulse or sourceId == syncId then return end -- Don't sync to self
+                            slot.color = syncColor
+                            slot.fill.BackgroundColor3 = syncColor
+                            if type(cb) == "function" then pcall(cb, syncColor, i) end
+                            if open and activeIndex == i then
+                                if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(syncColor); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                                if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); hexBox.Text = rgbToHex(r,g,b) end
                             end
                         end
                         -- seed pulse offset vs global hue
@@ -2599,16 +2598,16 @@ function Library:CreateLibrary(opts)
                             slot.hsv = {hh, s, baseV}
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
-                            if doSync and slot._pulseSyncId then syncPulseColor(c, i, slot._pulseSyncId) end
+                            if slot._pulseSyncId then syncPulseColor(c, slot._pulseSyncId) end
                             if type(cb) == "function" then pcall(cb, c, i) end
                             if open and activeIndex == i then
                                 if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(c); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                                 if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(c); hexBox.Text = rgbToHex(r,g,b) end
                             end
                         end)
-                        if doSync and slot._pulseSyncId then
+                        if slot._pulseSyncId then
                             local c0 = hsvToColor(slot.hsv)
-                            syncPulseColor(c0, i, slot._pulseSyncId)
+                            syncPulseColor(c0, slot._pulseSyncId)
                         end
                         updateSlotUI(i)
                     end
@@ -2718,16 +2717,15 @@ function Library:CreateLibrary(opts)
                             -- RGB checkbox + label centered between RGB textbox end and frame boundary
                             local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 22), Position = UDim2.fromOffset(197, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = cbRow.ZIndex + 1, Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            local cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = cbBox.ZIndex + 1, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
+                            cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = cbBox.ZIndex + 1, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(24,22), Position = UDim2.fromOffset(16,0), Text = "RGB", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = cbRow.ZIndex + 1, Parent = cbRow})
                             
                             -- Pulse RGB checkbox + label positioned at hex textbox Y level, same X as RGB checkbox
                             local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(197, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            local pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
+                            pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
-                            -- Don't store UI elements per-slot since they're shared
-                            -- Just store the current panel reference
+                            -- Store the current panel reference
                             slot.panel = panel
 
                             -- interactions: SV drag (S across X, V across Y)
