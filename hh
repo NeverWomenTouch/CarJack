@@ -2668,6 +2668,34 @@ function Library:CreateLibrary(opts)
                         updateSlotUI(i)
                     end
 
+                    local function resolveColorPanelPosition(targetBtn, width, height, allowRootShift)
+                        width = math.max(0, width or 0)
+                        height = math.max(0, height or 0)
+                        local cam = workspace.CurrentCamera
+                        local viewport = (cam and cam.ViewportSize) or Vector2.new(1920, 1080)
+                        local margin = 10
+                        local btnAbs = targetBtn.AbsolutePosition
+                        local btnSize = targetBtn.AbsoluteSize
+                        local px = math.clamp(btnAbs.X, margin, viewport.X - width - margin)
+                        local desiredTop = btnAbs.Y + btnSize.Y + 6
+                        if allowRootShift then
+                            local overflow = (desiredTop + height + margin) - viewport.Y
+                            if overflow > 0 then
+                                local rootAbsY = root.AbsolutePosition.Y
+                                local shift = math.min(overflow, math.max(0, rootAbsY - margin))
+                                if shift > 0 then
+                                    local pos = root.Position
+                                    root.Position = UDim2.new(pos.X.Scale, pos.X.Offset, pos.Y.Scale, pos.Y.Offset - shift)
+                                    btnAbs = targetBtn.AbsolutePosition
+                                    btnSize = targetBtn.AbsoluteSize
+                                    px = math.clamp(btnAbs.X, margin, viewport.X - width - margin)
+                                    desiredTop = btnAbs.Y + btnSize.Y + 6
+                                end
+                            end
+                        end
+                        return px, desiredTop
+                    end
+
                     local function openPanel(btnFor, index)
                         if anim then return end
                         -- toggle close if clicking the same swatch while open
@@ -2679,8 +2707,6 @@ function Library:CreateLibrary(opts)
                             -- retarget existing panel to new slot
                             activeIndex = index
                             -- reposition near new button (prefer below the swatch)
-                            local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
-                            local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                             -- If switching to a different slot's panel, swap panels
                             local targetPanel = slots[index] and slots[index].panel
                             if targetPanel and targetPanel ~= panel then
@@ -2689,16 +2715,9 @@ function Library:CreateLibrary(opts)
                                 panel.Visible = true
                             end
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            -- Left-align with swatch; prefer below with viewport clamping
-                            local viewport = workspace.CurrentCamera.ViewportSize
-                            local px = math.clamp(tAbs.X, 10, viewport.X - width - 10)
-                            local desiredBelow = tAbs.Y + tSz.Y + 6
-                            local desiredAbove = tAbs.Y - height - 6
-                            local bottomBound = viewport.Y - 10
-                            local py = desiredBelow
-                            if (py + height) > bottomBound then
-                                py = math.max(10, desiredAbove)
-                            end
+                            if width <= 0 then width = 260 end
+                            if height <= 0 then height = 220 end
+                            local px, py = resolveColorPanelPosition(btnFor, width, height, true)
                             panel.Position = UDim2.fromOffset(px, py)
                             -- refresh UI to the selected slot
                             local slot = slots[index]
@@ -2972,22 +2991,16 @@ function Library:CreateLibrary(opts)
                         if Library._openColorCtxClose then pcall(Library._openColorCtxClose); Library._openColorCtxClose = nil end
                         Library._openColorPanelClose = closePanel
 
-                        local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
-                        local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
                         local width, height = 260, 220
 
                         -- Since panel is parented to RootGui, use screen coordinates
                         -- Default: open directly below the swatch; fallback above if it would overflow bottom
                         local function placePanel()
-                            local viewport = workspace.CurrentCamera.ViewportSize
-                            local px = math.clamp(tAbs.X, 10, viewport.X - width - 10) -- left-aligned
-                            local desiredBelow = tAbs.Y + tSz.Y + 6
-                            local desiredAbove = tAbs.Y - height - 6
-                            local bottomBound = viewport.Y - 10
-                            local py = desiredBelow
-                            if (py + height) > bottomBound then
-                                py = math.max(10, desiredAbove)
-                            end
+                            local currentWidth = panel.AbsoluteSize.X
+                            local currentHeight = panel.AbsoluteSize.Y
+                            if currentWidth <= 0 then currentWidth = width end
+                            if currentHeight <= 0 then currentHeight = height end
+                            local px, py = resolveColorPanelPosition(btnFor, currentWidth, currentHeight, true)
                             panel.Position = UDim2.fromOffset(px, py)
                         end
                         placePanel()
@@ -3015,19 +3028,14 @@ function Library:CreateLibrary(opts)
                         tw:Play(); tw.Completed:Connect(function() anim=false end)
                         -- Keep the panel aligned while sizes/positions change
                         table.insert(openConns, panel:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                            width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
+                            if panel.AbsoluteSize.X > 0 then width = panel.AbsoluteSize.X end
+                            if panel.AbsoluteSize.Y > 0 then height = panel.AbsoluteSize.Y end
                             placePanel()
                         end))
-                        table.insert(openConns, btnFor:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-                            tAbs = btnFor.AbsolutePosition; tSz = btnFor.AbsoluteSize
-                            placePanel()
-                        end))
-                        table.insert(openConns, root:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-                            placePanel()
-                        end))
-                        table.insert(openConns, root:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                            placePanel()
-                        end))
+                        table.insert(openConns, btnFor:GetPropertyChangedSignal("AbsolutePosition"):Connect(placePanel))
+                        table.insert(openConns, btnFor:GetPropertyChangedSignal("AbsoluteSize"):Connect(placePanel))
+                        table.insert(openConns, root:GetPropertyChangedSignal("AbsolutePosition"):Connect(placePanel))
+                        table.insert(openConns, root:GetPropertyChangedSignal("AbsoluteSize"):Connect(placePanel))
                         anim=false
                         local justOpened = true; task.defer(function() justOpened = false end)
                         -- outside close / esc
