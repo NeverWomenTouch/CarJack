@@ -68,8 +68,8 @@ local PresetColor, Drawing, placeid = Color3.fromRGB(255, 0, 0), Drawing or {}, 
 local CloseBind = Enum.KeyCode.X
 local getgenv = getgenv or function() 
     local stealth_env = setmetatable({}, {
-        __index = function(_, k) 
-            return rawget(_, k) or false 
+        __index = function(t, k) 
+            return rawget(t, k) or false 
         end,
         __newindex = function(t, k, v) 
             rawset(t, k, v) 
@@ -79,7 +79,7 @@ local getgenv = getgenv or function()
     return stealth_env
 end
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
-local env = getgenv()
+local env = getgenv
 if env and env.libloaded then
     pcall(function()
         for i, v in next, library.Conn do
@@ -108,7 +108,7 @@ screengui.Name = library.LibName
 screengui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 task.spawn(function()
 	pcall(function()
-		local env = getgenv()
+		local env = getgenv
 		while env and env.libloaded do
 			library.RainbowColorValue = library.RainbowColorValue + 1 / 255
 			library.HueSelectionPosition = library.HueSelectionPosition + 1
@@ -163,7 +163,7 @@ function library:Unload()
             end
         end
     end)
-    local env = getgenv()
+    local env = getgenv
     if env then env.libloaded = false end
 end
 function MakeDraggable(topbarobject, object)
@@ -348,7 +348,7 @@ function library:Window(title, version, info, preset, closebind)
 
     coroutine.wrap(function()
         pcall(function()
-            local env = getgenv()
+            local env = getgenv
             while env and env.libloaded do
                 local repeatCount = 10
                 local delay = 0.05
@@ -367,7 +367,7 @@ function library:Window(title, version, info, preset, closebind)
 
     task.spawn(function()
         pcall(function()
-            local env = getgenv()
+            local env = getgenv
             while env and env.libloaded do
                 Title.TextColor3 = PresetColor
                 line.Visible = library.LibraryLines
@@ -529,7 +529,7 @@ function library:Window(title, version, info, preset, closebind)
 			
 			task.spawn(function()
 				pcall(function()
-					local env = getgenv()
+					local env = getgenv
 					while env and env.libloaded and MobileToggle.Parent do
 						MobileToggleStroke.Color = PresetColor
 						MobileToggleGlow.ImageColor3 = PresetColor
@@ -630,7 +630,7 @@ function library:Window(title, version, info, preset, closebind)
 			
 			local pulseConnection
 			pulseConnection = task.spawn(function()
-				while getgenv().libloaded and MobileToggle.Parent do
+				while getgenv.libloaded and MobileToggle.Parent do
 					if not Main.Visible then
 						tweensv:Create(MobileToggleGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 							ImageTransparency = 0.5
@@ -944,7 +944,7 @@ function library:Window(title, version, info, preset, closebind)
         bi.ZIndex = 105
         
         task.spawn(function()
-            while getgenv().libloaded and nf.Parent do
+            while getgenv.libloaded and nf.Parent do
                 nfs.Color = PresetColor
                 la.BackgroundColor3 = PresetColor
                 ra.BackgroundColor3 = PresetColor
@@ -1305,7 +1305,7 @@ function library:Window(title, version, info, preset, closebind)
         TabBtnIndicatorCorner.Parent = TabBtnIndicator
 
         coroutine.wrap(function()
-            while getgenv().libloaded do
+            while getgenv.libloaded do
                 TabBtnIndicator.BackgroundColor3 = PresetColor
 				task.wait()
             end
@@ -1470,7 +1470,7 @@ function library:Window(title, version, info, preset, closebind)
             FrameToggleCircleCorner.Parent = FrameToggleCircle
             
             coroutine.wrap(function()
-                while getgenv().libloaded do
+                while getgenv.libloaded do
                     FrameToggle3.BackgroundColor3 = PresetColor
                     task.wait()
                 end
@@ -1826,7 +1826,7 @@ function library:Window(title, version, info, preset, closebind)
             local AlwaysButton = createModeButton("Always", 3)
 
             coroutine.wrap(function()
-                while getgenv().libloaded do
+                while getgenv.libloaded do
                     FrameToggle3.BackgroundColor3 = PresetColor
                     KeybindButtonStroke.Color = PresetColor
                     KeybindDisplayStroke.Color = PresetColor
@@ -3526,7 +3526,7 @@ function library:Window(title, version, info, preset, closebind)
                         RainbowSpeedSliderCircleCorner.Parent = RainbowSpeedSliderCircle
 
                         coroutine.wrap(function()
-                            while getgenv().libloaded do
+                            while getgenv.libloaded do
                                 FrameRainbowToggle3.BackgroundColor3 = PresetColor
                                 RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
                                 task.wait()
