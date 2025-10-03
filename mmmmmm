@@ -15,21 +15,14 @@ local function SRV(name)
 end
 local function DisableCloneref()
     _CLONEREF_ENABLED = false
-    if table.clear then
-        table.clear(_SRV_CACHE)
-    else
-        _SRV_CACHE = {}
-    end
+    -- clear cache so subsequent SRV calls return raw services
+    table.clear(_SRV_CACHE)
 end
 local function SetClonerefSkip(list)
     if type(list)=="table" then
         _SRV_SKIP = {}
         for _,n in ipairs(list) do _SRV_SKIP[n]=true end
-        if table.clear then
-            table.clear(_SRV_CACHE)
-        else
-            _SRV_CACHE = {}
-        end
+        table.clear(_SRV_CACHE)
     end
 end
 local library = {
@@ -55,6 +48,7 @@ local cam = ws.CurrentCamera
 local cg = SRV("CoreGui") or game:GetService("CoreGui")
 local httpsv = SRV("HttpService") or game:GetService("HttpService")
 if not (uis and tweensv and rs and plrs and ws and cg and httpsv) then
+    -- something failed: disable cloneref entirely
     DisableCloneref()
     uis = uis or game:GetService("UserInputService")
     tweensv = tweensv or game:GetService("TweenService")
@@ -65,61 +59,37 @@ if not (uis and tweensv and rs and plrs and ws and cg and httpsv) then
     httpsv = httpsv or game:GetService("HttpService")
 end
 local PresetColor, Drawing, placeid = Color3.fromRGB(255, 0, 0), Drawing or {}, game.PlaceId
-local CloseBind = Enum.KeyCode.X
-local getgenv = getgenv or function() 
-    local stealth_env = setmetatable({}, {
-        __index = function(t, k) 
-            return rawget(t, k) or false 
-        end,
-        __newindex = function(t, k, v) 
-            rawset(t, k, v) 
-        end,
-        __metatable = "locked"
-    })
-    return stealth_env
-end
+local CloseBind, getgenv = Enum.KeyCode.X, getgenv or {}
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
-local env = (type(getgenv) == "function" and getgenv()) or {}
-if env and env.libloaded then
-    pcall(function()
-        for i, v in next, library.Conn do
-            if v and v.Disconnect then
-                v:Disconnect()
-            end
+if getgenv().libloaded then
+    for i, v in next, library.Conn do
+        v:Disconnect()
+    end
+    for _, gui in pairs((cg or SRV("CoreGui")):GetDescendants()) do
+        if gui.Name == library.LibName then
+            gui:Destroy()
         end
-    end)
-    pcall(function()
-        local coreGui = cg or SRV("CoreGui")
-        if coreGui then
-            for _, gui in pairs(coreGui:GetDescendants()) do
-                if gui and gui.Name == library.LibName then
-                    gui:Destroy()
-                end
-            end
-        end
-    end)
-    env.libloaded = false
+    end
+    getgenv().libloaded = false
 end
-if env then env.libloaded = true end
+getgenv().libloaded = true
 local rbxgui = cg:FindFirstChild("RobloxGui") or Instance.new("ScreenGui", cg)
 local screengui = Instance.new("ScreenGui", rbxgui)
 ProtectGui(screengui);
 screengui.Name = library.LibName
 screengui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 task.spawn(function()
-    pcall(function()
-        while env and env.libloaded do
-			library.RainbowColorValue = library.RainbowColorValue + 1 / 255
-			library.HueSelectionPosition = library.HueSelectionPosition + 1
-			if library.RainbowColorValue >= 1 then
-				library.RainbowColorValue = 0
-			end
-			if library.HueSelectionPosition == 80 then
-				library.HueSelectionPosition = 0
-			end
-			task.wait(0.1)
+	while getgenv().libloaded do
+		library.RainbowColorValue = library.RainbowColorValue + 1 / 255
+		library.HueSelectionPosition = library.HueSelectionPosition + 1
+		if library.RainbowColorValue >= 1 then
+			library.RainbowColorValue = 0
 		end
-    end)
+		if library.HueSelectionPosition == 80 then
+			library.HueSelectionPosition = 0
+		end
+		task.wait()
+	end
 end)
 function animateText(display, text, repeatCount, delay)
     if not display then return end
@@ -145,25 +115,16 @@ function animateText(display, text, repeatCount, delay)
     task.wait(5)
 end
 function library:Unload()
-    pcall(function()
-        if screengui then
-            screengui:Destroy()
-        end
-    end)
-    pcall(function()
-        if cg and cg:FindFirstChild("Show") then
-            cg:FindFirstChild("Show"):Destroy()
-        end
-    end)
-    pcall(function()
-        for i,v in next, library.Conn do
-            if v and v.Disconnect then
-                v:Disconnect()
-            end
-        end
-    end)
-    local env = getgenv
-    if env then env.libloaded = false end
+    if screengui then
+        screengui:Destroy()
+    end
+    if cg:FindFirstChild("Show") then
+        cg:FindFirstChild("Show"):Destroy()
+    end
+    for i,v in next, library.Conn do
+		v:Disconnect()
+	end
+    getgenv().libloaded = false
 end
 function MakeDraggable(topbarobject, object)
     local Dragging = nil
@@ -346,37 +307,31 @@ function library:Window(title, version, info, preset, closebind)
     }
 
     coroutine.wrap(function()
-        pcall(function()
-            local env = getgenv
-            while env and env.libloaded do
-                local repeatCount = 10
-                local delay = 0.05
-                for _, v in ipairs(textDisplays) do
-                    if not (env and env.libloaded) then break end
-                    animateText(Title, v, repeatCount, delay)
-                end
-                if library.animatetext then
-                    Title.Text = title .. " " .. version
-                    break
-                end
-                task.wait(5)
+        while getgenv().libloaded do
+            local repeatCount = 10
+            local delay = 0.05
+            for _, v in ipairs(textDisplays) do
+                animateText(Title, v, repeatCount, delay)
             end
-        end)
+            if library.animatetext then
+                Title.Text = title .. " " .. version
+                break
+            end
+            task.wait(5)
+        end
     end)()
 
     task.spawn(function()
-        pcall(function()
-            local env = getgenv
-            while env and env.libloaded do
-                Title.TextColor3 = PresetColor
-                line.Visible = library.LibraryLines
-                line2.Visible = library.LibraryLines
-                line3.Visible = library.LibraryLines
-                line4.Visible = library.LibraryLines
-                if library.LibraryLines then
-                    line.BackgroundColor3 = PresetColor
-                    line2.BackgroundColor3 = PresetColor
-                    line3.BackgroundColor3 = PresetColor
+        while getgenv().libloaded do
+            Title.TextColor3 = PresetColor
+            line.Visible = library.LibraryLines
+            line2.Visible = library.LibraryLines
+            line3.Visible = library.LibraryLines
+            line4.Visible = library.LibraryLines
+            if library.LibraryLines then
+                line.BackgroundColor3 = PresetColor
+                line2.BackgroundColor3 = PresetColor
+                line3.BackgroundColor3 = PresetColor
                 line4.BackgroundColor3 = PresetColor
             end
             task.wait()
@@ -527,14 +482,11 @@ function library:Window(title, version, info, preset, closebind)
 			updateToggleState()
 			
 			task.spawn(function()
-				pcall(function()
-					local env = getgenv
-					while env and env.libloaded and MobileToggle.Parent do
-						MobileToggleStroke.Color = PresetColor
-						MobileToggleGlow.ImageColor3 = PresetColor
-						task.wait(0.1)
-					end
-				end)
+				while getgenv().libloaded and MobileToggle.Parent do
+					MobileToggleStroke.Color = PresetColor
+					MobileToggleGlow.ImageColor3 = PresetColor
+					task.wait()
+				end
 			end)
 			
 			library.Conn[#library.Conn + 1] = ToggleButton.MouseButton1Down:Connect(function()
@@ -629,7 +581,7 @@ function library:Window(title, version, info, preset, closebind)
 			
 			local pulseConnection
 			pulseConnection = task.spawn(function()
-				while getgenv.libloaded and MobileToggle.Parent do
+				while getgenv().libloaded and MobileToggle.Parent do
 					if not Main.Visible then
 						tweensv:Create(MobileToggleGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 							ImageTransparency = 0.5
@@ -943,7 +895,7 @@ function library:Window(title, version, info, preset, closebind)
         bi.ZIndex = 105
         
         task.spawn(function()
-            while getgenv.libloaded and nf.Parent do
+            while getgenv().libloaded and nf.Parent do
                 nfs.Color = PresetColor
                 la.BackgroundColor3 = PresetColor
                 ra.BackgroundColor3 = PresetColor
@@ -1304,7 +1256,7 @@ function library:Window(title, version, info, preset, closebind)
         TabBtnIndicatorCorner.Parent = TabBtnIndicator
 
         coroutine.wrap(function()
-            while getgenv.libloaded do
+            while getgenv().libloaded do
                 TabBtnIndicator.BackgroundColor3 = PresetColor
 				task.wait()
             end
@@ -1469,7 +1421,7 @@ function library:Window(title, version, info, preset, closebind)
             FrameToggleCircleCorner.Parent = FrameToggleCircle
             
             coroutine.wrap(function()
-                while getgenv.libloaded do
+                while getgenv().libloaded do
                     FrameToggle3.BackgroundColor3 = PresetColor
                     task.wait()
                 end
@@ -1825,7 +1777,7 @@ function library:Window(title, version, info, preset, closebind)
             local AlwaysButton = createModeButton("Always", 3)
 
             coroutine.wrap(function()
-                while getgenv.libloaded do
+                while getgenv().libloaded do
                     FrameToggle3.BackgroundColor3 = PresetColor
                     KeybindButtonStroke.Color = PresetColor
                     KeybindDisplayStroke.Color = PresetColor
@@ -2629,7 +2581,7 @@ function library:Window(title, version, info, preset, closebind)
 
                 local Stored = {}
                 local SelectedValue = nil
-                local itemsByKey = {}
+                local itemsByKey = {} -- [text] = {button=Instance, value=val, selected=bool}
                 local dropdown = {
                     value = IsMulti and Stored or SelectedValue,
                     options = Selectables or {},
@@ -2734,7 +2686,7 @@ function library:Window(title, version, info, preset, closebind)
                     ChoosedCircleStroke.Transparency = 0
                     ChoosedCircleStroke.Color = Color3.fromRGB(44,44,44)
 
-
+                    -- selection state
                     local isSelected = false
                     if IsMulti then
                         isSelected = Stored[text] == true
@@ -2743,7 +2695,7 @@ function library:Window(title, version, info, preset, closebind)
                     end
                     applyVisual(SelectableButton, isSelected)
 
-
+                    -- hover
                     library.Conn[#library.Conn+1] = SelectableButton.MouseEnter:Connect(function()
                         tweensv:Create(SelectableButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.96}):Play()
                     end)
@@ -2751,7 +2703,7 @@ function library:Window(title, version, info, preset, closebind)
                         tweensv:Create(SelectableButton, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
                     end)
 
-
+                    -- click
                     library.Conn[#library.Conn+1] = SelectableButton.MouseButton1Click:Connect(function()
                         if IsMulti then
                             local newState = not (Stored[text] == true)
@@ -2760,7 +2712,7 @@ function library:Window(title, version, info, preset, closebind)
                             applyVisual(SelectableButton, newState)
                             if func then pcall(func, Stored, newState) end
                         else
-
+                            -- clear previous selection visuals
                             for key, rec in pairs(itemsByKey) do
                                 if rec and rec.button then
                                     applyVisual(rec.button, false)
@@ -2783,7 +2735,7 @@ function library:Window(title, version, info, preset, closebind)
 
                 local function diffRefresh(newOptions, preserveOnEmpty)
                     if type(newOptions) ~= "table" then return end
-
+                    -- build desired set
                     local wanted = {}
                     for _, opt in ipairs(newOptions) do
                         local key = (type(opt) == "table") and (opt.text or tostring(opt.value)) or tostring(opt)
@@ -2791,13 +2743,13 @@ function library:Window(title, version, info, preset, closebind)
                         if key and key ~= "" then wanted[key] = val end
                     end
                     
-
+                    -- optional protection: if list empty but players exist, skip
                     local Players = game:GetService("Players")
                     if next(wanted) == nil and preserveOnEmpty and #Players:GetPlayers() > 1 then
-                        return
+                        return -- keep current items
                     end
                     
-
+                    -- remove items no longer wanted
                     for key, rec in pairs(itemsByKey) do
                         if not wanted[key] then
                             if rec.button then rec.button:Destroy() end
@@ -2806,12 +2758,12 @@ function library:Window(title, version, info, preset, closebind)
                         end
                     end
                     
-
+                    -- add/update wanted items
                     for key, val in pairs(wanted) do
                         newItem(key, val)
                     end
                     
-
+                    -- preserve selection validity
                     if IsMulti then
                         for k,_ in pairs(Stored) do
                             if not wanted[k] then Stored[k] = nil end
@@ -3525,7 +3477,7 @@ function library:Window(title, version, info, preset, closebind)
                         RainbowSpeedSliderCircleCorner.Parent = RainbowSpeedSliderCircle
 
                         coroutine.wrap(function()
-                            while getgenv.libloaded do
+                            while getgenv().libloaded do
                                 FrameRainbowToggle3.BackgroundColor3 = PresetColor
                                 RainbowSpeedSliderCircle.BackgroundColor3 = PresetColor
                                 task.wait()
@@ -4170,9 +4122,8 @@ function library:Window(title, version, info, preset, closebind)
         return tabcontent
     end
     return tabhold
-end)
 end
-
+----------------------------------------------------------------// CONFIG SYSTEM //----------------------------------------------------------------
 function library:ConfigSystem(tab, name)
     local dir = library.Folder or "Dendrite.cc"
 
@@ -4547,7 +4498,7 @@ function library:ConfigSystem(tab, name)
                     end
                 end)
                 if success then loaded = loaded + 1 end
-            end
+            end -- close conditional skipping rainbow / autoload flags
             end
         end
         
@@ -4607,11 +4558,12 @@ function library:ConfigSystem(tab, name)
                 library:Notification("Config Selected", "Selected config: " .. item, "OK")
             end, false, "config_selector")
         end
+        
         library:Notification("Config List Refreshed", "Found " .. #items .. " configs.", "OK")
     end)
-
+    
     task.spawn(function()
-        local okAuto, err = pcall(function()
+        local success, err = pcall(function()
             task.wait(0.5)
             if not cfg.auto then return end
             local path = dir.."/"..cfg.auto..".json"
@@ -4619,7 +4571,7 @@ function library:ConfigSystem(tab, name)
             if not ok then return end
 
             local valid, data = pcall(httpsv.JSONDecode, httpsv, raw)
-            if not valid or type(data) ~= "table" or type(data.values) ~= "table" then return end
+            if not valid or type(data.values) ~= "table" then return end
 
             local loaded = 0
             cfg.pick = cfg.auto
@@ -4629,84 +4581,110 @@ function library:ConfigSystem(tab, name)
 
             for flag, val in pairs(data.values) do
                 if not (flag:match("_rainbow$") or flag == "config_autoload") then
+
+                if library.flags[flag] then
                     local element = library.flags[flag]
-                    if element then
-                        local okSet = pcall(function()
-                            if type(element) == "table" and type(element.set) == "function" then
-                                if type(val) == "table" and val.__type == "KeybindT" then
-                                    element:set({ value = val.toggleState, keyCode = Enum.KeyCode[val.keyCode] or Enum.KeyCode.Unknown, mode = val.mode, keyState = val.keyState })
-                                elseif type(val) == "table" and val.__type == "Color3" then
-                                    element:set(Color3.new(val.r, val.g, val.b))
-                                elseif type(val) == "table" and val.__type == "Keybind" then
-                                    local keyEnum = (val.keyCode and val.keyCode.__type == "EnumItem") and Enum.KeyCode[val.keyCode.value] or Enum.KeyCode[val.keyName]
-                                    if keyEnum then
-                                        local d = { keyCode = keyEnum }
-                                        if val.mode then d.mode = val.mode end
-                                        if val.toggleState ~= nil then d.value = val.toggleState end
-                                        if val.keyState ~= nil then d.keyState = val.keyState end
-                                        element:set(d)
-                                    end
-                                elseif type(val) == "table" and val.__type == "Slider" then
-                                    element:set(val.value)
-                                elseif type(val) == "table" and (val.__type == "Dropdown" or val.selected or val.options) then
-                                    element:set(val.selected or val)
-                                elseif type(val) == "number" or type(val) == "string" or type(val) == "boolean" then
-                                    element:set(val)
+                    local success, result = pcall(function()
+                        if type(element) == "table" and type(element.set) == "function" then
+                            -- Handle KeybindT objects
+                            if type(val) == "table" and val.__type == "KeybindT" then
+                                element:set({
+                                    value = val.toggleState,
+                                    keyCode = Enum.KeyCode[val.keyCode] or Enum.KeyCode.Unknown,
+                                    mode = val.mode,
+                                    keyState = val.keyState
+                                })
+                            -- Existing handlers for other object types
+                            elseif type(val) == "table" and val.__type == "Color3" then
+                                element:set(Color3.new(val.r, val.g, val.b))
+                            elseif type(val) == "table" and val.__type == "Keybind" then
+                                local keyEnum
+                                if val.keyCode and val.keyCode.__type == "EnumItem" then
+                                    keyEnum = Enum.KeyCode[val.keyCode.value]
                                 else
-                                    element:set(val)
+                                    keyEnum = Enum.KeyCode[val.keyName]
                                 end
+
+                                if keyEnum then
+                                    local data = {keyCode = keyEnum}
+                                    if val.mode then data.mode = val.mode end
+                                    if val.toggleState ~= nil then data.value = val.toggleState end
+                                    if val.keyState ~= nil then data.keyState = val.keyState end
+                                    element:set(data)
+                                end
+                            elseif type(val) == "table" and val.__type == "Slider" then
+                                element:set(val.value)
+                            elseif type(val) == "table" and val.__type == "Dropdown" then
+                                element:set(val.selected)
+                            elseif type(val) == "table" and (val.selected or val.options) then
+                                element:set(val.selected or val)
+                            elseif type(val) == "number" or type(val) == "string" or type(val) == "boolean" then
+                                element:set(val)
                             else
-                                library.flags[flag] = val
+                                element:set(val)
                             end
-                        end)
-                        if okSet then loaded = loaded + 1 end
-                    end
+                        else
+                            library.flags[flag] = val
+                        end
+                    end)
+                    if success then loaded = loaded + 1 end
+                end -- close conditional skipping rainbow / autoload flags (auto-load loop)
                 end
             end
 
             for flag, val in pairs(data.values) do
                 if flag:match("_rainbow$") then
-                    local base = flag:gsub("_rainbow$", "")
-                    local el = library.flags[base]
-                    if el and type(el.setRainbow) == "function" then
-                        pcall(el.setRainbow, el, val)
+                    local baseFlagName = flag:gsub("_rainbow$", "")
+                    if library.flags[baseFlagName] and type(library.flags[baseFlagName].setRainbow) == "function" then
+                        pcall(library.flags[baseFlagName].setRainbow, library.flags[baseFlagName], val)
                     end
                 end
             end
 
             silentAutoLoadUpdate = true
             autoLoad:set(true)
+
             library:Notification("Config Auto-Loaded", "Successfully loaded " .. loaded .. " values from config '" .. cfg.auto .. "'.", "OK")
         end)
-        if not okAuto then
+        if not success then
             library:Notification("Auto-Load Error", tostring(err), "OK", "rbxassetid://109809645126775")
         end
     end)
-
     return cfg
 end
 
 library.getPlayerList = function(excludeLocal)
     local players = {}
-    local ok, err = pcall(function()
+    
+    local success, result = pcall(function()
         local Players = game:GetService("Players")
         local LocalPlayer = Players.LocalPlayer
-        local exLocal = excludeLocal ~= false
-        for _, player in ipairs(Players:GetPlayers()) do
+        
+        -- Default to excluding local player unless explicitly set to false
+        excludeLocal = excludeLocal ~= false
+        
+        for _, player in pairs(Players:GetPlayers()) do
             if player and player.Name and type(player.Name) == "string" and player.Name ~= "" then
-                if not exLocal or player ~= LocalPlayer then
-                    players[#players+1] = player.Name
+                if not excludeLocal or player ~= LocalPlayer then
+                    table.insert(players, player.Name)
                 end
             end
         end
+        
+        -- Sort alphabetically for consistent ordering
         table.sort(players, function(a, b)
             return string.lower(a) < string.lower(b)
         end)
+        
+        return players
     end)
-    if not ok then
+    
+    if success and result and type(result) == "table" then
+        return result
+    else
+        -- Return empty table on failure rather than potentially corrupted data
         return {}
     end
-    return players
 end
 
 return library
