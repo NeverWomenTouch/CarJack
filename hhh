@@ -2668,32 +2668,15 @@ function Library:CreateLibrary(opts)
                         updateSlotUI(i)
                     end
 
-                    local function resolveColorPanelPosition(targetBtn, width, height, allowRootShift)
-                        width = math.max(0, width or 0)
-                        height = math.max(0, height or 0)
-                        local cam = workspace.CurrentCamera
-                        local viewport = (cam and cam.ViewportSize) or Vector2.new(1920, 1080)
-                        local margin = 10
+                    local function resolveColorPanelPosition(targetBtn, width, height)
+                        width = math.max(0, width or 260)
+                        height = math.max(0, height or 220)
                         local btnAbs = targetBtn.AbsolutePosition
                         local btnSize = targetBtn.AbsoluteSize
-                        local px = math.clamp(btnAbs.X, margin, viewport.X - width - margin)
-                        local desiredTop = btnAbs.Y + btnSize.Y + 6
-                        if allowRootShift then
-                            local overflow = (desiredTop + height + margin) - viewport.Y
-                            if overflow > 0 then
-                                local rootAbsY = root.AbsolutePosition.Y
-                                local shift = math.min(overflow, math.max(0, rootAbsY - margin))
-                                if shift > 0 then
-                                    local pos = root.Position
-                                    root.Position = UDim2.new(pos.X.Scale, pos.X.Offset, pos.Y.Scale, pos.Y.Offset - shift)
-                                    btnAbs = targetBtn.AbsolutePosition
-                                    btnSize = targetBtn.AbsoluteSize
-                                    px = math.clamp(btnAbs.X, margin, viewport.X - width - margin)
-                                    desiredTop = btnAbs.Y + btnSize.Y + 6
-                                end
-                            end
-                        end
-                        return px, desiredTop
+                        -- Position panel directly below the button, aligned to left edge
+                        local px = btnAbs.X
+                        local py = btnAbs.Y + btnSize.Y + 6
+                        return px, py
                     end
 
                     local function openPanel(btnFor, index)
@@ -2717,7 +2700,7 @@ function Library:CreateLibrary(opts)
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
                             if width <= 0 then width = 260 end
                             if height <= 0 then height = 220 end
-                            local px, py = resolveColorPanelPosition(btnFor, width, height, true)
+                            local px, py = resolveColorPanelPosition(btnFor, width, height)
                             panel.Position = UDim2.fromOffset(px, py)
                             -- refresh UI to the selected slot
                             local slot = slots[index]
@@ -2994,13 +2977,13 @@ function Library:CreateLibrary(opts)
                         local width, height = 260, 220
 
                         -- Since panel is parented to RootGui, use screen coordinates
-                        -- Default: open directly below the swatch; fallback above if it would overflow bottom
+                        -- Position directly below the button
                         local function placePanel()
                             local currentWidth = panel.AbsoluteSize.X
                             local currentHeight = panel.AbsoluteSize.Y
                             if currentWidth <= 0 then currentWidth = width end
                             if currentHeight <= 0 then currentHeight = height end
-                            local px, py = resolveColorPanelPosition(btnFor, currentWidth, currentHeight, true)
+                            local px, py = resolveColorPanelPosition(btnFor, currentWidth, currentHeight)
                             panel.Position = UDim2.fromOffset(px, py)
                         end
                         placePanel()
