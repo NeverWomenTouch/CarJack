@@ -79,7 +79,7 @@ local getgenv = getgenv or function()
     return stealth_env
 end
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
-local env = getgenv
+local env = (type(getgenv) == "function" and getgenv()) or {}
 if env and env.libloaded then
     pcall(function()
         for i, v in next, library.Conn do
@@ -107,9 +107,8 @@ ProtectGui(screengui);
 screengui.Name = library.LibName
 screengui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 task.spawn(function()
-	pcall(function()
-		local env = getgenv
-		while env and env.libloaded do
+    pcall(function()
+        while env and env.libloaded do
 			library.RainbowColorValue = library.RainbowColorValue + 1 / 255
 			library.HueSelectionPosition = library.HueSelectionPosition + 1
 			if library.RainbowColorValue >= 1 then
@@ -120,7 +119,7 @@ task.spawn(function()
 			end
 			task.wait(0.1)
 		end
-	end)
+    end)
 end)
 function animateText(display, text, repeatCount, delay)
     if not display then return end
@@ -4547,7 +4546,6 @@ function library:ConfigSystem(tab, name)
                     end
                 end)
                 if success then loaded = loaded + 1 end
-            end -- close conditional skipping rainbow / autoload flags
             end
         end
         
@@ -4607,12 +4605,11 @@ function library:ConfigSystem(tab, name)
                 library:Notification("Config Selected", "Selected config: " .. item, "OK")
             end, false, "config_selector")
         end
-        
         library:Notification("Config List Refreshed", "Found " .. #items .. " configs.", "OK")
     end)
-    
+
     task.spawn(function()
-        local success, err = pcall(function()
+        local okAuto, err = pcall(function()
             task.wait(0.5)
             if not cfg.auto then return end
             local path = dir.."/"..cfg.auto..".json"
@@ -4620,7 +4617,7 @@ function library:ConfigSystem(tab, name)
             if not ok then return end
 
             local valid, data = pcall(httpsv.JSONDecode, httpsv, raw)
-            if not valid or type(data.values) ~= "table" then return end
+            if not valid or type(data) ~= "table" or type(data.values) ~= "table" then return end
 
             local loaded = 0
             cfg.pick = cfg.auto
@@ -4630,110 +4627,84 @@ function library:ConfigSystem(tab, name)
 
             for flag, val in pairs(data.values) do
                 if not (flag:match("_rainbow$") or flag == "config_autoload") then
-
-                if library.flags[flag] then
                     local element = library.flags[flag]
-                    local success, result = pcall(function()
-                        if type(element) == "table" and type(element.set) == "function" then
-                            -- Handle KeybindT objects
-                            if type(val) == "table" and val.__type == "KeybindT" then
-                                element:set({
-                                    value = val.toggleState,
-                                    keyCode = Enum.KeyCode[val.keyCode] or Enum.KeyCode.Unknown,
-                                    mode = val.mode,
-                                    keyState = val.keyState
-                                })
-                            -- Existing handlers for other object types
-                            elseif type(val) == "table" and val.__type == "Color3" then
-                                element:set(Color3.new(val.r, val.g, val.b))
-                            elseif type(val) == "table" and val.__type == "Keybind" then
-                                local keyEnum
-                                if val.keyCode and val.keyCode.__type == "EnumItem" then
-                                    keyEnum = Enum.KeyCode[val.keyCode.value]
+                    if element then
+                        local okSet = pcall(function()
+                            if type(element) == "table" and type(element.set) == "function" then
+                                if type(val) == "table" and val.__type == "KeybindT" then
+                                    element:set({ value = val.toggleState, keyCode = Enum.KeyCode[val.keyCode] or Enum.KeyCode.Unknown, mode = val.mode, keyState = val.keyState })
+                                elseif type(val) == "table" and val.__type == "Color3" then
+                                    element:set(Color3.new(val.r, val.g, val.b))
+                                elseif type(val) == "table" and val.__type == "Keybind" then
+                                    local keyEnum = (val.keyCode and val.keyCode.__type == "EnumItem") and Enum.KeyCode[val.keyCode.value] or Enum.KeyCode[val.keyName]
+                                    if keyEnum then
+                                        local d = { keyCode = keyEnum }
+                                        if val.mode then d.mode = val.mode end
+                                        if val.toggleState ~= nil then d.value = val.toggleState end
+                                        if val.keyState ~= nil then d.keyState = val.keyState end
+                                        element:set(d)
+                                    end
+                                elseif type(val) == "table" and val.__type == "Slider" then
+                                    element:set(val.value)
+                                elseif type(val) == "table" and (val.__type == "Dropdown" or val.selected or val.options) then
+                                    element:set(val.selected or val)
+                                elseif type(val) == "number" or type(val) == "string" or type(val) == "boolean" then
+                                    element:set(val)
                                 else
-                                    keyEnum = Enum.KeyCode[val.keyName]
+                                    element:set(val)
                                 end
-
-                                if keyEnum then
-                                    local data = {keyCode = keyEnum}
-                                    if val.mode then data.mode = val.mode end
-                                    if val.toggleState ~= nil then data.value = val.toggleState end
-                                    if val.keyState ~= nil then data.keyState = val.keyState end
-                                    element:set(data)
-                                end
-                            elseif type(val) == "table" and val.__type == "Slider" then
-                                element:set(val.value)
-                            elseif type(val) == "table" and val.__type == "Dropdown" then
-                                element:set(val.selected)
-                            elseif type(val) == "table" and (val.selected or val.options) then
-                                element:set(val.selected or val)
-                            elseif type(val) == "number" or type(val) == "string" or type(val) == "boolean" then
-                                element:set(val)
                             else
-                                element:set(val)
+                                library.flags[flag] = val
                             end
-                        else
-                            library.flags[flag] = val
-                        end
-                    end)
-                    if success then loaded = loaded + 1 end
+                        end)
+                        if okSet then loaded = loaded + 1 end
+                    end
                 end
-            end -- close if not (flag:match("_rainbow$") or flag == "config_autoload")
-        end -- close for flag, val in pairs(data.values)
+            end
 
             for flag, val in pairs(data.values) do
                 if flag:match("_rainbow$") then
-                    local baseFlagName = flag:gsub("_rainbow$", "")
-                    if library.flags[baseFlagName] and type(library.flags[baseFlagName].setRainbow) == "function" then
-                        pcall(library.flags[baseFlagName].setRainbow, library.flags[baseFlagName], val)
+                    local base = flag:gsub("_rainbow$", "")
+                    local el = library.flags[base]
+                    if el and type(el.setRainbow) == "function" then
+                        pcall(el.setRainbow, el, val)
                     end
                 end
             end
 
             silentAutoLoadUpdate = true
             autoLoad:set(true)
-
             library:Notification("Config Auto-Loaded", "Successfully loaded " .. loaded .. " values from config '" .. cfg.auto .. "'.", "OK")
         end)
-        if not success then
+        if not okAuto then
             library:Notification("Auto-Load Error", tostring(err), "OK", "rbxassetid://109809645126775")
         end
     end)
+
     return cfg
 end
 
 library.getPlayerList = function(excludeLocal)
     local players = {}
-    
-    local success, result = pcall(function()
+    local ok, err = pcall(function()
         local Players = game:GetService("Players")
         local LocalPlayer = Players.LocalPlayer
-        
-        -- Default to excluding local player unless explicitly set to false
-        excludeLocal = excludeLocal ~= false
-        
-        for _, player in pairs(Players:GetPlayers()) do
+        local exLocal = excludeLocal ~= false
+        for _, player in ipairs(Players:GetPlayers()) do
             if player and player.Name and type(player.Name) == "string" and player.Name ~= "" then
-                if not excludeLocal or player ~= LocalPlayer then
-                    table.insert(players, player.Name)
+                if not exLocal or player ~= LocalPlayer then
+                    players[#players+1] = player.Name
                 end
             end
         end
-        
-        -- Sort alphabetically for consistent ordering
         table.sort(players, function(a, b)
             return string.lower(a) < string.lower(b)
         end)
-        
-        return players
     end)
-    
-    if success and result and type(result) == "table" then
-        return result
-    else
-
+    if not ok then
         return {}
     end
+    return players
 end
 
 return library
