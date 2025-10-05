@@ -2103,1020 +2103,563 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Keybind
                 end
-                -- Colorpicker
+                -- Colorpicker - Clean Rewrite
                 function Group:AddColorpicker(o)
                     o = o or {}
                     local label = tostring(o.Name or "Color")
-                    local cb = o.Callback
-                    local amount = math.max(1, tonumber(o.Amount) or 1)
-                    -- Opt-in global sync across different colorpickers; default off to keep slots independent
-                    local doSync = (o.Sync == true) or (o.SyncGlobally == true)
-                    -- Always start with Rainbow off; per-slot toggle only
-                    local startRainbow = false
-                    local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    -- helpers
-                    local function clamp01(x) if x < 0 then return 0 elseif x > 1 then return 1 else return x end end
+                    local callback = o.Callback
+                    local default = o.Default or o.Value or Color3.fromRGB(255, 255, 255)
+                    local id = o.Flag or label
+
+                    -- State
+                    local currentColor = default
+                    local currentHSV = {Color3.toHSV(default)}
+                    local rainbowEnabled = false
+                    local rainbowConnection = nil
+                    local panelOpen = false
+                    local panel = nil
+
+                    -- Helper functions
+                    local function clamp01(x)
+                        return math.clamp(x or 0, 0, 1)
+                    end
+
                     local function toRGB255(c)
-                        return math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5)
+                        return math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5)
                     end
-                    local function rgbToHex(r,g,b)
-                        return string.format("#%02X%02X%02X", math.clamp(r,0,255), math.clamp(g,0,255), math.clamp(b,0,255))
+
+                    local function rgbToHex(r, g, b)
+                        return string.format("#%02X%02X%02X", math.clamp(r, 0, 255), math.clamp(g, 0, 255), math.clamp(b, 0, 255))
                     end
+
                     local function hexToRGB(hex)
-                        hex = tostring(hex or ""):gsub("^#","")
+                        hex = tostring(hex or ""):gsub("^#", "")
                         if #hex == 6 then
-                            local r = tonumber(hex:sub(1,2),16)
-                            local g = tonumber(hex:sub(3,4),16)
-                            local b = tonumber(hex:sub(5,6),16)
-                            if r and g and b then return r,g,b end
+                            local r = tonumber(hex:sub(1, 2), 16)
+                            local g = tonumber(hex:sub(3, 4), 16)
+                            local b = tonumber(hex:sub(5, 6), 16)
+                            if r and g and b then return r, g, b end
                         end
                         return nil
                     end
+
                     local function parseRGBText(t)
-                        -- accept formats like "255,255,255" or "255, 255, 255"
-                        local r,g,b = t:match("%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*")
-                        if r and g and b then return tonumber(r), tonumber(g), tonumber(b) end
+                        local r, g, b = t:match("%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*")
+                        if r and g and b then
+                            return tonumber(r), tonumber(g), tonumber(b)
+                        end
                         return nil
                     end
 
-                    -- rainbow sync bus
-                    Library._rainbowBus = Library._rainbowBus or { listeners = {}, conn = nil }
-                    
-                    -- Global sync system for RGB and Pulse modes across ALL colorpickers
-                    Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {} }
-                    Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {} }
-                    
-                    local function syncRGBColor(color, sourceId)
-                        if not Library._globalRGBSync.active then return end
-                        for id, listener in pairs(Library._globalRGBSync.listeners) do
-                            if id ~= sourceId then
-                                pcall(listener, color, sourceId)
-                            end
-                        end
-                    end
-                    
-                    local function syncPulseColor(color, sourceId)
-                        if not Library._globalPulseSync.active then return end
-                        for id, listener in pairs(Library._globalPulseSync.listeners) do
-                            if id ~= sourceId then
-                                pcall(listener, color, sourceId)
-                            end
-                        end
-                    end
-                    local function rainbowStart()
-                        if Library._rainbowBus.conn then return end
-                        local RS = game:GetService("RunService")
-                        local t0 = tick()
-                        Library._rainbowBus.conn = RS.RenderStepped:Connect(function()
-                            local t = (tick() - t0) * 0.08 -- speed
-                            local h = t % 1
-                            Library._rainbowBus.h = h -- expose current hue for offset calculations
-                            for _, fn in ipairs(Library._rainbowBus.listeners) do
-                                pcall(fn, h)
-                            end
-                        end)
-                    end
-                    local function rainbowAdd(fn)
-                        table.insert(Library._rainbowBus.listeners, fn)
-                        rainbowStart()
-                        return fn
-                    end
-                    local function rainbowRemove(fn)
-                        for i=#Library._rainbowBus.listeners,1,-1 do
-                            if Library._rainbowBus.listeners[i] == fn then table.remove(Library._rainbowBus.listeners,i) end
-                        end
-                        if #Library._rainbowBus.listeners == 0 and Library._rainbowBus.conn then
-                            Library._rainbowBus.conn:Disconnect(); Library._rainbowBus.conn = nil
-                        end
+                    local function hsvToColor(h, s, v)
+                        return Color3.fromHSV(clamp01(h), clamp01(s), clamp01(v))
                     end
 
-                    -- Resolve defaults per slot
-                    local defaults = {}
-                    local function colorFromAny(v)
-                        if typeof(v) == "Color3" then return v end
-                        if type(v) == "table" and v.r and v.g and v.b then return Color3.fromRGB(v.r, v.g, v.b) end
-                        if type(v) == "string" then
-                            local r,g,b = parseRGBText(v)
-                            if r then return Color3.fromRGB(r,g,b) end
-                            local hr,hg,hb = hexToRGB(v)
-                            if hr then return Color3.fromRGB(hr,hg,hb) end
-                        end
-                        return Theme.Accent
-                    end
-                    -- accept Default or Value as initial colors
-                    local init = (o.Default ~= nil) and o.Default or o.Value
-                    if type(init) == "table" and amount > 1 then
-                        for i=1, amount do defaults[i] = colorFromAny(init[i]) end
-                    else
-                        local c = colorFromAny(init)
-                        for i=1, amount do defaults[i] = c end
-                    end
-
-                    -- build row
+                    -- Create UI row
                     local rowH = 30
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.42,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local holder = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), Parent = row}, {
-                        Create("UIPadding", {PaddingLeft = UDim.new(0,0), PaddingRight = UDim.new(0,0)})
+                    local row = Create("Frame", {
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -2, 0, rowH),
+                        Position = UDim2.fromOffset(0, nextY(rowH)),
+                        Parent = gFrame
                     })
-                    local layout = Create("UIListLayout", {Parent = holder, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,6), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
 
-                    -- state per slot
-                    local slots = {}
-                    for i=1, amount do
-                        local btn = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(26,26), Text = "", Parent = holder}, {
-                            Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                            Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
-                        })
-                        local fill = Create("Frame", {BackgroundColor3 = defaults[i], Size = UDim2.new(1,-6,1,-6), Position = UDim2.fromOffset(3,3), Parent = btn}, {
-                            Create("UICorner", {CornerRadius = UDim.new(0,3)})
-                        })
-                        btn.MouseEnter:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
-                        btn.MouseLeave:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
-                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0, panel = nil, panelOpen = false }
-                    end
+                    -- Label
+                    Create("TextLabel", {
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(0.42, -6, 1, 0),
+                        Text = label,
+                        Font = Fonts.Medium,
+                        TextSize = 13,
+                        TextColor3 = Theme.Text,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        Parent = row
+                    })
 
-                    -- shared panel for all slots
-                    local panel, open, anim = nil, false, false
-                    local panelBlocker = nil
-                    local activeIndex = 1
-                    local openConns = {}
-                    local function disconnectAll()
-                        for i=#openConns,1,-1 do openConns[i]:Disconnect(); table.remove(openConns,i) end
-                    end
+                    -- Button container
+                    local holder = Create("Frame", {
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(0.58, -4, 1, 0),
+                        Position = UDim2.new(0.42, 4, 0, 0),
+                        Parent = row
+                    })
 
-                    -- Clipboard helpers (exploit env)
-                    local function copyText(s)
-                        if typeof(setclipboard) == "function" then pcall(setclipboard, s) end
-                        Library._clipboardColor = s
-                    end
-                    local function pasteText()
-                        if typeof(getclipboard) == "function" then local ok, v = pcall(getclipboard); if ok then return v end end
-                        return Library._clipboardColor
-                    end
+                    local layout = Create("UIListLayout", {
+                        Parent = holder,
+                        FillDirection = Enum.FillDirection.Horizontal,
+                        Padding = UDim.new(0, 6),
+                        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                        VerticalAlignment = Enum.VerticalAlignment.Center
+                    })
 
-                    -- context menu (right click)
-                    local ctxMenu, ctxOpen
-                    local ctxBlocker = nil
-                    local ctxConns = {}
-                    local function ctxDisconnectAll()
-                        for i=#ctxConns,1,-1 do ctxConns[i]:Disconnect(); table.remove(ctxConns,i) end
-                    end
-                    local function closeCtx()
-                        if not ctxOpen or not ctxMenu then return end
-                        ctxOpen = false
-                        ctxDisconnectAll()
-                        if ctxBlocker and ctxBlocker.Parent then pcall(function() ctxBlocker:Destroy() end) end
-                        ctxBlocker = nil
-                        -- Destroy immediately to avoid stuck animation when spamming clicks
-                        pcall(function() if ctxMenu then ctxMenu:Destroy() end end)
-                        ctxMenu = nil
-                        if Library._openColorCtxClose == closeCtx then Library._openColorCtxClose = nil end
-                    end
-                    local function openCtx(btnFor)
-                        if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
-                        closeCtx()
-                        if ctxMenu then pcall(function() ctxMenu:Destroy() end); ctxMenu=nil end
-                        -- Create modal blocker to capture outside clicks and block underlying UI across the whole screen
-                        local menuZBase = 12000
-                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = menuZBase, Parent = RootGui})
-                        table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function() closeCtx() end))
-                        table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
-                        table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
-                        -- Match multi-dropdown menu visuals (padding, corner radius, outline, hover behavior)
-                        local textService = game:GetService("TextService")
-                        local labelFont = Fonts.Medium
-                        local labelSize = 12
-                        local sidePad, vPad, gap, itemH = 10, 6, 2, 24
-                        local function measure(text)
-                            local sz = textService:GetTextSize(text or "", labelSize, labelFont, Vector2.new(1000, itemH))
-                            return sz.X
+                    -- Color button
+                    local btn = Create("TextButton", {
+                        AutoButtonColor = false,
+                        BackgroundColor3 = Theme.Button,
+                        Size = UDim2.fromOffset(26, 26),
+                        Text = "",
+                        Parent = holder
+                    }, {
+                        Create("UICorner", {CornerRadius = UDim.new(0, 4)}),
+                        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
+                    })
+
+                    local fill = Create("Frame", {
+                        BackgroundColor3 = currentColor,
+                        Size = UDim2.new(1, -6, 1, -6),
+                        Position = UDim2.fromOffset(3, 3),
+                        Parent = btn
+                    }, {
+                        Create("UICorner", {CornerRadius = UDim.new(0, 3)})
+                    })
+
+                    -- Button hover effects
+                    btn.MouseEnter:Connect(function()
+                        T(btn, 0.12, {BackgroundColor3 = Theme.Hover}):Play()
+                    end)
+
+                    btn.MouseLeave:Connect(function()
+                        T(btn, 0.12, {BackgroundColor3 = Theme.Button}):Play()
+                    end)
+
+                    -- Function to close panel
+                    local function closePanel()
+                        if not panel or not panelOpen then return end
+                        panelOpen = false
+
+                        T(panel, 0.15, {
+                            Size = UDim2.fromOffset(220, 0),
+                            BackgroundTransparency = 1
+                        }):Play()
+
+                        task.wait(0.15)
+                        if panel then
+                            panel:Destroy()
+                            panel = nil
                         end
-                        local maxTextW = math.max(measure("Copy Value"), measure("Paste Value"))
-                        local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 8), 140, 220)
-                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = menuZBase + 1, ClipsDescendants = true, Parent = RootGui}, {
-                            Create("UICorner", {CornerRadius = UDim.new(0,6)}),
-                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.40})
-                        })
-                        local shadow2 = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.92, Size = UDim2.fromScale(1,1), ZIndex = (ctxMenu.ZIndex or 1)-1, Parent = ctxMenu})
-                        shadow2.ScaleType = Enum.ScaleType.Slice; shadow2.SliceCenter = Rect.new(20,20,280,280)
-                        local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -(sidePad*2), 1, -(vPad*2)), Position = UDim2.fromOffset(sidePad, vPad), ZIndex = ctxMenu.ZIndex + 1, Parent = ctxMenu}, {
-                            Create("UIListLayout", {Padding = UDim.new(0,gap), SortOrder = Enum.SortOrder.LayoutOrder})
-                        })
-                        local function item(text, on)
-                            local btn = Create("TextButton", {AutoButtonColor = false, BackgroundTransparency = 0, BackgroundColor3 = Theme.Bg, Size = UDim2.new(1,0,0,itemH), Text = "", ZIndex = content.ZIndex + 1, Parent = content}, {
-                                Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
-                            })
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Text = text, Font = labelFont, TextSize = labelSize, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
-                            btn.MouseEnter:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Hover}):Play() end)
-                            btn.MouseLeave:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Bg}):Play() end)
-                            btn.MouseButton1Click:Connect(function() on(); closeCtx() end)
-                            return btn
-                        end
-                        item("Copy Value", function()
-                            local c = slots[activeIndex].color
-                            local r,g,b = toRGB255(c)
-                            copyText(string.format("%d, %d, %d", r,g,b))
-                        end)
-                        item("Paste Value", function()
-                            local txt = pasteText()
-                            if not txt then return end
-                            local r,g,b = parseRGBText(txt)
-                            if not r then local hr,hg,hb = hexToRGB(txt); if hr then r,g,b = hr,hg,hb end end
-                            if r then
-                                local c = Color3.fromRGB(r,g,b)
-                                slots[activeIndex].hsv = { Color3.toHSV(c) }
-                                slots[activeIndex].color = c
-                                slots[activeIndex].fill.BackgroundColor3 = c
-                                if type(cb)=="function" then pcall(cb, c, activeIndex) end
-                            end
-                        end)
-                        -- position near btnFor: left-aligned below the swatch (fallback clamped)
-                        local finalH = vPad*2 + (itemH*2) + gap
-                        local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
-                        local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        -- align left edge with swatch, place below with small gap
-                        local px = (tAbs.X - rootAbs.X)
-                        local py = (tAbs.Y - rootAbs.Y) + tSz.Y + 4
-                        -- clamp within root
-                        px = math.clamp(px, 4, rootSz.X - menuW - 4)
-                        py = math.clamp(py, 4, rootSz.Y - finalH - 4)
-                        -- parented to RootGui, so convert to absolute screen coords by adding rootAbs
-                        ctxMenu.Position = UDim2.fromOffset(rootAbs.X + px, rootAbs.Y + py)
-                        ctxMenu.Size = UDim2.fromOffset(menuW,0)
-                        local tw = T(ctxMenu,0.14,{Size = UDim2.fromOffset(menuW, finalH), BackgroundTransparency = 0})
-                        tw:Play(); ctxOpen = true
-                        -- No ESC handler; close via mouse/touch/blocker only
-                        Library._openColorCtxClose = closeCtx
-                        -- Swallow clicks on menu content so they don't bubble to blocker
-                        table.insert(ctxConns, ctxMenu.InputBegan:Connect(function() end))
                     end
 
-                    -- Build color panel (once)
-                    local sv, svWhite, svBlack, svCursor
-                    local hueSlider, hueGrab
-                    local rgbBox, hexBox
-                    local rainbowToggle -- simple small toggle
-                    local function hsvToColor(hsv)
-                        return Color3.fromHSV(clamp01(hsv[1] or 0), clamp01(hsv[2] or 0), clamp01(hsv[3] or 0))
-                    end
-                    local function updateSVBackground(h)
-                        if sv then sv.BackgroundColor3 = Color3.fromHSV(h,1,1) end
-                    end
-                    local function applyColorFromHSV(index)
-                        local slot = slots[index]
-                        local hsv = slot.hsv
-                        local c = hsvToColor(hsv)
-                        slot.color = c
-                        slot.fill.BackgroundColor3 = c
-                        -- update inputs only if this slot is currently active in the panel
-                        if open and activeIndex == index then
-                            if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(c); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                            if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(c); hexBox.Text = rgbToHex(r,g,b) end
-                        end
-                        if type(cb)=="function" then pcall(cb, c, index) end
-                    end
-                    local function setHSV(index, h,s,v)
-                        local slot = slots[index]
-                        if not slot then return end
-                        
-                        -- For manual control, don't interfere with effects - let them continue running
-                        -- This allows effects to work alongside manual adjustments
-                        
-                        local H,S,V = slot.hsv[1], slot.hsv[2], slot.hsv[3]
-                        if h~=nil then H=h end; if s~=nil then S=s end; if v~=nil then V=v end
-                        slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
-                        if slot.updateSVBackground then slot.updateSVBackground(H) end
-                        applyColorFromHSV(index)
-
-                    end
-                    
-                    -- Separate function for drag operations that doesn't permanently disable effects
-                    local function setHSVDrag(index, h,s,v)
-                        local slot = slots[index]
-                        if not slot then return end
-                        
-                        local H,S,V = slot.hsv[1], slot.hsv[2], slot.hsv[3]
-                        if h~=nil then H=h end; if s~=nil then S=s end; if v~=nil then V=v end
-                        slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
-                        if slot.updateSVBackground then slot.updateSVBackground(H) end
-                        applyColorFromHSV(index)
-                    end
-
-                    -- helper: attach rainbow animation to a specific slot index, updating UI only if it's the active one
-                    local function attachRainbow(i)
-                        local slot = slots[i]
-                        -- Seed offset from current hue vs global rainbow hue
-                        if Library._rainbowBus and Library._rainbowBus.h then
-                            local currentH = slot.hsv[1] or 0
-                            slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
-                        end
-                        return rainbowAdd(function(h)
-                            local s,v = slot.hsv[2], slot.hsv[3]
-                            local hh = (h + (slot.hueOffset or 0)) % 1
-                            slot.hsv = {hh,s,v}
-                            local c = hsvToColor(slot.hsv)
-                            slot.color = c
-                            slot.fill.BackgroundColor3 = c
-                            
-                            -- Sync to other RGB colorpickers globally
-                            if slot._syncId then
-                                syncRGBColor(c, slot._syncId)
-                            end
-                            
-                            if open and activeIndex == i then
-                                updateSVBackground(hh)
-                                if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), hh * hueSlider.AbsoluteSize.Y) end
-                                applyColorFromHSV(i)
-                            else
-                                -- update color silently when not active
-                                if type(cb) == "function" then pcall(cb, c, i) end
-                            end
-                        end)
-                    end
-
-                    -- Shared UI references (will be set when panel is created)
-                    local cbMark, pulseMark
-                    
-                    -- Shared UI update functions (work with currently active panel)
-                    local function updateSVBackground(h)
-                        if sv then sv.BackgroundColor3 = Color3.fromHSV(h,1,1) end
-                    end
-                    
-                    local function setCheckbox(on)
-                        if cbMark then cbMark.Visible = on and true or false end
-                    end
-                    
-                    local function setPulseCheckbox(on)
-                        if pulseMark then pulseMark.Visible = on and true or false end
-                    end
-                    
-                    -- Unified helpers for stable per-slot toggles
-                    local function updateSlotUI(i)
-                        local slot = slots[i]
-                        if open and activeIndex == i then
-                            setCheckbox(slot.rainbow or false)
-                            setPulseCheckbox(slot.pulse or false)
-                        end
-                    end
-                    local function disableRainbow(i)
-                        local slot = slots[i]
-                        slot.rainbow = false
-                        slot._resumeRainbow = nil
-                        if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                        -- Properly cleanup global sync listeners
-                        if slot._syncId then
-                            Library._globalRGBSync.listeners[slot._syncId] = nil
-                            slot._syncId = nil
-                            -- Check if there are any active RGB listeners left
-                            local hasActiveRGB = false
-                            for _, listener in pairs(Library._globalRGBSync.listeners) do 
-                                if listener then hasActiveRGB = true break end 
-                            end
-                            Library._globalRGBSync.active = hasActiveRGB
-                        end
-                        updateSlotUI(i)
-                        -- refresh UI cursors to match HSV when open
-                        if open and activeIndex == i then
-                            local h,s,v = table.unpack(slot.hsv)
-                            updateSVBackground(h)
-                            if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
-                            if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
-                        end
-                    end
-                    local function enableRainbow(i)
-                        local slot = slots[i]
-                        -- turn off pulse for this slot
-                        if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                        slot.pulse = false
-                        slot._resumePulse = nil
-                        -- if pulse sync was active, remove listener for this slot
-                        if doSync and slot._pulseSyncId then
-                            Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
-                            slot._pulseSyncId = nil
-                            local hasActivePulse = false
-                            for _, listener in pairs(Library._globalPulseSync.listeners) do 
-                                if listener then hasActivePulse = true break end 
-                            end
-                            Library._globalPulseSync.active = hasActivePulse
-                        end
-                        -- Always set up global sync for ALL colorpickers
-                        Library._globalRGBSync.active = true
-                        local syncId = tostring(id .. "_" .. i .. "_" .. math.random(1000000, 9999999))
-                        slot._syncId = syncId
-                        -- Create proper sync listener
-                        Library._globalRGBSync.listeners[syncId] = function(syncColor, sourceId)
-                            if not slot.rainbow or sourceId == syncId then return end -- Don't sync to self
-                            local h,s,v = Color3.toHSV(syncColor)
-                            slot.hsv = {h,s,v}
-                            if Library._rainbowBus and Library._rainbowBus.h then
-                                slot.hueOffset = (h - Library._rainbowBus.h) % 1
-                            end
-                            slot.color = syncColor
-                            slot.fill.BackgroundColor3 = syncColor
-                            if type(cb) == "function" then pcall(cb, syncColor, i) end
-                            if open and activeIndex == i then
-                                updateSVBackground(h)
-                                if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
-                                if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
-                                if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(syncColor); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); hexBox.Text = rgbToHex(r,g,b) end
-                            end
-                        end
-                        
-                        -- If there are existing RGB effects active, sync to them after a small delay
-                        if Library._globalRGBSync.active then
-                            task.spawn(function()
-                                task.wait(0.1) -- Small delay to let the enable process complete
-                                local foundRGBSync = false
-                                for existingId, existingListener in pairs(Library._globalRGBSync.listeners) do
-                                    if existingId ~= syncId and existingListener and not foundRGBSync then
-                                        -- Find an existing RGB slot to sync from
-                                        for checkId, checkSlot in pairs(Library._controls) do
-                                            if checkSlot._slots and not foundRGBSync then
-                                                for j, checkSlotData in ipairs(checkSlot._slots) do
-                                                    if checkSlotData.rainbow and checkSlotData._syncId and checkSlotData._syncId ~= syncId then
-                                                        -- Sync to this existing RGB color
-                                                        local syncColor = checkSlotData.color
-                                                        if Library._globalRGBSync.listeners[syncId] then
-                                                            Library._globalRGBSync.listeners[syncId](syncColor, checkSlotData._syncId)
-                                                        end
-                                                        foundRGBSync = true
-                                                        break
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            end)
-                        end
-                        if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                        slot.rainbow = true
-                        slot.rainbowHook = attachRainbow(i)
-                        if slot._syncId then
-                            local c0 = hsvToColor(slot.hsv)
-                            syncRGBColor(c0, slot._syncId)
-                        end
-                        updateSlotUI(i)
-                    end
-                    local function disablePulse(i)
-                        local slot = slots[i]
-                        slot.pulse = false
-                        slot._resumePulse = nil
-                        if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                        -- Properly cleanup global sync listeners
-                        if slot._pulseSyncId then
-                            Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
-                            slot._pulseSyncId = nil
-                            -- Check if there are any active pulse listeners left
-                            local hasActivePulse = false
-                            for _, listener in pairs(Library._globalPulseSync.listeners) do 
-                                if listener then hasActivePulse = true break end 
-                            end
-                            Library._globalPulseSync.active = hasActivePulse
-                        end
-                        updateSlotUI(i)
-                    end
-                    local function enablePulse(i)
-                        local slot = slots[i]
-                        -- turn off rainbow for this slot
-                        if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                        slot.rainbow = false
-                        slot._resumeRainbow = nil
-                        -- if RGB sync was active, remove listener for this slot
-                        if slot._syncId then
-                            Library._globalRGBSync.listeners[slot._syncId] = nil
-                            slot._syncId = nil
-                            local hasActiveRGB = false
-                            for _, listener in pairs(Library._globalRGBSync.listeners) do 
-                                if listener then hasActiveRGB = true break end 
-                            end
-                            Library._globalRGBSync.active = hasActiveRGB
-                        end
-                        -- Always set up global sync for ALL colorpickers
-                        Library._globalPulseSync.active = true
-                        local syncId = tostring(id .. "_" .. i .. "_" .. math.random(1000000, 9999999))
-                        slot._pulseSyncId = syncId
-                        -- Create proper pulse sync listener
-                        Library._globalPulseSync.listeners[syncId] = function(syncColor, sourceId)
-                            if not slot.pulse or sourceId == syncId then return end -- Don't sync to self
-                            slot.color = syncColor
-                            slot.fill.BackgroundColor3 = syncColor
-                            if type(cb) == "function" then pcall(cb, syncColor, i) end
-                            if open and activeIndex == i then
-                                if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(syncColor); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(syncColor); hexBox.Text = rgbToHex(r,g,b) end
-                            end
-                        end
-                        
-                        -- If there are existing Pulse effects active, sync to them after a small delay
-                        if Library._globalPulseSync.active then
-                            task.spawn(function()
-                                task.wait(0.1) -- Small delay to let the enable process complete
-                                local foundPulseSync = false
-                                for existingId, existingListener in pairs(Library._globalPulseSync.listeners) do
-                                    if existingId ~= syncId and existingListener and not foundPulseSync then
-                                        -- Find an existing Pulse slot to sync from
-                                        for checkId, checkSlot in pairs(Library._controls) do
-                                            if checkSlot._slots and not foundPulseSync then
-                                                for j, checkSlotData in ipairs(checkSlot._slots) do
-                                                    if checkSlotData.pulse and checkSlotData._pulseSyncId and checkSlotData._pulseSyncId ~= syncId then
-                                                        -- Sync to this existing Pulse color
-                                                        local syncColor = checkSlotData.color
-                                                        if Library._globalPulseSync.listeners[syncId] then
-                                                            Library._globalPulseSync.listeners[syncId](syncColor, checkSlotData._pulseSyncId)
-                                                        end
-                                                        foundPulseSync = true
-                                                        break
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            end)
-                        end
-                        -- seed pulse offset vs global hue
-                        if Library._rainbowBus and Library._rainbowBus.h then
-                            local currentH = slot.hsv[1] or 0
-                            slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1
-                        end
-                        if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                        slot.pulse = true
-                        slot.pulseHook = rainbowAdd(function(h)
-                            local s = slot.hsv[2] or 1
-                            local baseV = slot.hsv[3] or 1
-                            local hh = (h + (slot.pulseHueOffset or 0)) % 1
-                            local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4))
-                            local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
-                            slot.hsv = {hh, s, baseV}
-                            slot.color = c
-                            slot.fill.BackgroundColor3 = c
-                            if slot._pulseSyncId then syncPulseColor(c, slot._pulseSyncId) end
-                            if type(cb) == "function" then pcall(cb, c, i) end
-                            if open and activeIndex == i then
-                                if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(c); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                                if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(c); hexBox.Text = rgbToHex(r,g,b) end
-                            end
-                        end)
-                        if slot._pulseSyncId then
-                            local c0 = hsvToColor(slot.hsv)
-                            syncPulseColor(c0, slot._pulseSyncId)
-                        end
-                        updateSlotUI(i)
-                    end
-
-                    local function resolveColorPanelPosition(targetBtn, width, height)
-                        width = math.max(0, width or 260)
-                        height = math.max(0, height or 220)
-                        local btnAbs = targetBtn.AbsolutePosition
-                        local btnSize = targetBtn.AbsoluteSize
-                        -- Position panel directly below the button, aligned to left edge
-                        local px = btnAbs.X
-                        local py = btnAbs.Y + btnSize.Y + 6
-                        return px, py
-                    end
-
-                    local function openPanel(btnFor, index)
-                        if anim then return end
-                        -- toggle close if clicking the same swatch while open
-                        if open and panel and activeIndex == index then
-                            if Library._openColorPanelClose then pcall(Library._openColorPanelClose); Library._openColorPanelClose = nil end
+                    -- Function to open panel
+                    local function openPanel()
+                        if panelOpen then
+                            closePanel()
                             return
                         end
-                        if open and panel then
-                            -- retarget existing panel to new slot
-                            activeIndex = index
-                            -- reposition near new button (prefer below the swatch)
-                            -- If switching to a different slot's panel, swap panels
-                            local targetPanel = slots[index] and slots[index].panel
-                            if targetPanel and targetPanel ~= panel then
-                                panel.Visible = false
-                                panel = targetPanel
-                                panel.Visible = true
+
+                        -- Close any other open colorpicker panels
+                        if Library._openColorPanel then
+                            pcall(Library._openColorPanel)
+                        end
+
+                        panelOpen = true
+                        Library._openColorPanel = closePanel
+
+                        -- Calculate position (directly below button)
+                        local btnPos = btn.AbsolutePosition
+                        local btnSize = btn.AbsoluteSize
+                        local guiInset = game:GetService("GuiService"):GetGuiInset()
+
+                        local panelX = btnPos.X
+                        local panelY = btnPos.Y + btnSize.Y + 4 + guiInset.Y
+
+                        -- Create panel
+                        panel = Create("Frame", {
+                            BackgroundColor3 = Theme.Bg,
+                            Size = UDim2.fromOffset(220, 0),
+                            Position = UDim2.fromOffset(panelX, panelY),
+                            ZIndex = 10000,
+                            ClipsDescendants = true,
+                            Parent = RootGui
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
+                        })
+
+                        -- Panel content container
+                        local content = Create("Frame", {
+                            BackgroundTransparency = 1,
+                            Size = UDim2.new(1, -12, 1, -12),
+                            Position = UDim2.fromOffset(6, 6),
+                            Parent = panel
+                        })
+
+                        -- SV Picker (180x140)
+                        local svPicker = Create("Frame", {
+                            BackgroundColor3 = Color3.fromHSV(currentHSV[1], 1, 1),
+                            Size = UDim2.fromOffset(180, 140),
+                            Position = UDim2.fromOffset(0, 0),
+                            Parent = content
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(0, 4)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
+                        })
+
+                        -- White gradient (left to right)
+                        local whiteGrad = Create("Frame", {
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            Size = UDim2.fromScale(1, 1),
+                            Parent = svPicker
+                        })
+
+                        local whiteGradient = Instance.new("UIGradient")
+                        whiteGradient.Transparency = NumberSequence.new({
+                            NumberSequenceKeypoint.new(0, 0),
+                            NumberSequenceKeypoint.new(1, 1)
+                        })
+                        whiteGradient.Parent = whiteGrad
+
+                        -- Black gradient (top to bottom)
+                        local blackGrad = Create("Frame", {
+                            BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+                            Size = UDim2.fromScale(1, 1),
+                            Parent = svPicker
+                        })
+
+                        local blackGradient = Instance.new("UIGradient")
+                        blackGradient.Rotation = 90
+                        blackGradient.Transparency = NumberSequence.new({
+                            NumberSequenceKeypoint.new(0, 1),
+                            NumberSequenceKeypoint.new(1, 0)
+                        })
+                        blackGradient.Parent = blackGrad
+
+                        -- SV Cursor
+                        local svCursor = Create("Frame", {
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            Size = UDim2.fromOffset(8, 8),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            Position = UDim2.fromOffset(currentHSV[2] * 180, (1 - currentHSV[3]) * 140),
+                            ZIndex = svPicker.ZIndex + 10,
+                            Parent = svPicker
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(1, 0)}),
+                            Create("UIStroke", {Color = Color3.fromRGB(0, 0, 0), Thickness = 2})
+                        })
+
+                        -- Hue slider (20x140)
+                        local hueSlider = Create("Frame", {
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            Size = UDim2.fromOffset(20, 140),
+                            Position = UDim2.fromOffset(190, 0),
+                            Parent = content
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(0, 4)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
+                        })
+
+                        local hueGradient = Instance.new("UIGradient")
+                        hueGradient.Rotation = 90
+                        hueGradient.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)),
+                            ColorSequenceKeypoint.new(0.17, Color3.fromHSV(1/6, 1, 1)),
+                            ColorSequenceKeypoint.new(0.33, Color3.fromHSV(2/6, 1, 1)),
+                            ColorSequenceKeypoint.new(0.5, Color3.fromHSV(3/6, 1, 1)),
+                            ColorSequenceKeypoint.new(0.67, Color3.fromHSV(4/6, 1, 1)),
+                            ColorSequenceKeypoint.new(0.83, Color3.fromHSV(5/6, 1, 1)),
+                            ColorSequenceKeypoint.new(1, Color3.fromHSV(1, 1, 1))
+                        })
+                        hueGradient.Parent = hueSlider
+
+                        -- Hue cursor
+                        local hueCursor = Create("Frame", {
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            Size = UDim2.fromOffset(20, 4),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            Position = UDim2.fromOffset(10, currentHSV[1] * 140),
+                            ZIndex = hueSlider.ZIndex + 10,
+                            Parent = hueSlider
+                        }, {
+                            Create("UIStroke", {Color = Color3.fromRGB(0, 0, 0), Thickness = 2})
+                        })
+
+                        -- RGB input
+                        local rgbInput = Create("TextBox", {
+                            BackgroundColor3 = Theme.Button,
+                            Size = UDim2.fromOffset(180, 22),
+                            Position = UDim2.fromOffset(0, 150),
+                            Text = string.format("%d, %d, %d", toRGB255(currentColor)),
+                            PlaceholderText = "R, G, B",
+                            Font = Fonts.Regular,
+                            TextSize = 12,
+                            TextColor3 = Theme.Text,
+                            ClearTextOnFocus = false,
+                            Parent = content
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(0, 4)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
+                            Create("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)})
+                        })
+
+                        -- Hex input
+                        local hexInput = Create("TextBox", {
+                            BackgroundColor3 = Theme.Button,
+                            Size = UDim2.fromOffset(180, 22),
+                            Position = UDim2.fromOffset(0, 178),
+                            Text = (function() local r,g,b = toRGB255(currentColor); return rgbToHex(r,g,b) end)(),
+                            PlaceholderText = "#FFFFFF",
+                            Font = Fonts.Regular,
+                            TextSize = 12,
+                            TextColor3 = Theme.Text,
+                            ClearTextOnFocus = false,
+                            Parent = content
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(0, 4)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4}),
+                            Create("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)})
+                        })
+
+                        -- Rainbow checkbox
+                        local rainbowCheck = Create("TextButton", {
+                            BackgroundTransparency = 1,
+                            Size = UDim2.fromOffset(60, 22),
+                            Position = UDim2.fromOffset(190, 150),
+                            Text = "",
+                            AutoButtonColor = false,
+                            Parent = content
+                        })
+
+                        local checkBox = Create("Frame", {
+                            BackgroundColor3 = Theme.Button,
+                            Size = UDim2.fromOffset(14, 14),
+                            Position = UDim2.fromOffset(0, 4),
+                            Parent = rainbowCheck
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(0, 3)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
+                        })
+
+                        local checkMark = Create("Frame", {
+                            BackgroundColor3 = Theme.Accent,
+                            Size = UDim2.fromOffset(8, 8),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            Position = UDim2.fromScale(0.5, 0.5),
+                            Visible = rainbowEnabled,
+                            Parent = checkBox
+                        }, {
+                            Create("UICorner", {CornerRadius = UDim.new(0, 2)})
+                        })
+
+                        Create("TextLabel", {
+                            BackgroundTransparency = 1,
+                            Size = UDim2.fromOffset(40, 22),
+                            Position = UDim2.fromOffset(20, 0),
+                            Text = "RGB",
+                            Font = Fonts.Regular,
+                            TextSize = 11,
+                            TextColor3 = Theme.SubText,
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            Parent = rainbowCheck
+                        })
+
+                        -- Update functions
+                        local function updateUI()
+                            local h, s, v = currentHSV[1], currentHSV[2], currentHSV[3]
+
+                            svPicker.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+                            svCursor.Position = UDim2.fromOffset(s * 180, (1 - v) * 140)
+                            hueCursor.Position = UDim2.fromOffset(10, h * 140)
+                            fill.BackgroundColor3 = currentColor
+
+                            if not rgbInput:IsFocused() then
+                                local r, g, b = toRGB255(currentColor)
+                                rgbInput.Text = string.format("%d, %d, %d", r, g, b)
                             end
-                            local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            if width <= 0 then width = 260 end
-                            if height <= 0 then height = 220 end
-                            local px, py = resolveColorPanelPosition(btnFor, width, height)
-                            panel.Position = UDim2.fromOffset(px, py)
-                            -- refresh UI to the selected slot
-                            local slot = slots[index]
-                            local h,s,v = table.unpack(slot.hsv)
-                            updateSVBackground(h)
-                            if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
-                            if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
-                            if rgbBox then local r,g,b = toRGB255(slot.color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                            if hexBox then local r,g,b = toRGB255(slot.color); hexBox.Text = rgbToHex(r,g,b) end
-                            -- Restore UI to show ONLY this slot's actual functional state
-                            setCheckbox(slot.rainbow or false)
-                            setPulseCheckbox(slot.pulse or false)
-                            -- If we switched to an existing target panel, we're done; otherwise, fall through to create it
-                            if targetPanel then return end
-                        end
-                        local slot = slots[index]
-                        slot.panelOpen = true; open = true; anim = true; activeIndex = index
-                        if not slot.panel then
-                            -- Calculate initial position below the button
-                            local btnAbs = btnFor.AbsolutePosition
-                            local btnSize = btnFor.AbsoluteSize
-                            local initialX = btnAbs.X
-                            local initialY = btnAbs.Y + btnSize.Y + 6
-                            
-                            slot.panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), Position = UDim2.fromOffset(initialX, initialY), ZIndex = 12000, Parent = RootGui}, {
-                                Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                -- Main holder outline (panel)
-                                Create("UIStroke", {Name = "Stroke", ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
-                            })
-                        
-                        -- Create UI elements for this panel (only if panel is new)
-                        panel = slot.panel  -- Set for backward compatibility
-                        
-                            local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
-                            shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
 
-                            -- content
-                            local pad = 6
-                            -- Main inner container (the frame that holds SV, inputs, and hue/checkbox)
-                            local container = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-pad*2,1,-pad*2), Position = UDim2.fromOffset(pad,pad), ZIndex = panel.ZIndex + 1, Parent = panel}, {
-                                Create("UICorner", {CornerRadius = UDim.new(0,4)})
-                            })
-                            local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), ZIndex = container.ZIndex + 1, Parent = container}, {
-                                Create("UIListLayout", {Padding = UDim.new(0,2), FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder})
-                            })
-                            -- (Removed overlay border; using panel's own stroke so it outlines the true main holder)
-                            -- Left: SV square (S across X, V across Y), base hue set by slider; plus RGB/Hex inputs
-                            local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 210), ZIndex = content.ZIndex + 1, Parent = content})
-                            sv = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
-                            Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = sv})
-                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = sv})
-                            -- White overlay: left side white (S=0) to right transparent (S=1)
-                            svWhite = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 1, Parent = sv})
-                            local gWhite = Instance.new("UIGradient"); gWhite.Rotation = 0; gWhite.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)}); gWhite.Parent = svWhite
-                            -- Black overlay: top transparent (V=1) to bottom black (V=0)
-                            svBlack = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(0,0,0), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 2, Parent = sv})
-                            local gBlack = Instance.new("UIGradient"); gBlack.Rotation = 90; gBlack.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1), NumberSequenceKeypoint.new(1,0)}); gBlack.Parent = svBlack
-                            -- Cursor
-                            svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), ZIndex = sv.ZIndex + 3, Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
-
-                            rgbBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "R, G, B", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
-                            hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
-
-                            -- Right: Hue slider + rainbow toggle
-                            local HUE_W, HUE_H = 26, 150
-                            local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
-                            -- Make the hue slider background opaque white so the UIGradient is visible and vibrant
-                            -- Position slider slightly more left to align above the checkbox box itself
-                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(-7, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            local hueGrad = Instance.new("UIGradient")
-                            hueGrad.Color = ColorSequence.new({
-                                ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
-                                ColorSequenceKeypoint.new(0.17, Color3.fromHSV(1/6,1,1)),
-                                ColorSequenceKeypoint.new(0.33, Color3.fromHSV(2/6,1,1)),
-                                ColorSequenceKeypoint.new(0.50, Color3.fromHSV(3/6,1,1)),
-                                ColorSequenceKeypoint.new(0.67, Color3.fromHSV(4/6,1,1)),
-                                ColorSequenceKeypoint.new(0.83, Color3.fromHSV(5/6,1,1)),
-                                ColorSequenceKeypoint.new(1.00, Color3.fromHSV(1,1,1)),
-                            })
-                            hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
-                            hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
-
-                            -- RGB checkbox + label centered between RGB textbox end and frame boundary
-                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 22), Position = UDim2.fromOffset(197, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
-                            local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = cbRow.ZIndex + 1, Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = cbBox.ZIndex + 1, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(24,22), Position = UDim2.fromOffset(16,0), Text = "RGB", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = cbRow.ZIndex + 1, Parent = cbRow})
-                            
-                            -- Pulse RGB checkbox + label positioned at hex textbox Y level, same X as RGB checkbox
-                            local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(197, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
-                            local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                            pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
-                            Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
-                            -- Store the current panel reference
-                            slot.panel = panel
-
-                            -- interactions: SV drag (S across X, V across Y)
-                            local function getScreenPos()
-                                local inset = game:GetService("GuiService"):GetGuiInset()
-                                local m = UserInputService:GetMouseLocation()
-                                return Vector2.new(m.X - inset.X, m.Y - inset.Y)
+                            if not hexInput:IsFocused() then
+                                local r, g, b = toRGB255(currentColor)
+                                hexInput.Text = rgbToHex(r, g, b)
                             end
-                            local svDragging = false
-                            local svDragIndex = nil
-                            local function handleSVDown(inp)
-                                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                                    svDragging = true
-                                    svDragIndex = activeIndex
-                                    -- While dragging, update color live; if rainbow is on, update hueOffset so it continues from here
-                                    local slot = slots[svDragIndex]
-                                    local p = getScreenPos()
-                                    local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
-                                    local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
-                                    local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
-                                    svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSVDrag(svDragIndex, nil, s, v)
-                                    -- Adjust offsets if effects active
-                                    if slot and Library._rainbowBus and Library._rainbowBus.h then
-                                        if slot.rainbow then
-                                        local currentH = slot.hsv[1] or 0
-                                        slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
-                                        end
-                                        if slot.pulse then
-                                            local currentH = slot.hsv[1] or 0
-                                            slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1
-                                        end
-                                    end
-                                end
+                        end
+
+                        local function setHSV(h, s, v)
+                            if h then currentHSV[1] = clamp01(h) end
+                            if s then currentHSV[2] = clamp01(s) end
+                            if v then currentHSV[3] = clamp01(v) end
+
+                            currentColor = hsvToColor(currentHSV[1], currentHSV[2], currentHSV[3])
+                            updateUI()
+
+                            if callback then
+                                pcall(callback, currentColor)
                             end
-                            sv.InputBegan:Connect(handleSVDown)
-                            svWhite.InputBegan:Connect(handleSVDown)
-                            svBlack.InputBegan:Connect(handleSVDown)
-                            UserInputService.InputChanged:Connect(function(inp)
-                                if svDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                                    local p = getScreenPos()
-                                    local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
-                                    local s = clamp01(rel.X / math.max(1, sv.AbsoluteSize.X))
-                                    local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
-                                    svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
-                                    setHSVDrag(svDragIndex or activeIndex, nil, s, v)
-                                end
-                            end)
-                            UserInputService.InputEnded:Connect(function(inp)
-                                if svDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
-                                    svDragging = false
-                                    local dragIndex = svDragIndex or activeIndex
-                                    local slot = slots[dragIndex]
-                                    -- Keep offsets synced to current manual position
-                                    if slot and Library._rainbowBus and Library._rainbowBus.h then
-                                        local currentH = slot.hsv[1] or 0
-                                        if slot.rainbow then slot.hueOffset = (currentH - Library._rainbowBus.h) % 1 end
-                                        if slot.pulse then slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1 end
-                                    end
-                                    svDragIndex = nil
-                                end
-                            end)
-
-                            -- hue drag
-                            local hueDragging = false
-                            local hueDragIndex = nil
-                            local function handleHueDown(inp)
-                                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                                    hueDragging = true
-                                    hueDragIndex = activeIndex
-                                    local slot = slots[hueDragIndex]
-                                    local p = getScreenPos()
-                                    local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
-                                    hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
-                                    local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    setHSVDrag(hueDragIndex, h, nil, nil)
-                                    updateSVBackground(h)
-                                    -- If effects are on, update offsets live
-                                    if slot and Library._rainbowBus and Library._rainbowBus.h then
-                                        if slot.rainbow then slot.hueOffset = (h - Library._rainbowBus.h) % 1 end
-                                        if slot.pulse then slot.pulseHueOffset = (h - Library._rainbowBus.h) % 1 end
-                                    end
-                                end
-                            end
-                            hueSlider.InputBegan:Connect(handleHueDown)
-                            hueGrab.InputBegan:Connect(handleHueDown)
-                            UserInputService.InputChanged:Connect(function(inp)
-                                if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                                    local p = getScreenPos()
-                                    local relY = math.clamp(p.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
-                                    hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), relY)
-                                    local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
-                                    local idx = hueDragIndex or activeIndex
-                                    setHSVDrag(idx, h, nil, nil)
-                                    updateSVBackground(h)
-                                end
-                            end)
-                            UserInputService.InputEnded:Connect(function(inp)
-                                if hueDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
-                                    hueDragging = false
-                                    local dragIndex = hueDragIndex or activeIndex
-                                    local slot = slots[dragIndex]
-                                    
-                                    -- Keep offsets synced
-                                    if slot and Library._rainbowBus and Library._rainbowBus.h then
-                                        local currentH = slot.hsv[1] or 0
-                                        if slot.rainbow then slot.hueOffset = (currentH - Library._rainbowBus.h) % 1 end
-                                        if slot.pulse then slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1 end
-                                    end
-                                    hueDragIndex = nil
-                                end
-                            end)
-
-                            -- inputs
-                            rgbBox.FocusLost:Connect(function()
-                                local slot = slots[activeIndex]
-                                local r,g,b = parseRGBText(rgbBox.Text or "")
-                                if r then
-                                    r,g,b = math.clamp(r,0,255), math.clamp(g,0,255), math.clamp(b,0,255)
-                                    local c = Color3.fromRGB(r,g,b)
-                                    setHSV(activeIndex, Color3.toHSV(c))
-                                else
-                                    local c = slots[activeIndex].color
-                                    local rr,gg,bb = toRGB255(c)
-                                    rgbBox.Text = string.format("%d, %d, %d", rr,gg,bb)
-                                end
-                            end)
-                            hexBox.FocusLost:Connect(function()
-                                local slot = slots[activeIndex]
-                                local r,g,b = hexToRGB(hexBox.Text or "")
-                                if r then
-                                    local c = Color3.fromRGB(r,g,b)
-                                    setHSV(activeIndex, Color3.toHSV(c))
-                                else
-                                    local c = slots[activeIndex].color
-                                    hexBox.Text = (function() local r,g,b = toRGB255(c); return rgbToHex(r,g,b) end)()
-                                end
-                            end)
-
-                            -- rainbow checkbox logic
-                            cbRow.MouseButton1Click:Connect(function()
-                                local idx = activeIndex
-                                local s = slots[idx]
-                                -- Store current state to avoid reading it mid-transition
-                                local wasRainbow = s.rainbow
-                                
-                                if wasRainbow then
-                                    disableRainbow(idx)
-                                else
-                                    enableRainbow(idx)
-                                end
-                            end)
-                            
-                            -- pulse RGB checkbox logic
-                            pulseRow.MouseButton1Click:Connect(function()
-                                local idx = activeIndex
-                                local s = slots[idx]
-                                -- Store current state to avoid reading it mid-transition
-                                local wasPulse = s.pulse
-                                
-                                if wasPulse then
-                                    disablePulse(idx)
-                                else
-                                    enablePulse(idx)
-                                end
-                            end)
                         end
 
-                        -- position panel near btnFor (prefer below)
-                        panel.Visible = true; panel.ClipsDescendants = true
-                        -- Create a blocker to intercept outside clicks and block underlying UI
-                        if panelBlocker and panelBlocker.Parent then pcall(function() panelBlocker:Destroy() end) end
-                        panelBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (panel.ZIndex or 1) - 1, Parent = RootGui})
-                        -- Close any other open color panel globally
-                        local function closePanel()
-                            if not panel or not panel.Visible then return end
-                            panel.Visible = false; open=false; anim=false; disconnectAll()
-                            if panelBlocker and panelBlocker.Parent then pcall(function() panelBlocker:Destroy() end) end
-                            panelBlocker = nil
-                            if Library._openColorPanelClose == closePanel then Library._openColorPanelClose = nil end
+                        -- SV Picker drag
+                        local svDragging = false
+                        local function handleSV(input)
+                            local pos = input.Position
+                            local rel = Vector2.new(
+                                pos.X - svPicker.AbsolutePosition.X,
+                                pos.Y - svPicker.AbsolutePosition.Y
+                            )
+
+                            local s = math.clamp(rel.X / 180, 0, 1)
+                            local v = 1 - math.clamp(rel.Y / 140, 0, 1)
+
+                            setHSV(nil, s, v)
                         end
-                        if Library._openColorPanelClose and Library._openColorPanelClose ~= closePanel then pcall(Library._openColorPanelClose) end
-                        if Library._openColorCtxClose then pcall(Library._openColorCtxClose); Library._openColorCtxClose = nil end
-                        Library._openColorPanelClose = closePanel
 
-                        local width, height = 260, 220
-
-                        -- Since panel is parented to RootGui, use screen coordinates
-                        -- Position directly below the button
-                        local function placePanel()
-                            local currentWidth = panel.AbsoluteSize.X
-                            local currentHeight = panel.AbsoluteSize.Y
-                            if currentWidth <= 0 then currentWidth = width end
-                            if currentHeight <= 0 then currentHeight = height end
-                            local px, py = resolveColorPanelPosition(btnFor, currentWidth, currentHeight)
-                            panel.Position = UDim2.fromOffset(px, py)
-                        end
-                        placePanel()
-                        panel.Size = UDim2.fromOffset(width, 0)
-
-                        -- set UI to current slot
-                        local slotForUI = slots[index]
-                        local h,s,v = table.unpack(slotForUI.hsv)
-                        updateSVBackground(h)
-                        if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
-                        if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
-                        if rgbBox then local r,g,b = toRGB255(slotForUI.color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
-                        if hexBox then local r,g,b = toRGB255(slotForUI.color); hexBox.Text = rgbToHex(r,g,b) end
-                        -- Reflect slot state and resume effects if needed
-                        setCheckbox(slotForUI.rainbow or false)
-                        setPulseCheckbox(slotForUI.pulse or false)
-                        -- Effects should already be running if enabled, no need to resume here
-                        -- The enable/disable functions handle all effect management properly
-
-                        -- Swallow background clicks on the panel itself so blocker doesn't see them
-                        -- Clear previous ephemeral open connections (if panel reopened)
-                        disconnectAll()
-                        table.insert(openConns, panel.InputBegan:Connect(function() end))
-                        local tw = T(panel,0.18,{Size = UDim2.fromOffset(width, height)})
-                        tw:Play(); tw.Completed:Connect(function() anim=false end)
-                        -- Keep the panel aligned while sizes/positions change
-                        table.insert(openConns, panel:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                            if panel.AbsoluteSize.X > 0 then width = panel.AbsoluteSize.X end
-                            if panel.AbsoluteSize.Y > 0 then height = panel.AbsoluteSize.Y end
-                            placePanel()
-                        end))
-                        table.insert(openConns, btnFor:GetPropertyChangedSignal("AbsolutePosition"):Connect(placePanel))
-                        table.insert(openConns, btnFor:GetPropertyChangedSignal("AbsoluteSize"):Connect(placePanel))
-                        table.insert(openConns, root:GetPropertyChangedSignal("AbsolutePosition"):Connect(placePanel))
-                        table.insert(openConns, root:GetPropertyChangedSignal("AbsoluteSize"):Connect(placePanel))
-                        anim=false
-                        local justOpened = true; task.defer(function() justOpened = false end)
-                        -- outside close / esc
-                        -- close when clicking on blocker
-                        if panelBlocker then
-                            table.insert(openConns, panelBlocker.MouseButton1Click:Connect(function() closePanel() end))
-                            table.insert(openConns, panelBlocker.MouseButton2Click:Connect(function() closePanel() end))
-                            table.insert(openConns, panelBlocker.TouchTap:Connect(function() closePanel() end))
-                        end
-                    end
-
-                    -- open/ctx events per slot
-                    for i,slot in ipairs(slots) do
-                        slot.btn.MouseButton1Click:Connect(function() openPanel(slot.btn, i) end)
-                        slot.btn.MouseButton2Click:Connect(function()
-                            activeIndex = i
-                            if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
-                            openCtx(slot.btn)
-                            Library._openColorCtxClose = function() closeCtx(); if Library._openColorCtxClose then Library._openColorCtxClose = nil end end
-                        end)
-                        slot.btn.InputBegan:Connect(function(inp)
-                            if inp.UserInputType == Enum.UserInputType.MouseButton2 then
-                                activeIndex = i
-                                if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
-                                openCtx(slot.btn)
-                                Library._openColorCtxClose = function() closeCtx(); if Library._openColorCtxClose then Library._openColorCtxClose = nil end end
+                        svPicker.InputBegan:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                svDragging = true
+                                handleSV(input)
                             end
                         end)
-                    end
 
-                    -- public API
-                    local Colorpicker = { id = id, _slots = slots }
-                    -- expose current active slot index for this control
-                    function Colorpicker:_getActiveIndex()
-                        return activeIndex or 1
-                    end
-                    function Colorpicker:Get(index)
-                        if index then return self._slots[index] and self._slots[index].color end
-                        if #self._slots == 1 then return self._slots[1].color end
-                        local arr = {}
-                        for i,s in ipairs(self._slots) do arr[i] = s.color end
-                        return arr
-                    end
-                    function Colorpicker:Set(value, index, silent)
-                        local function setOne(i, c)
-                            local h,s,v = Color3.toHSV(c)
-                            self._slots[i].hsv = {h,s,v}
-                            self._slots[i].color = c
-                            self._slots[i].fill.BackgroundColor3 = c
-                            if not silent and type(cb)=="function" then pcall(cb, c, i) end
+                        svPicker.InputEnded:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                svDragging = false
+                            end
+                        end)
+
+                        UserInputService.InputChanged:Connect(function(input)
+                            if svDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                                handleSV(input)
+                            end
+                        end)
+
+                        -- Hue slider drag
+                        local hueDragging = false
+                        local function handleHue(input)
+                            local pos = input.Position
+                            local rel = pos.Y - hueSlider.AbsolutePosition.Y
+                            local h = math.clamp(rel / 140, 0, 1)
+
+                            setHSV(h, nil, nil)
                         end
-                        if index then
-                            local c = colorFromAny(value)
-                            setOne(index, c)
-                        else
-                            if type(value) == "table" and #value > 0 then
-                                for i=1, math.min(#value, #self._slots) do setOne(i, colorFromAny(value[i])) end
+
+                        hueSlider.InputBegan:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                hueDragging = true
+                                handleHue(input)
+                            end
+                        end)
+
+                        hueSlider.InputEnded:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                hueDragging = false
+                            end
+                        end)
+
+                        UserInputService.InputChanged:Connect(function(input)
+                            if hueDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                                handleHue(input)
+                            end
+                        end)
+
+                        -- RGB input
+                        rgbInput.FocusLost:Connect(function()
+                            local r, g, b = parseRGBText(rgbInput.Text)
+                            if r and g and b then
+                                r, g, b = math.clamp(r, 0, 255), math.clamp(g, 0, 255), math.clamp(b, 0, 255)
+                                local newColor = Color3.fromRGB(r, g, b)
+                                currentColor = newColor
+                                currentHSV = {Color3.toHSV(newColor)}
+                                updateUI()
+                                if callback then pcall(callback, newColor) end
                             else
-                                local c = colorFromAny(value)
-                                for i=1, #self._slots do setOne(i, c) end
+                                local r, g, b = toRGB255(currentColor)
+                                rgbInput.Text = string.format("%d, %d, %d", r, g, b)
                             end
-                        end
-                    end
-                    function Colorpicker:SetRainbow(on, index)
-                        if not index then index = self:_getActiveIndex() end
-                        if on == true then
-                            enableRainbow(index)
-                        else
-                            disableRainbow(index)
-                        end
-                    end
-                    function Colorpicker:SetPulse(on, index)
-                        if not index then index = self:_getActiveIndex() end
-                        if on == true then
-                            enablePulse(index)
-                        else
-                            disablePulse(index)
-                        end
+                        end)
+
+                        -- Hex input
+                        hexInput.FocusLost:Connect(function()
+                            local r, g, b = hexToRGB(hexInput.Text)
+                            if r and g and b then
+                                local newColor = Color3.fromRGB(r, g, b)
+                                currentColor = newColor
+                                currentHSV = {Color3.toHSV(newColor)}
+                                updateUI()
+                                if callback then pcall(callback, newColor) end
+                            else
+                                local r, g, b = toRGB255(currentColor)
+                                hexInput.Text = rgbToHex(r, g, b)
+                            end
+                        end)
+
+                        -- Rainbow toggle
+                        rainbowCheck.MouseButton1Click:Connect(function()
+                            rainbowEnabled = not rainbowEnabled
+                            checkMark.Visible = rainbowEnabled
+
+                            if rainbowEnabled then
+                                -- Start rainbow
+                                if rainbowConnection then
+                                    rainbowConnection:Disconnect()
+                                end
+
+                                local startTime = tick()
+                                rainbowConnection = game:GetService("RunService").RenderStepped:Connect(function()
+                                    local elapsed = tick() - startTime
+                                    local h = (elapsed * 0.5) % 1
+
+                                    setHSV(h, nil, nil)
+                                end)
+                            else
+                                -- Stop rainbow
+                                if rainbowConnection then
+                                    rainbowConnection:Disconnect()
+                                    rainbowConnection = nil
+                                end
+                            end
+                        end)
+
+                        -- Close on outside click
+                        local blocker = Create("TextButton", {
+                            BackgroundTransparency = 1,
+                            Size = UDim2.fromScale(1, 1),
+                            ZIndex = panel.ZIndex - 1,
+                            Text = "",
+                            AutoButtonColor = false,
+                            Parent = RootGui
+                        })
+
+                        blocker.MouseButton1Click:Connect(function()
+                            closePanel()
+                            blocker:Destroy()
+                        end)
+
+                        -- Animate panel open
+                        T(panel, 0.2, {Size = UDim2.fromOffset(220, 210)}):Play()
                     end
 
-                    -- apply defaults & optional rainbow
-                    for i=1,#slots do
-                        local h,s,v = Color3.toHSV(slots[i].color)
-                        slots[i].hsv = {h,s,v}
-                        -- Rainbow default is always off
-                    end
+                    -- Button click to open panel
+                    btn.MouseButton1Click:Connect(function()
+                        openPanel()
+                    end)
+
+                    -- Public API
+                    local Colorpicker = {
+                        id = id,
+                        Get = function(self)
+                            return currentColor
+                        end,
+                        Set = function(self, color, silent)
+                            if typeof(color) == "Color3" then
+                                currentColor = color
+                                currentHSV = {Color3.toHSV(color)}
+                                fill.BackgroundColor3 = color
+
+                                if not silent and callback then
+                                    pcall(callback, color)
+                                end
+                            end
+                        end,
+                        SetRainbow = function(self, enabled)
+                            rainbowEnabled = enabled
+                            if panelOpen and checkMark then
+                                checkMark.Visible = enabled
+                            end
+                        end
+                    }
 
                     Library:_registerControl(Colorpicker)
                     table.insert(Group._controls, Colorpicker)
                     registerSearch(label)
                     return Colorpicker
                 end
+
                 return Group
             end
             table.insert(Category._pages, Page)
