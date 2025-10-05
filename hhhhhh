@@ -2104,6 +2104,9 @@ function Library:CreateLibrary(opts)
                     return Keybind
                 end
                 -- Colorpicker - Clean Rewrite
+                -- Creates a colorpicker with HSV picker, RGB/Hex inputs, and Rainbow mode
+                -- Panel opens directly below the button (fixed positioning)
+                -- Usage: Group:AddColorpicker({Name = "Color", Default = Color3.fromRGB(255,255,255), Callback = function(color) end, Flag = "MyColor"})
                 function Group:AddColorpicker(o)
                     o = o or {}
                     local label = tostring(o.Name or "Color")
@@ -2113,7 +2116,8 @@ function Library:CreateLibrary(opts)
 
                     -- State
                     local currentColor = default
-                    local currentHSV = {Color3.toHSV(default)}
+                    local h, s, v = Color3.toHSV(default)
+                    local currentHSV = {h, s, v}
                     local rainbowEnabled = false
                     local rainbowConnection = nil
                     local panelOpen = false
@@ -2554,7 +2558,8 @@ function Library:CreateLibrary(opts)
                                 r, g, b = math.clamp(r, 0, 255), math.clamp(g, 0, 255), math.clamp(b, 0, 255)
                                 local newColor = Color3.fromRGB(r, g, b)
                                 currentColor = newColor
-                                currentHSV = {Color3.toHSV(newColor)}
+                                local h, s, v = Color3.toHSV(newColor)
+                                currentHSV = {h, s, v}
                                 updateUI()
                                 if callback then pcall(callback, newColor) end
                             else
@@ -2569,7 +2574,8 @@ function Library:CreateLibrary(opts)
                             if r and g and b then
                                 local newColor = Color3.fromRGB(r, g, b)
                                 currentColor = newColor
-                                currentHSV = {Color3.toHSV(newColor)}
+                                local h, s, v = Color3.toHSV(newColor)
+                                currentHSV = {h, s, v}
                                 updateUI()
                                 if callback then pcall(callback, newColor) end
                             else
@@ -2638,7 +2644,8 @@ function Library:CreateLibrary(opts)
                         Set = function(self, color, silent)
                             if typeof(color) == "Color3" then
                                 currentColor = color
-                                currentHSV = {Color3.toHSV(color)}
+                                local h, s, v = Color3.toHSV(color)
+                                currentHSV = {h, s, v}
                                 fill.BackgroundColor3 = color
 
                                 if not silent and callback then
