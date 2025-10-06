@@ -255,7 +255,7 @@ do
             end
         end
         
-        -- FLAWLESS smooth dragging system
+        -- PERFECT mouse-following drag system
         local dragging = false
         local dragOffset = Vector2.new(0, 0)
         
@@ -263,13 +263,11 @@ do
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 
-                -- Get current input position
-                local inputPos = input.UserInputType == Enum.UserInputType.Touch 
-                    and input.Position 
-                    or UserInputService:GetMouseLocation()
-                
-                -- Calculate exact offset from input position to frame's top-left corner
+                -- Use input.Position for both mouse and touch for consistency
+                local inputPos = Vector2.new(input.Position.X, input.Position.Y)
                 local framePos = watermarkFrame.AbsolutePosition
+                
+                -- Calculate offset from click position to frame's top-left corner
                 dragOffset = Vector2.new(inputPos.X - framePos.X, inputPos.Y - framePos.Y)
                 
                 -- Visual feedback
@@ -280,17 +278,15 @@ do
             end
         end)
         
-        -- Ultra-smooth drag movement
+        -- Ultra-smooth mouse-following movement
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
             
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                -- Get current input position
-                local inputPos = input.UserInputType == Enum.UserInputType.Touch 
-                    and input.Position 
-                    or UserInputService:GetMouseLocation()
+                -- Use input.Position for consistent positioning
+                local inputPos = Vector2.new(input.Position.X, input.Position.Y)
                 
-                -- Calculate new frame position (input position minus the offset)
+                -- Calculate frame position so the mouse stays at the same relative position
                 local newX = inputPos.X - dragOffset.X
                 local newY = inputPos.Y - dragOffset.Y
                 
@@ -298,11 +294,11 @@ do
                 local screenSize = workspace.CurrentCamera.ViewportSize
                 local frameSize = watermarkFrame.AbsoluteSize
                 
-                -- Clamp to screen with small margins
+                -- Clamp to screen bounds
                 newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
                 newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
                 
-                -- Apply position instantly for smooth movement
+                -- Apply position instantly
                 watermarkFrame.Position = UDim2.fromOffset(newX, newY)
             end
         end)
