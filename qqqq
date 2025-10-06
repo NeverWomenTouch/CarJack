@@ -69,6 +69,12 @@ do
     Library._watermark = nil
     Library._watermarkText = ""
     Library._watermarkVisible = true
+    Library._watermarkTextColor = Color3.fromRGB(255, 255, 255) -- Default white text
+    Library._watermarkBackgroundColor = Theme.Bg
+    Library._watermarkAccentColor = Theme.Accent
+    Library._watermarkFont = Fonts.Medium
+    Library._watermarkFontSize = 13
+    Library._watermarkTransparency = 0
     
     -- Create watermark GUI
     local function createWatermark()
@@ -86,65 +92,206 @@ do
             Parent = CoreGui
         })
         
-        -- Main watermark frame
+        -- Main watermark frame with enhanced styling
         local watermarkFrame = Create("TextButton", {
             Name = "WatermarkFrame",
-            BackgroundColor3 = Theme.Bg,
+            BackgroundColor3 = Library._watermarkBackgroundColor,
             AutoButtonColor = false,
             BorderSizePixel = 0,
-            Size = UDim2.fromOffset(250, 28),
-            Position = UDim2.fromOffset(10, 10), -- Top-left with small margin
+            Size = UDim2.fromOffset(250, 32), -- Slightly taller for better proportions
+            Position = UDim2.fromOffset(12, 12), -- Top-left with small margin
             ZIndex = 1000,
             Text = "",
             Parent = watermarkGui
         }, {
-            Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
-            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}),
-            Create("UIPadding", {PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4)})
+            Create("UICorner", {CornerRadius = UDim.new(0, 8)}), -- More rounded
+            Create("UIPadding", {PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})
         })
         
-        -- Shadow effect
-        local shadow = Create("ImageLabel", {
+        -- Enhanced shadow system with multiple layers
+        local shadowContainer = Create("Frame", {
             BackgroundTransparency = 1,
-            Image = "rbxassetid://4996891970",
-            ImageColor3 = Theme.Bg,
-            ImageTransparency = 0.88,
             Size = UDim2.fromScale(1, 1),
-            ZIndex = watermarkFrame.ZIndex - 1,
+            Position = UDim2.fromScale(0, 0),
+            ZIndex = watermarkFrame.ZIndex - 3,
             Parent = watermarkFrame
         })
-        shadow.ScaleType = Enum.ScaleType.Slice
-        shadow.SliceCenter = Rect.new(20, 20, 280, 280)
         
-        -- Watermark text label
-        local watermarkLabel = Create("TextLabel", {
+        -- Deep shadow (furthest back)
+        local deepShadow = Create("ImageLabel", {
+            BackgroundTransparency = 1,
+            Image = "rbxassetid://4996891970",
+            ImageColor3 = Color3.fromRGB(0, 0, 0),
+            ImageTransparency = 0.7,
+            Size = UDim2.fromScale(1, 1),
+            Position = UDim2.fromOffset(4, 4),
+            ZIndex = shadowContainer.ZIndex,
+            Parent = shadowContainer
+        })
+        deepShadow.ScaleType = Enum.ScaleType.Slice
+        deepShadow.SliceCenter = Rect.new(20, 20, 280, 280)
+        
+        -- Medium shadow
+        local mediumShadow = Create("ImageLabel", {
+            BackgroundTransparency = 1,
+            Image = "rbxassetid://4996891970",
+            ImageColor3 = Color3.fromRGB(0, 0, 0),
+            ImageTransparency = 0.85,
+            Size = UDim2.fromScale(1, 1),
+            Position = UDim2.fromOffset(2, 2),
+            ZIndex = shadowContainer.ZIndex + 1,
+            Parent = shadowContainer
+        })
+        mediumShadow.ScaleType = Enum.ScaleType.Slice
+        mediumShadow.SliceCenter = Rect.new(20, 20, 280, 280)
+        
+        -- Close shadow (subtle)
+        local closeShadow = Create("ImageLabel", {
+            BackgroundTransparency = 1,
+            Image = "rbxassetid://4996891970",
+            ImageColor3 = Library._watermarkBackgroundColor,
+            ImageTransparency = 0.92,
+            Size = UDim2.fromScale(1, 1),
+            Position = UDim2.fromOffset(1, 1),
+            ZIndex = shadowContainer.ZIndex + 2,
+            Parent = shadowContainer
+        })
+        closeShadow.ScaleType = Enum.ScaleType.Slice
+        closeShadow.SliceCenter = Rect.new(20, 20, 280, 280)
+        
+        -- Primary border stroke
+        local primaryStroke = Create("UIStroke", {
+            Name = "PrimaryStroke",
+            Color = Theme.Stroke,
+            Thickness = 1.2,
+            Transparency = 0.25,
+            Parent = watermarkFrame
+        })
+        
+        -- Secondary accent stroke (inner)
+        local accentStroke = Create("UIStroke", {
+            Name = "AccentStroke", 
+            Color = Library._watermarkAccentColor,
+            Thickness = 0.8,
+            Transparency = 0.6,
+            Parent = watermarkFrame
+        })
+        
+        -- Gradient overlay for depth
+        local gradientOverlay = Create("Frame", {
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BackgroundTransparency = 0.97,
+            Size = UDim2.fromScale(1, 0.5),
+            Position = UDim2.fromScale(0, 0),
+            ZIndex = watermarkFrame.ZIndex + 1,
+            Parent = watermarkFrame
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+            Create("UIGradient", {
+                Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+                }),
+                Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0.96),
+                    NumberSequenceKeypoint.new(1, 1)
+                }),
+                Rotation = 90
+            })
+        })
+        
+        -- Text container for better text effects
+        local textContainer = Create("Frame", {
             BackgroundTransparency = 1,
             Size = UDim2.fromScale(1, 1),
+            ZIndex = watermarkFrame.ZIndex + 2,
+            Parent = watermarkFrame
+        })
+        
+        -- Text shadow for better readability
+        local textShadow = Create("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            Position = UDim2.fromOffset(1, 1),
             Text = Library._watermarkText,
-            Font = Fonts.Medium,
-            TextSize = 13,
-            TextColor3 = Theme.Text,
+            Font = Library._watermarkFont,
+            TextSize = Library._watermarkFontSize,
+            TextColor3 = Color3.fromRGB(0, 0, 0),
+            TextTransparency = 0.75,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextYAlignment = Enum.TextYAlignment.Center,
             TextScaled = false,
             TextWrapped = false,
-            ZIndex = watermarkFrame.ZIndex + 1,
-            Parent = watermarkFrame
+            ZIndex = textContainer.ZIndex + 1,
+            Parent = textContainer
         })
         
-        -- Auto-resize functionality
+        -- Main watermark text label with enhanced styling
+        local watermarkLabel = Create("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            Text = Library._watermarkText,
+            Font = Library._watermarkFont,
+            TextSize = Library._watermarkFontSize,
+            TextColor3 = Library._watermarkTextColor,
+            TextTransparency = Library._watermarkTransparency,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            TextScaled = false,
+            TextWrapped = false,
+            ZIndex = textContainer.ZIndex + 2,
+            Parent = textContainer,
+            -- Enhanced text styling
+            TextStrokeTransparency = 0.8,
+            TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        })
+        
+        -- Accent bar at bottom for extra detail
+        local accentBar = Create("Frame", {
+            BackgroundColor3 = Library._watermarkAccentColor,
+            BackgroundTransparency = 0.3,
+            Size = UDim2.new(1, 0, 0, 2),
+            Position = UDim2.new(0, 0, 1, -2),
+            ZIndex = watermarkFrame.ZIndex + 1,
+            Parent = watermarkFrame
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(1, 0)})
+        })
+        
+        -- Auto-resize functionality with enhanced calculations
         local function updateSize()
             local textService = game:GetService("TextService")
-            local textSize = textService:GetTextSize(watermarkLabel.Text, 13, Fonts.Medium, Vector2.new(math.huge, 28))
-            local newWidth = math.max(textSize.X + 24, 100) -- 24 for padding (12 each side)
+            local textSize = textService:GetTextSize(watermarkLabel.Text, Library._watermarkFontSize, Library._watermarkFont, Vector2.new(math.huge, 32))
+            local newWidth = math.max(textSize.X + 28, 120) -- 28 for padding (14 each side)
             
-            T(watermarkFrame, 0.2, {Size = UDim2.fromOffset(newWidth, 28)}):Play()
+            T(watermarkFrame, 0.25, {Size = UDim2.fromOffset(newWidth, 32)}):Play()
         end
         
-        -- Update text function
+        -- Update text function with shadow sync
         local function updateText(text)
             watermarkLabel.Text = text or ""
+            if textShadow then textShadow.Text = text or "" end
             updateSize()
+        end
+        
+        -- Update text color function
+        local function updateTextColor(color)
+            if watermarkLabel then 
+                watermarkLabel.TextColor3 = color
+                T(watermarkLabel, 0.2, {TextColor3 = color}):Play()
+            end
+        end
+        
+        -- Update accent color function
+        local function updateAccentColor(color)
+            if accentStroke then T(accentStroke, 0.2, {Color = color}):Play() end
+            if accentBar then T(accentBar, 0.2, {BackgroundColor3 = color}):Play() end
+        end
+        
+        -- Update background color function
+        local function updateBackgroundColor(color)
+            if watermarkFrame then T(watermarkFrame, 0.2, {BackgroundColor3 = color}):Play() end
+            if closeShadow then T(closeShadow, 0.2, {ImageColor3 = color}):Play() end
         end
         
         -- Dragging functionality (PC and Mobile support)
@@ -155,17 +302,19 @@ do
         -- Mobile detection
         local isMobile = (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) or (UserInputService.KeyboardEnabled == false)
         
-        -- Drag start
+        -- Drag start with enhanced visual feedback
         watermarkFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
                 startPos = watermarkFrame.Position
                 
-                -- Visual feedback
-                T(watermarkFrame, 0.1, {BackgroundColor3 = Theme.Hover}):Play()
-                local stroke = watermarkFrame:FindFirstChild("UIStroke")
-                if stroke then T(stroke, 0.1, {Transparency = 0.1}):Play() end
+                -- Enhanced visual feedback
+                T(watermarkFrame, 0.12, {BackgroundColor3 = Theme.Hover, Size = UDim2.fromOffset(watermarkFrame.AbsoluteSize.X + 4, watermarkFrame.AbsoluteSize.Y + 2)}):Play()
+                if primaryStroke then T(primaryStroke, 0.1, {Transparency = 0.0, Thickness = 1.5, Color = Library._watermarkAccentColor}):Play() end
+                if accentStroke then T(accentStroke, 0.1, {Transparency = 0.3, Thickness = 1.2}):Play() end
+                if accentBar then T(accentBar, 0.1, {BackgroundTransparency = 0.1}):Play() end
+                if gradientOverlay then T(gradientOverlay, 0.1, {BackgroundTransparency = 0.94}):Play() end
             end
         end)
         
@@ -209,44 +358,65 @@ do
             end
         end)
         
-        -- Drag end
+        -- Drag end with enhanced reset
         UserInputService.InputEnded:Connect(function(input)
             if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
                 dragging = false
                 
-                -- Reset visual feedback
-                T(watermarkFrame, 0.2, {BackgroundColor3 = Theme.Bg}):Play()
-                local stroke = watermarkFrame:FindFirstChild("UIStroke")
-                if stroke then T(stroke, 0.2, {Transparency = 0.3}):Play() end
+                -- Enhanced visual feedback reset
+                local currentSize = watermarkFrame.AbsoluteSize
+                T(watermarkFrame, 0.25, {
+                    BackgroundColor3 = Library._watermarkBackgroundColor,
+                    Size = UDim2.fromOffset(currentSize.X - 4, currentSize.Y - 2)
+                }):Play()
+                if primaryStroke then T(primaryStroke, 0.2, {Transparency = 0.25, Thickness = 1.2, Color = Theme.Stroke}):Play() end
+                if accentStroke then T(accentStroke, 0.2, {Transparency = 0.6, Thickness = 0.8}):Play() end
+                if accentBar then T(accentBar, 0.2, {BackgroundTransparency = 0.3}):Play() end
+                if gradientOverlay then T(gradientOverlay, 0.2, {BackgroundTransparency = 0.97}):Play() end
             end
         end)
         
-        -- Hover effects (PC only)
+        -- Enhanced hover effects (PC only)
         if not isMobile then
             watermarkFrame.MouseEnter:Connect(function()
                 if not dragging then
                     T(watermarkFrame, 0.15, {BackgroundColor3 = Theme.Panel}):Play()
+                    if primaryStroke then T(primaryStroke, 0.15, {Transparency = 0.15}):Play() end
+                    if accentStroke then T(accentStroke, 0.15, {Transparency = 0.4}):Play() end
                 end
             end)
             
             watermarkFrame.MouseLeave:Connect(function()
                 if not dragging then
-                    T(watermarkFrame, 0.15, {BackgroundColor3 = Theme.Bg}):Play()
+                    T(watermarkFrame, 0.15, {BackgroundColor3 = Library._watermarkBackgroundColor}):Play()
+                    if primaryStroke then T(primaryStroke, 0.15, {Transparency = 0.25}):Play() end
+                    if accentStroke then T(accentStroke, 0.15, {Transparency = 0.6}):Play() end
                 end
             end)
         end
         
-        -- Store references
+        -- Store references for customization
         Library._watermark = watermarkGui
         Library._watermarkFrame = watermarkFrame
         Library._watermarkLabel = watermarkLabel
+        Library._textShadow = textShadow
+        Library._primaryStroke = primaryStroke
+        Library._accentStroke = accentStroke
+        Library._accentBar = accentBar
+        Library._gradientOverlay = gradientOverlay
         Library._updateWatermarkText = updateText
+        Library._updateWatermarkTextColor = updateTextColor
+        Library._updateWatermarkAccentColor = updateAccentColor
+        Library._updateWatermarkBackgroundColor = updateBackgroundColor
         
         -- Set initial visibility
         watermarkGui.Enabled = Library._watermarkVisible
         
-        -- Initialize text
+        -- Initialize text and colors
         updateText(Library._watermarkText)
+        updateTextColor(Library._watermarkTextColor)
+        updateAccentColor(Library._watermarkAccentColor)
+        updateBackgroundColor(Library._watermarkBackgroundColor)
         
         return watermarkGui
     end
@@ -272,27 +442,38 @@ do
         if self._watermark and self._watermark.Parent then
             if self._watermarkVisible then
                 self._watermark.Enabled = true
-                -- Fade in animation
+                -- Enhanced fade in animation
                 if self._watermarkFrame then
                     self._watermarkFrame.BackgroundTransparency = 1
-                    local stroke = self._watermarkFrame:FindFirstChild("UIStroke")
-                    if stroke then stroke.Transparency = 1 end
+                    if self._primaryStroke then self._primaryStroke.Transparency = 1 end
+                    if self._accentStroke then self._accentStroke.Transparency = 1 end
                     if self._watermarkLabel then self._watermarkLabel.TextTransparency = 1 end
+                    if self._textShadow then self._textShadow.TextTransparency = 1 end
+                    if self._accentBar then self._accentBar.BackgroundTransparency = 1 end
                     
-                    T(self._watermarkFrame, 0.3, {BackgroundTransparency = 0}):Play()
-                    if stroke then T(stroke, 0.3, {Transparency = 0.3}):Play() end
-                    if self._watermarkLabel then T(self._watermarkLabel, 0.3, {TextTransparency = 0}):Play() end
+                    T(self._watermarkFrame, 0.4, {BackgroundTransparency = 0}):Play()
+                    if self._primaryStroke then T(self._primaryStroke, 0.35, {Transparency = 0.25}):Play() end
+                    if self._accentStroke then T(self._accentStroke, 0.35, {Transparency = 0.6}):Play() end
+                    if self._watermarkLabel then T(self._watermarkLabel, 0.3, {TextTransparency = self._watermarkTransparency}):Play() end
+                    if self._textShadow then T(self._textShadow, 0.3, {TextTransparency = 0.75}):Play() end
+                    if self._accentBar then T(self._accentBar, 0.4, {BackgroundTransparency = 0.3}):Play() end
                 end
             else
-                -- Fade out animation
+                -- Enhanced fade out animation
                 if self._watermarkFrame then
-                    T(self._watermarkFrame, 0.3, {BackgroundTransparency = 1}):Play()
-                    local stroke = self._watermarkFrame:FindFirstChild("UIStroke")
-                    if stroke then T(stroke, 0.3, {Transparency = 1}):Play() end
+                    T(self._watermarkFrame, 0.4, {BackgroundTransparency = 1}):Play()
+                    if self._primaryStroke then T(self._primaryStroke, 0.35, {Transparency = 1}):Play() end
+                    if self._accentStroke then T(self._accentStroke, 0.35, {Transparency = 1}):Play() end
                     if self._watermarkLabel then T(self._watermarkLabel, 0.3, {TextTransparency = 1}):Play() end
+                    if self._textShadow then T(self._textShadow, 0.3, {TextTransparency = 1}):Play() end
+                    if self._accentBar then T(self._accentBar, 0.4, {BackgroundTransparency = 1}):Play() end
                     
-                    task.wait(0.3)
-                    self._watermark.Enabled = false
+                    task.spawn(function()
+                        task.wait(0.4)
+                        if self._watermark and self._watermark.Parent then
+                            self._watermark.Enabled = false
+                        end
+                    end)
                 end
             end
         end
@@ -300,6 +481,66 @@ do
     
     function Library:GetWatermarkVisibility()
         return self._watermarkVisible
+    end
+    
+    -- Advanced customization functions
+    function Library:SetWatermarkTextColor(color)
+        self._watermarkTextColor = color or Color3.fromRGB(255, 255, 255)
+        if self._updateWatermarkTextColor then
+            self._updateWatermarkTextColor(self._watermarkTextColor)
+        end
+    end
+    
+    function Library:SetWatermarkAccentColor(color)
+        self._watermarkAccentColor = color or Theme.Accent
+        if self._updateWatermarkAccentColor then
+            self._updateWatermarkAccentColor(self._watermarkAccentColor)
+        end
+    end
+    
+    function Library:SetWatermarkBackgroundColor(color)
+        self._watermarkBackgroundColor = color or Theme.Bg
+        if self._updateWatermarkBackgroundColor then
+            self._updateWatermarkBackgroundColor(self._watermarkBackgroundColor)
+        end
+    end
+    
+    function Library:SetWatermarkFont(font, size)
+        self._watermarkFont = font or Fonts.Medium
+        self._watermarkFontSize = size or 13
+        
+        if self._watermarkLabel then
+            self._watermarkLabel.Font = self._watermarkFont
+            self._watermarkLabel.TextSize = self._watermarkFontSize
+            if self._textShadow then
+                self._textShadow.Font = self._watermarkFont
+                self._textShadow.TextSize = self._watermarkFontSize
+            end
+            -- Re-trigger size update
+            if self._updateWatermarkText then
+                self._updateWatermarkText(self._watermarkText)
+            end
+        end
+    end
+    
+    function Library:SetWatermarkTransparency(transparency)
+        self._watermarkTransparency = math.clamp(transparency or 0, 0, 1)
+        if self._watermarkLabel then
+            T(self._watermarkLabel, 0.2, {TextTransparency = self._watermarkTransparency}):Play()
+        end
+    end
+    
+    -- Get current watermark properties
+    function Library:GetWatermarkTextColor()
+        return self._watermarkTextColor
+    end
+    
+    function Library:GetWatermarkAccentColor()
+        return self._watermarkAccentColor
+    end
+    
+    function Library:GetWatermarkBackgroundColor()
+        return self._watermarkBackgroundColor
     end
 end
 
