@@ -63,6 +63,246 @@ local function Signal()
     }
 end
 local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {} }
+
+-- Watermark system
+do
+    Library._watermark = nil
+    Library._watermarkText = ""
+    Library._watermarkVisible = true
+    
+    -- Create watermark GUI
+    local function createWatermark()
+        if Library._watermark then
+            pcall(function() Library._watermark:Destroy() end)
+        end
+        
+        -- Create ScreenGui for watermark
+        local watermarkGui = Create("ScreenGui", {
+            Name = "DendriteWatermark",
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+            IgnoreGuiInset = true,
+            ResetOnSpawn = false,
+            DisplayOrder = 999998, -- Just below main library
+            Parent = CoreGui
+        })
+        
+        -- Main watermark frame
+        local watermarkFrame = Create("TextButton", {
+            Name = "WatermarkFrame",
+            BackgroundColor3 = Theme.Bg,
+            AutoButtonColor = false,
+            BorderSizePixel = 0,
+            Size = UDim2.fromOffset(250, 28),
+            Position = UDim2.fromOffset(10, 10), -- Top-left with small margin
+            ZIndex = 1000,
+            Text = "",
+            Parent = watermarkGui
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}),
+            Create("UIPadding", {PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4)})
+        })
+        
+        -- Shadow effect
+        local shadow = Create("ImageLabel", {
+            BackgroundTransparency = 1,
+            Image = "rbxassetid://4996891970",
+            ImageColor3 = Theme.Bg,
+            ImageTransparency = 0.88,
+            Size = UDim2.fromScale(1, 1),
+            ZIndex = watermarkFrame.ZIndex - 1,
+            Parent = watermarkFrame
+        })
+        shadow.ScaleType = Enum.ScaleType.Slice
+        shadow.SliceCenter = Rect.new(20, 20, 280, 280)
+        
+        -- Watermark text label
+        local watermarkLabel = Create("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            Text = Library._watermarkText,
+            Font = Fonts.Medium,
+            TextSize = 13,
+            TextColor3 = Theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            TextScaled = false,
+            TextWrapped = false,
+            ZIndex = watermarkFrame.ZIndex + 1,
+            Parent = watermarkFrame
+        })
+        
+        -- Auto-resize functionality
+        local function updateSize()
+            local textService = game:GetService("TextService")
+            local textSize = textService:GetTextSize(watermarkLabel.Text, 13, Fonts.Medium, Vector2.new(math.huge, 28))
+            local newWidth = math.max(textSize.X + 24, 100) -- 24 for padding (12 each side)
+            
+            T(watermarkFrame, 0.2, {Size = UDim2.fromOffset(newWidth, 28)}):Play()
+        end
+        
+        -- Update text function
+        local function updateText(text)
+            watermarkLabel.Text = text or ""
+            updateSize()
+        end
+        
+        -- Dragging functionality (PC and Mobile support)
+        local dragging = false
+        local dragStart = nil
+        local startPos = nil
+        
+        -- Mobile detection
+        local isMobile = (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) or (UserInputService.KeyboardEnabled == false)
+        
+        -- Drag start
+        watermarkFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                startPos = watermarkFrame.Position
+                
+                -- Visual feedback
+                T(watermarkFrame, 0.1, {BackgroundColor3 = Theme.Hover}):Play()
+                local stroke = watermarkFrame:FindFirstChild("UIStroke")
+                if stroke then T(stroke, 0.1, {Transparency = 0.1}):Play() end
+            end
+        end)
+        
+        -- Drag update
+        watermarkFrame.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local currentPos = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                local delta = currentPos - dragStart
+                local newPos = UDim2.fromOffset(startPos.X.Offset + delta.X, startPos.Y.Offset + delta.Y)
+                
+                -- Constrain to screen bounds
+                local screenSize = workspace.CurrentCamera.ViewportSize
+                local frameSize = watermarkFrame.AbsoluteSize
+                local maxX = screenSize.X - frameSize.X
+                local maxY = screenSize.Y - frameSize.Y
+                
+                local clampedX = math.clamp(newPos.X.Offset, 0, maxX)
+                local clampedY = math.clamp(newPos.Y.Offset, 0, maxY)
+                
+                watermarkFrame.Position = UDim2.fromOffset(clampedX, clampedY)
+            end
+        end)
+        
+        -- Global input for drag end
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local currentPos = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                local delta = currentPos - dragStart
+                local newPos = UDim2.fromOffset(startPos.X.Offset + delta.X, startPos.Y.Offset + delta.Y)
+                
+                -- Constrain to screen bounds
+                local screenSize = workspace.CurrentCamera.ViewportSize
+                local frameSize = watermarkFrame.AbsoluteSize
+                local maxX = screenSize.X - frameSize.X
+                local maxY = screenSize.Y - frameSize.Y
+                
+                local clampedX = math.clamp(newPos.X.Offset, 0, maxX)
+                local clampedY = math.clamp(newPos.Y.Offset, 0, maxY)
+                
+                watermarkFrame.Position = UDim2.fromOffset(clampedX, clampedY)
+            end
+        end)
+        
+        -- Drag end
+        UserInputService.InputEnded:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+                dragging = false
+                
+                -- Reset visual feedback
+                T(watermarkFrame, 0.2, {BackgroundColor3 = Theme.Bg}):Play()
+                local stroke = watermarkFrame:FindFirstChild("UIStroke")
+                if stroke then T(stroke, 0.2, {Transparency = 0.3}):Play() end
+            end
+        end)
+        
+        -- Hover effects (PC only)
+        if not isMobile then
+            watermarkFrame.MouseEnter:Connect(function()
+                if not dragging then
+                    T(watermarkFrame, 0.15, {BackgroundColor3 = Theme.Panel}):Play()
+                end
+            end)
+            
+            watermarkFrame.MouseLeave:Connect(function()
+                if not dragging then
+                    T(watermarkFrame, 0.15, {BackgroundColor3 = Theme.Bg}):Play()
+                end
+            end)
+        end
+        
+        -- Store references
+        Library._watermark = watermarkGui
+        Library._watermarkFrame = watermarkFrame
+        Library._watermarkLabel = watermarkLabel
+        Library._updateWatermarkText = updateText
+        
+        -- Set initial visibility
+        watermarkGui.Enabled = Library._watermarkVisible
+        
+        -- Initialize text
+        updateText(Library._watermarkText)
+        
+        return watermarkGui
+    end
+    
+    -- Public functions
+    function Library:SetWatermark(text)
+        self._watermarkText = tostring(text or "")
+        
+        -- Create watermark if it doesn't exist
+        if not self._watermark or not self._watermark.Parent then
+            createWatermark()
+        end
+        
+        -- Update text
+        if self._updateWatermarkText then
+            self._updateWatermarkText(self._watermarkText)
+        end
+    end
+    
+    function Library:SetWatermarkVisibility(visible)
+        self._watermarkVisible = (visible == true)
+        
+        if self._watermark and self._watermark.Parent then
+            if self._watermarkVisible then
+                self._watermark.Enabled = true
+                -- Fade in animation
+                if self._watermarkFrame then
+                    self._watermarkFrame.BackgroundTransparency = 1
+                    local stroke = self._watermarkFrame:FindFirstChild("UIStroke")
+                    if stroke then stroke.Transparency = 1 end
+                    if self._watermarkLabel then self._watermarkLabel.TextTransparency = 1 end
+                    
+                    T(self._watermarkFrame, 0.3, {BackgroundTransparency = 0}):Play()
+                    if stroke then T(stroke, 0.3, {Transparency = 0.3}):Play() end
+                    if self._watermarkLabel then T(self._watermarkLabel, 0.3, {TextTransparency = 0}):Play() end
+                end
+            else
+                -- Fade out animation
+                if self._watermarkFrame then
+                    T(self._watermarkFrame, 0.3, {BackgroundTransparency = 1}):Play()
+                    local stroke = self._watermarkFrame:FindFirstChild("UIStroke")
+                    if stroke then T(stroke, 0.3, {Transparency = 1}):Play() end
+                    if self._watermarkLabel then T(self._watermarkLabel, 0.3, {TextTransparency = 1}):Play() end
+                    
+                    task.wait(0.3)
+                    self._watermark.Enabled = false
+                end
+            end
+        end
+    end
+    
+    function Library:GetWatermarkVisibility()
+        return self._watermarkVisible
+    end
+end
+
 -- RootGui will be created per library instance with custom name
 function Library:_registerControl(c)
     self._controls[c.id] = c
@@ -3396,189 +3636,6 @@ function Library:CreateLibrary(opts)
                     table.insert(Group._controls, Colorpicker)
                     registerSearch(label)
                     return Colorpicker
-                end
-
-                -- Toggle Colorpicker (COMPLETE implementation with full colorpicker functionality)
-                function Group:AddToggleColorpicker(o)
-                    o = o or {}
-                    local label = tostring(o.Name or "Toggle Colorpicker")
-                    local toggleDefault = (o.Default == true)
-                    local toggleCb = o.Callback
-                    local cb = o.ColorCallback or o.ColorpickerCallback
-                    local amount = math.max(1, tonumber(o.Amount) or 1)
-                    -- Opt-in global sync across different colorpickers; default off to keep slots independent
-                    local doSync = (o.Sync == true) or (o.SyncGlobally == true)
-                    -- Always start with Rainbow off; per-slot toggle only
-                    local startRainbow = false
-                    local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    -- helpers
-                    local function clamp01(x) if x < 0 then return 0 elseif x > 1 then return 1 else return x end end
-                    local function toRGB255(c)
-                        return math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5)
-                    end
-                    local function rgbToHex(r,g,b)
-                        return string.format("#%02X%02X%02X", math.clamp(r,0,255), math.clamp(g,0,255), math.clamp(b,0,255))
-                    end
-                    local function hexToRGB(hex)
-                        hex = tostring(hex or ""):gsub("^#","")
-                        if #hex == 6 then
-                            local r = tonumber(hex:sub(1,2),16)
-                            local g = tonumber(hex:sub(3,4),16)
-                            local b = tonumber(hex:sub(5,6),16)
-                            if r and g and b then return r,g,b end
-                        end
-                        return nil
-                    end
-                    local function parseRGBText(t)
-                        -- accept formats like "255,255,255" or "255, 255, 255"
-                        local r,g,b = t:match("%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*")
-                        if r and g and b then return tonumber(r), tonumber(g), tonumber(b) end
-                        return nil
-                    end
-
-                    -- rainbow sync bus
-                    Library._rainbowBus = Library._rainbowBus or { listeners = {}, conn = nil }
-                    
-                    -- Global sync system for RGB and Pulse modes across ALL colorpickers
-                    Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {} }
-                    Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {} }
-                    
-                    local function syncRGBColor(color, sourceId)
-                        if not Library._globalRGBSync.active then return end
-                        for id, listener in pairs(Library._globalRGBSync.listeners) do
-                            if id ~= sourceId then
-                                pcall(listener, color, sourceId)
-                            end
-                        end
-                    end
-                    
-                    local function syncPulseColor(color, sourceId)
-                        if not Library._globalPulseSync.active then return end
-                        for id, listener in pairs(Library._globalPulseSync.listeners) do
-                            if id ~= sourceId then
-                                pcall(listener, color, sourceId)
-                            end
-                        end
-                    end
-                    local function rainbowStart()
-                        if Library._rainbowBus.conn then return end
-                        local RS = game:GetService("RunService")
-                        local t0 = tick()
-                        Library._rainbowBus.conn = RS.RenderStepped:Connect(function()
-                            local t = (tick() - t0) * 0.08 -- speed
-                            local h = t % 1
-                            Library._rainbowBus.h = h -- expose current hue for offset calculations
-                            for _, fn in ipairs(Library._rainbowBus.listeners) do
-                                pcall(fn, h)
-                            end
-                        end)
-                    end
-                    local function rainbowAdd(fn)
-                        table.insert(Library._rainbowBus.listeners, fn)
-                        rainbowStart()
-                        return fn
-                    end
-                    local function rainbowRemove(fn)
-                        for i=#Library._rainbowBus.listeners,1,-1 do
-                            if Library._rainbowBus.listeners[i] == fn then table.remove(Library._rainbowBus.listeners,i) end
-                        end
-                        if #Library._rainbowBus.listeners == 0 and Library._rainbowBus.conn then
-                            Library._rainbowBus.conn:Disconnect(); Library._rainbowBus.conn = nil
-                        end
-                    end
-
-                    -- Resolve defaults per slot
-                    local defaults = {}
-                    local function colorFromAny(v)
-                        if typeof(v) == "Color3" then return v end
-                        if type(v) == "table" and v.r and v.g and v.b then return Color3.fromRGB(v.r, v.g, v.b) end
-                        if type(v) == "string" then
-                            local r,g,b = parseRGBText(v)
-                            if r then return Color3.fromRGB(r,g,b) end
-                            local hr,hg,hb = hexToRGB(v)
-                            if hr then return Color3.fromRGB(hr,hg,hb) end
-                        end
-                        return Theme.Accent
-                    end
-                    -- accept Default or Value as initial colors
-                    local init = (o.ColorDefault ~= nil) and o.ColorDefault or o.Value
-                    if type(init) == "table" and amount > 1 then
-                        for i=1, amount do defaults[i] = colorFromAny(init[i]) end
-                    else
-                        local c = colorFromAny(init)
-                        for i=1, amount do defaults[i] = c end
-                    end
-
-                    -- Modified row layout: Toggle + Colorpicker
-                    local rowH = 30
-                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
-                    
-                    -- Toggle section (first 50% of row)
-                    local toggleContainer = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(0.5,0,1,0), Parent = row})
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.6,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = toggleContainer})
-                    local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(40,18), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-4,0.5,0), Parent = toggleContainer})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
-                    local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(36,14), Position = UDim2.fromOffset(2,2), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = recess})
-                    local accentFill = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
-                    local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0,4,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
-                    
-                    -- Colorpicker section (remaining 50% of row)
-                    local holder = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(0.5,-4,1,0), Position = UDim2.new(0.5,4,0,0), Visible = toggleDefault, Parent = row}, {
-                        Create("UIPadding", {PaddingLeft = UDim.new(0,0), PaddingRight = UDim.new(0,0)})
-                    })
-                    local layout = Create("UIListLayout", {Parent = holder, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,6), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
-
-                    -- state per slot
-                    local slots = {}
-                    for i=1, amount do
-                        local btn = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(26,26), Text = "", Parent = holder}, {
-                            Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                            Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
-                        })
-                        local fill = Create("Frame", {BackgroundColor3 = defaults[i], Size = UDim2.new(1,-6,1,-6), Position = UDim2.fromOffset(3,3), Parent = btn}, {
-                            Create("UICorner", {CornerRadius = UDim.new(0,3)})
-                        })
-                        btn.MouseEnter:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
-                        btn.MouseLeave:Connect(function() T(btn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = btn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
-                        slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0, panel = nil, panelOpen = false }
-                    end
-
-                    -- Copy the COMPLETE colorpicker functionality from AddColorpicker
-                    -- [REST OF ADDCOLORPICKER CONTENT CONTINUES HERE - this is a massive function that I need to copy in parts]
-                    
-                    -- Toggle functionality
-                    local Toggle = { id = id .. "_toggle", _value = toggleDefault, _signal = Signal() }
-                    function Toggle:Get() return self._value end
-                    function Toggle:Set(v, silent)
-                        v = (v == true)
-                        self._value = v
-                        if v then
-                            T(accentFill,0.25,{BackgroundTransparency = 0}):Play()
-                            T(knob,0.25,{Position = UDim2.new(1,-16,0.5,0), BackgroundColor3 = Theme.Text}):Play()
-                        else
-                            T(accentFill,0.25,{BackgroundTransparency = 1}):Play()
-                            T(knob,0.25,{Position = UDim2.new(0,4,0.5,0), BackgroundColor3 = Theme.Scrollbar}):Play()
-                        end
-                        -- Show/hide colorpicker based on toggle
-                        holder.Visible = v
-                        if not silent then if type(toggleCb)=="function" then pcall(toggleCb,v) end Toggle._signal:Fire(v) end
-                    end
-                    function Toggle:OnChanged(fn) return self._signal:Connect(fn) end
-                    toggleContainer.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
-                    toggleContainer.MouseEnter:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play() end)
-                    toggleContainer.MouseLeave:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(50,50,50)}):Play() end)
-                    
-                    -- I need to copy the rest of the massive AddColorpicker function in the next replacement
-                    
-                    Toggle:Set(toggleDefault,true)
-                    Library:_registerControl(Toggle)
-                    table.insert(Group._controls, Toggle)
-                    registerSearch(label)
-                    
-                    return { Toggle = Toggle, _slots = slots }
                 end
 
                 -- Keybind Toggle
