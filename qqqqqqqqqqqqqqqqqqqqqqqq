@@ -646,8 +646,10 @@ do
             pcall(function() Library._keybindList:Destroy() end)
         end
         
-        -- Find library ScreenGui for proper parenting
+        -- Try to find library ScreenGui, fallback to CoreGui
         local libraryGui = nil
+        
+        -- Method 1: Look for ScreenGui with DisplayOrder 999999
         for _, gui in pairs(CoreGui:GetChildren()) do
             if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
                 libraryGui = gui
@@ -655,10 +657,15 @@ do
             end
         end
         
-        if not libraryGui then
-            warn("Could not find library GUI for keybind list parenting")
-            return
+        -- Method 2: Look for the singleton root if method 1 failed
+        if not libraryGui and Library._singletonRoot and Library._singletonRoot.Parent then
+            libraryGui = Library._singletonRoot.Parent
         end
+        
+        -- Method 3: Fallback to CoreGui
+        local parentGui = libraryGui or CoreGui
+        
+        print("Parenting keybind list to:", parentGui.Name or "CoreGui")
         
         -- Calculate middle-left position
         local screenSize = workspace.CurrentCamera.ViewportSize
@@ -668,12 +675,14 @@ do
         print("Screen size:", screenSize)
         print("Positioning at:", posX, posY)
         
-        -- Create ScreenGui parented to library GUI
+        -- Create ScreenGui with reliable parenting
         Library._keybindList = Instance.new("ScreenGui")
         Library._keybindList.Name = "KeybindList" 
-        Library._keybindList.Parent = libraryGui
+        Library._keybindList.Parent = parentGui
         Library._keybindList.ResetOnSpawn = false
         Library._keybindList.DisplayOrder = 999998
+        Library._keybindList.IgnoreGuiInset = true
+        Library._keybindList.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         
         print("Created ScreenGui parented to library")
         
