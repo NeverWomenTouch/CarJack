@@ -3386,6 +3386,7 @@ function Library:CreateLibrary(opts)
                     local isToggled = defaultToggle
                     local isBinding = false
                     local isHolding = false
+                    local keybindToggleState = false -- Track toggle state for Toggle mode
                     local connections = {}
                     
                     -- Build row
@@ -3518,23 +3519,13 @@ function Library:CreateLibrary(opts)
                             end
                         end))
                         
-                        -- Cancel on mouse click elsewhere
+                        -- Cancel binding on Escape key
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input)
-                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                                local hitObjects = {}
-                                local camera = workspace.CurrentCamera
-                                if camera then
-                                    local unitRay = camera:ScreenPointToRay(input.Position.X, input.Position.Y)
-                                    local raycastResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000)
-                                    if raycastResult then
-                                        -- Check if click was outside keybind button
-                                        task.wait() -- Small delay to ensure click processing
-                                        isBinding = false
-                                        updateKeybindVisual()
-                                        disconnectAll()
-                                        setupKeybindListener()
-                                    end
-                                end
+                            if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Escape then
+                                isBinding = false
+                                updateKeybindVisual()
+                                disconnectAll()
+                                setupKeybindListener()
                             end
                         end))
                     end
@@ -3546,7 +3537,10 @@ function Library:CreateLibrary(opts)
                             -- Always mode - toggle is always ON, keybind always active
                             isToggled = true
                             updateToggleVisual()
-                            -- Don't return, still set up listeners
+                            -- In Always mode, immediately trigger callback
+                            if type(cb) == "function" then
+                                pcall(cb, true, currentKey or currentInputType)
+                            end
                         end
                         
                         -- Keybind listeners - only work when toggle is ON
@@ -3567,9 +3561,10 @@ function Library:CreateLibrary(opts)
                             if not matches then return end
                             
                             if mode == "Toggle" then
-                                -- In toggle mode, pressing keybind triggers the callback
+                                -- In toggle mode, pressing keybind alternates state
+                                keybindToggleState = not keybindToggleState
                                 if type(cb) == "function" then
-                                    pcall(cb, true, currentKey or currentInputType)
+                                    pcall(cb, keybindToggleState, currentKey or currentInputType)
                                 end
                             elseif mode == "Hold" then
                                 isHolding = true
@@ -3734,13 +3729,13 @@ function Library:CreateLibrary(opts)
                             if keyCode.EnumType == Enum.KeyCode then
                                 currentKey = keyCode
                                 currentInputType = nil
-                                updateKeybindVisual()
-                                if not silent then setupKeybindListener() end
+                                if updateKeybindVisual then updateKeybindVisual() end
+                                if not silent and setupKeybindListener then setupKeybindListener() end
                             elseif keyCode.EnumType == Enum.UserInputType and (keyCode == Enum.UserInputType.MouseButton1 or keyCode == Enum.UserInputType.MouseButton2) then
                                 currentKey = nil
                                 currentInputType = keyCode
-                                updateKeybindVisual()
-                                if not silent then setupKeybindListener() end
+                                if updateKeybindVisual then updateKeybindVisual() end
+                                if not silent and setupKeybindListener then setupKeybindListener() end
                             end
                         end
                     end
@@ -3765,10 +3760,10 @@ function Library:CreateLibrary(opts)
                     function KeybindToggle:SetMode(newMode, silent)
                         if newMode == "Toggle" or newMode == "Hold" or newMode == "Always" then
                             mode = newMode
-                            setupKeybindListener()
+                            if setupKeybindListener then setupKeybindListener() end
                             if mode == "Always" then
                                 isToggled = true
-                                updateToggleVisual()
+                                if updateToggleVisual then updateToggleVisual() end
                                 if not silent and type(cb) == "function" then
                                     pcall(cb, true, currentKey or currentInputType)
                                 end
