@@ -3497,9 +3497,17 @@ function Library:CreateLibrary(opts)
                                     disconnectAll()
                                     setupKeybindListener()
                                 end
-                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
-                                -- Don't bind MouseButton2 if it's used for context menu
-                                if not (input.UserInputType == Enum.UserInputType.MouseButton2 and ctxOpen) then
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                currentKey = nil
+                                currentInputType = input.UserInputType
+                                isBinding = false
+                                updateKeybindVisual()
+                                disconnectAll()
+                                setupKeybindListener()
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+                                -- Handle MouseButton2 with delay to avoid context menu interference
+                                task.wait(0.1)
+                                if isBinding then  -- Still binding after delay
                                     currentKey = nil
                                     currentInputType = input.UserInputType
                                     isBinding = false
@@ -3535,16 +3543,17 @@ function Library:CreateLibrary(opts)
                         disconnectAll()
                         
                         if mode == "Always" then
-                            -- Always mode - constantly active
-                            if type(cb) == "function" then
-                                pcall(cb, true, currentKey)
-                            end
-                            return
+                            -- Always mode - toggle is always ON, keybind always active
+                            isToggled = true
+                            updateToggleVisual()
+                            -- Don't return, still set up listeners
                         end
                         
-                        -- Toggle/Hold mode listeners
+                        -- Keybind listeners - only work when toggle is ON
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
                             if gameProcessed then return end
+                            if not isToggled then return end  -- Only work when toggle is ON
+                            
                             local matches = false
                             
                             if currentInputType then
@@ -3558,10 +3567,9 @@ function Library:CreateLibrary(opts)
                             if not matches then return end
                             
                             if mode == "Toggle" then
-                                isToggled = not isToggled
-                                updateToggleVisual()
+                                -- In toggle mode, pressing keybind triggers the callback
                                 if type(cb) == "function" then
-                                    pcall(cb, isToggled, currentKey or currentInputType)
+                                    pcall(cb, true, currentKey or currentInputType)
                                 end
                             elseif mode == "Hold" then
                                 isHolding = true
@@ -3573,6 +3581,7 @@ function Library:CreateLibrary(opts)
                         
                         if mode == "Hold" then
                             table.insert(connections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                                if not isToggled then return end  -- Only work when toggle is ON
                                 local matches = false
                                 
                                 if currentInputType then
@@ -3592,14 +3601,12 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     
-                    -- Button events
+                    -- Toggle button click - controls keybind activation
                     toggleContainer.MouseButton1Click:Connect(function()
                         if mode == "Always" then return end -- Can't manually toggle in Always mode
                         isToggled = not isToggled
                         updateToggleVisual()
-                        if type(cb) == "function" then
-                            pcall(cb, isToggled, currentKey)
-                        end
+                        -- Toggle just enables/disables the keybind, doesn't trigger callback
                     end)
                     
                     -- Context menu for mode selection
