@@ -255,7 +255,7 @@ do
             end
         end
         
-        -- PERFECT mouse-following drag system
+        -- PRECISE cursor-locked dragging system
         local dragging = false
         local dragOffset = Vector2.new(0, 0)
         
@@ -263,12 +263,14 @@ do
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 
-                -- Use input.Position for both mouse and touch for consistency
-                local inputPos = Vector2.new(input.Position.X, input.Position.Y)
-                local framePos = watermarkFrame.AbsolutePosition
+                -- Get mouse position accounting for GUI inset
+                local mousePos = UserInputService:GetMouseLocation()
+                local guiInset = game:GetService("GuiService"):GetGuiInset()
+                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
                 
-                -- Calculate offset from click position to frame's top-left corner
-                dragOffset = Vector2.new(inputPos.X - framePos.X, inputPos.Y - framePos.Y)
+                -- Calculate offset from mouse to frame's top-left corner
+                local framePos = watermarkFrame.AbsolutePosition
+                dragOffset = Vector2.new(adjustedMousePos.X - framePos.X, adjustedMousePos.Y - framePos.Y)
                 
                 -- Visual feedback
                 T(outerBorder, 0.1, {Color = Library._watermarkAccentColor, Thickness = 2}):Play()
@@ -278,19 +280,21 @@ do
             end
         end)
         
-        -- Ultra-smooth mouse-following movement
+        -- Perfect cursor-following movement
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
             
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                -- Use input.Position for consistent positioning
-                local inputPos = Vector2.new(input.Position.X, input.Position.Y)
+                -- Get current mouse position with GUI inset correction
+                local mousePos = UserInputService:GetMouseLocation()
+                local guiInset = game:GetService("GuiService"):GetGuiInset()
+                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
                 
-                -- Calculate frame position so the mouse stays at the same relative position
-                local newX = inputPos.X - dragOffset.X
-                local newY = inputPos.Y - dragOffset.Y
+                -- Calculate new frame position maintaining the offset
+                local newX = adjustedMousePos.X - dragOffset.X
+                local newY = adjustedMousePos.Y - dragOffset.Y
                 
-                -- Screen boundaries
+                -- Screen boundaries (using viewport size which accounts for insets)
                 local screenSize = workspace.CurrentCamera.ViewportSize
                 local frameSize = watermarkFrame.AbsoluteSize
                 
@@ -298,7 +302,7 @@ do
                 newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
                 newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
                 
-                -- Apply position instantly
+                -- Apply position instantly for smooth dragging
                 watermarkFrame.Position = UDim2.fromOffset(newX, newY)
             end
         end)
