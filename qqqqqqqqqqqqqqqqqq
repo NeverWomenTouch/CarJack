@@ -500,7 +500,10 @@ end
 do
     Library._keybindList = nil
     Library._keybindListVisible = false
-    Library._keybindListPosition = {X = 50, Y = 200} -- Middle-left position
+    Library._keybindListFrame = nil
+    -- Calculate middle-left position dynamically
+    local screenSize = workspace.CurrentCamera.ViewportSize
+    Library._keybindListPosition = {X = 50, Y = math.floor(screenSize.Y / 2) - 150} -- Middle-left position
     Library._keybinds = {} -- Track all keybinds
     
     local function updateKeybindDisplay()
@@ -601,8 +604,9 @@ do
     end
     
     local function createKeybindList()
-        if Library._keybindList and Library._keybindList.Parent then
-            Library._keybindList:Destroy()
+        -- Clean up existing keybind list
+        if Library._keybindList then
+            pcall(function() Library._keybindList:Destroy() end)
         end
         
         -- Find library ScreenGui for proper parenting
@@ -614,91 +618,134 @@ do
             end
         end
         
-        -- Create keybind list GUI parented to library
+        -- Create keybind list GUI exactly like watermark
         local keybindListGui = Create("ScreenGui", {
-            Name = "KeybindList",
+            Name = "DendriteKeybindList",
             ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
             IgnoreGuiInset = true,
             ResetOnSpawn = false,
             DisplayOrder = 999997,
-            Parent = libraryGui or CoreGui -- Parent to library GUI or fallback to CoreGui
+            Enabled = true,
+            Parent = libraryGui or CoreGui
         })
         
+        print("Created keybind list ScreenGui:", keybindListGui.Name, "Parent:", keybindListGui.Parent.Name) -- Debug
+        
         -- Main keybind list frame
-        local keybindListFrame = Instance.new("Frame")
-        keybindListFrame.Name = "DendriteKeybindList"
-        keybindListFrame.Size = UDim2.fromOffset(220, 300)
-        keybindListFrame.Position = UDim2.fromOffset(Library._keybindListPosition.X, Library._keybindListPosition.Y)
-        keybindListFrame.BackgroundColor3 = Library.Theme.BackgroundColor
-        keybindListFrame.BorderSizePixel = 0
-        keybindListFrame.Active = true
-        keybindListFrame.Parent = keybindListGui
+        local keybindListFrame = Create("Frame", {
+            Name = "KeybindFrame",
+            Size = UDim2.fromOffset(220, 300),
+            Position = UDim2.fromOffset(Library._keybindListPosition.X, Library._keybindListPosition.Y),
+            BackgroundColor3 = Library.Theme.BackgroundColor,
+            BorderSizePixel = 0,
+            Active = true,
+            Parent = keybindListGui
+        })
+        
+        print("Created keybind frame at position:", Library._keybindListPosition.X, Library._keybindListPosition.Y) -- Debug
+        
         Library._keybindList = keybindListGui
         Library._keybindListFrame = keybindListFrame
         
         -- Outer border (main outline)
-        local outerBorder = Instance.new("UIStroke")
-        outerBorder.Color = Library.Theme.OutlineColor
-        outerBorder.Thickness = 1
-        outerBorder.Parent = keybindListFrame
+        local outerBorder = Create("UIStroke", {
+            Color = Library.Theme.OutlineColor,
+            Thickness = 1,
+            Parent = keybindListFrame
+        })
         
         -- Accent border (inside outer border)
-        local accentBorder = Instance.new("Frame")
-        accentBorder.Name = "AccentBorder"
-        accentBorder.Size = UDim2.new(1, -2, 1, -2)
-        accentBorder.Position = UDim2.fromOffset(1, 1)
-        accentBorder.BackgroundColor3 = Library.Theme.ElementColor
-        accentBorder.BorderSizePixel = 0
-        accentBorder.Parent = keybindListFrame
+        local accentBorder = Create("Frame", {
+            Name = "AccentBorder",
+            Size = UDim2.new(1, -2, 1, -2),
+            Position = UDim2.fromOffset(1, 1),
+            BackgroundColor3 = Library.Theme.ElementColor,
+            BorderSizePixel = 0,
+            Parent = keybindListFrame
+        })
         
-        local accentStroke = Instance.new("UIStroke")
-        accentStroke.Color = Library._accent
-        accentStroke.Thickness = 1
-        accentStroke.Transparency = 0.7
-        accentStroke.Parent = accentBorder
+        local accentStroke = Create("UIStroke", {
+            Color = Library._accent,
+            Thickness = 1,
+            Transparency = 0.7,
+            Parent = accentBorder
+        })
         
         -- Inner background
-        local innerBg = Instance.new("Frame")
-        innerBg.Size = UDim2.new(1, -2, 1, -2)
-        innerBg.Position = UDim2.fromOffset(1, 1)
-        innerBg.BackgroundColor3 = Library.Theme.BackgroundColor
-        innerBg.BorderSizePixel = 0
-        innerBg.Parent = accentBorder
+        local innerBg = Create("Frame", {
+            Size = UDim2.new(1, -2, 1, -2),
+            Position = UDim2.fromOffset(1, 1),
+            BackgroundColor3 = Library.Theme.BackgroundColor,
+            BorderSizePixel = 0,
+            Parent = accentBorder
+        })
         
         -- Title bar
-        local titleBar = Instance.new("Frame")
-        titleBar.Size = UDim2.new(1, 0, 0, 25)
-        titleBar.BackgroundColor3 = Library.Theme.ElementColor
-        titleBar.BorderSizePixel = 0
-        titleBar.Parent = innerBg
+        local titleBar = Create("Frame", {
+            Size = UDim2.new(1, 0, 0, 25),
+            BackgroundColor3 = Library.Theme.ElementColor,
+            BorderSizePixel = 0,
+            Parent = innerBg
+        })
         
-        local titleStroke = Instance.new("UIStroke")
-        titleStroke.Color = Library.Theme.OutlineColor
-        titleStroke.Thickness = 1
-        titleStroke.Parent = titleBar
+        local titleStroke = Create("UIStroke", {
+            Color = Library.Theme.OutlineColor,
+            Thickness = 1,
+            Parent = titleBar
+        })
         
         -- Title text
-        local titleText = Instance.new("TextLabel")
-        titleText.Size = UDim2.new(1, -10, 1, 0)
-        titleText.Position = UDim2.fromOffset(5, 0)
-        titleText.BackgroundTransparency = 1
-        titleText.Text = "Keybinds"
-        titleText.TextColor3 = Library.Theme.TextColor
-        titleText.TextSize = 12
-        titleText.Font = Enum.Font.GothamBold
-        titleText.TextXAlignment = Enum.TextXAlignment.Left
-        titleText.Parent = titleBar
+        local titleText = Create("TextLabel", {
+            Size = UDim2.new(1, -10, 1, 0),
+            Position = UDim2.fromOffset(5, 0),
+            BackgroundTransparency = 1,
+            Text = "Keybinds",
+            TextColor3 = Library.Theme.TextColor,
+            TextSize = 12,
+            Font = Enum.Font.GothamBold,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = titleBar
+        })
         
         -- Scrolling frame for keybinds
-        local scrollingFrame = Instance.new("ScrollingFrame")
-        scrollingFrame.Size = UDim2.new(1, -4, 1, -29)
-        scrollingFrame.Position = UDim2.fromOffset(2, 27)
-        scrollingFrame.BackgroundColor3 = Library.Theme.BackgroundColor
-        scrollingFrame.BorderSizePixel = 0
-        scrollingFrame.ScrollBarThickness = 4
-        scrollingFrame.ScrollBarImageColor3 = Library._accent
-        scrollingFrame.CanvasSize = UDim2.fromOffset(0, 0)
-        scrollingFrame.Parent = innerBg
+        local scrollingFrame = Create("ScrollingFrame", {
+            Name = "ScrollingFrame",
+            Size = UDim2.new(1, -4, 1, -29),
+            Position = UDim2.fromOffset(2, 27),
+            BackgroundColor3 = Library.Theme.BackgroundColor,
+            BorderSizePixel = 0,
+            ScrollBarThickness = 4,
+            ScrollBarImageColor3 = Library._accent,
+            CanvasSize = UDim2.fromOffset(0, 0),
+            Parent = innerBg
+        })
+        
+        print("Created scrolling frame in keybind list") -- Debug
+        
+        -- Add a test entry to make sure it's visible
+        local testEntry = Create("Frame", {
+            Name = "TestEntry",
+            Size = UDim2.new(1, -4, 0, 25),
+            Position = UDim2.fromOffset(2, 0),
+            BackgroundColor3 = Library.Theme.ElementColor,
+            BorderSizePixel = 0,
+            Parent = scrollingFrame
+        })
+        
+        local testLabel = Create("TextLabel", {
+            Size = UDim2.new(1, -5, 1, 0),
+            Position = UDim2.fromOffset(5, 0),
+            BackgroundTransparency = 1,
+            Text = "Test Keybind [F] ON",
+            TextColor3 = Library.Theme.TextColor,
+            TextSize = 11,
+            Font = Enum.Font.Gotham,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = testEntry
+        })
+        
+        scrollingFrame.CanvasSize = UDim2.fromOffset(0, 30)
+        print("Added test entry to keybind list") -- Debug
         
         -- PRECISE cursor-locked dragging system for keybind list
         local dragging = false
@@ -773,19 +820,17 @@ do
         
         print("ShowKeybindList called with visible:", visible) -- Debug print
         
-        -- Create keybind list if it doesn't exist and should be visible
         if self._keybindListVisible then
-            print("Creating/showing keybind list") -- Debug print
-            if not self._keybindList or not self._keybindList.Parent then
-                createKeybindList()
-            else
-                self._keybindList.Enabled = true
-            end
+            print("Showing keybind list") -- Debug print
+            -- Always create a fresh keybind list when showing
+            createKeybindList()
+            print("Keybind list created and should be visible") -- Debug print
         else
             print("Hiding keybind list") -- Debug print
             -- Hide existing keybind list
             if self._keybindList and self._keybindList.Parent then
                 self._keybindList.Enabled = false
+                print("Keybind list hidden") -- Debug print
             end
         end
     end
