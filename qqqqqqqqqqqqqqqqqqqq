@@ -496,16 +496,22 @@ do
     end
 end
 
--- Keybind List System - Complete Rewrite
+-- Keybind List System - Exact Copy of Watermark Pattern
 do
-    Library._keybindListGui = nil
+    Library._keybindList = nil
     Library._keybindListVisible = false
     Library._keybinds = {}
+    Library._keybindListPosition = {
+        X = 0, -- Scale
+        XOffset = 20, -- Offset from left
+        Y = 0.5, -- Scale (middle)
+        YOffset = -150 -- Offset from middle
+    }
     
     local function updateKeybindDisplay()
-        if not Library._keybindListGui or not Library._keybindListGui.Parent then return end
+        if not Library._keybindList or not Library._keybindList.Parent then return end
         
-        local scrollFrame = Library._keybindListGui:FindFirstChild("ScrollingFrame", true)
+        local scrollFrame = Library._keybindList:FindFirstChild("ScrollingFrame", true)
         if not scrollFrame then return end
         
         -- Clear existing entries
@@ -568,93 +574,157 @@ do
         scrollFrame.CanvasSize = UDim2.fromOffset(0, yOffset)
     end
     
+    -- Create keybind list using EXACT watermark pattern
     local function createKeybindList()
-        -- Destroy existing
-        if Library._keybindListGui then
-            pcall(function() Library._keybindListGui:Destroy() end)
+        -- Clean up existing keybind list
+        if Library._keybindList then
+            pcall(function() Library._keybindList:Destroy() end)
         end
         
-        -- Calculate position: middle-left of screen
-        local viewport = workspace.CurrentCamera.ViewportSize
-        local posX = 20
-        local posY = math.floor(viewport.Y / 2) - 150
+        -- Find library ScreenGui for proper parenting (EXACT COPY FROM WATERMARK)
+        local libraryGui = nil
+        for _, gui in pairs(CoreGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
+                libraryGui = gui
+                break
+            end
+        end
         
-        -- Create simple ScreenGui directly in CoreGui
-        Library._keybindListGui = Create("ScreenGui", {
+        -- Create keybind list GUI parented to library (EXACT COPY FROM WATERMARK)
+        local keybindListGui = Create("ScreenGui", {
             Name = "KeybindList",
-            Parent = CoreGui,
             ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-            ResetOnSpawn = false
+            IgnoreGuiInset = true,
+            ResetOnSpawn = false,
+            DisplayOrder = 999997,
+            Parent = libraryGui or CoreGui -- Parent to library GUI or fallback to CoreGui
         })
         
-        -- Main frame - simple and guaranteed to work
-        local mainFrame = Create("Frame", {
-            Name = "MainFrame", 
-            Size = UDim2.fromOffset(200, 300),
-            Position = UDim2.fromOffset(posX, posY),
-            BackgroundColor3 = Library.Theme.BackgroundColor,
+        -- Keybind list frame with proper positioning (EXACT COPY FROM WATERMARK)
+        local keybindListFrame = Create("TextButton", {
+            Name = "KeybindListFrame",
+            BackgroundColor3 = Theme.Bg,
+            AutoButtonColor = false,
             BorderSizePixel = 0,
-            Parent = Library._keybindListGui
-        }, {
-            -- Border
-            Create("UIStroke", {
-                Color = Library.Theme.OutlineColor,
-                Thickness = 1
-            }),
-            -- Corner
-            Create("UICorner", {
-                CornerRadius = UDim.new(0, 6)
-            }),
-            -- Title
-            Create("TextLabel", {
-                Name = "Title",
-                Size = UDim2.new(1, 0, 0, 30),
-                BackgroundColor3 = Library.Theme.ElementColor,
-                BorderSizePixel = 0,
-                Text = "Keybinds",
-                TextColor3 = Library.Theme.TextColor,
-                TextSize = 12,
-                Font = Enum.Font.GothamBold,
-                TextXAlignment = Enum.TextXAlignment.Center
-            }, {
-                Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
-                Create("UIStroke", {Color = Library.Theme.OutlineColor, Thickness = 1})
-            }),
-            -- Scrolling frame
-            Create("ScrollingFrame", {
-                Name = "ScrollingFrame",
-                Size = UDim2.new(1, -6, 1, -36),
-                Position = UDim2.fromOffset(3, 33),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                ScrollBarThickness = 3,
-                ScrollBarImageColor3 = Library._accent,
-                CanvasSize = UDim2.fromOffset(0, 0)
-            })
+            Size = UDim2.fromOffset(200, 300),
+            Position = UDim2.new(
+                Library._keybindListPosition.X, 
+                Library._keybindListPosition.XOffset,
+                Library._keybindListPosition.Y,
+                Library._keybindListPosition.YOffset
+            ),
+            AnchorPoint = Vector2.new(0, 0),
+            ZIndex = 1000,
+            Text = "",
+            Parent = keybindListGui
         })
         
-        -- Simple dragging system
+        -- Store reference (EXACT COPY FROM WATERMARK)
+        Library._keybindList = keybindListGui
+        
+        -- Rounded corners
+        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = keybindListFrame})
+        
+        -- Outer border (main outline) (EXACT COPY FROM WATERMARK)
+        local outerBorder = Create("UIStroke", {
+            Color = Theme.Stroke,
+            Thickness = 1.5,
+            Transparency = 0.2,
+            Parent = keybindListFrame
+        })
+        
+        -- Title
+        Create("TextLabel", {
+            Name = "Title",
+            Size = UDim2.new(1, 0, 0, 30),
+            BackgroundColor3 = Library.Theme.ElementColor,
+            BorderSizePixel = 0,
+            Text = "Keybinds",
+            TextColor3 = Library.Theme.TextColor,
+            TextSize = 12,
+            Font = Enum.Font.GothamBold,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            Parent = keybindListFrame
+        })
+        
+        -- Scrolling frame
+        Create("ScrollingFrame", {
+            Name = "ScrollingFrame",
+            Size = UDim2.new(1, -6, 1, -36),
+            Position = UDim2.fromOffset(3, 33),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = Library._accent,
+            CanvasSize = UDim2.fromOffset(0, 0),
+            Parent = keybindListFrame
+        })
+        
+        -- Add test keybind to make sure it's visible
+        Library._keybinds["Test"] = {
+            name = "Test Keybind",
+            key = "F",
+            type = "Keybind",
+            enabled = true,
+            showInList = true
+        }
+        
+        -- PRECISE cursor-locked dragging system (EXACT COPY FROM WATERMARK)
         local dragging = false
         local dragOffset = Vector2.new(0, 0)
         
-        mainFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        keybindListFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
-                local mouse = UserInputService:GetMouseLocation()
-                dragOffset = Vector2.new(mouse.X - mainFrame.AbsolutePosition.X, mouse.Y - mainFrame.AbsolutePosition.Y)
+                
+                -- Get mouse position accounting for GUI inset
+                local mousePos = UserInputService:GetMouseLocation()
+                local guiInset = game:GetService("GuiService"):GetGuiInset()
+                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
+                
+                -- Calculate offset from mouse to frame's top-left corner
+                local framePos = keybindListFrame.AbsolutePosition
+                dragOffset = Vector2.new(adjustedMousePos.X - framePos.X, adjustedMousePos.Y - framePos.Y)
+                
+                -- Visual feedback
+                T(outerBorder, 0.1, {Color = Library._accent, Thickness = 2}):Play()
             end
         end)
         
+        -- Perfect cursor-following movement (EXACT COPY FROM WATERMARK)
         UserInputService.InputChanged:Connect(function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                local mouse = UserInputService:GetMouseLocation()
-                mainFrame.Position = UDim2.fromOffset(mouse.X - dragOffset.X, mouse.Y - dragOffset.Y)
+            if not dragging then return end
+            
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                -- Get current mouse position with GUI inset correction
+                local mousePos = UserInputService:GetMouseLocation()
+                local guiInset = game:GetService("GuiService"):GetGuiInset()
+                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
+                
+                -- Calculate new frame position maintaining the offset
+                local newX = adjustedMousePos.X - dragOffset.X
+                local newY = adjustedMousePos.Y - dragOffset.Y
+                
+                -- Screen boundaries
+                local screenSize = workspace.CurrentCamera.ViewportSize
+                local frameSize = keybindListFrame.AbsoluteSize
+                
+                -- Clamp to screen bounds
+                newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
+                newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
+                
+                -- Apply position instantly for smooth movement
+                keybindListFrame.Position = UDim2.fromOffset(newX, newY)
             end
         end)
         
         UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = false
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if dragging then
+                    dragging = false
+                    -- Reset visual feedback
+                    T(outerBorder, 0.2, {Color = Theme.Stroke, Thickness = 1.5}):Play()
+                end
             end
         end)
         
@@ -662,16 +732,21 @@ do
         updateKeybindDisplay()
     end
     
-    -- Keybind list functions - simplified
+    -- EXACT COPY OF WATERMARK VISIBILITY FUNCTION
     function Library:ShowKeybindList(visible)
-        self._keybindListVisible = visible ~= false
+        self._keybindListVisible = (visible == true)
         
+        -- Create keybind list if it doesn't exist and should be visible
         if self._keybindListVisible then
-            createKeybindList()
+            if not self._keybindList or not self._keybindList.Parent then
+                createKeybindList()
+            else
+                self._keybindList.Enabled = true
+            end
         else
-            if self._keybindListGui then
-                self._keybindListGui:Destroy()
-                self._keybindListGui = nil
+            -- Hide existing keybind list
+            if self._keybindList and self._keybindList.Parent then
+                self._keybindList.Enabled = false
             end
         end
     end
@@ -680,7 +755,7 @@ do
         return self._keybindListVisible
     end
     
-    -- Keybind tracking functions - simplified
+    -- Keybind tracking functions
     function Library:_addKeybind(name, key, type, data)
         local id = name .. "_" .. key
         self._keybinds[id] = {
