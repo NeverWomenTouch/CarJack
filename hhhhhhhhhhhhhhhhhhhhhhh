@@ -2008,6 +2008,12 @@ function Library:CreateLibrary(opts)
                     local default = o.Default
                     local cb = o.Callback
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
+                    
+                    -- Mouse button names for AddKeybind
+                    local mouseButtonNames = {
+                        [Enum.UserInputType.MouseButton1] = "Mouse1",
+                        [Enum.UserInputType.MouseButton2] = "Mouse2"
+                    }
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,30), Position = UDim2.fromOffset(0,nextY(30)), Parent = gFrame})
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.5,-8,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
                     local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5,-4,1,0), Position = UDim2.new(0.5,4,0,0), Text = default and default.Name or "Press a key...", Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
@@ -2044,7 +2050,14 @@ function Library:CreateLibrary(opts)
                     function Keybind:Get() return self._value end
                     function Keybind:Set(keycode, silent)
                         self._value = keycode
-                        box.Text = keycode and keycode.Name or "None"
+                        -- Handle both KeyCode and UserInputType (for mouse buttons)
+                        if keycode and keycode.Name then
+                            box.Text = keycode.Name
+                        elseif keycode and mouseButtonNames[keycode] then
+                            box.Text = mouseButtonNames[keycode]
+                        else
+                            box.Text = "None"
+                        end
                         box.TextColor3 = keycode and Theme.Text or Theme.SubText
                         box.Font = Fonts.Regular
                         -- Auto-resize based on text content
@@ -2065,6 +2078,11 @@ function Library:CreateLibrary(opts)
                             if input.UserInputType == Enum.UserInputType.Keyboard then
                                 waiting = false
                                 Keybind:Set(input.KeyCode)
+                                stopVisual()
+                                unbindSink()
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+                                waiting = false
+                                Keybind:Set(input.UserInputType)
                                 stopVisual()
                                 unbindSink()
                             end
@@ -2091,12 +2109,17 @@ function Library:CreateLibrary(opts)
                             Keybind:Set(input.KeyCode)
                             stopVisual()
                             unbindSink()
+                        elseif waiting and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2) then
+                            waiting = false
+                            Keybind:Set(input.UserInputType)
+                            stopVisual()
+                            unbindSink()
                         elseif waiting and input.KeyCode == Enum.KeyCode.Escape then
                             -- cancel capture with ESC
                             waiting = false
                             stopVisual()
                             unbindSink()
-                            box.Text = Keybind._value and Keybind._value.Name or "None"
+                            box.Text = Keybind._value and (Keybind._value.Name or mouseButtonNames[Keybind._value] or "None") or "None"
                             box.TextColor3 = Keybind._value and Theme.Text or Theme.SubText
                             box.Font = Fonts.Regular
                         end
@@ -3306,7 +3329,7 @@ function Library:CreateLibrary(opts)
                     local mode = o.Mode or "Toggle" -- "Toggle", "Hold", "Always"
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s"):format(Category.Name, Page.Name, Group.Name, label)
                     
-                    -- Key name lookup table
+                    -- Key name lookup table (including mouse buttons)
                     local keyNames = {
                         [Enum.KeyCode.LeftShift] = "LShift", [Enum.KeyCode.RightShift] = "RShift",
                         [Enum.KeyCode.LeftControl] = "LCtrl", [Enum.KeyCode.RightControl] = "RCtrl", 
@@ -3325,7 +3348,16 @@ function Library:CreateLibrary(opts)
                         [Enum.KeyCode.F10] = "F10", [Enum.KeyCode.F11] = "F11", [Enum.KeyCode.F12] = "F12"
                     }
                     
-                    local function getKeyName(keyCode)
+                    -- Mouse button names
+                    local mouseButtonNames = {
+                        [Enum.UserInputType.MouseButton1] = "Mouse1",
+                        [Enum.UserInputType.MouseButton2] = "Mouse2"
+                    }
+                    
+                    local function getKeyName(keyCode, inputType)
+                        if inputType and mouseButtonNames[inputType] then 
+                            return mouseButtonNames[inputType] 
+                        end
                         if keyNames[keyCode] then return keyNames[keyCode] end
                         local name = tostring(keyCode):match("Enum%.KeyCode%.(.+)")
                         return name or "None"
@@ -3333,6 +3365,7 @@ function Library:CreateLibrary(opts)
                     
                     -- State management
                     local currentKey = defaultKey
+                    local currentInputType = nil -- Track if it's a mouse button
                     local isToggled = defaultToggle
                     local isBinding = false
                     local isHolding = false
@@ -3348,7 +3381,7 @@ function Library:CreateLibrary(opts)
                     local rightLayout = Create("UIListLayout", {Parent = rightContainer, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,8), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
                     
                     -- Keybind button (positioned first, so it appears on the right) - styled like normal AddKeybind
-                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(80, 26), Text = getKeyName(currentKey), Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(80, 26), Text = getKeyName(currentKey, currentInputType), Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                     -- Focus line for keybind capture (like normal AddKeybind)
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = keybindBtn})
                     local stroke = keybindBtn:FindFirstChild("Stroke")
@@ -3365,7 +3398,7 @@ function Library:CreateLibrary(opts)
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
                     
                     -- Mode indicator (small badge positioned last, so it appears leftmost)
-                    local modeIndicator = Create("Frame", {BackgroundColor3 = Theme.SubBg, Size = UDim2.fromOffset(18, 18), Parent = rightContainer}, {
+                    local modeIndicator = Create("TextButton", {BackgroundColor3 = Theme.SubBg, Size = UDim2.fromOffset(18, 18), AutoButtonColor = false, Text = "", Parent = rightContainer}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,3)}),
                         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
                     })
@@ -3400,7 +3433,7 @@ function Library:CreateLibrary(opts)
                             end
                             if stroke then T(stroke,0.15,{Transparency = 0.18}):Play() end
                         else
-                            keybindBtn.Text = getKeyName(currentKey)
+                            keybindBtn.Text = getKeyName(currentKey, currentInputType)
                             keybindBtn.TextColor3 = currentKey and Theme.Text or Theme.SubText
                             keybindBtn.Font = Fonts.Regular
                             -- Auto-resize based on text content
@@ -3433,7 +3466,7 @@ function Library:CreateLibrary(opts)
                         updateKeybindVisual()
                         disconnectAll()
                         
-                        -- Listen for key input
+                        -- Listen for key and mouse input
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
                             if gameProcessed then return end
                             if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -3446,11 +3479,19 @@ function Library:CreateLibrary(opts)
                                     setupKeybindListener()
                                 elseif keyCode ~= Enum.KeyCode.Unknown then
                                     currentKey = keyCode
+                                    currentInputType = nil -- It's a keyboard key
                                     isBinding = false
                                     updateKeybindVisual()
                                     disconnectAll()
                                     setupKeybindListener()
                                 end
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+                                currentKey = nil
+                                currentInputType = input.UserInputType
+                                isBinding = false
+                                updateKeybindVisual()
+                                disconnectAll()
+                                setupKeybindListener()
                             end
                         end))
                         
@@ -3488,28 +3529,49 @@ function Library:CreateLibrary(opts)
                         
                         -- Toggle/Hold mode listeners
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
-                            if gameProcessed or input.KeyCode ~= currentKey then return end
+                            if gameProcessed then return end
+                            local matches = false
+                            
+                            if currentInputType then
+                                -- Mouse button
+                                matches = input.UserInputType == currentInputType
+                            else
+                                -- Keyboard key
+                                matches = input.KeyCode == currentKey
+                            end
+                            
+                            if not matches then return end
                             
                             if mode == "Toggle" then
                                 isToggled = not isToggled
                                 updateToggleVisual()
                                 if type(cb) == "function" then
-                                    pcall(cb, isToggled, currentKey)
+                                    pcall(cb, isToggled, currentKey or currentInputType)
                                 end
                             elseif mode == "Hold" then
                                 isHolding = true
                                 if type(cb) == "function" then
-                                    pcall(cb, true, currentKey)
+                                    pcall(cb, true, currentKey or currentInputType)
                                 end
                             end
                         end))
                         
                         if mode == "Hold" then
                             table.insert(connections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
-                                if input.KeyCode ~= currentKey then return end
+                                local matches = false
+                                
+                                if currentInputType then
+                                    -- Mouse button
+                                    matches = input.UserInputType == currentInputType
+                                else
+                                    -- Keyboard key
+                                    matches = input.KeyCode == currentKey
+                                end
+                                
+                                if not matches then return end
                                 isHolding = false
                                 if type(cb) == "function" then
-                                    pcall(cb, false, currentKey)
+                                    pcall(cb, false, currentKey or currentInputType)
                                 end
                             end))
                         end
@@ -3638,10 +3700,18 @@ function Library:CreateLibrary(opts)
                     end
                     
                     function KeybindToggle:SetKey(keyCode, silent)
-                        if typeof(keyCode) == "EnumItem" and keyCode.EnumType == Enum.KeyCode then
-                            currentKey = keyCode
-                            updateKeybindVisual()
-                            if not silent then setupKeybindListener() end
+                        if typeof(keyCode) == "EnumItem" then
+                            if keyCode.EnumType == Enum.KeyCode then
+                                currentKey = keyCode
+                                currentInputType = nil
+                                updateKeybindVisual()
+                                if not silent then setupKeybindListener() end
+                            elseif keyCode.EnumType == Enum.UserInputType and (keyCode == Enum.UserInputType.MouseButton1 or keyCode == Enum.UserInputType.MouseButton2) then
+                                currentKey = nil
+                                currentInputType = keyCode
+                                updateKeybindVisual()
+                                if not silent then setupKeybindListener() end
+                            end
                         end
                     end
                     
@@ -3689,10 +3759,10 @@ function Library:CreateLibrary(opts)
                     
                     function KeybindToggle:Get()
                         return {
-                            Key = currentKey,
+                            Key = currentKey or currentInputType,
                             Toggle = isToggled,
                             Mode = mode,
-                            KeyName = getKeyName(currentKey)
+                            KeyName = getKeyName(currentKey, currentInputType)
                         }
                     end
                     
