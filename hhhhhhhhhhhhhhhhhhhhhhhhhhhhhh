@@ -214,15 +214,18 @@ function Library:CreateLibrary(opts)
             -- exit fullscreen first
             T(root, 0.18, {Size = fsPrevSize, Position = fsPrevPos}):Play()
             fullscreen = false
+            setResizeEnabled(true) -- Re-enable resize grips when exiting fullscreen
         end
         minimized = not minimized
         if minimized then
             prevSize = root.Size; prevPos = root.Position
+            setResizeEnabled(false) -- Disable resize grips when minimized
             for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = false end end
             T(root, 0.18, {Size = UDim2.new(prevSize.X.Scale, prevSize.X.Offset, 0, header.Size.Y.Offset)}):Play()
         else
             for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = true end end
             T(root, 0.18, {Size = prevSize, Position = prevPos}):Play()
+            setResizeEnabled(true) -- Re-enable resize grips when restored
         end
     end)
     fsBtn.MouseButton1Click:Connect(function()
@@ -234,11 +237,13 @@ function Library:CreateLibrary(opts)
         end
         if not fullscreen then
             fsPrevSize, fsPrevPos = root.Size, root.Position
+            setResizeEnabled(false) -- Disable resize grips in fullscreen
             T(root, 0.22, {Size = UDim2.new(1, -20, 1, -20), Position = UDim2.fromScale(0.5, 0.5)}):Play()
             fullscreen = true
         else
             T(root, 0.22, {Size = fsPrevSize, Position = fsPrevPos}):Play()
             fullscreen = false
+            setResizeEnabled(true) -- Re-enable resize grips when exiting fullscreen
         end
     end)
     local body = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -12, 1, -(46 + 12)), Position = UDim2.fromOffset(6, 46 + 6), ZIndex = z, Parent = root})
@@ -283,7 +288,24 @@ function Library:CreateLibrary(opts)
         end)
         RS.RenderStepped:Connect(update)
         local resizingCount = 0
+        local allGrips = {} -- Store all resize grips for management
         local sizeLabel = Create("TextLabel", {BackgroundTransparency = 0.25, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(110, 20), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1, -8, 1, -8), Text = "", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, Visible = false, Parent = root}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0.4})})
+        
+        -- Function to enable/disable resize functionality
+        local function setResizeEnabled(enabled)
+            for _, grip in pairs(allGrips) do
+                grip.Active = enabled
+                grip.Visible = enabled
+            end
+            if not enabled then
+                -- Force end any active resize
+                resizing = false
+                resizingCount = 0
+                sizeLabel.Visible = false
+                -- Reset stroke to normal
+                T(rootStroke, 0.15, {Thickness = 1, Transparency = 0.3}):Play()
+            end
+        end
         local function resizeStartEffect()
             T(rootStroke, 0.15, {Thickness = 2, Transparency = 0.15}):Play()
         end
@@ -302,6 +324,7 @@ function Library:CreateLibrary(opts)
             local gp = {tl = Vector2.new(0,0), tr = Vector2.new(1,0), bl = Vector2.new(0,1), br = Vector2.new(1,1)}
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
+            table.insert(allGrips, grip) -- Store reference for management
             if showVisual then
                 -- Clean resize grip with diagonal dot pattern
                 local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-4,1,-4), ZIndex = z + 4, Parent = grip})
@@ -369,6 +392,7 @@ function Library:CreateLibrary(opts)
             local minW, minH = 520, 380
             grip.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    if fullscreen then return end -- Prevent resizing in fullscreen mode
                     resizing = true
                     resizingCount = resizingCount + 1
                     if resizingCount == 1 then resizeStartEffect() end
