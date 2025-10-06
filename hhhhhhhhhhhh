@@ -2328,10 +2328,14 @@ function Library:CreateLibrary(opts)
                             local txt = pasteText()
                             if not txt then return end
                             -- Check for mode information in pasted text
-                            local colorPart, modePart = txt:match("^([^|]+)|?(.*)$")
-                            local r,g,b = parseRGBText(colorPart or txt)
+                            local colorPart, modePart = txt:match("^([^|]+)|(.+)$")
+                            if not modePart then
+                                colorPart = txt
+                                modePart = ""
+                            end
+                            local r,g,b = parseRGBText(colorPart)
                             if not r then 
-                                local hr,hg,hb = hexToRGB(colorPart or txt)
+                                local hr,hg,hb = hexToRGB(colorPart)
                                 if hr then r,g,b = hr,hg,hb end 
                             end
                             if r then
@@ -2362,18 +2366,16 @@ function Library:CreateLibrary(opts)
                                 if type(cb)=="function" then pcall(cb, c, activeIndex) end
                             end
                         end)
-                        -- position near btnFor: left-aligned above the swatch (fallback clamped)
+                        -- position near btnFor using same logic as colorpicker panel but above
                         local finalH = vPad*2 + (itemH*2) + gap
-                        local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
-                        local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        -- align left edge with swatch, place above with small gap
-                        local px = (tAbs.X - rootAbs.X)
-                        local py = (tAbs.Y - rootAbs.Y) - finalH - 4
-                        -- clamp within root
-                        px = math.clamp(px, 4, rootSz.X - menuW - 4)
-                        py = math.clamp(py, 4, rootSz.Y - finalH - 4)
-                        -- parented to RootGui, so convert to absolute screen coords by adding rootAbs
-                        ctxMenu.Position = UDim2.fromOffset(rootAbs.X + px, rootAbs.Y + py)
+                        local btnAbs = btnFor.AbsolutePosition
+                        local btnSize = btnFor.AbsoluteSize
+                        -- Since RootGui has IgnoreGuiInset = true, we need to account for the top bar
+                        local guiInset = game:GetService("GuiService"):GetGuiInset()
+                        -- Position menu directly above the button, aligned to left edge
+                        local px = btnAbs.X
+                        local py = btnAbs.Y - finalH - 6 + guiInset.Y
+                        ctxMenu.Position = UDim2.fromOffset(px, py)
                         ctxMenu.Size = UDim2.fromOffset(menuW,0)
                         local tw = T(ctxMenu,0.14,{Size = UDim2.fromOffset(menuW, finalH), BackgroundTransparency = 0})
                         tw:Play(); ctxOpen = true
@@ -2443,9 +2445,11 @@ function Library:CreateLibrary(opts)
                             slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
                         end
                         return rainbowAdd(function(h)
-                            local s,v = slot.hsv[2], slot.hsv[3]
+                            -- For RGB mode, ensure good saturation and value for visible colors
+                            local s = math.max(0.8, slot.hsv[2] or 1) -- Minimum 80% saturation
+                            local v = math.max(0.7, slot.hsv[3] or 1) -- Minimum 70% value
                             local hh = (h + (slot.hueOffset or 0)) % 1
-                            slot.hsv = {hh,s,v}
+                            slot.hsv = {hh, s, v}
                             local c = hsvToColor(slot.hsv)
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
@@ -2686,8 +2690,9 @@ function Library:CreateLibrary(opts)
                         slot.pulse = true
                         -- Ensure rainbow animation starts and then add pulse hook
                         slot.pulseHook = rainbowAdd(function(h)
-                            local s = slot.hsv[2] or 1
-                            local baseV = slot.hsv[3] or 1
+                            -- For Pulse mode, ensure good saturation and base value for visible effects
+                            local s = math.max(0.8, slot.hsv[2] or 1) -- Minimum 80% saturation
+                            local baseV = math.max(0.7, slot.hsv[3] or 1) -- Minimum 70% base value
                             local hh = (h + (slot.pulseHueOffset or 0)) % 1
                             local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4))
                             local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
@@ -2715,7 +2720,7 @@ function Library:CreateLibrary(opts)
                     end
 
                     local function resolveColorPanelPosition(targetBtn, width, height)
-                        width = math.max(0, width or 270)
+                        width = math.max(0, width or 260)
                         height = math.max(0, height or 220)
                         local btnAbs = targetBtn.AbsolutePosition
                         local btnSize = targetBtn.AbsoluteSize
@@ -2746,7 +2751,7 @@ function Library:CreateLibrary(opts)
                                 panel.Visible = true
                             end
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            if width <= 0 then width = 270 end
+                            if width <= 0 then width = 260 end
                             if height <= 0 then height = 220 end
                             local px, py = resolveColorPanelPosition(btnFor, width, height)
                             panel.Position = UDim2.fromOffset(px, py)
@@ -2797,7 +2802,7 @@ function Library:CreateLibrary(opts)
                             })
                             -- (Removed overlay border; using panel's own stroke so it outlines the true main holder)
                             -- Left: SV square (S across X, V across Y), base hue set by slider; plus RGB/Hex inputs
-                            local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(220, 210), ZIndex = content.ZIndex + 1, Parent = content})
+                            local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             sv = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = sv})
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = sv})
@@ -2817,8 +2822,8 @@ function Library:CreateLibrary(opts)
                             local HUE_W, HUE_H = 26, 150
                             local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             -- Make the hue slider background opaque white so the UIGradient is visible and vibrant
-                            -- Center slider above the checkboxes
-                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(13, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                            -- Center slider above the checkboxes (checkboxes are at X=190, so center slider above them)
+                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(8, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -2833,13 +2838,13 @@ function Library:CreateLibrary(opts)
                             hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                                 -- RGB checkbox + label centered between RGB textbox end and frame boundary
-                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 22), Position = UDim2.fromOffset(185, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
+                            local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 22), Position = UDim2.fromOffset(190, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = cbRow.ZIndex + 1, Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = cbBox.ZIndex + 1, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(24,22), Position = UDim2.fromOffset(16,0), Text = "RGB", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = cbRow.ZIndex + 1, Parent = cbRow})
                             
                             -- Pulse RGB checkbox + label positioned at hex textbox Y level, same X as RGB checkbox
-                            local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(185, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
+                            local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(190, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
@@ -3039,7 +3044,7 @@ function Library:CreateLibrary(opts)
                         if Library._openColorCtxClose then pcall(Library._openColorCtxClose); Library._openColorCtxClose = nil end
                         Library._openColorPanelClose = closePanel
 
-                        local width, height = 270, 220
+                        local width, height = 260, 220
 
                         -- Since panel is parented to RootGui, use screen coordinates
                         -- Position directly below the button
