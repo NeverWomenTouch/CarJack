@@ -76,6 +76,14 @@ do
     Library._watermarkFontSize = 13
     Library._watermarkTransparency = 0
     
+    -- Watermark position persistence (can be saved/loaded with configs)
+    Library._watermarkPosition = Library._watermarkPosition or {
+        X = 1, -- Scale
+        XOffset = -260, -- Offset
+        Y = 0, -- Scale  
+        YOffset = 10 -- Offset
+    }
+    
     -- Create optimized watermark GUI
     local function createWatermark()
         -- Clean up existing watermarks
@@ -89,24 +97,29 @@ do
             pcall(function() Library._watermark:Destroy() end)
         end
         
-        -- Create ScreenGui for watermark
+        -- Create ScreenGui for watermark (parented to library for automatic cleanup)
         local watermarkGui = Create("ScreenGui", {
             Name = "DendriteWatermark",
             ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
             IgnoreGuiInset = true,
             ResetOnSpawn = false,
             DisplayOrder = 999998,
-            Parent = CoreGui
+            Parent = Library._ScreenGui -- Parent to library GUI for automatic cleanup
         })
         
-        -- Watermark frame with library background color
+        -- Watermark frame with library background color (using saved position)
         local watermarkFrame = Create("TextButton", {
             Name = "WatermarkFrame",
             BackgroundColor3 = Theme.Bg,
             AutoButtonColor = false,
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(250, 30),
-            Position = UDim2.new(1, -260, 0, 10),
+            Position = UDim2.new(
+                Library._watermarkPosition.X, 
+                Library._watermarkPosition.XOffset,
+                Library._watermarkPosition.Y,
+                Library._watermarkPosition.YOffset
+            ),
             AnchorPoint = Vector2.new(0, 0),
             ZIndex = 1000,
             Text = "",
@@ -177,15 +190,35 @@ do
             TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         })
         
-        -- Auto-resize functionality
+        -- Auto-resize functionality (preserves position)
         local function updateSize()
             local textService = game:GetService("TextService")
-            local textSize = textService:GetTextSize(watermarkLabel.Text, Library._watermarkFontSize, Library._watermarkFont, Vector2.new(math.huge, 30))
+            local textSize = textService:GetTextSize(watermarkLabel.Text, Library._watermarkFont, Library._watermarkFontSize, Vector2.new(math.huge, 30))
             local newWidth = math.max(textSize.X + 16, 150) -- Padding for new layout
             
-            -- Instant resize for better performance
+            -- Resize without changing position
             watermarkFrame.Size = UDim2.fromOffset(newWidth, 30)
-            watermarkFrame.Position = UDim2.new(1, -(newWidth + 10), 0, 10)
+            
+            -- Only adjust position if it's at default top-right
+            if Library._watermarkPosition.X == 1 and Library._watermarkPosition.XOffset < 0 then
+                Library._watermarkPosition.XOffset = -(newWidth + 10)
+                watermarkFrame.Position = UDim2.new(
+                    Library._watermarkPosition.X,
+                    Library._watermarkPosition.XOffset,
+                    Library._watermarkPosition.Y,
+                    Library._watermarkPosition.YOffset
+                )
+            end
+        end
+        
+        -- Function to save current position
+        local function savePosition()
+            Library._watermarkPosition = {
+                X = watermarkFrame.Position.X.Scale,
+                XOffset = watermarkFrame.Position.X.Offset,
+                Y = watermarkFrame.Position.Y.Scale,
+                YOffset = watermarkFrame.Position.Y.Offset
+            }
         end
         
         -- Update functions
@@ -204,13 +237,12 @@ do
             end
         end
         
-        -- Fixed dragging system with proper mobile support
+        -- Perfect dragging system with proper cursor positioning
         local dragging = false
         local dragStart = nil
-        local startPos = nil
         local dragOffset = Vector2.new(0, 0)
         
-        -- Get proper input position for both PC and mobile
+        -- Get input position (works for both PC and mobile)
         local function getInputPosition(input)
             if input.UserInputType == Enum.UserInputType.Touch then
                 return input.Position
@@ -223,14 +255,13 @@ do
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragStart = getInputPosition(input)
-                startPos = watermarkFrame.Position
                 
-                -- Calculate offset from click position to frame position to prevent jumping
-                local framePos = Vector2.new(
+                -- Calculate offset from cursor to top-left of frame (prevents jumping)
+                local frameTopLeft = Vector2.new(
                     watermarkFrame.AbsolutePosition.X,
                     watermarkFrame.AbsolutePosition.Y
                 )
-                dragOffset = dragStart - framePos
+                dragOffset = dragStart - frameTopLeft
                 
                 -- Visual feedback
                 T(outerBorder, 0.1, {Color = Library._watermarkAccentColor, Thickness = 2}):Play()
@@ -240,22 +271,25 @@ do
             end
         end)
         
-        -- Smooth drag movement
+        -- Smooth drag movement with proper positioning
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
                 local currentPos = getInputPosition(input)
                 
-                -- Calculate new position with offset to prevent jumping
-                local newX = currentPos.X - dragOffset.X
-                local newY = currentPos.Y - dragOffset.Y
+                -- Calculate frame position (cursor position minus offset)
+                local newFrameX = currentPos.X - dragOffset.X
+                local newFrameY = currentPos.Y - dragOffset.Y
                 
-                -- Screen bounds
+                -- Screen bounds with proper margins
                 local screenSize = workspace.CurrentCamera.ViewportSize
                 local frameSize = watermarkFrame.AbsoluteSize
-                local clampedX = math.clamp(newX, 0, screenSize.X - frameSize.X)
-                local clampedY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
+                local margin = 5
                 
+                local clampedX = math.clamp(newFrameX, margin, screenSize.X - frameSize.X - margin)
+                local clampedY = math.clamp(newFrameY, margin, screenSize.Y - frameSize.Y - margin)
+                
+                -- Update position
                 watermarkFrame.Position = UDim2.fromOffset(clampedX, clampedY)
             end
         end)
@@ -264,6 +298,9 @@ do
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 if dragging then
                     dragging = false
+                    
+                    -- Save new position
+                    savePosition()
                     
                     -- Reset visual feedback
                     T(outerBorder, 0.2, {Color = Theme.Stroke, Thickness = 1.5}):Play()
@@ -304,6 +341,7 @@ do
         Library._outerBorder = outerBorder
         Library._accentBorder = accentBorder
         Library._innerFrame = innerFrame
+        Library._saveWatermarkPosition = savePosition
         Library._updateWatermarkText = updateText
         Library._updateWatermarkTextColor = updateTextColor
         Library._updateWatermarkAccentColor = updateAccentColor
@@ -352,6 +390,33 @@ do
     
     function Library:GetWatermarkVisibility()
         return self._watermarkVisible
+    end
+    
+    -- Get watermark position (for saving in configs)
+    function Library:GetWatermarkPosition()
+        return self._watermarkPosition
+    end
+    
+    -- Set watermark position (for loading from configs)
+    function Library:SetWatermarkPosition(position)
+        if position and type(position) == "table" then
+            self._watermarkPosition = {
+                X = position.X or 1,
+                XOffset = position.XOffset or -260,
+                Y = position.Y or 0,
+                YOffset = position.YOffset or 10
+            }
+            
+            -- Update frame position if watermark exists
+            if self._watermarkFrame then
+                self._watermarkFrame.Position = UDim2.new(
+                    self._watermarkPosition.X,
+                    self._watermarkPosition.XOffset,
+                    self._watermarkPosition.Y,
+                    self._watermarkPosition.YOffset
+                )
+            end
+        end
     end
     
     -- Advanced customization functions
