@@ -209,6 +209,25 @@ function Library:CreateLibrary(opts)
     fsBtn.MouseLeave:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
     local minimized, prevSize, prevPos = false, root.Size, root.Position
     local fullscreen, fsPrevSize, fsPrevPos = false, nil, nil
+    
+    -- Forward declarations for resize management
+    local allGrips = {} -- Store all resize grips for management
+    local resizing = false
+    local setResizeEnabled -- Forward declaration
+    
+    -- Function to enable/disable resize functionality
+    setResizeEnabled = function(enabled)
+        for _, grip in pairs(allGrips) do
+            grip.Active = enabled
+            grip.Visible = enabled
+        end
+        if not enabled then
+            -- Force end any active resize
+            resizing = false
+            -- Reset visual effects will be handled in the resize section
+        end
+    end
+    
     minBtn.MouseButton1Click:Connect(function()
         if fullscreen then
             -- exit fullscreen first
@@ -288,18 +307,14 @@ function Library:CreateLibrary(opts)
         end)
         RS.RenderStepped:Connect(update)
         local resizingCount = 0
-        local allGrips = {} -- Store all resize grips for management
         local sizeLabel = Create("TextLabel", {BackgroundTransparency = 0.25, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(110, 20), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1, -8, 1, -8), Text = "", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, Visible = false, Parent = root}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0.4})})
         
-        -- Function to enable/disable resize functionality
-        local function setResizeEnabled(enabled)
-            for _, grip in pairs(allGrips) do
-                grip.Active = enabled
-                grip.Visible = enabled
-            end
+        -- Update the setResizeEnabled function to handle resize-specific cleanup
+        local originalSetResizeEnabled = setResizeEnabled
+        setResizeEnabled = function(enabled)
+            originalSetResizeEnabled(enabled)
             if not enabled then
-                -- Force end any active resize
-                resizing = false
+                -- Additional resize-specific cleanup
                 resizingCount = 0
                 sizeLabel.Visible = false
                 -- Reset stroke to normal
