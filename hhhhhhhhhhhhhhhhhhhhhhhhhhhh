@@ -3487,45 +3487,35 @@ function Library:CreateLibrary(opts)
                                 if keyCode == Enum.KeyCode.Escape then
                                     -- Cancel binding with ESC
                                     isBinding = false
-                                    updateKeybindVisual()
-                                    disconnectAll()
-                                    setupKeybindListener()
+                                    if updateKeybindVisual then updateKeybindVisual() end
+                                    if disconnectAll then disconnectAll() end
+                                    if setupKeybindListener then setupKeybindListener() end
                                 elseif keyCode ~= Enum.KeyCode.Unknown then
                                     currentKey = keyCode
                                     currentInputType = nil -- It's a keyboard key
                                     isBinding = false
-                                    updateKeybindVisual()
-                                    disconnectAll()
-                                    setupKeybindListener()
+                                    if updateKeybindVisual then updateKeybindVisual() end
+                                    if disconnectAll then disconnectAll() end
+                                    if setupKeybindListener then setupKeybindListener() end
                                 end
-                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+                                -- Capture mouse buttons immediately without delay
                                 currentKey = nil
                                 currentInputType = input.UserInputType
                                 isBinding = false
-                                updateKeybindVisual()
-                                disconnectAll()
-                                setupKeybindListener()
-                            elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-                                -- Handle MouseButton2 with delay to avoid context menu interference
-                                task.wait(0.1)
-                                if isBinding then  -- Still binding after delay
-                                    currentKey = nil
-                                    currentInputType = input.UserInputType
-                                    isBinding = false
-                                    updateKeybindVisual()
-                                    disconnectAll()
-                                    setupKeybindListener()
-                                end
+                                if updateKeybindVisual then updateKeybindVisual() end
+                                if disconnectAll then disconnectAll() end
+                                if setupKeybindListener then setupKeybindListener() end
                             end
                         end))
                         
-                        -- Cancel binding on Escape key
+                        -- Additional safety handler for edge cases
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input)
-                            if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Escape then
+                            if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Escape and isBinding then
                                 isBinding = false
-                                updateKeybindVisual()
-                                disconnectAll()
-                                setupKeybindListener()
+                                if updateKeybindVisual then updateKeybindVisual() end
+                                if disconnectAll then disconnectAll() end
+                                if setupKeybindListener then setupKeybindListener() end
                             end
                         end))
                     end
@@ -3705,9 +3695,31 @@ function Library:CreateLibrary(opts)
                     end
 
                     -- Button events
-                    keybindBtn.MouseButton1Click:Connect(startBinding)
+                    keybindBtn.MouseButton1Click:Connect(function()
+                        if isBinding then
+                            -- If already binding, capture MouseButton1 as the keybind
+                            currentKey = nil
+                            currentInputType = Enum.UserInputType.MouseButton1
+                            isBinding = false
+                            if updateKeybindVisual then updateKeybindVisual() end
+                            if disconnectAll then disconnectAll() end
+                            if setupKeybindListener then setupKeybindListener() end
+                        else
+                            -- Start binding mode
+                            startBinding()
+                        end
+                    end)
                     keybindBtn.MouseButton2Click:Connect(function()
-                        if not isBinding then  -- Only open context menu if not currently binding
+                        if isBinding then
+                            -- If binding, capture MouseButton2 as the keybind
+                            currentKey = nil
+                            currentInputType = Enum.UserInputType.MouseButton2
+                            isBinding = false
+                            if updateKeybindVisual then updateKeybindVisual() end
+                            if disconnectAll then disconnectAll() end
+                            if setupKeybindListener then setupKeybindListener() end
+                        elseif not isBinding then  
+                            -- Only open context menu if not currently binding
                             openCtx()
                         end
                     end)
