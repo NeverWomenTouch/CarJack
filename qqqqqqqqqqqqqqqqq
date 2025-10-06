@@ -504,9 +504,9 @@ do
     Library._keybinds = {} -- Track all keybinds
     
     local function updateKeybindDisplay()
-        if not Library._keybindList or not Library._keybindList.Parent then return end
+        if not Library._keybindListFrame or not Library._keybindListFrame.Parent then return end
         
-        local scrollingFrame = Library._keybindList:FindFirstChild("ScrollingFrame")
+        local scrollingFrame = Library._keybindListFrame:FindFirstChild("ScrollingFrame")
         if not scrollingFrame then return end
         
         -- Clear existing keybind entries
@@ -605,6 +605,25 @@ do
             Library._keybindList:Destroy()
         end
         
+        -- Find library ScreenGui for proper parenting
+        local libraryGui = nil
+        for _, gui in pairs(CoreGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
+                libraryGui = gui
+                break
+            end
+        end
+        
+        -- Create keybind list GUI parented to library
+        local keybindListGui = Create("ScreenGui", {
+            Name = "KeybindList",
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+            IgnoreGuiInset = true,
+            ResetOnSpawn = false,
+            DisplayOrder = 999997,
+            Parent = libraryGui or CoreGui -- Parent to library GUI or fallback to CoreGui
+        })
+        
         -- Main keybind list frame
         local keybindListFrame = Instance.new("Frame")
         keybindListFrame.Name = "DendriteKeybindList"
@@ -613,8 +632,9 @@ do
         keybindListFrame.BackgroundColor3 = Library.Theme.BackgroundColor
         keybindListFrame.BorderSizePixel = 0
         keybindListFrame.Active = true
-        keybindListFrame.Parent = Library._ui
-        Library._keybindList = keybindListFrame
+        keybindListFrame.Parent = keybindListGui
+        Library._keybindList = keybindListGui
+        Library._keybindListFrame = keybindListFrame
         
         -- Outer border (main outline)
         local outerBorder = Instance.new("UIStroke")
@@ -751,14 +771,18 @@ do
         if visible == nil then visible = true end
         self._keybindListVisible = (visible == true)
         
+        print("ShowKeybindList called with visible:", visible) -- Debug print
+        
         -- Create keybind list if it doesn't exist and should be visible
         if self._keybindListVisible then
+            print("Creating/showing keybind list") -- Debug print
             if not self._keybindList or not self._keybindList.Parent then
                 createKeybindList()
             else
                 self._keybindList.Enabled = true
             end
         else
+            print("Hiding keybind list") -- Debug print
             -- Hide existing keybind list
             if self._keybindList and self._keybindList.Parent then
                 self._keybindList.Enabled = false
@@ -782,8 +806,8 @@ do
             }
             
             -- Update existing keybind list position if it exists
-            if self._keybindList and self._keybindList.Parent then
-                self._keybindList.Position = UDim2.fromOffset(self._keybindListPosition.X, self._keybindListPosition.Y)
+            if self._keybindListFrame and self._keybindListFrame.Parent then
+                self._keybindListFrame.Position = UDim2.fromOffset(self._keybindListPosition.X, self._keybindListPosition.Y)
             end
         end
     end
