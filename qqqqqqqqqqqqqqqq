@@ -2899,8 +2899,9 @@ function Library:CreateLibrary(opts)
                         
                         -- Update keybind list tracking
                         if self._keybindId then
+                            local keyName = keycode and (keycode.Name or mouseButtonNames[keycode]) or "None"
                             Library:_updateKeybind(self._keybindId, {
-                                key = getKeyName(keycode)
+                                key = keyName
                             })
                         end
                         
@@ -3102,7 +3103,17 @@ function Library:CreateLibrary(opts)
                     end)
 
                     -- Add to keybind list tracking system
-                    local keybindId = Library:_addKeybind(label, getKeyName(default), "Keybind", {
+                    local function getDefaultKeyName(keycode)
+                        if keycode and keycode.Name then
+                            return keycode.Name
+                        elseif keycode and mouseButtonNames[keycode] then
+                            return mouseButtonNames[keycode]
+                        else
+                            return "None"
+                        end
+                    end
+                    
+                    local keybindId = Library:_addKeybind(label, getDefaultKeyName(default), "Keybind", {
                         enabled = false,
                         showInList = true,
                         keybindObject = Keybind
