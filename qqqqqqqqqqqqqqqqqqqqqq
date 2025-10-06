@@ -496,361 +496,98 @@ do
     end
 end
 
--- Keybind List System - Exact Copy of Watermark Pattern
+-- Keybind List System - Super Simple Version That WILL Work
 do
-    Library._keybindList = nil
-    Library._keybindListVisible = false
+    Library._keybindListGui = nil
+    Library._keybindListVisible = true -- Show by default
     Library._keybinds = {}
-    Library._keybindListPosition = {
-        X = 0, -- Scale
-        XOffset = 20, -- Offset from left
-        Y = 0.5, -- Scale (middle)
-        YOffset = -150 -- Offset from middle
-    }
     
     local function updateKeybindDisplay()
-        if not Library._keybindList or not Library._keybindList.Parent then return end
-        
-        local scrollFrame = Library._keybindList:FindFirstChild("ScrollingFrame", true)
-        if not scrollFrame then return end
-        
-        -- Clear existing entries
-        for _, child in pairs(scrollFrame:GetChildren()) do
-            if child.Name == "KeybindEntry" then
-                child:Destroy()
-            end
-        end
-        
-        local yOffset = 0
-        
-        -- Add keybinds to display with detailed styling
-        for _, data in pairs(Library._keybinds) do
-            if data.showInList and (data.type ~= "ToggleKeybind" or data.toggleEnabled) then
-                -- Main entry frame with detailed borders
-                local entry = Create("Frame", {
-                    Name = "KeybindEntry",
-                    Size = UDim2.new(1, -6, 0, 26),
-                    Position = UDim2.fromOffset(3, yOffset),
-                    BackgroundColor3 = Library.Theme.ElementColor,
-                    BorderSizePixel = 0,
-                    Parent = scrollFrame
-                })
-                
-                -- Rounded corners for entry
-                Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = entry})
-                
-                -- Entry border
-                Create("UIStroke", {
-                    Color = Library.Theme.OutlineColor,
-                    Thickness = 1,
-                    Transparency = 0.4,
-                    Parent = entry
-                })
-                
-                -- Accent highlight frame
-                local accentHighlight = Create("Frame", {
-                    Size = UDim2.new(1, -2, 1, -2),
-                    Position = UDim2.fromOffset(1, 1),
-                    BackgroundColor3 = Library.Theme.BackgroundColor,
-                    BorderSizePixel = 0,
-                    Parent = entry
-                })
-                
-                Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = accentHighlight})
-                
-                -- Subtle accent border
-                Create("UIStroke", {
-                    Color = Library._accent,
-                    Thickness = 0.5,
-                    Transparency = 0.8,
-                    Parent = accentHighlight
-                })
-                
-                -- Keybind name label
-                Create("TextLabel", {
-                    Name = "NameLabel",
-                    Size = UDim2.new(0.5, -8, 1, 0),
-                    Position = UDim2.fromOffset(6, 0),
-                    BackgroundTransparency = 1,
-                    Text = data.name,
-                    TextColor3 = Library.Theme.TextColor,
-                    TextSize = 11,
-                    Font = Enum.Font.Gotham,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    TextTruncate = Enum.TextTruncate.AtEnd,
-                    Parent = accentHighlight
-                })
-                
-                -- Key display with background
-                local keyFrame = Create("Frame", {
-                    Size = UDim2.new(0.25, -4, 0, 16),
-                    Position = UDim2.new(0.5, -2, 0.5, -8),
-                    BackgroundColor3 = Library.Theme.BackgroundColor,
-                    BorderSizePixel = 0,
-                    Parent = accentHighlight
-                })
-                
-                Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = keyFrame})
-                Create("UIStroke", {
-                    Color = Library._accent,
-                    Thickness = 1,
-                    Transparency = 0.3,
-                    Parent = keyFrame
-                })
-                
-                Create("TextLabel", {
-                    Name = "KeyLabel",
-                    Size = UDim2.new(1, -4, 1, 0),
-                    Position = UDim2.fromOffset(2, 0),
-                    BackgroundTransparency = 1,
-                    Text = data.key,
-                    TextColor3 = Library._accent,
-                    TextSize = 9,
-                    Font = Enum.Font.GothamBold,
-                    TextXAlignment = Enum.TextXAlignment.Center,
-                    Parent = keyFrame
-                })
-                
-                -- Status indicator with colored background
-                local statusColor = data.enabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(183, 28, 28)
-                local statusText = data.enabled and "ON" or "OFF"
-                
-                if data.type == "ToggleKeybind" then
-                    statusColor = Library._accent
-                    statusText = "TOGGLE"
-                end
-                
-                local statusFrame = Create("Frame", {
-                    Size = UDim2.new(0.2, -4, 0, 14),
-                    Position = UDim2.new(0.78, 0, 0.5, -7),
-                    BackgroundColor3 = statusColor,
-                    BorderSizePixel = 0,
-                    Parent = accentHighlight
-                })
-                
-                Create("UICorner", {CornerRadius = UDim.new(0, 2), Parent = statusFrame})
-                
-                Create("TextLabel", {
-                    Name = "StatusLabel",
-                    Size = UDim2.new(1, 0, 1, 0),
-                    BackgroundTransparency = 1,
-                    Text = statusText,
-                    TextColor3 = Color3.fromRGB(255, 255, 255),
-                    TextSize = 8,
-                    Font = Enum.Font.GothamBold,
-                    TextXAlignment = Enum.TextXAlignment.Center,
-                    Parent = statusFrame
-                })
-                
-                yOffset = yOffset + 30
-            end
-        end
-        
-        scrollFrame.CanvasSize = UDim2.fromOffset(0, yOffset)
+        -- Simple update function - will add entries later
     end
     
     -- Create keybind list using EXACT watermark pattern
-    local function createKeybindList()
-        -- Clean up existing keybind list
+    function Library:_createKeybindList()
+        print("Creating keybind list...")
+        
+        -- Destroy existing
         if Library._keybindList then
             pcall(function() Library._keybindList:Destroy() end)
         end
         
-        -- Find library ScreenGui for proper parenting (EXACT COPY FROM WATERMARK)
-        local libraryGui = nil
-        for _, gui in pairs(CoreGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
-                libraryGui = gui
-                break
-            end
-        end
+        -- Calculate middle-left position
+        local screenSize = workspace.CurrentCamera.ViewportSize
+        local posX = 20
+        local posY = (screenSize.Y / 2) - 150
         
-        -- Create keybind list GUI parented to library (EXACT COPY FROM WATERMARK)
-        local keybindListGui = Create("ScreenGui", {
-            Name = "KeybindList",
-            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-            IgnoreGuiInset = true,
-            ResetOnSpawn = false,
-            DisplayOrder = 999997,
-            Parent = libraryGui or CoreGui -- Parent to library GUI or fallback to CoreGui
-        })
+        print("Screen size:", screenSize)
+        print("Positioning at:", posX, posY)
         
-        -- Keybind list frame with detailed styling like watermark
-        local keybindListFrame = Create("TextButton", {
-            Name = "KeybindListFrame",
-            BackgroundColor3 = Library.Theme.BackgroundColor,
-            AutoButtonColor = false,
-            BorderSizePixel = 0,
-            Size = UDim2.fromOffset(220, 300),
-            Position = UDim2.new(
-                Library._keybindListPosition.X, 
-                Library._keybindListPosition.XOffset,
-                Library._keybindListPosition.Y,
-                Library._keybindListPosition.YOffset
-            ),
-            AnchorPoint = Vector2.new(0, 0),
-            ZIndex = 1000,
-            Text = "",
-            Parent = keybindListGui
-        })
+        -- Create ScreenGui directly in CoreGui
+        Library._keybindList = Instance.new("ScreenGui")
+        Library._keybindList.Name = "KeybindList" 
+        Library._keybindList.Parent = CoreGui
+        Library._keybindList.ResetOnSpawn = false
+        Library._keybindList.DisplayOrder = 999998
         
-        -- Store reference
-        Library._keybindList = keybindListGui
+        print("Created ScreenGui in CoreGui")
         
-        -- Rounded corners
-        Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = keybindListFrame})
+        -- Create main frame
+        local mainFrame = Instance.new("Frame")
+        mainFrame.Name = "MainFrame"
+        mainFrame.Size = UDim2.fromOffset(220, 300)
+        mainFrame.Position = UDim2.fromOffset(posX, posY)
+        mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+        mainFrame.BorderSizePixel = 0
+        mainFrame.Parent = Library._keybindList
         
-        -- Main outer border
-        local outerBorder = Create("UIStroke", {
-            Color = Library.Theme.OutlineColor,
-            Thickness = 1,
-            Transparency = 0,
-            Parent = keybindListFrame
-        })
+        print("Created main frame")
         
-        -- Accent border frame (inner glow effect like watermark)
-        local accentFrame = Create("Frame", {
-            Name = "AccentFrame",
-            Size = UDim2.new(1, -2, 1, -2),
-            Position = UDim2.fromOffset(1, 1),
-            BackgroundColor3 = Library.Theme.ElementColor,
-            BorderSizePixel = 0,
-            Parent = keybindListFrame
-        })
+        -- Add corner and border
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = mainFrame
         
-        Create("UICorner", {CornerRadius = UDim.new(0, 5), Parent = accentFrame})
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(100, 100, 100)
+        stroke.Thickness = 1
+        stroke.Parent = mainFrame
         
-        -- Accent stroke (glowing accent line)
-        local accentStroke = Create("UIStroke", {
-            Color = Library._accent,
-            Thickness = 1,
-            Transparency = 0.6,
-            Parent = accentFrame
-        })
+        -- Title bar
+        local title = Instance.new("Frame")
+        title.Size = UDim2.new(1, 0, 0, 30)
+        title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        title.BorderSizePixel = 0
+        title.Parent = mainFrame
         
-        -- Inner background
-        local innerBg = Create("Frame", {
-            Size = UDim2.new(1, -2, 1, -2),
-            Position = UDim2.fromOffset(1, 1),
-            BackgroundColor3 = Library.Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            Parent = accentFrame
-        })
-        
-        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = innerBg})
-        
-        -- Title bar with detailed styling
-        local titleBar = Create("Frame", {
-            Name = "TitleBar",
-            Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = Library.Theme.ElementColor,
-            BorderSizePixel = 0,
-            Parent = innerBg
-        })
-        
-        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = titleBar})
-        
-        -- Title bar stroke
-        Create("UIStroke", {
-            Color = Library.Theme.OutlineColor,
-            Thickness = 1,
-            Transparency = 0.3,
-            Parent = titleBar
-        })
+        local titleCorner = Instance.new("UICorner")
+        titleCorner.CornerRadius = UDim.new(0, 6)
+        titleCorner.Parent = title
         
         -- Title text
-        Create("TextLabel", {
-            Name = "TitleText",
-            Size = UDim2.new(1, -10, 1, 0),
-            Position = UDim2.fromOffset(5, 0),
-            BackgroundTransparency = 1,
-            Text = "Keybinds",
-            TextColor3 = Library.Theme.TextColor,
-            TextSize = 12,
-            Font = Enum.Font.GothamBold,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = titleBar
-        })
+        local titleText = Instance.new("TextLabel")
+        titleText.Size = UDim2.new(1, 0, 1, 0)
+        titleText.BackgroundTransparency = 1
+        titleText.Text = "Keybinds"
+        titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        titleText.TextSize = 14
+        titleText.Font = Enum.Font.GothamBold
+        titleText.TextXAlignment = Enum.TextXAlignment.Center
+        titleText.Parent = title
         
-        -- Scrolling frame with detailed styling
-        local scrollingFrame = Create("ScrollingFrame", {
-            Name = "ScrollingFrame",
-            Size = UDim2.new(1, -4, 1, -32),
-            Position = UDim2.fromOffset(2, 30),
-            BackgroundColor3 = Library.Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            ScrollBarThickness = 4,
-            ScrollBarImageColor3 = Library._accent,
-            ScrollBarImageTransparency = 0.3,
-            CanvasSize = UDim2.fromOffset(0, 0),
-            Parent = innerBg
-        })
+        -- Test label
+        local testLabel = Instance.new("TextLabel")
+        testLabel.Size = UDim2.new(1, -10, 0, 25)
+        testLabel.Position = UDim2.fromOffset(5, 35)
+        testLabel.BackgroundTransparency = 1
+        testLabel.Text = "TEST: Keybind List is working!"
+        testLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        testLabel.TextSize = 12
+        testLabel.Font = Enum.Font.Gotham
+        testLabel.TextXAlignment = Enum.TextXAlignment.Left
+        testLabel.Parent = mainFrame
         
-
-        
-        -- PRECISE cursor-locked dragging system (EXACT COPY FROM WATERMARK)
-        local dragging = false
-        local dragOffset = Vector2.new(0, 0)
-        
-        keybindListFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                
-                -- Get mouse position accounting for GUI inset
-                local mousePos = UserInputService:GetMouseLocation()
-                local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
-                
-                -- Calculate offset from mouse to frame's top-left corner
-                local framePos = keybindListFrame.AbsolutePosition
-                dragOffset = Vector2.new(adjustedMousePos.X - framePos.X, adjustedMousePos.Y - framePos.Y)
-                
-                -- Visual feedback
-                T(outerBorder, 0.1, {Color = Library._accent, Thickness = 2}):Play()
-                T(accentStroke, 0.1, {Transparency = 0.2}):Play()
-            end
-        end)
-        
-        -- Perfect cursor-following movement (EXACT COPY FROM WATERMARK)
-        UserInputService.InputChanged:Connect(function(input)
-            if not dragging then return end
-            
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                -- Get current mouse position with GUI inset correction
-                local mousePos = UserInputService:GetMouseLocation()
-                local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
-                
-                -- Calculate new frame position maintaining the offset
-                local newX = adjustedMousePos.X - dragOffset.X
-                local newY = adjustedMousePos.Y - dragOffset.Y
-                
-                -- Screen boundaries
-                local screenSize = workspace.CurrentCamera.ViewportSize
-                local frameSize = keybindListFrame.AbsoluteSize
-                
-                -- Clamp to screen bounds
-                newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
-                newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
-                
-                -- Apply position instantly for smooth movement
-                keybindListFrame.Position = UDim2.fromOffset(newX, newY)
-            end
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                if dragging then
-                    dragging = false
-                    -- Reset visual feedback
-                    T(outerBorder, 0.2, {Color = Library.Theme.OutlineColor, Thickness = 1}):Play()
-                    T(accentStroke, 0.2, {Transparency = 0.6}):Play()
-                end
-            end
-        end)
-        
-        -- Update display
-        updateKeybindDisplay()
+        print("Keybind list created successfully!")
     end
     
     -- EXACT COPY OF WATERMARK VISIBILITY FUNCTION
@@ -860,7 +597,7 @@ do
         -- Create keybind list if it doesn't exist and should be visible
         if self._keybindListVisible then
             if not self._keybindList or not self._keybindList.Parent then
-                createKeybindList()
+                self:_createKeybindList()
             else
                 self._keybindList.Enabled = true
             end
@@ -5036,6 +4773,14 @@ function Library:CreateLibrary(opts)
     Window.LoadConfig = function(name) local data = Config.Load(name) for id, value in pairs(data) do Library:_setValue(id, value, true) end end
     Window.ListConfigs = function() return Config.List() end
     Window.DeleteConfig = function(name) Config.Delete(name) end
+    
+    -- Create keybind list immediately when library is created
+    spawn(function()
+        wait(1) -- Small delay to ensure everything is properly initialized
+        if Library._keybindListVisible then
+            Library:_createKeybindList()
+        end
+    end)
     
     return Window
 end
