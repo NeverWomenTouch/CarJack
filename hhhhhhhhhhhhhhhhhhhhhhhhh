@@ -2080,11 +2080,20 @@ function Library:CreateLibrary(opts)
                                 Keybind:Set(input.KeyCode)
                                 stopVisual()
                                 unbindSink()
-                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
                                 waiting = false
                                 Keybind:Set(input.UserInputType)
                                 stopVisual()
                                 unbindSink()
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+                                -- Allow MouseButton2 to be bound, but with slight delay to avoid context menu interference
+                                task.wait(0.1)
+                                if waiting then  -- Still waiting after delay, so it's a legitimate bind attempt
+                                    waiting = false
+                                    Keybind:Set(input.UserInputType)
+                                    stopVisual()
+                                    unbindSink()
+                                end
                             end
                             return Enum.ContextActionResult.Sink
                         end
@@ -2109,11 +2118,20 @@ function Library:CreateLibrary(opts)
                             Keybind:Set(input.KeyCode)
                             stopVisual()
                             unbindSink()
-                        elseif waiting and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2) then
+                        elseif waiting and input.UserInputType == Enum.UserInputType.MouseButton1 then
                             waiting = false
                             Keybind:Set(input.UserInputType)
                             stopVisual()
                             unbindSink()
+                        elseif waiting and input.UserInputType == Enum.UserInputType.MouseButton2 then
+                            -- Handle MouseButton2 with delay to avoid context menu interference
+                            task.wait(0.1)
+                            if waiting then
+                                waiting = false
+                                Keybind:Set(input.UserInputType)
+                                stopVisual()
+                                unbindSink()
+                            end
                         elseif waiting and input.KeyCode == Enum.KeyCode.Escape then
                             -- cancel capture with ESC
                             waiting = false
@@ -2126,7 +2144,7 @@ function Library:CreateLibrary(opts)
                     end)
 
                     -- Add context menu for mode selection (similar to AddKeybindToggle but simpler)
-                    local keybindMode = "Toggle" -- Default mode for regular keybind
+                    local keybindMode = "Hold" -- Default mode for regular keybind
                     local keybindCtxMenu, keybindCtxOpen
                     local keybindCtxBlocker = nil
                     local keybindCtxConns = {}
@@ -2144,6 +2162,7 @@ function Library:CreateLibrary(opts)
                         if Library._openKeybindCtxClose == closeKeybindCtx then Library._openKeybindCtxClose = nil end
                     end
                     box.MouseButton2Click:Connect(function()
+                        if waiting then return end  -- Don't open context menu if waiting for keybind
                         if Library._openKeybindCtxClose and Library._openKeybindCtxClose ~= closeKeybindCtx then pcall(Library._openKeybindCtxClose) end
                         closeKeybindCtx()
                         if keybindCtxMenu then pcall(function() keybindCtxMenu:Destroy() end); keybindCtxMenu=nil end
@@ -2202,15 +2221,14 @@ function Library:CreateLibrary(opts)
                         
                         local menuH = (itemH * 3) + (gap * 2) + (vPad * 2)
                         keybindCtxMenu.Size = UDim2.fromOffset(menuW, menuH)
-                        local boxPos = box.AbsolutePosition
-                        local boxSize = box.AbsoluteSize
-                        local screenSize = RootGui.AbsoluteSize
-                        local menuX = boxPos.X
-                        local menuY = boxPos.Y - menuH - 4  -- Show above the keybind box
-                        if menuX + menuW > screenSize.X then menuX = screenSize.X - menuW - 8 end
-                        if menuY < 8 then menuY = boxPos.Y + boxSize.Y + 4 end  -- Fallback to below if no space above
-                        if menuX < 8 then menuX = 8 end
-                        keybindCtxMenu.Position = UDim2.fromOffset(menuX, menuY)
+                        -- Use colorpicker positioning logic
+                        local btnAbs = box.AbsolutePosition
+                        local btnSize = box.AbsoluteSize
+                        local guiInset = game:GetService("GuiService"):GetGuiInset()
+                        -- Position menu directly above the button, aligned to left edge
+                        local px = btnAbs.X
+                        local py = btnAbs.Y - menuH - 6 + guiInset.Y
+                        keybindCtxMenu.Position = UDim2.fromOffset(px, py)
                         
                         Library._openKeybindCtxClose = closeKeybindCtx
                         keybindCtxOpen = true
@@ -3325,7 +3343,7 @@ function Library:CreateLibrary(opts)
                     local cb = o.Callback
                     local defaultKey = o.Default or o.Key or Enum.KeyCode.E
                     local defaultToggle = o.DefaultToggle or false
-                    local mode = o.Mode or "Toggle" -- "Toggle", "Hold", "Always"
+                    local mode = o.Mode or "Hold" -- "Toggle", "Hold", "Always"
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s"):format(Category.Name, Page.Name, Group.Name, label)
                     
                     -- Key name lookup table (including mouse buttons)
@@ -3480,12 +3498,15 @@ function Library:CreateLibrary(opts)
                                     setupKeybindListener()
                                 end
                             elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
-                                currentKey = nil
-                                currentInputType = input.UserInputType
-                                isBinding = false
-                                updateKeybindVisual()
-                                disconnectAll()
-                                setupKeybindListener()
+                                -- Don't bind MouseButton2 if it's used for context menu
+                                if not (input.UserInputType == Enum.UserInputType.MouseButton2 and ctxOpen) then
+                                    currentKey = nil
+                                    currentInputType = input.UserInputType
+                                    isBinding = false
+                                    updateKeybindVisual()
+                                    disconnectAll()
+                                    setupKeybindListener()
+                                end
                             end
                         end))
                         
@@ -3582,7 +3603,7 @@ function Library:CreateLibrary(opts)
                     end)
                     
                     -- Context menu for mode selection
-                    local ctxMenu, ctxOpen
+                    local ctxMenu, ctxOpen = nil, false
                     local ctxBlocker = nil
                     local ctxConns = {}
                     local function ctxDisconnectAll()
@@ -3647,7 +3668,15 @@ function Library:CreateLibrary(opts)
                             btn.MouseLeave:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Bg}):Play() end)
                             btn.MouseButton1Click:Connect(function() 
                                 if mode ~= modeText then
-                                    KeybindToggle:SetMode(modeText)
+                                    mode = modeText  -- Set mode directly instead of calling SetMode
+                                    setupKeybindListener()
+                                    if mode == "Always" then
+                                        isToggled = true
+                                        updateToggleVisual()
+                                        if type(cb) == "function" then
+                                            pcall(cb, true, currentKey or currentInputType)
+                                        end
+                                    end
                                 end
                                 closeCtx() 
                             end)
@@ -3658,19 +3687,16 @@ function Library:CreateLibrary(opts)
                         createModeItem("Toggle", mode == "Toggle")
                         createModeItem("Always", mode == "Always")
                         
-                        -- Position menu above the keybind button
+                        -- Position menu above the keybind button using colorpicker logic
                         local menuH = (itemH * 3) + (gap * 2) + (vPad * 2)
                         ctxMenu.Size = UDim2.fromOffset(menuW, menuH)
-                        local btnPos = keybindBtn.AbsolutePosition
+                        local btnAbs = keybindBtn.AbsolutePosition
                         local btnSize = keybindBtn.AbsoluteSize
-                        local screenSize = RootGui.AbsoluteSize
-                        local menuX = btnPos.X
-                        local menuY = btnPos.Y - menuH - 4
-                        -- Keep menu on screen
-                        if menuX + menuW > screenSize.X then menuX = screenSize.X - menuW - 8 end
-                        if menuY < 8 then menuY = btnPos.Y + btnSize.Y + 4 end
-                        if menuX < 8 then menuX = 8 end
-                        ctxMenu.Position = UDim2.fromOffset(menuX, menuY)
+                        local guiInset = game:GetService("GuiService"):GetGuiInset()
+                        -- Position menu directly above the button, aligned to left edge
+                        local px = btnAbs.X
+                        local py = btnAbs.Y - menuH - 6 + guiInset.Y
+                        ctxMenu.Position = UDim2.fromOffset(px, py)
                         
                         Library._openKeybindCtxClose = closeCtx
                         ctxOpen = true
@@ -3678,7 +3704,11 @@ function Library:CreateLibrary(opts)
 
                     -- Button events
                     keybindBtn.MouseButton1Click:Connect(startBinding)
-                    keybindBtn.MouseButton2Click:Connect(openCtx)
+                    keybindBtn.MouseButton2Click:Connect(function()
+                        if not isBinding then  -- Only open context menu if not currently binding
+                            openCtx()
+                        end
+                    end)
                     
                     -- Initialize
                     setupKeybindListener()
