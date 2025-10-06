@@ -45,6 +45,8 @@ local Fonts = {
     Bold = Enum.Font.GothamBold,
 }
 local function T(i, t, p) return TweenService:Create(i, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), p) end
+-- Global sanitize function for library naming and config paths
+local function sanitize(s) s = tostring(s or "Game"); s = s:gsub("[^%w%s%-_]", "_"); s = s:gsub("%s+", "_"); return s end
 -- Config system will be created per library instance
 local function Signal()
     local h = {}
@@ -93,7 +95,6 @@ function Library:CreateLibrary(opts)
     -- Create Config system for this library instance
     local Config = {}
     do
-        local function sanitize(s) s = tostring(s or "Game"); s = s:gsub("[^%w%s%-_]", "_"); s = s:gsub("%s+", "_"); return s end
         local function gameKey()
             local ok, info = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
             if ok and info and info.Name and #info.Name > 0 then return sanitize(info.Name) end
