@@ -2347,10 +2347,21 @@ function Library:CreateLibrary(opts)
                                 
                                 -- Restore mode if specified
                                 if modePart and modePart ~= "" then
-                                    if modePart == "RGB" then
-                                        enableRainbow(activeIndex)
-                                    elseif modePart == "PULSE" then
-                                        enablePulse(activeIndex)
+                                    -- Find the current colorpicker instance by ID
+                                    local currentColorpicker = nil
+                                    for _, control in pairs(Library._controls) do
+                                        if control.id == id and control._enableRainbow then
+                                            currentColorpicker = control
+                                            break
+                                        end
+                                    end
+                                    
+                                    if currentColorpicker then
+                                        if modePart == "RGB" then
+                                            currentColorpicker._enableRainbow(activeIndex)
+                                        elseif modePart == "PULSE" then
+                                            currentColorpicker._enablePulse(activeIndex)
+                                        end
                                     end
                                 end
                                 
@@ -2720,7 +2731,7 @@ function Library:CreateLibrary(opts)
                     end
 
                     local function resolveColorPanelPosition(targetBtn, width, height)
-                        width = math.max(0, width or 260)
+                        width = math.max(0, width or 250)
                         height = math.max(0, height or 220)
                         local btnAbs = targetBtn.AbsolutePosition
                         local btnSize = targetBtn.AbsoluteSize
@@ -2751,7 +2762,7 @@ function Library:CreateLibrary(opts)
                                 panel.Visible = true
                             end
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            if width <= 0 then width = 260 end
+                            if width <= 0 then width = 250 end
                             if height <= 0 then height = 220 end
                             local px, py = resolveColorPanelPosition(btnFor, width, height)
                             panel.Position = UDim2.fromOffset(px, py)
@@ -2822,8 +2833,8 @@ function Library:CreateLibrary(opts)
                             local HUE_W, HUE_H = 26, 150
                             local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             -- Make the hue slider background opaque white so the UIGradient is visible and vibrant
-                            -- Center slider above the checkboxes (checkboxes are at X=190, so center slider above them)
-                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(8, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                            -- Position slider to align with RGB checkbox X (checkboxes are at X=190 in leftCol, so align slider)
+                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(-2, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -3044,7 +3055,7 @@ function Library:CreateLibrary(opts)
                         if Library._openColorCtxClose then pcall(Library._openColorCtxClose); Library._openColorCtxClose = nil end
                         Library._openColorPanelClose = closePanel
 
-                        local width, height = 260, 220
+                        local width, height = 250, 220
 
                         -- Since panel is parented to RootGui, use screen coordinates
                         -- Position directly below the button
@@ -3120,7 +3131,14 @@ function Library:CreateLibrary(opts)
                     end
 
                     -- public API
-                    local Colorpicker = { id = id, _slots = slots }
+                    local Colorpicker = { 
+                        id = id, 
+                        _slots = slots,
+                        _enableRainbow = enableRainbow,
+                        _enablePulse = enablePulse,
+                        _disableRainbow = disableRainbow,
+                        _disablePulse = disablePulse
+                    }
                     -- expose current active slot index for this control
                     function Colorpicker:_getActiveIndex()
                         return activeIndex or 1
