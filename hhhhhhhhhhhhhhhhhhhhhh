@@ -2047,6 +2047,10 @@ function Library:CreateLibrary(opts)
                         box.Text = keycode and keycode.Name or "None"
                         box.TextColor3 = keycode and Theme.Text or Theme.SubText
                         box.Font = Fonts.Regular
+                        -- Auto-resize based on text content
+                        local textService = game:GetService("TextService")
+                        local textSize = textService:GetTextSize(box.Text, 13, Fonts.Regular, Vector2.new(math.huge, 30))
+                        box.Size = UDim2.new(0.5, math.max(-4, textSize.X + 8 - (box.Parent.AbsoluteSize.X * 0.5)), 1, 0)
                         if keycode and not silent and type(cb) == "function" then pcall(cb, keycode) end
                     end
 
@@ -2096,6 +2100,98 @@ function Library:CreateLibrary(opts)
                             box.TextColor3 = Keybind._value and Theme.Text or Theme.SubText
                             box.Font = Fonts.Regular
                         end
+                    end)
+
+                    -- Add context menu for mode selection (similar to AddKeybindToggle but simpler)
+                    local keybindMode = "Toggle" -- Default mode for regular keybind
+                    local keybindCtxMenu, keybindCtxOpen
+                    local keybindCtxBlocker = nil
+                    local keybindCtxConns = {}
+                    local function keybindCtxDisconnectAll()
+                        for i=#keybindCtxConns,1,-1 do keybindCtxConns[i]:Disconnect(); table.remove(keybindCtxConns,i) end
+                    end
+                    local function closeKeybindCtx()
+                        if not keybindCtxOpen or not keybindCtxMenu then return end
+                        keybindCtxOpen = false
+                        keybindCtxDisconnectAll()
+                        if keybindCtxBlocker and keybindCtxBlocker.Parent then pcall(function() keybindCtxBlocker:Destroy() end) end
+                        keybindCtxBlocker = nil
+                        pcall(function() if keybindCtxMenu then keybindCtxMenu:Destroy() end end)
+                        keybindCtxMenu = nil
+                        if Library._openKeybindCtxClose == closeKeybindCtx then Library._openKeybindCtxClose = nil end
+                    end
+                    box.MouseButton2Click:Connect(function()
+                        if Library._openKeybindCtxClose and Library._openKeybindCtxClose ~= closeKeybindCtx then pcall(Library._openKeybindCtxClose) end
+                        closeKeybindCtx()
+                        if keybindCtxMenu then pcall(function() keybindCtxMenu:Destroy() end); keybindCtxMenu=nil end
+                        
+                        local menuZBase = 12000
+                        keybindCtxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = menuZBase, Parent = RootGui})
+                        table.insert(keybindCtxConns, keybindCtxBlocker.MouseButton1Click:Connect(function() closeKeybindCtx() end))
+                        table.insert(keybindCtxConns, keybindCtxBlocker.MouseButton2Click:Connect(function() closeKeybindCtx() end))
+                        table.insert(keybindCtxConns, keybindCtxBlocker.TouchTap:Connect(function() closeKeybindCtx() end))
+                        
+                        local textService = game:GetService("TextService")
+                        local labelFont = Fonts.Medium
+                        local labelSize = 12
+                        local sidePad, vPad, gap, itemH = 10, 6, 2, 24
+                        local function measure(text)
+                            local sz = textService:GetTextSize(text or "", labelSize, labelFont, Vector2.new(1000, itemH))
+                            return sz.X
+                        end
+                        local maxTextW = math.max(measure("Hold"), measure("Toggle"), measure("Always"))
+                        local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 24), 100, 160)
+                        
+                        keybindCtxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = menuZBase + 1, ClipsDescendants = true, Parent = RootGui}, {
+                            Create("UICorner", {CornerRadius = UDim.new(0,6)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.40})
+                        })
+                        local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.92, Size = UDim2.fromScale(1,1), ZIndex = (keybindCtxMenu.ZIndex or 1)-1, Parent = keybindCtxMenu})
+                        shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
+                        
+                        local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -(sidePad*2), 1, -(vPad*2)), Position = UDim2.fromOffset(sidePad, vPad), ZIndex = keybindCtxMenu.ZIndex + 1, Parent = keybindCtxMenu}, {
+                            Create("UIListLayout", {Padding = UDim.new(0,gap), SortOrder = Enum.SortOrder.LayoutOrder})
+                        })
+                        
+                        local function createModeItem(modeText, isSelected)
+                            local btn = Create("TextButton", {AutoButtonColor = false, BackgroundTransparency = 0, BackgroundColor3 = Theme.Bg, Size = UDim2.new(1,0,0,itemH), Text = "", ZIndex = content.ZIndex + 1, Parent = content}, {
+                                Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                                Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
+                            })
+                            local textLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Text = modeText, Font = labelFont, TextSize = labelSize, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
+                            local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, isSelected and 1 or 0, 0, 2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,-2), Parent = btn})
+                            if isSelected then
+                                T(underline, 0.2, {Size = UDim2.new(0.8, 0, 0, 2)}):Play()
+                            end
+                            
+                            btn.MouseEnter:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Hover}):Play() end)
+                            btn.MouseLeave:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Bg}):Play() end)
+                            btn.MouseButton1Click:Connect(function() 
+                                keybindMode = modeText
+                                closeKeybindCtx() 
+                            end)
+                            return btn
+                        end
+                        
+                        createModeItem("Hold", keybindMode == "Hold")
+                        createModeItem("Toggle", keybindMode == "Toggle")
+                        createModeItem("Always", keybindMode == "Always")
+                        
+                        local menuH = (itemH * 3) + (gap * 2) + (vPad * 2)
+                        keybindCtxMenu.Size = UDim2.fromOffset(menuW, menuH)
+                        local boxPos = box.AbsolutePosition
+                        local boxSize = box.AbsoluteSize
+                        local screenSize = RootGui.AbsoluteSize
+                        local menuX = boxPos.X
+                        local menuY = boxPos.Y + boxSize.Y + 4
+                        if menuX + menuW > screenSize.X then menuX = screenSize.X - menuW - 8 end
+                        if menuY + menuH > screenSize.Y then menuY = boxPos.Y - menuH - 4 end
+                        if menuX < 8 then menuX = 8 end
+                        if menuY < 8 then menuY = 8 end
+                        keybindCtxMenu.Position = UDim2.fromOffset(menuX, menuY)
+                        
+                        Library._openKeybindCtxClose = closeKeybindCtx
+                        keybindCtxOpen = true
                     end)
 
                     Library:_registerControl(Keybind)
@@ -3251,8 +3347,11 @@ function Library:CreateLibrary(opts)
                     local rightContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), Parent = row})
                     local rightLayout = Create("UIListLayout", {Parent = rightContainer, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,8), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
                     
-                    -- Keybind button (positioned first, so it appears on the right)
-                    local keybindBtn = Create("TextButton", {AutoButtonColor = false, BackgroundTransparency = 1, Size = UDim2.fromOffset(60, 26), Text = getKeyName(currentKey), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, Parent = rightContainer})
+                    -- Keybind button (positioned first, so it appears on the right) - styled like normal AddKeybind
+                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(80, 26), Text = getKeyName(currentKey), Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    -- Focus line for keybind capture (like normal AddKeybind)
+                    local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = keybindBtn})
+                    local stroke = keybindBtn:FindFirstChild("Stroke")
                     
                     -- Toggle switch (like AddToggle, positioned second so it appears on the left)
                     local toggleContainer = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 18), Parent = rightContainer})
@@ -3275,8 +3374,7 @@ function Library:CreateLibrary(opts)
                     -- Hover effects
                     toggleContainer.MouseEnter:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play() end)
                     toggleContainer.MouseLeave:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(50,50,50)}):Play() end)
-                    keybindBtn.MouseEnter:Connect(function() if not isBinding then T(keybindBtn,0.12,{TextColor3 = Theme.Accent}):Play() end end)
-                    keybindBtn.MouseLeave:Connect(function() if not isBinding then T(keybindBtn,0.12,{TextColor3 = Theme.Text}):Play() end end)
+                    -- Keybind button hover - no special effects, just like normal AddKeybind
                     
                     -- Update visual state (using AddToggle style)
                     local function updateToggleVisual()
@@ -3290,12 +3388,34 @@ function Library:CreateLibrary(opts)
                     end
                     
                     local function updateKeybindVisual()
-                        keybindBtn.Text = getKeyName(currentKey)
                         if isBinding then
-                            keybindBtn.TextColor3 = Theme.Accent
                             keybindBtn.Text = "..."
-                        else
                             keybindBtn.TextColor3 = Theme.Text
+                            keybindBtn.Font = Fonts.Regular
+                            -- Show focus line like normal AddKeybind
+                            if focusBar then
+                                focusBar.BackgroundTransparency = 0
+                                focusBar.Size = UDim2.new(0,0,0,2)
+                                T(focusBar,0.20,{Size = UDim2.new(1,0,0,2)}):Play()
+                            end
+                            if stroke then T(stroke,0.15,{Transparency = 0.18}):Play() end
+                        else
+                            keybindBtn.Text = getKeyName(currentKey)
+                            keybindBtn.TextColor3 = currentKey and Theme.Text or Theme.SubText
+                            keybindBtn.Font = Fonts.Regular
+                            -- Auto-resize based on text content
+                            local textService = game:GetService("TextService")
+                            local textSize = textService:GetTextSize(keybindBtn.Text, 13, Fonts.Regular, Vector2.new(math.huge, 26))
+                            keybindBtn.Size = UDim2.fromOffset(math.max(60, textSize.X + 16), 26)
+                            -- Hide focus line
+                            if focusBar then
+                                local tw1 = T(focusBar,0.18,{Size = UDim2.new(0,0,0,2)})
+                                tw1:Play()
+                                tw1.Completed:Connect(function()
+                                    if focusBar.Parent then focusBar.BackgroundTransparency = 1 end
+                                end)
+                            end
+                            if stroke then T(stroke,0.18,{Transparency = 0.3}):Play() end
                         end
                     end
                     
@@ -3318,7 +3438,13 @@ function Library:CreateLibrary(opts)
                             if gameProcessed then return end
                             if input.UserInputType == Enum.UserInputType.Keyboard then
                                 local keyCode = input.KeyCode
-                                if keyCode ~= Enum.KeyCode.Unknown then
+                                if keyCode == Enum.KeyCode.Escape then
+                                    -- Cancel binding with ESC
+                                    isBinding = false
+                                    updateKeybindVisual()
+                                    disconnectAll()
+                                    setupKeybindListener()
+                                elseif keyCode ~= Enum.KeyCode.Unknown then
                                     currentKey = keyCode
                                     isBinding = false
                                     updateKeybindVisual()
@@ -3399,7 +3525,105 @@ function Library:CreateLibrary(opts)
                         end
                     end)
                     
+                    -- Context menu for mode selection
+                    local ctxMenu, ctxOpen
+                    local ctxBlocker = nil
+                    local ctxConns = {}
+                    local function ctxDisconnectAll()
+                        for i=#ctxConns,1,-1 do ctxConns[i]:Disconnect(); table.remove(ctxConns,i) end
+                    end
+                    local function closeCtx()
+                        if not ctxOpen or not ctxMenu then return end
+                        ctxOpen = false
+                        ctxDisconnectAll()
+                        if ctxBlocker and ctxBlocker.Parent then pcall(function() ctxBlocker:Destroy() end) end
+                        ctxBlocker = nil
+                        pcall(function() if ctxMenu then ctxMenu:Destroy() end end)
+                        ctxMenu = nil
+                        if Library._openKeybindCtxClose == closeCtx then Library._openKeybindCtxClose = nil end
+                    end
+                    local function openCtx()
+                        if Library._openKeybindCtxClose and Library._openKeybindCtxClose ~= closeCtx then pcall(Library._openKeybindCtxClose) end
+                        closeCtx()
+                        if ctxMenu then pcall(function() ctxMenu:Destroy() end); ctxMenu=nil end
+                        
+                        local menuZBase = 12000
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = menuZBase, Parent = RootGui})
+                        table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function() closeCtx() end))
+                        table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
+                        table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
+                        
+                        local textService = game:GetService("TextService")
+                        local labelFont = Fonts.Medium
+                        local labelSize = 12
+                        local sidePad, vPad, gap, itemH = 10, 6, 2, 24
+                        local function measure(text)
+                            local sz = textService:GetTextSize(text or "", labelSize, labelFont, Vector2.new(1000, itemH))
+                            return sz.X
+                        end
+                        local maxTextW = math.max(measure("Hold"), measure("Toggle"), measure("Always"))
+                        local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 24), 100, 160) -- Extra space for indicators
+                        
+                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = menuZBase + 1, ClipsDescendants = true, Parent = RootGui}, {
+                            Create("UICorner", {CornerRadius = UDim.new(0,6)}),
+                            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.40})
+                        })
+                        local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.92, Size = UDim2.fromScale(1,1), ZIndex = (ctxMenu.ZIndex or 1)-1, Parent = ctxMenu})
+                        shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
+                        
+                        local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -(sidePad*2), 1, -(vPad*2)), Position = UDim2.fromOffset(sidePad, vPad), ZIndex = ctxMenu.ZIndex + 1, Parent = ctxMenu}, {
+                            Create("UIListLayout", {Padding = UDim.new(0,gap), SortOrder = Enum.SortOrder.LayoutOrder})
+                        })
+                        
+                        local function createModeItem(modeText, isSelected)
+                            local btn = Create("TextButton", {AutoButtonColor = false, BackgroundTransparency = 0, BackgroundColor3 = Theme.Bg, Size = UDim2.new(1,0,0,itemH), Text = "", ZIndex = content.ZIndex + 1, Parent = content}, {
+                                Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                                Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
+                            })
+                            local textLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Text = modeText, Font = labelFont, TextSize = labelSize, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
+                            -- Selection indicator (animated underline)
+                            local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, isSelected and 1 or 0, 0, 2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,-2), Parent = btn})
+                            if isSelected then
+                                T(underline, 0.2, {Size = UDim2.new(0.8, 0, 0, 2)}):Play()
+                            end
+                            
+                            btn.MouseEnter:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Hover}):Play() end)
+                            btn.MouseLeave:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Bg}):Play() end)
+                            btn.MouseButton1Click:Connect(function() 
+                                if mode ~= modeText then
+                                    KeybindToggle:SetMode(modeText)
+                                end
+                                closeCtx() 
+                            end)
+                            return btn
+                        end
+                        
+                        createModeItem("Hold", mode == "Hold")
+                        createModeItem("Toggle", mode == "Toggle")
+                        createModeItem("Always", mode == "Always")
+                        
+                        -- Position menu near the mode indicator
+                        local menuH = (itemH * 3) + (gap * 2) + (vPad * 2)
+                        ctxMenu.Size = UDim2.fromOffset(menuW, menuH)
+                        local modePos = modeIndicator.AbsolutePosition
+                        local modeSize = modeIndicator.AbsoluteSize
+                        local screenSize = RootGui.AbsoluteSize
+                        local menuX = modePos.X
+                        local menuY = modePos.Y + modeSize.Y + 4
+                        -- Keep menu on screen
+                        if menuX + menuW > screenSize.X then menuX = screenSize.X - menuW - 8 end
+                        if menuY + menuH > screenSize.Y then menuY = modePos.Y - menuH - 4 end
+                        if menuX < 8 then menuX = 8 end
+                        if menuY < 8 then menuY = 8 end
+                        ctxMenu.Position = UDim2.fromOffset(menuX, menuY)
+                        
+                        Library._openKeybindCtxClose = closeCtx
+                        ctxOpen = true
+                    end
+
+                    -- Button events
                     keybindBtn.MouseButton1Click:Connect(startBinding)
+                    modeIndicator.MouseButton1Click:Connect(openCtx)
                     
                     -- Initialize
                     setupKeybindListener()
