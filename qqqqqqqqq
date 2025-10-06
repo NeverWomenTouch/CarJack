@@ -99,13 +99,13 @@ do
             Parent = CoreGui
         })
         
-        -- Modern watermark frame with gradient background
+        -- Watermark frame with library background color
         local watermarkFrame = Create("TextButton", {
             Name = "WatermarkFrame",
-            BackgroundColor3 = Color3.fromRGB(18, 18, 18),
+            BackgroundColor3 = Theme.Bg,
             AutoButtonColor = false,
             BorderSizePixel = 0,
-            Size = UDim2.fromOffset(250, 28),
+            Size = UDim2.fromOffset(250, 30),
             Position = UDim2.new(1, -260, 0, 10),
             AnchorPoint = Vector2.new(0, 0),
             ZIndex = 1000,
@@ -113,56 +113,55 @@ do
             Parent = watermarkGui
         })
         
-        -- Rounded corners for modern look
-        Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = watermarkFrame})
+        -- Rounded corners
+        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = watermarkFrame})
         
-        -- Gradient background for depth
-        Create("UIGradient", {
-            Color = ColorSequence.new{
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 25)),
-                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(18, 18, 18)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 12))
-            },
-            Rotation = 90,
+        -- Outer border (main outline)
+        local outerBorder = Create("UIStroke", {
+            Color = Theme.Stroke,
+            Thickness = 1.5,
+            Transparency = 0.2,
             Parent = watermarkFrame
         })
         
-        -- Clean accent border system
-        local accentBorder = Create("UIStroke", {
+        -- Accent border (inner outline)
+        local accentBorder = Create("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -2, 1, -2),
+            Position = UDim2.fromOffset(1, 1),
+            ZIndex = watermarkFrame.ZIndex + 1,
+            Parent = watermarkFrame
+        })
+        Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = accentBorder})
+        Create("UIStroke", {
             Color = Library._watermarkAccentColor,
-            Thickness = 2,
-            Transparency = 0.3,
+            Thickness = 1,
+            Transparency = 0.4,
+            Parent = accentBorder
+        })
+        
+        -- Inner frame for more detail
+        local innerFrame = Create("Frame", {
+            BackgroundColor3 = Theme.Panel,
+            BackgroundTransparency = 0.7,
+            Size = UDim2.new(1, -6, 1, -6),
+            Position = UDim2.fromOffset(3, 3),
+            ZIndex = watermarkFrame.ZIndex + 2,
             Parent = watermarkFrame
         })
-        
-        -- Outer glow effect container
-        local glowContainer = Create("Frame", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 16, 1, 16),
-            Position = UDim2.fromOffset(-8, -8),
-            ZIndex = watermarkFrame.ZIndex - 1,
-            Parent = watermarkFrame
+        Create("UICorner", {CornerRadius = UDim.new(0, 2), Parent = innerFrame})
+        Create("UIStroke", {
+            Color = Theme.Stroke,
+            Thickness = 0.5,
+            Transparency = 0.6,
+            Parent = innerFrame
         })
         
-        -- Smooth glow effect
-        local glowEffect = Create("ImageLabel", {
-            BackgroundTransparency = 1,
-            Image = "rbxassetid://4996891970",
-            ImageColor3 = Library._watermarkAccentColor,
-            ImageTransparency = 0.85,
-            Size = UDim2.fromScale(1, 1),
-            Position = UDim2.fromScale(0, 0),
-            ZIndex = glowContainer.ZIndex,
-            Parent = glowContainer
-        })
-        glowEffect.ScaleType = Enum.ScaleType.Slice
-        glowEffect.SliceCenter = Rect.new(20, 20, 280, 280)
-        
-        -- Clean text label with padding
+        -- Text label with proper layering
         local watermarkLabel = Create("TextLabel", {
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, -16, 1, 0),
-            Position = UDim2.fromOffset(8, 0),
+            Size = UDim2.new(1, -12, 1, 0),
+            Position = UDim2.fromOffset(6, 0),
             Text = Library._watermarkText,
             Font = Library._watermarkFont,
             TextSize = Library._watermarkFontSize,
@@ -172,25 +171,21 @@ do
             TextYAlignment = Enum.TextYAlignment.Center,
             TextScaled = false,
             TextWrapped = false,
-            ZIndex = watermarkFrame.ZIndex + 1,
+            ZIndex = watermarkFrame.ZIndex + 10,
             Parent = watermarkFrame,
-            TextStrokeTransparency = 0.9,
+            TextStrokeTransparency = 0.8,
             TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         })
         
-        -- Smooth auto-resize functionality
+        -- Auto-resize functionality
         local function updateSize()
             local textService = game:GetService("TextService")
-            local textSize = textService:GetTextSize(watermarkLabel.Text, Library._watermarkFontSize, Library._watermarkFont, Vector2.new(math.huge, 28))
-            local newWidth = math.max(textSize.X + 20, 140) -- Padding
+            local textSize = textService:GetTextSize(watermarkLabel.Text, Library._watermarkFontSize, Library._watermarkFont, Vector2.new(math.huge, 30))
+            local newWidth = math.max(textSize.X + 16, 150) -- Padding for new layout
             
-            -- Smooth resize animation
-            local sizeTween = T(watermarkFrame, 0.2, {Size = UDim2.fromOffset(newWidth, 28)})
-            sizeTween:Play()
-            
-            -- Keep positioned at top-right
-            local posTween = T(watermarkFrame, 0.2, {Position = UDim2.new(1, -(newWidth + 10), 0, 10)})
-            posTween:Play()
+            -- Instant resize for better performance
+            watermarkFrame.Size = UDim2.fromOffset(newWidth, 30)
+            watermarkFrame.Position = UDim2.new(1, -(newWidth + 10), 0, 10)
         end
         
         -- Update functions
@@ -204,45 +199,62 @@ do
         end
         
         local function updateAccentColor(color)
-            T(accentBorder, 0.15, {Color = color}):Play()
-            T(glowEffect, 0.15, {ImageColor3 = color}):Play()
+            if accentBorder:FindFirstChild("UIStroke") then
+                T(accentBorder.UIStroke, 0.15, {Color = color}):Play()
+            end
         end
         
-        -- Optimized dragging system
+        -- Fixed dragging system with proper mobile support
         local dragging = false
         local dragStart = nil
         local startPos = nil
-        local lastUpdate = 0
+        local dragOffset = Vector2.new(0, 0)
+        
+        -- Get proper input position for both PC and mobile
+        local function getInputPosition(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                return input.Position
+            else
+                return UserInputService:GetMouseLocation()
+            end
+        end
         
         watermarkFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
-                dragStart = input.UserInputType == Enum.UserInputType.Touch and input.Position or UserInputService:GetMouseLocation()
+                dragStart = getInputPosition(input)
                 startPos = watermarkFrame.Position
                 
-                -- Smooth drag feedback
-                T(accentBorder, 0.1, {Transparency = 0.1, Thickness = 3}):Play()
-                T(glowEffect, 0.1, {ImageTransparency = 0.7}):Play()
+                -- Calculate offset from click position to frame position to prevent jumping
+                local framePos = Vector2.new(
+                    watermarkFrame.AbsolutePosition.X,
+                    watermarkFrame.AbsolutePosition.Y
+                )
+                dragOffset = dragStart - framePos
+                
+                -- Visual feedback
+                T(outerBorder, 0.1, {Color = Library._watermarkAccentColor, Thickness = 2}):Play()
+                if accentBorder:FindFirstChild("UIStroke") then
+                    T(accentBorder.UIStroke, 0.1, {Transparency = 0.2}):Play()
+                end
             end
         end)
         
-        -- Smooth drag movement with 60fps limit
+        -- Smooth drag movement
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                local currentTime = tick()
-                if currentTime - lastUpdate < 0.016 then return end -- 60fps
-                lastUpdate = currentTime
+                local currentPos = getInputPosition(input)
                 
-                local currentPos = input.UserInputType == Enum.UserInputType.Touch and input.Position or UserInputService:GetMouseLocation()
-                local delta = currentPos - dragStart
-                local newPos = UDim2.fromOffset(startPos.X.Offset + delta.X, startPos.Y.Offset + delta.Y)
+                -- Calculate new position with offset to prevent jumping
+                local newX = currentPos.X - dragOffset.X
+                local newY = currentPos.Y - dragOffset.Y
                 
                 -- Screen bounds
                 local screenSize = workspace.CurrentCamera.ViewportSize
                 local frameSize = watermarkFrame.AbsoluteSize
-                local clampedX = math.clamp(newPos.X.Offset, 5, screenSize.X - frameSize.X - 5)
-                local clampedY = math.clamp(newPos.Y.Offset, 5, screenSize.Y - frameSize.Y - 5)
+                local clampedX = math.clamp(newX, 0, screenSize.X - frameSize.X)
+                local clampedY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
                 
                 watermarkFrame.Position = UDim2.fromOffset(clampedX, clampedY)
             end
@@ -254,25 +266,33 @@ do
                     dragging = false
                     
                     -- Reset visual feedback
-                    T(accentBorder, 0.2, {Transparency = 0.3, Thickness = 2}):Play()
-                    T(glowEffect, 0.2, {ImageTransparency = 0.85}):Play()
+                    T(outerBorder, 0.2, {Color = Theme.Stroke, Thickness = 1.5}):Play()
+                    if accentBorder:FindFirstChild("UIStroke") then
+                        T(accentBorder.UIStroke, 0.2, {Transparency = 0.4}):Play()
+                    end
                 end
             end
         end)
         
-        -- Smooth hover effects (PC only)
+        -- Hover effects for PC (no glow)
         if not (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) then
             watermarkFrame.MouseEnter:Connect(function()
                 if not dragging then
-                    T(accentBorder, 0.15, {Transparency = 0.2}):Play()
-                    T(glowEffect, 0.15, {ImageTransparency = 0.75}):Play()
+                    T(outerBorder, 0.15, {Transparency = 0.1}):Play()
+                    if accentBorder:FindFirstChild("UIStroke") then
+                        T(accentBorder.UIStroke, 0.15, {Transparency = 0.3}):Play()
+                    end
+                    T(innerFrame, 0.15, {BackgroundTransparency = 0.5}):Play()
                 end
             end)
             
             watermarkFrame.MouseLeave:Connect(function()
                 if not dragging then
-                    T(accentBorder, 0.15, {Transparency = 0.3}):Play()
-                    T(glowEffect, 0.15, {ImageTransparency = 0.85}):Play()
+                    T(outerBorder, 0.15, {Transparency = 0.2}):Play()
+                    if accentBorder:FindFirstChild("UIStroke") then
+                        T(accentBorder.UIStroke, 0.15, {Transparency = 0.4}):Play()
+                    end
+                    T(innerFrame, 0.15, {BackgroundTransparency = 0.7}):Play()
                 end
             end)
         end
@@ -281,8 +301,9 @@ do
         Library._watermark = watermarkGui
         Library._watermarkFrame = watermarkFrame
         Library._watermarkLabel = watermarkLabel
+        Library._outerBorder = outerBorder
         Library._accentBorder = accentBorder
-        Library._glowEffect = glowEffect
+        Library._innerFrame = innerFrame
         Library._updateWatermarkText = updateText
         Library._updateWatermarkTextColor = updateTextColor
         Library._updateWatermarkAccentColor = updateAccentColor
