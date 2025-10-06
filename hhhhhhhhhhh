@@ -2315,30 +2315,60 @@ function Library:CreateLibrary(opts)
                             return btn
                         end
                         item("Copy Value", function()
-                            local c = slots[activeIndex].color
+                            local slot = slots[activeIndex]
+                            local c = slot.color
                             local r,g,b = toRGB255(c)
-                            copyText(string.format("%d, %d, %d", r,g,b))
+                            -- Enhanced copy: include mode information with color
+                            local modeInfo = ""
+                            if slot.rainbow then modeInfo = "|RGB" end
+                            if slot.pulse then modeInfo = "|PULSE" end
+                            copyText(string.format("%d, %d, %d%s", r,g,b, modeInfo))
                         end)
                         item("Paste Value", function()
                             local txt = pasteText()
                             if not txt then return end
-                            local r,g,b = parseRGBText(txt)
-                            if not r then local hr,hg,hb = hexToRGB(txt); if hr then r,g,b = hr,hg,hb end end
+                            -- Check for mode information in pasted text
+                            local colorPart, modePart = txt:match("^([^|]+)|?(.*)$")
+                            local r,g,b = parseRGBText(colorPart or txt)
+                            if not r then 
+                                local hr,hg,hb = hexToRGB(colorPart or txt)
+                                if hr then r,g,b = hr,hg,hb end 
+                            end
                             if r then
                                 local c = Color3.fromRGB(r,g,b)
-                                slots[activeIndex].hsv = { Color3.toHSV(c) }
+                                local h,s,v = Color3.toHSV(c)
+                                slots[activeIndex].hsv = {h,s,v}
                                 slots[activeIndex].color = c
                                 slots[activeIndex].fill.BackgroundColor3 = c
+                                
+                                -- Restore mode if specified
+                                if modePart and modePart ~= "" then
+                                    if modePart == "RGB" then
+                                        enableRainbow(activeIndex)
+                                    elseif modePart == "PULSE" then
+                                        enablePulse(activeIndex)
+                                    end
+                                end
+                                
+                                -- Update visual elements if panel is open
+                                if open and panel and panel.Visible then
+                                    updateSVBackground(h)
+                                    if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                                    if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
+                                    if rgbBox and not rgbBox:IsFocused() then rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
+                                    if hexBox and not hexBox:IsFocused() then hexBox.Text = rgbToHex(r,g,b) end
+                                end
+                                
                                 if type(cb)=="function" then pcall(cb, c, activeIndex) end
                             end
                         end)
-                        -- position near btnFor: left-aligned below the swatch (fallback clamped)
+                        -- position near btnFor: left-aligned above the swatch (fallback clamped)
                         local finalH = vPad*2 + (itemH*2) + gap
                         local tAbs, tSz = btnFor.AbsolutePosition, btnFor.AbsoluteSize
                         local rootAbs, rootSz = root.AbsolutePosition, root.AbsoluteSize
-                        -- align left edge with swatch, place below with small gap
+                        -- align left edge with swatch, place above with small gap
                         local px = (tAbs.X - rootAbs.X)
-                        local py = (tAbs.Y - rootAbs.Y) + tSz.Y + 4
+                        local py = (tAbs.Y - rootAbs.Y) - finalH - 4
                         -- clamp within root
                         px = math.clamp(px, 4, rootSz.X - menuW - 4)
                         py = math.clamp(py, 4, rootSz.Y - finalH - 4)
@@ -2560,6 +2590,12 @@ function Library:CreateLibrary(opts)
                             syncRGBColor(c0, slot._syncId)
                         end
                         updateSlotUI(i)
+                        -- Force immediate UI refresh to ensure checkbox shows correctly
+                        task.defer(function()
+                            if open and activeIndex == i then
+                                setCheckbox(slot.rainbow or false)
+                            end
+                        end)
                     end
                     local function disablePulse(i)
                         local slot = slots[i]
@@ -2642,9 +2678,13 @@ function Library:CreateLibrary(opts)
                         if Library._rainbowBus and Library._rainbowBus.h then
                             local currentH = slot.hsv[1] or 0
                             slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1
+                        else
+                            -- Initialize offset to 0 if rainbow bus not yet started
+                            slot.pulseHueOffset = 0
                         end
                         if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                         slot.pulse = true
+                        -- Ensure rainbow animation starts and then add pulse hook
                         slot.pulseHook = rainbowAdd(function(h)
                             local s = slot.hsv[2] or 1
                             local baseV = slot.hsv[3] or 1
@@ -2666,10 +2706,16 @@ function Library:CreateLibrary(opts)
                             syncPulseColor(c0, slot._pulseSyncId)
                         end
                         updateSlotUI(i)
+                        -- Force immediate UI refresh to ensure checkbox shows correctly
+                        task.defer(function()
+                            if open and activeIndex == i then
+                                setPulseCheckbox(slot.pulse or false)
+                            end
+                        end)
                     end
 
                     local function resolveColorPanelPosition(targetBtn, width, height)
-                        width = math.max(0, width or 290)
+                        width = math.max(0, width or 270)
                         height = math.max(0, height or 220)
                         local btnAbs = targetBtn.AbsolutePosition
                         local btnSize = targetBtn.AbsoluteSize
@@ -2700,7 +2746,7 @@ function Library:CreateLibrary(opts)
                                 panel.Visible = true
                             end
                             local width, height = panel.AbsoluteSize.X, panel.AbsoluteSize.Y
-                            if width <= 0 then width = 290 end
+                            if width <= 0 then width = 270 end
                             if height <= 0 then height = 220 end
                             local px, py = resolveColorPanelPosition(btnFor, width, height)
                             panel.Position = UDim2.fromOffset(px, py)
@@ -2751,7 +2797,7 @@ function Library:CreateLibrary(opts)
                             })
                             -- (Removed overlay border; using panel's own stroke so it outlines the true main holder)
                             -- Left: SV square (S across X, V across Y), base hue set by slider; plus RGB/Hex inputs
-                            local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(240, 210), ZIndex = content.ZIndex + 1, Parent = content})
+                            local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(220, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             sv = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = sv})
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = sv})
@@ -2771,8 +2817,8 @@ function Library:CreateLibrary(opts)
                             local HUE_W, HUE_H = 26, 150
                             local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             -- Make the hue slider background opaque white so the UIGradient is visible and vibrant
-                            -- Position slider slightly more left to align above the checkbox box itself
-                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(8, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                            -- Center slider above the checkboxes
+                            hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(13, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -2918,7 +2964,12 @@ function Library:CreateLibrary(opts)
                                 if r then
                                     r,g,b = math.clamp(r,0,255), math.clamp(g,0,255), math.clamp(b,0,255)
                                     local c = Color3.fromRGB(r,g,b)
-                                    setHSV(activeIndex, Color3.toHSV(c))
+                                    local h,s,v = Color3.toHSV(c)
+                                    setHSV(activeIndex, h,s,v)
+                                    -- Update visual UI elements
+                                    updateSVBackground(h)
+                                    if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                                    if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                                 else
                                     local c = slots[activeIndex].color
                                     local rr,gg,bb = toRGB255(c)
@@ -2930,7 +2981,12 @@ function Library:CreateLibrary(opts)
                                 local r,g,b = hexToRGB(hexBox.Text or "")
                                 if r then
                                     local c = Color3.fromRGB(r,g,b)
-                                    setHSV(activeIndex, Color3.toHSV(c))
+                                    local h,s,v = Color3.toHSV(c)
+                                    setHSV(activeIndex, h,s,v)
+                                    -- Update visual UI elements
+                                    updateSVBackground(h)
+                                    if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
+                                    if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                                 else
                                     local c = slots[activeIndex].color
                                     hexBox.Text = (function() local r,g,b = toRGB255(c); return rgbToHex(r,g,b) end)()
@@ -2983,7 +3039,7 @@ function Library:CreateLibrary(opts)
                         if Library._openColorCtxClose then pcall(Library._openColorCtxClose); Library._openColorCtxClose = nil end
                         Library._openColorPanelClose = closePanel
 
-                        local width, height = 290, 220
+                        local width, height = 270, 220
 
                         -- Since panel is parented to RootGui, use screen coordinates
                         -- Position directly below the button
