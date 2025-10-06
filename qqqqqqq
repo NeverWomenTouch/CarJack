@@ -191,28 +191,16 @@ do
             Parent = watermarkFrame
         })
         
-        -- Subtle gradient background
-        local gradientBg = Create("Frame", {
-            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-            BackgroundTransparency = 0.97,
-            Size = UDim2.new(1, -4, 1, -4),
-            Position = UDim2.fromOffset(2, 2),
+        -- Dark inner frame for contrast against accent color
+        local innerFrame = Create("Frame", {
+            BackgroundColor3 = Color3.fromRGB(8, 8, 8),
+            BackgroundTransparency = 0.1,
+            Size = UDim2.new(1, -6, 1, -6),
+            Position = UDim2.fromOffset(3, 3),
             ZIndex = watermarkFrame.ZIndex + 1,
             Parent = watermarkFrame
-        }, {
-            Create("UICorner", {CornerRadius = UDim.new(0, 1)}),
-            Create("UIGradient", {
-                Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 40)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
-                }),
-                Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0.95),
-                    NumberSequenceKeypoint.new(1, 0.98)
-                }),
-                Rotation = 90
-            })
         })
+        Create("UICorner", {CornerRadius = UDim.new(0, 1), Parent = innerFrame})
         
         -- Text container for better text effects
         local textContainer = Create("Frame", {
@@ -338,6 +326,9 @@ do
         
         -- Update accent color function
         local function updateAccentColor(color)
+            -- Update main frame to use accent color
+            if watermarkFrame then T(watermarkFrame, 0.2, {BackgroundColor3 = color}):Play() end
+            -- Update accent elements
             if accentOutline and accentOutline:FindFirstChild("UIStroke") then 
                 T(accentOutline.UIStroke, 0.2, {Color = color}):Play() 
             end
@@ -360,29 +351,46 @@ do
         local isMobile = (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) or (UserInputService.KeyboardEnabled == false)
         
         -- Drag start with CSGO-style visual feedback
+        local dragStarted = false
         watermarkFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
-                startPos = watermarkFrame.Position
+                dragStarted = true
                 
-                -- Enhanced drag feedback
-                T(watermarkFrame, 0.1, {BackgroundColor3 = Color3.fromRGB(18, 18, 18)}):Play()
-                if primaryOutline then T(primaryOutline, 0.1, {Color = Library._watermarkAccentColor, Transparency = 0.0}):Play() end
-                if accentOutline and accentOutline:FindFirstChild("UIStroke") then 
-                    T(accentOutline.UIStroke, 0.1, {Transparency = 0.2}):Play() 
-                end
-                if leftAccent then T(leftAccent, 0.1, {BackgroundTransparency = 0.2}):Play() end
-                if rightAccent then T(rightAccent, 0.1, {BackgroundTransparency = 0.2}):Play() end
+                -- Add small delay to prevent accidental drags
+                task.spawn(function()
+                    task.wait(0.05)
+                    if dragStarted then
+                        dragging = true
+                        dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                        startPos = watermarkFrame.Position
+                        
+                        -- Enhanced drag feedback with accent color darkening
+                        local darkerAccent = Color3.fromRGB(
+                            math.max(0, Library._watermarkAccentColor.R * 255 - 30),
+                            math.max(0, Library._watermarkAccentColor.G * 255 - 30), 
+                            math.max(0, Library._watermarkAccentColor.B * 255 - 30)
+                        )
+                        T(watermarkFrame, 0.1, {BackgroundColor3 = darkerAccent}):Play()
+                        if primaryOutline then T(primaryOutline, 0.1, {Color = Color3.fromRGB(255, 255, 255), Transparency = 0.0}):Play() end
+                        if innerFrame then T(innerFrame, 0.1, {BackgroundTransparency = 0.05}):Play() end
+                    end
+                end)
             end
         end)
         
-        -- Global drag handling (fixed)
+        -- Global drag handling with sensitivity control
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
                 local currentPos = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
                 local delta = currentPos - dragStart
+                
+                -- Add minimum threshold to prevent micro-movements
+                local minThreshold = 3
+                if math.abs(delta.X) < minThreshold and math.abs(delta.Y) < minThreshold then
+                    return
+                end
+                
                 local newPos = UDim2.fromOffset(startPos.X.Offset + delta.X, startPos.Y.Offset + delta.Y)
                 
                 -- Proper screen bounds constraint
@@ -400,17 +408,18 @@ do
         
         -- Drag end with enhanced reset
         UserInputService.InputEnded:Connect(function(input)
-            if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-                dragging = false
-                
-                -- Reset to normal CSGO appearance  
-                T(watermarkFrame, 0.2, {BackgroundColor3 = Color3.fromRGB(12, 12, 12)}):Play()
-                if primaryOutline then T(primaryOutline, 0.2, {Color = Color3.fromRGB(70, 70, 70), Transparency = 0.4}):Play() end
-                if accentOutline and accentOutline:FindFirstChild("UIStroke") then 
-                    T(accentOutline.UIStroke, 0.2, {Transparency = 0.6}):Play() 
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragStarted = false
+                if dragging then
+                    dragging = false
+                    
+                    -- Reset to normal CSGO appearance with accent color
+                    T(watermarkFrame, 0.2, {BackgroundColor3 = Library._watermarkAccentColor}):Play()
+                    if primaryOutline then T(primaryOutline, 0.2, {Color = Color3.fromRGB(70, 70, 70), Transparency = 0.4}):Play() end
+                    if innerFrame then T(innerFrame, 0.2, {BackgroundTransparency = 0.1}):Play() end
                 end
-                if leftAccent then T(leftAccent, 0.2, {BackgroundTransparency = 0.5}):Play() end
-                if rightAccent then T(rightAccent, 0.2, {BackgroundTransparency = 0.5}):Play() end
+            end
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
                 
                 -- Save position
                 Library._watermarkPosition = {
@@ -426,19 +435,21 @@ do
         if not isMobile then
             watermarkFrame.MouseEnter:Connect(function()
                 if not dragging then
-                    T(watermarkFrame, 0.1, {BackgroundColor3 = Color3.fromRGB(16, 16, 16)}):Play()
+                    -- Brighter accent color on hover
+                    local brighterAccent = Color3.fromRGB(
+                        math.min(255, Library._watermarkAccentColor.R * 255 + 20),
+                        math.min(255, Library._watermarkAccentColor.G * 255 + 20),
+                        math.min(255, Library._watermarkAccentColor.B * 255 + 20)
+                    )
+                    T(watermarkFrame, 0.1, {BackgroundColor3 = brighterAccent}):Play()
                     if primaryOutline then T(primaryOutline, 0.1, {Transparency = 0.2}):Play() end
-                    if accentOutline and accentOutline:FindFirstChild("UIStroke") then 
-                        T(accentOutline.UIStroke, 0.1, {Transparency = 0.4}):Play() 
-                    end
-                    if leftAccent then T(leftAccent, 0.1, {BackgroundTransparency = 0.3}):Play() end
-                    if rightAccent then T(rightAccent, 0.1, {BackgroundTransparency = 0.3}):Play() end
+                    if innerFrame then T(innerFrame, 0.1, {BackgroundTransparency = 0.05}):Play() end
                 end
             end)
             
             watermarkFrame.MouseLeave:Connect(function()
                 if not dragging then
-                    T(watermarkFrame, 0.15, {BackgroundColor3 = Color3.fromRGB(12, 12, 12)}):Play()
+                    T(watermarkFrame, 0.15, {BackgroundColor3 = Library._watermarkAccentColor}):Play()
                     if primaryOutline then T(primaryOutline, 0.15, {Transparency = 0.4}):Play() end
                     if accentOutline and accentOutline:FindFirstChild("UIStroke") then 
                         T(accentOutline.UIStroke, 0.15, {Transparency = 0.6}):Play() 
