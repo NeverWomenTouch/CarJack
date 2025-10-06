@@ -97,14 +97,14 @@ do
             pcall(function() Library._watermark:Destroy() end)
         end
         
-        -- Create ScreenGui for watermark (parented to library for automatic cleanup)
+        -- Create ScreenGui for watermark
         local watermarkGui = Create("ScreenGui", {
             Name = "DendriteWatermark",
             ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
             IgnoreGuiInset = true,
             ResetOnSpawn = false,
             DisplayOrder = 999998,
-            Parent = Library._ScreenGui -- Parent to library GUI for automatic cleanup
+            Parent = CoreGui -- Parent to CoreGui for reliability
         })
         
         -- Watermark frame with library background color (using saved position)
@@ -352,6 +352,9 @@ do
         updateAccentColor(Library._watermarkAccentColor)
         updateSize()
         
+        -- Set initial visibility
+        watermarkGui.Enabled = Library._watermarkVisible
+        
         return watermarkGui
     end
     
@@ -373,18 +376,15 @@ do
     function Library:SetWatermarkVisibility(visible)
         self._watermarkVisible = (visible == true)
         
-        if not self._watermark or not self._watermark.Parent then
-            if self._watermarkVisible then
-                createWatermark()
-            end
+        -- Always create watermark if it doesn't exist and should be visible
+        if self._watermarkVisible and (not self._watermark or not self._watermark.Parent) then
+            createWatermark()
             return
         end
         
-        -- Instant visibility toggle - no lag
-        if self._watermarkVisible then
-            self._watermark.Enabled = true
-        else
-            self._watermark.Enabled = false
+        -- Toggle visibility of existing watermark
+        if self._watermark and self._watermark.Parent then
+            self._watermark.Enabled = self._watermarkVisible
         end
     end
     
