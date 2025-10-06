@@ -548,7 +548,7 @@ do
         local entryFrame = Create("Frame", {
             Name = "KeybindEntry",
             Size = UDim2.new(1, -4, 0, 28),
-            BackgroundColor3 = Library.Theme.ElementColor,
+            BackgroundColor3 = Theme.ElementColor,
             BorderSizePixel = 0,
             LayoutOrder = layoutOrder,
             Parent = self._keybindScrollFrame
@@ -558,7 +558,7 @@ do
         
         -- Entry border
         local entryStroke = Create("UIStroke", {
-            Color = Library.Theme.OutlineColor,
+            Color = Theme.OutlineColor,
             Thickness = 1,
             Transparency = 0.5,
             Parent = entryFrame
@@ -571,7 +571,7 @@ do
             Position = UDim2.fromOffset(8, 0),
             BackgroundTransparency = 1,
             Text = keybind.name,
-            TextColor3 = Library.Theme.TextColor,
+            TextColor3 = Theme.TextColor,
             TextSize = 11,
             Font = Enum.Font.Gotham,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -584,7 +584,7 @@ do
             Name = "KeyFrame",
             Size = UDim2.new(0, 50, 0, 18),
             Position = UDim2.new(0.5, 5, 0.5, -9),
-            BackgroundColor3 = Library.Theme.BackgroundColor,
+            BackgroundColor3 = Theme.BackgroundColor,
             BorderSizePixel = 0,
             Parent = entryFrame
         })
@@ -639,17 +639,13 @@ do
     
     -- Create keybind list using EXACT watermark pattern
     function Library:_createKeybindList()
-        print("Creating keybind list...")
-        
         -- Destroy existing
         if Library._keybindList then
             pcall(function() Library._keybindList:Destroy() end)
         end
         
-        -- Try to find library ScreenGui, fallback to CoreGui
+        -- Find library ScreenGui for proper parenting
         local libraryGui = nil
-        
-        -- Method 1: Look for ScreenGui with DisplayOrder 999999
         for _, gui in pairs(CoreGui:GetChildren()) do
             if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
                 libraryGui = gui
@@ -657,39 +653,27 @@ do
             end
         end
         
-        -- Method 2: Look for the singleton root if method 1 failed
-        if not libraryGui and Library._singletonRoot and Library._singletonRoot.Parent then
-            libraryGui = Library._singletonRoot.Parent
+        if not libraryGui then
+            warn("Could not find library GUI for keybind list parenting")
+            return
         end
-        
-        -- Method 3: Fallback to CoreGui
-        local parentGui = libraryGui or CoreGui
-        
-        print("Parenting keybind list to:", parentGui.Name or "CoreGui")
         
         -- Calculate middle-left position
         local screenSize = workspace.CurrentCamera.ViewportSize
         local posX = 20
         local posY = (screenSize.Y / 2) - 150
         
-        print("Screen size:", screenSize)
-        print("Positioning at:", posX, posY)
-        
-        -- Create ScreenGui with reliable parenting
+        -- Create ScreenGui parented to library GUI
         Library._keybindList = Instance.new("ScreenGui")
         Library._keybindList.Name = "KeybindList" 
-        Library._keybindList.Parent = parentGui
+        Library._keybindList.Parent = libraryGui
         Library._keybindList.ResetOnSpawn = false
         Library._keybindList.DisplayOrder = 999998
-        Library._keybindList.IgnoreGuiInset = true
-        Library._keybindList.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        
-        print("Created ScreenGui parented to library")
         
         -- Create main draggable frame with library theming
         local keybindListFrame = Create("TextButton", {
             Name = "KeybindListFrame",
-            BackgroundColor3 = Library.Theme.BackgroundColor,
+            BackgroundColor3 = Theme.BackgroundColor,
             AutoButtonColor = false,
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(250, 350),
@@ -700,14 +684,14 @@ do
             Parent = Library._keybindList
         })
         
-        print("Created main keybind list frame")
+
         
         -- Rounded corners
         Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = keybindListFrame})
         
         -- Main outer border with library theme
         local outerBorder = Create("UIStroke", {
-            Color = Library.Theme.OutlineColor,
+            Color = Theme.OutlineColor,
             Thickness = 1,
             Transparency = 0,
             Parent = keybindListFrame
@@ -718,7 +702,7 @@ do
             Name = "AccentFrame",
             Size = UDim2.new(1, -2, 1, -2),
             Position = UDim2.fromOffset(1, 1),
-            BackgroundColor3 = Library.Theme.ElementColor,
+            BackgroundColor3 = Theme.ElementColor,
             BorderSizePixel = 0,
             Parent = keybindListFrame
         })
@@ -737,7 +721,7 @@ do
         local innerBg = Create("Frame", {
             Size = UDim2.new(1, -2, 1, -2),
             Position = UDim2.fromOffset(1, 1),
-            BackgroundColor3 = Library.Theme.BackgroundColor,
+            BackgroundColor3 = Theme.BackgroundColor,
             BorderSizePixel = 0,
             Parent = accentFrame
         })
@@ -748,7 +732,7 @@ do
         local titleBar = Create("Frame", {
             Name = "TitleBar",
             Size = UDim2.new(1, 0, 0, 32),
-            BackgroundColor3 = Library.Theme.ElementColor,
+            BackgroundColor3 = Theme.ElementColor,
             BorderSizePixel = 0,
             Parent = innerBg
         })
@@ -757,7 +741,7 @@ do
         
         -- Title bar stroke
         Create("UIStroke", {
-            Color = Library.Theme.OutlineColor,
+            Color = Theme.OutlineColor,
             Thickness = 1,
             Transparency = 0.3,
             Parent = titleBar
@@ -770,7 +754,7 @@ do
             Position = UDim2.fromOffset(8, 0),
             BackgroundTransparency = 1,
             Text = "Keybinds",
-            TextColor3 = Library.Theme.TextColor,
+            TextColor3 = Theme.TextColor,
             TextSize = 13,
             Font = Enum.Font.GothamBold,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -782,7 +766,7 @@ do
             Name = "ScrollingFrame",
             Size = UDim2.new(1, -8, 1, -40),
             Position = UDim2.fromOffset(4, 36),
-            BackgroundColor3 = Library.Theme.BackgroundColor,
+            BackgroundColor3 = Theme.BackgroundColor,
             BorderSizePixel = 0,
             ScrollBarThickness = 4,
             ScrollBarImageColor3 = Library._accent,
@@ -854,7 +838,7 @@ do
                 if dragging then
                     dragging = false
                     -- Reset visual feedback
-                    T(outerBorder, 0.2, {Color = Library.Theme.OutlineColor, Thickness = 1}):Play()
+                    T(outerBorder, 0.2, {Color = Theme.OutlineColor, Thickness = 1}):Play()
                     T(accentStroke, 0.2, {Transparency = 0.6}):Play()
                 end
             end
@@ -872,8 +856,6 @@ do
                 end
             end
         end)
-        
-        print("Keybind list created successfully!")
     end
     
     -- EXACT COPY OF WATERMARK VISIBILITY FUNCTION
