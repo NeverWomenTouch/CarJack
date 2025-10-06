@@ -87,33 +87,46 @@ do
     -- Create optimized watermark GUI
     local function createWatermark()
         -- Clean up existing watermarks
-        for _, gui in pairs(CoreGui:GetChildren()) do
-            if gui.Name == "DendriteWatermark" then
-                gui:Destroy()
-            end
-        end
-        
         if Library._watermark then
             pcall(function() Library._watermark:Destroy() end)
         end
         
-        -- Create ScreenGui for watermark
+        -- Find library ScreenGui for proper parenting
+        local libraryGui = nil
+        for _, gui in pairs(CoreGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
+                libraryGui = gui
+                break
+            end
+        end
+        
+        -- Create watermark GUI parented to library
         local watermarkGui = Create("ScreenGui", {
-            Name = "DendriteWatermark",
+            Name = "Watermark",
             ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
             IgnoreGuiInset = true,
             ResetOnSpawn = false,
             DisplayOrder = 999998,
-            Parent = CoreGui -- Parent to CoreGui for reliability
+            Parent = libraryGui or CoreGui -- Parent to library GUI or fallback to CoreGui
         })
         
-        -- Watermark frame with library background color (using saved position)
+        -- Calculate proper frame size based on text
+        local textService = game:GetService("TextService")
+        local tempTextSize = textService:GetTextSize(
+            Library._watermarkText or "Watermark", 
+            Library._watermarkFontSize, 
+            Library._watermarkFont, 
+            Vector2.new(math.huge, 30)
+        )
+        local frameWidth = math.max(tempTextSize.X + 20, 160) -- Ensure minimum width
+        
+        -- Watermark frame with proper sizing
         local watermarkFrame = Create("TextButton", {
             Name = "WatermarkFrame",
             BackgroundColor3 = Theme.Bg,
             AutoButtonColor = false,
             BorderSizePixel = 0,
-            Size = UDim2.fromOffset(250, 30),
+            Size = UDim2.fromOffset(frameWidth, 30),
             Position = UDim2.new(
                 Library._watermarkPosition.X, 
                 Library._watermarkPosition.XOffset,
@@ -190,16 +203,21 @@ do
             TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         })
         
-        -- Auto-resize functionality (preserves position)
+        -- Proper auto-resize function that always fits text
         local function updateSize()
             local textService = game:GetService("TextService")
-            local textSize = textService:GetTextSize(watermarkLabel.Text, Library._watermarkFont, Library._watermarkFontSize, Vector2.new(math.huge, 30))
-            local newWidth = math.max(textSize.X + 16, 150) -- Padding for new layout
+            local textSize = textService:GetTextSize(
+                watermarkLabel.Text, 
+                Library._watermarkFontSize, 
+                Library._watermarkFont, 
+                Vector2.new(math.huge, 30)
+            )
+            local newWidth = math.max(textSize.X + 20, 160) -- Proper padding to ensure text fits
             
-            -- Resize without changing position
+            -- Update frame size immediately
             watermarkFrame.Size = UDim2.fromOffset(newWidth, 30)
             
-            -- Only adjust position if it's at default top-right
+            -- If watermark is positioned at top-right, adjust X offset to keep it anchored
             if Library._watermarkPosition.X == 1 and Library._watermarkPosition.XOffset < 0 then
                 Library._watermarkPosition.XOffset = -(newWidth + 10)
                 watermarkFrame.Position = UDim2.new(
@@ -237,31 +255,22 @@ do
             end
         end
         
-        -- Perfect dragging system with proper cursor positioning
+        -- FLAWLESS smooth dragging system
         local dragging = false
-        local dragStart = nil
         local dragOffset = Vector2.new(0, 0)
-        
-        -- Get input position (works for both PC and mobile)
-        local function getInputPosition(input)
-            if input.UserInputType == Enum.UserInputType.Touch then
-                return input.Position
-            else
-                return UserInputService:GetMouseLocation()
-            end
-        end
         
         watermarkFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
-                dragStart = getInputPosition(input)
                 
-                -- Calculate offset from cursor to top-left of frame (prevents jumping)
-                local frameTopLeft = Vector2.new(
-                    watermarkFrame.AbsolutePosition.X,
-                    watermarkFrame.AbsolutePosition.Y
-                )
-                dragOffset = dragStart - frameTopLeft
+                -- Get current input position
+                local inputPos = input.UserInputType == Enum.UserInputType.Touch 
+                    and input.Position 
+                    or UserInputService:GetMouseLocation()
+                
+                -- Calculate exact offset from input position to frame's top-left corner
+                local framePos = watermarkFrame.AbsolutePosition
+                dragOffset = Vector2.new(inputPos.X - framePos.X, inputPos.Y - framePos.Y)
                 
                 -- Visual feedback
                 T(outerBorder, 0.1, {Color = Library._watermarkAccentColor, Thickness = 2}):Play()
@@ -271,26 +280,30 @@ do
             end
         end)
         
-        -- Smooth drag movement with proper positioning
+        -- Ultra-smooth drag movement
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
+            
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                local currentPos = getInputPosition(input)
+                -- Get current input position
+                local inputPos = input.UserInputType == Enum.UserInputType.Touch 
+                    and input.Position 
+                    or UserInputService:GetMouseLocation()
                 
-                -- Calculate frame position (cursor position minus offset)
-                local newFrameX = currentPos.X - dragOffset.X
-                local newFrameY = currentPos.Y - dragOffset.Y
+                -- Calculate new frame position (input position minus the offset)
+                local newX = inputPos.X - dragOffset.X
+                local newY = inputPos.Y - dragOffset.Y
                 
-                -- Screen bounds with proper margins
+                -- Screen boundaries
                 local screenSize = workspace.CurrentCamera.ViewportSize
                 local frameSize = watermarkFrame.AbsoluteSize
-                local margin = 5
                 
-                local clampedX = math.clamp(newFrameX, margin, screenSize.X - frameSize.X - margin)
-                local clampedY = math.clamp(newFrameY, margin, screenSize.Y - frameSize.Y - margin)
+                -- Clamp to screen with small margins
+                newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
+                newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
                 
-                -- Update position
-                watermarkFrame.Position = UDim2.fromOffset(clampedX, clampedY)
+                -- Apply position instantly for smooth movement
+                watermarkFrame.Position = UDim2.fromOffset(newX, newY)
             end
         end)
         
@@ -299,13 +312,13 @@ do
                 if dragging then
                     dragging = false
                     
-                    -- Save new position
+                    -- Save position
                     savePosition()
                     
                     -- Reset visual feedback
-                    T(outerBorder, 0.2, {Color = Theme.Stroke, Thickness = 1.5}):Play()
+                    T(outerBorder, 0.15, {Color = Theme.Stroke, Thickness = 1.5}):Play()
                     if accentBorder:FindFirstChild("UIStroke") then
-                        T(accentBorder.UIStroke, 0.2, {Transparency = 0.4}):Play()
+                        T(accentBorder.UIStroke, 0.15, {Transparency = 0.4}):Play()
                     end
                 end
             end
@@ -376,15 +389,18 @@ do
     function Library:SetWatermarkVisibility(visible)
         self._watermarkVisible = (visible == true)
         
-        -- Always create watermark if it doesn't exist and should be visible
-        if self._watermarkVisible and (not self._watermark or not self._watermark.Parent) then
-            createWatermark()
-            return
-        end
-        
-        -- Toggle visibility of existing watermark
-        if self._watermark and self._watermark.Parent then
-            self._watermark.Enabled = self._watermarkVisible
+        -- Create watermark if it doesn't exist and should be visible
+        if self._watermarkVisible then
+            if not self._watermark or not self._watermark.Parent then
+                createWatermark()
+            else
+                self._watermark.Enabled = true
+            end
+        else
+            -- Hide existing watermark
+            if self._watermark and self._watermark.Parent then
+                self._watermark.Enabled = false
+            end
         end
     end
     
