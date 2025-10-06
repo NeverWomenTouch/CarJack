@@ -2206,11 +2206,10 @@ function Library:CreateLibrary(opts)
                         local boxSize = box.AbsoluteSize
                         local screenSize = RootGui.AbsoluteSize
                         local menuX = boxPos.X
-                        local menuY = boxPos.Y + boxSize.Y + 4
+                        local menuY = boxPos.Y - menuH - 4  -- Show above the keybind box
                         if menuX + menuW > screenSize.X then menuX = screenSize.X - menuW - 8 end
-                        if menuY + menuH > screenSize.Y then menuY = boxPos.Y - menuH - 4 end
+                        if menuY < 8 then menuY = boxPos.Y + boxSize.Y + 4 end  -- Fallback to below if no space above
                         if menuX < 8 then menuX = 8 end
-                        if menuY < 8 then menuY = 8 end
                         keybindCtxMenu.Position = UDim2.fromOffset(menuX, menuY)
                         
                         Library._openKeybindCtxClose = closeKeybindCtx
@@ -3380,8 +3379,8 @@ function Library:CreateLibrary(opts)
                     local rightContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), Parent = row})
                     local rightLayout = Create("UIListLayout", {Parent = rightContainer, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,8), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
                     
-                    -- Keybind button (positioned first, so it appears on the right) - styled like normal AddKeybind
-                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(80, 26), Text = getKeyName(currentKey, currentInputType), Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    -- Keybind button (positioned first, so it appears on the right) - styled like normal AddKeybind but same height as toggle
+                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(60, 18), Text = getKeyName(currentKey, currentInputType), Font = Fonts.Regular, TextSize = 11, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                     -- Focus line for keybind capture (like normal AddKeybind)
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = keybindBtn})
                     local stroke = keybindBtn:FindFirstChild("Stroke")
@@ -3397,12 +3396,7 @@ function Library:CreateLibrary(opts)
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0,4,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
                     
-                    -- Mode indicator (small badge positioned last, so it appears leftmost)
-                    local modeIndicator = Create("TextButton", {BackgroundColor3 = Theme.SubBg, Size = UDim2.fromOffset(18, 18), AutoButtonColor = false, Text = "", Parent = rightContainer}, {
-                        Create("UICorner", {CornerRadius = UDim.new(0,3)}),
-                        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
-                    })
-                    local modeText = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Text = mode:sub(1,1), Font = Fonts.Medium, TextSize = 9, TextColor3 = Theme.SubText, Parent = modeIndicator})
+                    -- Mode display in keybind button (no separate button needed)
                     
                     -- Hover effects
                     toggleContainer.MouseEnter:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play() end)
@@ -3436,10 +3430,10 @@ function Library:CreateLibrary(opts)
                             keybindBtn.Text = getKeyName(currentKey, currentInputType)
                             keybindBtn.TextColor3 = currentKey and Theme.Text or Theme.SubText
                             keybindBtn.Font = Fonts.Regular
-                            -- Auto-resize based on text content
+                            -- Auto-resize based on text content (match toggle height of 18px)
                             local textService = game:GetService("TextService")
-                            local textSize = textService:GetTextSize(keybindBtn.Text, 13, Fonts.Regular, Vector2.new(math.huge, 26))
-                            keybindBtn.Size = UDim2.fromOffset(math.max(60, textSize.X + 16), 26)
+                            local textSize = textService:GetTextSize(keybindBtn.Text, 11, Fonts.Regular, Vector2.new(math.huge, 18))
+                            keybindBtn.Size = UDim2.fromOffset(math.max(40, textSize.X + 12), 18)
                             -- Hide focus line
                             if focusBar then
                                 local tw1 = T(focusBar,0.18,{Size = UDim2.new(0,0,0,2)})
@@ -3644,9 +3638,9 @@ function Library:CreateLibrary(opts)
                             })
                             local textLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Text = modeText, Font = labelFont, TextSize = labelSize, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
                             -- Selection indicator (animated underline)
-                            local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, isSelected and 1 or 0, 0, 2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,-2), Parent = btn})
+                            local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, isSelected and 1 or 0, 0, 1), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,-1), Parent = btn})
                             if isSelected then
-                                T(underline, 0.2, {Size = UDim2.new(0.8, 0, 0, 2)}):Play()
+                                T(underline, 0.2, {Size = UDim2.new(0.8, 0, 0, 1)}):Play()
                             end
                             
                             btn.MouseEnter:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Hover}):Play() end)
@@ -3664,19 +3658,18 @@ function Library:CreateLibrary(opts)
                         createModeItem("Toggle", mode == "Toggle")
                         createModeItem("Always", mode == "Always")
                         
-                        -- Position menu near the mode indicator
+                        -- Position menu above the keybind button
                         local menuH = (itemH * 3) + (gap * 2) + (vPad * 2)
                         ctxMenu.Size = UDim2.fromOffset(menuW, menuH)
-                        local modePos = modeIndicator.AbsolutePosition
-                        local modeSize = modeIndicator.AbsoluteSize
+                        local btnPos = keybindBtn.AbsolutePosition
+                        local btnSize = keybindBtn.AbsoluteSize
                         local screenSize = RootGui.AbsoluteSize
-                        local menuX = modePos.X
-                        local menuY = modePos.Y + modeSize.Y + 4
+                        local menuX = btnPos.X
+                        local menuY = btnPos.Y - menuH - 4
                         -- Keep menu on screen
                         if menuX + menuW > screenSize.X then menuX = screenSize.X - menuW - 8 end
-                        if menuY + menuH > screenSize.Y then menuY = modePos.Y - menuH - 4 end
+                        if menuY < 8 then menuY = btnPos.Y + btnSize.Y + 4 end
                         if menuX < 8 then menuX = 8 end
-                        if menuY < 8 then menuY = 8 end
                         ctxMenu.Position = UDim2.fromOffset(menuX, menuY)
                         
                         Library._openKeybindCtxClose = closeCtx
@@ -3685,7 +3678,7 @@ function Library:CreateLibrary(opts)
 
                     -- Button events
                     keybindBtn.MouseButton1Click:Connect(startBinding)
-                    modeIndicator.MouseButton1Click:Connect(openCtx)
+                    keybindBtn.MouseButton2Click:Connect(openCtx)
                     
                     -- Initialize
                     setupKeybindListener()
@@ -3735,13 +3728,12 @@ function Library:CreateLibrary(opts)
                     function KeybindToggle:SetMode(newMode, silent)
                         if newMode == "Toggle" or newMode == "Hold" or newMode == "Always" then
                             mode = newMode
-                            modeText.Text = mode:sub(1,1)
                             setupKeybindListener()
                             if mode == "Always" then
                                 isToggled = true
                                 updateToggleVisual()
                                 if not silent and type(cb) == "function" then
-                                    pcall(cb, true, currentKey)
+                                    pcall(cb, true, currentKey or currentInputType)
                                 end
                             end
                         end
