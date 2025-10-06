@@ -209,6 +209,7 @@ function Library:CreateLibrary(opts)
     fsBtn.MouseLeave:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
     local minimized, prevSize, prevPos = false, root.Size, root.Position
     local fullscreen, fsPrevSize, fsPrevPos = false, nil, nil
+    local windowStateChanging = false -- Flag to prevent search interference during window state changes
     
     -- Forward declarations for resize management
     local allGrips = {} -- Store all resize grips for management
@@ -229,6 +230,7 @@ function Library:CreateLibrary(opts)
     end
     
     minBtn.MouseButton1Click:Connect(function()
+        windowStateChanging = true -- Lock search system during state change
         if fullscreen then
             -- exit fullscreen first
             T(root, 0.18, {Size = fsPrevSize, Position = fsPrevPos}):Play()
@@ -246,8 +248,11 @@ function Library:CreateLibrary(opts)
             T(root, 0.18, {Size = prevSize, Position = prevPos}):Play()
             setResizeEnabled(true) -- Re-enable resize grips when restored
         end
+        task.wait(0.25) -- Wait for animation to complete
+        windowStateChanging = false -- Unlock search system
     end)
     fsBtn.MouseButton1Click:Connect(function()
+        windowStateChanging = true -- Lock search system during state change
         if minimized then
             -- restore from minimized before fullscreen
             minimized = false
@@ -264,6 +269,8 @@ function Library:CreateLibrary(opts)
             fullscreen = false
             setResizeEnabled(true) -- Re-enable resize grips when exiting fullscreen
         end
+        task.wait(0.3) -- Wait for animation to complete (fullscreen takes longer)
+        windowStateChanging = false -- Unlock search system
     end)
     local body = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -12, 1, -(46 + 12)), Position = UDim2.fromOffset(6, 46 + 6), ZIndex = z, Parent = root})
     local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 100, 1, 0), ScrollBarThickness = 0, ScrollBarImageColor3 = Color3.fromRGB(0,0,0), ScrollBarImageTransparency = 1, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
@@ -530,6 +537,9 @@ function Library:CreateLibrary(opts)
         end
         
         function Window:ToggleSearch(show)
+            -- Prevent search from toggling during window state changes
+            if windowStateChanging then return end
+            
             show = (show == nil) and (not self._globalSearchPopup.Visible) or show
             if show then
                 -- Prevent immediate reopen if we just closed from the same button
@@ -688,6 +698,8 @@ function Library:CreateLibrary(opts)
         
         UserInputService.InputBegan:Connect(function(inp)
             if not Window._globalSearchPopup.Visible then return end
+            -- Prevent search from closing during window state changes
+            if windowStateChanging then return end
             if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                 local pos = UserInputService:GetMouseLocation()
 
@@ -728,6 +740,9 @@ function Library:CreateLibrary(opts)
     searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
     searchBtn.MouseLeave:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Button}):Play() end)
     searchBtn.MouseButton1Click:Connect(function()
+        -- Prevent search from opening during window state changes
+        if windowStateChanging then return end
+        
         local isOpen = Window._globalSearchPopup and Window._globalSearchPopup.Visible
         local owner = Window._searchOwner
         if isOpen and owner == searchBtn then
