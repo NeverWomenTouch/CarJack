@@ -3199,6 +3199,296 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Colorpicker
                 end
+
+                -- Keybind Toggle
+                function Group:AddKeybindToggle(o)
+                    o = o or {}
+                    local label = tostring(o.Name or "Keybind Toggle")
+                    local cb = o.Callback
+                    local defaultKey = o.Default or o.Key or Enum.KeyCode.E
+                    local defaultToggle = o.DefaultToggle or false
+                    local mode = o.Mode or "Toggle" -- "Toggle", "Hold", "Always"
+                    local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s"):format(Category.Name, Page.Name, Group.Name, label)
+                    
+                    -- Key name lookup table
+                    local keyNames = {
+                        [Enum.KeyCode.LeftShift] = "LShift", [Enum.KeyCode.RightShift] = "RShift",
+                        [Enum.KeyCode.LeftControl] = "LCtrl", [Enum.KeyCode.RightControl] = "RCtrl", 
+                        [Enum.KeyCode.LeftAlt] = "LAlt", [Enum.KeyCode.RightAlt] = "RAlt",
+                        [Enum.KeyCode.CapsLock] = "Caps", [Enum.KeyCode.Tab] = "Tab",
+                        [Enum.KeyCode.Backspace] = "Backspace", [Enum.KeyCode.Return] = "Enter",
+                        [Enum.KeyCode.Space] = "Space", [Enum.KeyCode.Escape] = "Esc",
+                        [Enum.KeyCode.Insert] = "Ins", [Enum.KeyCode.Delete] = "Del",
+                        [Enum.KeyCode.Home] = "Home", [Enum.KeyCode.End] = "End",
+                        [Enum.KeyCode.PageUp] = "PgUp", [Enum.KeyCode.PageDown] = "PgDn",
+                        [Enum.KeyCode.Up] = "↑", [Enum.KeyCode.Down] = "↓", 
+                        [Enum.KeyCode.Left] = "←", [Enum.KeyCode.Right] = "→",
+                        [Enum.KeyCode.F1] = "F1", [Enum.KeyCode.F2] = "F2", [Enum.KeyCode.F3] = "F3",
+                        [Enum.KeyCode.F4] = "F4", [Enum.KeyCode.F5] = "F5", [Enum.KeyCode.F6] = "F6",
+                        [Enum.KeyCode.F7] = "F7", [Enum.KeyCode.F8] = "F8", [Enum.KeyCode.F9] = "F9",
+                        [Enum.KeyCode.F10] = "F10", [Enum.KeyCode.F11] = "F11", [Enum.KeyCode.F12] = "F12"
+                    }
+                    
+                    local function getKeyName(keyCode)
+                        if keyNames[keyCode] then return keyNames[keyCode] end
+                        local name = tostring(keyCode):match("Enum%.KeyCode%.(.+)")
+                        return name or "None"
+                    end
+                    
+                    -- State management
+                    local currentKey = defaultKey
+                    local isToggled = defaultToggle
+                    local isBinding = false
+                    local isHolding = false
+                    local connections = {}
+                    
+                    -- Build row
+                    local rowH = 30
+                    local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.42,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
+                    
+                    -- Right side container
+                    local rightContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), Parent = row})
+                    local rightLayout = Create("UIListLayout", {Parent = rightContainer, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,6), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
+                    
+                    -- Mode indicator (small badge)
+                    local modeIndicator = Create("Frame", {BackgroundColor3 = Theme.SubBg, Size = UDim2.fromOffset(18, 18), Parent = rightContainer}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,3)}),
+                        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4})
+                    })
+                    local modeText = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Text = mode:sub(1,1), Font = Fonts.Medium, TextSize = 9, TextColor3 = Theme.SubText, Parent = modeIndicator})
+                    
+                    -- Toggle button
+                    local toggleBtn = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(26,26), Text = "", Parent = rightContainer}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
+                    })
+                    local toggleFill = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.new(1,-6,1,-6), Position = UDim2.fromOffset(3,3), Visible = isToggled, Parent = toggleBtn}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,3)})
+                    })
+                    
+                    -- Keybind button
+                    local keybindBtn = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(60, 26), Text = getKeyName(currentKey), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, Parent = rightContainer}, {
+                        Create("UICorner", {CornerRadius = UDim.new(0,4)}),
+                        Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
+                    })
+                    
+                    -- Hover effects
+                    toggleBtn.MouseEnter:Connect(function() T(toggleBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = toggleBtn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end)
+                    toggleBtn.MouseLeave:Connect(function() T(toggleBtn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = toggleBtn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end)
+                    keybindBtn.MouseEnter:Connect(function() if not isBinding then T(keybindBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play(); local s = keybindBtn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end end end)
+                    keybindBtn.MouseLeave:Connect(function() if not isBinding then T(keybindBtn,0.12,{BackgroundColor3 = Theme.Button}):Play(); local s = keybindBtn:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.35}):Play() end end end)
+                    
+                    -- Update visual state
+                    local function updateToggleVisual()
+                        if isToggled then
+                            toggleFill.Visible = true
+                            T(toggleFill, 0.15, {BackgroundColor3 = Theme.Accent, Size = UDim2.new(1,-6,1,-6)}):Play()
+                        else
+                            T(toggleFill, 0.15, {BackgroundColor3 = Theme.SubText, Size = UDim2.new(1,-8,1,-8)}):Play()
+                            task.wait(0.15)
+                            toggleFill.Visible = false
+                        end
+                    end
+                    
+                    local function updateKeybindVisual()
+                        keybindBtn.Text = getKeyName(currentKey)
+                        if isBinding then
+                            keybindBtn.BackgroundColor3 = Theme.Accent
+                            keybindBtn.Text = "..."
+                            local stroke = keybindBtn:FindFirstChild("Stroke")
+                            if stroke then stroke.Transparency = 0.1 end
+                        else
+                            keybindBtn.BackgroundColor3 = Theme.Button
+                            local stroke = keybindBtn:FindFirstChild("Stroke")
+                            if stroke then stroke.Transparency = 0.35 end
+                        end
+                    end
+                    
+                    -- Keybind functionality
+                    local function disconnectAll()
+                        for _, conn in pairs(connections) do
+                            if conn then pcall(function() conn:Disconnect() end) end
+                        end
+                        table.clear(connections)
+                    end
+                    
+                    local function startBinding()
+                        if isBinding then return end
+                        isBinding = true
+                        updateKeybindVisual()
+                        disconnectAll()
+                        
+                        -- Listen for key input
+                        table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                            if gameProcessed then return end
+                            if input.UserInputType == Enum.UserInputType.Keyboard then
+                                local keyCode = input.KeyCode
+                                if keyCode ~= Enum.KeyCode.Unknown then
+                                    currentKey = keyCode
+                                    isBinding = false
+                                    updateKeybindVisual()
+                                    disconnectAll()
+                                    setupKeybindListener()
+                                end
+                            end
+                        end))
+                        
+                        -- Cancel on mouse click elsewhere
+                        table.insert(connections, UserInputService.InputBegan:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                local hitObjects = {}
+                                local camera = workspace.CurrentCamera
+                                if camera then
+                                    local unitRay = camera:ScreenPointToRay(input.Position.X, input.Position.Y)
+                                    local raycastResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000)
+                                    if raycastResult then
+                                        -- Check if click was outside keybind button
+                                        task.wait() -- Small delay to ensure click processing
+                                        isBinding = false
+                                        updateKeybindVisual()
+                                        disconnectAll()
+                                        setupKeybindListener()
+                                    end
+                                end
+                            end
+                        end))
+                    end
+                    
+                    local function setupKeybindListener()
+                        disconnectAll()
+                        
+                        if mode == "Always" then
+                            -- Always mode - constantly active
+                            if type(cb) == "function" then
+                                pcall(cb, true, currentKey)
+                            end
+                            return
+                        end
+                        
+                        -- Toggle/Hold mode listeners
+                        table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                            if gameProcessed or input.KeyCode ~= currentKey then return end
+                            
+                            if mode == "Toggle" then
+                                isToggled = not isToggled
+                                updateToggleVisual()
+                                if type(cb) == "function" then
+                                    pcall(cb, isToggled, currentKey)
+                                end
+                            elseif mode == "Hold" then
+                                isHolding = true
+                                if type(cb) == "function" then
+                                    pcall(cb, true, currentKey)
+                                end
+                            end
+                        end))
+                        
+                        if mode == "Hold" then
+                            table.insert(connections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                                if input.KeyCode ~= currentKey then return end
+                                isHolding = false
+                                if type(cb) == "function" then
+                                    pcall(cb, false, currentKey)
+                                end
+                            end))
+                        end
+                    end
+                    
+                    -- Button events
+                    toggleBtn.MouseButton1Click:Connect(function()
+                        if mode == "Always" then return end -- Can't manually toggle in Always mode
+                        isToggled = not isToggled
+                        updateToggleVisual()
+                        if type(cb) == "function" then
+                            pcall(cb, isToggled, currentKey)
+                        end
+                    end)
+                    
+                    keybindBtn.MouseButton1Click:Connect(startBinding)
+                    
+                    -- Initialize
+                    setupKeybindListener()
+                    updateToggleVisual()
+                    updateKeybindVisual()
+                    
+                    -- Public API
+                    local KeybindToggle = { id = id }
+                    
+                    function KeybindToggle:GetKey()
+                        return currentKey
+                    end
+                    
+                    function KeybindToggle:SetKey(keyCode, silent)
+                        if typeof(keyCode) == "EnumItem" and keyCode.EnumType == Enum.KeyCode then
+                            currentKey = keyCode
+                            updateKeybindVisual()
+                            if not silent then setupKeybindListener() end
+                        end
+                    end
+                    
+                    function KeybindToggle:GetToggle()
+                        return isToggled
+                    end
+                    
+                    function KeybindToggle:SetToggle(state, silent)
+                        if mode == "Always" then return end
+                        isToggled = state and true or false
+                        updateToggleVisual()
+                        if not silent and type(cb) == "function" then
+                            pcall(cb, isToggled, currentKey)
+                        end
+                    end
+                    
+                    function KeybindToggle:GetMode()
+                        return mode
+                    end
+                    
+                    function KeybindToggle:SetMode(newMode, silent)
+                        if newMode == "Toggle" or newMode == "Hold" or newMode == "Always" then
+                            mode = newMode
+                            modeText.Text = mode:sub(1,1)
+                            setupKeybindListener()
+                            if mode == "Always" then
+                                isToggled = true
+                                updateToggleVisual()
+                                if not silent and type(cb) == "function" then
+                                    pcall(cb, true, currentKey)
+                                end
+                            end
+                        end
+                    end
+                    
+                    function KeybindToggle:Set(options, silent)
+                        if type(options) ~= "table" then return end
+                        if options.Key then self:SetKey(options.Key, true) end
+                        if options.Toggle ~= nil then self:SetToggle(options.Toggle, true) end
+                        if options.Mode then self:SetMode(options.Mode, true) end
+                        if not silent and type(cb) == "function" then
+                            pcall(cb, isToggled, currentKey)
+                        end
+                    end
+                    
+                    function KeybindToggle:Get()
+                        return {
+                            Key = currentKey,
+                            Toggle = isToggled,
+                            Mode = mode,
+                            KeyName = getKeyName(currentKey)
+                        }
+                    end
+                    
+                    function KeybindToggle:Destroy()
+                        disconnectAll()
+                        if row and row.Parent then pcall(function() row:Destroy() end) end
+                    end
+                    
+                    -- Register control
+                    Library:_registerControl(KeybindToggle)
+                    table.insert(Group._controls, KeybindToggle)
+                    registerSearch(label)
+                    return KeybindToggle
+                end
                 return Group
             end
             table.insert(Category._pages, Page)
