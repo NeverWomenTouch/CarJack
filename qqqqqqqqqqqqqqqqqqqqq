@@ -523,51 +523,126 @@ do
         
         local yOffset = 0
         
-        -- Add keybinds to display
+        -- Add keybinds to display with detailed styling
         for _, data in pairs(Library._keybinds) do
             if data.showInList and (data.type ~= "ToggleKeybind" or data.toggleEnabled) then
+                -- Main entry frame with detailed borders
                 local entry = Create("Frame", {
                     Name = "KeybindEntry",
-                    Size = UDim2.new(1, -4, 0, 22),
-                    Position = UDim2.fromOffset(2, yOffset),
+                    Size = UDim2.new(1, -6, 0, 26),
+                    Position = UDim2.fromOffset(3, yOffset),
                     BackgroundColor3 = Library.Theme.ElementColor,
                     BorderSizePixel = 0,
                     Parent = scrollFrame
-                }, {
-                    Create("UIStroke", {Color = Library.Theme.OutlineColor, Thickness = 0.5}),
-                    Create("TextLabel", {
-                        Size = UDim2.new(0.45, 0, 1, 0),
-                        Position = UDim2.fromOffset(4, 0),
-                        BackgroundTransparency = 1,
-                        Text = data.name,
-                        TextColor3 = Library.Theme.TextColor,
-                        TextSize = 10,
-                        Font = Enum.Font.Gotham,
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                        TextTruncate = Enum.TextTruncate.AtEnd
-                    }),
-                    Create("TextLabel", {
-                        Size = UDim2.new(0.3, 0, 1, 0),
-                        Position = UDim2.new(0.45, 0, 0, 0),
-                        BackgroundTransparency = 1,
-                        Text = "[" .. data.key .. "]",
-                        TextColor3 = Library._accent,
-                        TextSize = 9,
-                        Font = Enum.Font.GothamBold,
-                        TextXAlignment = Enum.TextXAlignment.Center
-                    }),
-                    Create("TextLabel", {
-                        Size = UDim2.new(0.25, 0, 1, 0),
-                        Position = UDim2.new(0.75, 0, 0, 0),
-                        BackgroundTransparency = 1,
-                        Text = data.enabled and "ON" or "OFF",
-                        TextColor3 = data.enabled and Color3.fromRGB(100, 200, 100) or Color3.fromRGB(200, 100, 100),
-                        TextSize = 8,
-                        Font = Enum.Font.Gotham,
-                        TextXAlignment = Enum.TextXAlignment.Center
-                    })
                 })
-                yOffset = yOffset + 24
+                
+                -- Rounded corners for entry
+                Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = entry})
+                
+                -- Entry border
+                Create("UIStroke", {
+                    Color = Library.Theme.OutlineColor,
+                    Thickness = 1,
+                    Transparency = 0.4,
+                    Parent = entry
+                })
+                
+                -- Accent highlight frame
+                local accentHighlight = Create("Frame", {
+                    Size = UDim2.new(1, -2, 1, -2),
+                    Position = UDim2.fromOffset(1, 1),
+                    BackgroundColor3 = Library.Theme.BackgroundColor,
+                    BorderSizePixel = 0,
+                    Parent = entry
+                })
+                
+                Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = accentHighlight})
+                
+                -- Subtle accent border
+                Create("UIStroke", {
+                    Color = Library._accent,
+                    Thickness = 0.5,
+                    Transparency = 0.8,
+                    Parent = accentHighlight
+                })
+                
+                -- Keybind name label
+                Create("TextLabel", {
+                    Name = "NameLabel",
+                    Size = UDim2.new(0.5, -8, 1, 0),
+                    Position = UDim2.fromOffset(6, 0),
+                    BackgroundTransparency = 1,
+                    Text = data.name,
+                    TextColor3 = Library.Theme.TextColor,
+                    TextSize = 11,
+                    Font = Enum.Font.Gotham,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    Parent = accentHighlight
+                })
+                
+                -- Key display with background
+                local keyFrame = Create("Frame", {
+                    Size = UDim2.new(0.25, -4, 0, 16),
+                    Position = UDim2.new(0.5, -2, 0.5, -8),
+                    BackgroundColor3 = Library.Theme.BackgroundColor,
+                    BorderSizePixel = 0,
+                    Parent = accentHighlight
+                })
+                
+                Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = keyFrame})
+                Create("UIStroke", {
+                    Color = Library._accent,
+                    Thickness = 1,
+                    Transparency = 0.3,
+                    Parent = keyFrame
+                })
+                
+                Create("TextLabel", {
+                    Name = "KeyLabel",
+                    Size = UDim2.new(1, -4, 1, 0),
+                    Position = UDim2.fromOffset(2, 0),
+                    BackgroundTransparency = 1,
+                    Text = data.key,
+                    TextColor3 = Library._accent,
+                    TextSize = 9,
+                    Font = Enum.Font.GothamBold,
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                    Parent = keyFrame
+                })
+                
+                -- Status indicator with colored background
+                local statusColor = data.enabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(183, 28, 28)
+                local statusText = data.enabled and "ON" or "OFF"
+                
+                if data.type == "ToggleKeybind" then
+                    statusColor = Library._accent
+                    statusText = "TOGGLE"
+                end
+                
+                local statusFrame = Create("Frame", {
+                    Size = UDim2.new(0.2, -4, 0, 14),
+                    Position = UDim2.new(0.78, 0, 0.5, -7),
+                    BackgroundColor3 = statusColor,
+                    BorderSizePixel = 0,
+                    Parent = accentHighlight
+                })
+                
+                Create("UICorner", {CornerRadius = UDim.new(0, 2), Parent = statusFrame})
+                
+                Create("TextLabel", {
+                    Name = "StatusLabel",
+                    Size = UDim2.new(1, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                    Text = statusText,
+                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                    TextSize = 8,
+                    Font = Enum.Font.GothamBold,
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                    Parent = statusFrame
+                })
+                
+                yOffset = yOffset + 30
             end
         end
         
@@ -600,13 +675,13 @@ do
             Parent = libraryGui or CoreGui -- Parent to library GUI or fallback to CoreGui
         })
         
-        -- Keybind list frame with proper positioning (EXACT COPY FROM WATERMARK)
+        -- Keybind list frame with detailed styling like watermark
         local keybindListFrame = Create("TextButton", {
             Name = "KeybindListFrame",
-            BackgroundColor3 = Theme.Bg,
+            BackgroundColor3 = Library.Theme.BackgroundColor,
             AutoButtonColor = false,
             BorderSizePixel = 0,
-            Size = UDim2.fromOffset(200, 300),
+            Size = UDim2.fromOffset(220, 300),
             Position = UDim2.new(
                 Library._keybindListPosition.X, 
                 Library._keybindListPosition.XOffset,
@@ -619,55 +694,99 @@ do
             Parent = keybindListGui
         })
         
-        -- Store reference (EXACT COPY FROM WATERMARK)
+        -- Store reference
         Library._keybindList = keybindListGui
         
         -- Rounded corners
-        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = keybindListFrame})
+        Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = keybindListFrame})
         
-        -- Outer border (main outline) (EXACT COPY FROM WATERMARK)
+        -- Main outer border
         local outerBorder = Create("UIStroke", {
-            Color = Theme.Stroke,
-            Thickness = 1.5,
-            Transparency = 0.2,
+            Color = Library.Theme.OutlineColor,
+            Thickness = 1,
+            Transparency = 0,
             Parent = keybindListFrame
         })
         
-        -- Title
-        Create("TextLabel", {
-            Name = "Title",
-            Size = UDim2.new(1, 0, 0, 30),
+        -- Accent border frame (inner glow effect like watermark)
+        local accentFrame = Create("Frame", {
+            Name = "AccentFrame",
+            Size = UDim2.new(1, -2, 1, -2),
+            Position = UDim2.fromOffset(1, 1),
             BackgroundColor3 = Library.Theme.ElementColor,
             BorderSizePixel = 0,
+            Parent = keybindListFrame
+        })
+        
+        Create("UICorner", {CornerRadius = UDim.new(0, 5), Parent = accentFrame})
+        
+        -- Accent stroke (glowing accent line)
+        local accentStroke = Create("UIStroke", {
+            Color = Library._accent,
+            Thickness = 1,
+            Transparency = 0.6,
+            Parent = accentFrame
+        })
+        
+        -- Inner background
+        local innerBg = Create("Frame", {
+            Size = UDim2.new(1, -2, 1, -2),
+            Position = UDim2.fromOffset(1, 1),
+            BackgroundColor3 = Library.Theme.BackgroundColor,
+            BorderSizePixel = 0,
+            Parent = accentFrame
+        })
+        
+        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = innerBg})
+        
+        -- Title bar with detailed styling
+        local titleBar = Create("Frame", {
+            Name = "TitleBar",
+            Size = UDim2.new(1, 0, 0, 28),
+            BackgroundColor3 = Library.Theme.ElementColor,
+            BorderSizePixel = 0,
+            Parent = innerBg
+        })
+        
+        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = titleBar})
+        
+        -- Title bar stroke
+        Create("UIStroke", {
+            Color = Library.Theme.OutlineColor,
+            Thickness = 1,
+            Transparency = 0.3,
+            Parent = titleBar
+        })
+        
+        -- Title text
+        Create("TextLabel", {
+            Name = "TitleText",
+            Size = UDim2.new(1, -10, 1, 0),
+            Position = UDim2.fromOffset(5, 0),
+            BackgroundTransparency = 1,
             Text = "Keybinds",
             TextColor3 = Library.Theme.TextColor,
             TextSize = 12,
             Font = Enum.Font.GothamBold,
-            TextXAlignment = Enum.TextXAlignment.Center,
-            Parent = keybindListFrame
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = titleBar
         })
         
-        -- Scrolling frame
-        Create("ScrollingFrame", {
+        -- Scrolling frame with detailed styling
+        local scrollingFrame = Create("ScrollingFrame", {
             Name = "ScrollingFrame",
-            Size = UDim2.new(1, -6, 1, -36),
-            Position = UDim2.fromOffset(3, 33),
-            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -4, 1, -32),
+            Position = UDim2.fromOffset(2, 30),
+            BackgroundColor3 = Library.Theme.BackgroundColor,
             BorderSizePixel = 0,
-            ScrollBarThickness = 3,
+            ScrollBarThickness = 4,
             ScrollBarImageColor3 = Library._accent,
+            ScrollBarImageTransparency = 0.3,
             CanvasSize = UDim2.fromOffset(0, 0),
-            Parent = keybindListFrame
+            Parent = innerBg
         })
         
-        -- Add test keybind to make sure it's visible
-        Library._keybinds["Test"] = {
-            name = "Test Keybind",
-            key = "F",
-            type = "Keybind",
-            enabled = true,
-            showInList = true
-        }
+
         
         -- PRECISE cursor-locked dragging system (EXACT COPY FROM WATERMARK)
         local dragging = false
@@ -688,6 +807,7 @@ do
                 
                 -- Visual feedback
                 T(outerBorder, 0.1, {Color = Library._accent, Thickness = 2}):Play()
+                T(accentStroke, 0.1, {Transparency = 0.2}):Play()
             end
         end)
         
@@ -723,7 +843,8 @@ do
                 if dragging then
                     dragging = false
                     -- Reset visual feedback
-                    T(outerBorder, 0.2, {Color = Theme.Stroke, Thickness = 1.5}):Play()
+                    T(outerBorder, 0.2, {Color = Library.Theme.OutlineColor, Thickness = 1}):Play()
+                    T(accentStroke, 0.2, {Transparency = 0.6}):Play()
                 end
             end
         end)
