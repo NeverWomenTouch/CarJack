@@ -503,7 +503,13 @@ do
     Library._keybinds = {}
     
     function Library:_updateKeybindDisplay()
-        if not self._keybindScrollFrame then return end
+        if not self._keybindScrollFrame then 
+            print("No scroll frame found!")
+            return 
+        end
+        
+        print("Updating keybind display...")
+        print("Keybinds count:", table.maxn(self._keybinds) > 0 and "Has keybinds" or "No keybinds")
         
         -- Clear existing entries
         for _, child in ipairs(self._keybindScrollFrame:GetChildren()) do
@@ -515,35 +521,30 @@ do
         -- Create entries for each keybind
         local layoutOrder = 1
         for id, keybind in pairs(self._keybinds) do
+            print("Processing keybind:", id, keybind.name, "showInList:", keybind.showInList)
             if keybind.showInList then
-                -- For toggle keybinds, only show if the toggle itself is enabled
-                local shouldShow = true
-                if keybind.type == "ToggleKeybind" and keybind.keybindObject then
-                    -- Check if the associated toggle is enabled
-                    local toggleObject = keybind.keybindObject.Toggle
-                    if toggleObject and toggleObject.Get then
-                        shouldShow = toggleObject:Get() == true
-                    end
+                print("Creating entry for:", keybind.name)
+                -- Always show for now to debug
+                
+                -- Get current enabled state from keybind object
+                local currentEnabled = keybind.enabled
+                if keybind.keybindObject and keybind.keybindObject.Get then
+                    currentEnabled = keybind.keybindObject:Get()
                 end
                 
-                if shouldShow then
-                    -- Get current enabled state from keybind object
-                    local currentEnabled = keybind.enabled
-                    if keybind.keybindObject and keybind.keybindObject.Get then
-                        currentEnabled = keybind.keybindObject:Get()
-                    end
-                    
-                    -- Update keybind data with current state
-                    keybind.enabled = currentEnabled
-                    
-                    self:_createKeybindEntry(keybind, layoutOrder)
-                    layoutOrder = layoutOrder + 1
-                end
+                -- Update keybind data with current state
+                keybind.enabled = currentEnabled
+                
+                self:_createKeybindEntry(keybind, layoutOrder)
+                layoutOrder = layoutOrder + 1
             end
         end
+        
+        print("Created", layoutOrder - 1, "keybind entries")
     end
     
     function Library:_createKeybindEntry(keybind, layoutOrder)
+        print("Creating keybind entry for:", keybind.name, "key:", keybind.key, "enabled:", keybind.enabled)
         -- Create entry frame with detailed styling
         local entryFrame = Create("Frame", {
             Name = "KeybindEntry",
@@ -849,6 +850,32 @@ do
         self._keybinds["test1"] = {name = "Aimbot", key = "F", enabled = true, showInList = true, type = "Keybind"}
         self._keybinds["test2"] = {name = "ESP", key = "G", enabled = false, showInList = true, type = "Keybind"}
         self._keybinds["test3"] = {name = "Fly", key = "H", enabled = true, showInList = true, type = "Keybind"}
+        
+        -- Add test keybinds to ensure display works
+        self._keybinds["Test_Aimbot_F"] = {
+            name = "Aimbot",
+            key = "F",
+            type = "Keybind",
+            enabled = true,
+            showInList = true,
+            keybindObject = nil
+        }
+        self._keybinds["Test_ESP_G"] = {
+            name = "ESP",
+            key = "G", 
+            type = "Keybind",
+            enabled = false,
+            showInList = true,
+            keybindObject = nil
+        }
+        self._keybinds["Test_Fly_H"] = {
+            name = "Fly",
+            key = "H",
+            type = "ToggleKeybind", 
+            enabled = true,
+            showInList = true,
+            keybindObject = nil
+        }
         
         -- Update display with current keybinds
         self:_updateKeybindDisplay()
