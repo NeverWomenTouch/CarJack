@@ -514,171 +514,207 @@ do
         self._keybindScrollFrame = nil
     end
     
-    -- Create beautiful keybind entry
+    -- Create beautiful keybind entry with full error handling
     function Library:_createKeybindEntry(keybindData, layoutOrder)
-        if not self._keybindScrollFrame or not keybindData then return nil end
+        local success, result = pcall(function()
+            if not self._keybindScrollFrame or not keybindData then return nil end
+            
+            local entry = Create("Frame", {
+                Name = "KeybindEntry",
+                Size = UDim2.new(1, -8, 0, 32),
+                BackgroundColor3 = Theme.Panel,
+                BorderSizePixel = 0,
+                LayoutOrder = layoutOrder,
+                Parent = self._keybindScrollFrame
+            })
+            
+            Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = entry})
+            Create("UIStroke", {
+                Color = Theme.Stroke,
+                Thickness = 1,
+                Transparency = 0.4,
+                Parent = entry
+            })
+            
+            -- Keybind name (left side)
+            local nameLabel = Create("TextLabel", {
+                Name = "NameLabel",
+                Size = UDim2.new(0.4, -8, 1, 0),
+                Position = UDim2.fromOffset(12, 0),
+                BackgroundTransparency = 1,
+                Text = tostring(keybindData.name or "Unknown"),
+                TextColor3 = Theme.Text,
+                TextSize = 12,
+                Font = Fonts.Medium,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                Parent = entry
+            })
+            
+            -- Key display (center)
+            local keyContainer = Create("Frame", {
+                Name = "KeyContainer",
+                Size = UDim2.new(0, 45, 0, 20),
+                Position = UDim2.new(0.4, 5, 0.5, -10),
+                BackgroundColor3 = Theme.Bg,
+                BorderSizePixel = 0,
+                Parent = entry
+            })
+            
+            Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = keyContainer})
+            Create("UIStroke", {
+                Color = Theme.Accent,
+                Thickness = 1,
+                Transparency = 0.3,
+                Parent = keyContainer
+            })
+            
+            local keyLabel = Create("TextLabel", {
+                Name = "KeyLabel",
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = tostring(keybindData.key or "?"),
+                TextColor3 = Theme.Accent,
+                TextSize = 10,
+                Font = Fonts.Bold,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                Parent = keyContainer
+            })
+            
+            -- Status indicator (right side)
+            local isActive = false
+            if keybindData.type == "Keybind" then
+                -- For AddKeybind, show if keybind is currently being pressed
+                isActive = keybindData.active or false
+            elseif keybindData.type == "ToggleKeybind" then
+                -- For AddToggleKeybind, show if toggle is enabled
+                isActive = keybindData.toggleEnabled or false
+            end
+            
+            local statusColor = isActive and Theme.Good or Theme.Bad
+            local statusText = isActive and "ON" or "OFF"
+            
+            local statusContainer = Create("Frame", {
+                Name = "StatusContainer",
+                Size = UDim2.new(0, 32, 0, 18),
+                Position = UDim2.new(1, -38, 0.5, -9),
+                BackgroundColor3 = statusColor,
+                BorderSizePixel = 0,
+                Parent = entry
+            })
+            
+            Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = statusContainer})
+            
+            local statusLabel = Create("TextLabel", {
+                Name = "StatusLabel",
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = statusText,
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                TextSize = 9,
+                Font = Fonts.Bold,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                Parent = statusContainer
+            })
+            
+            -- Store references for updates safely
+            pcall(function()
+                entry._nameLabel = nameLabel
+                entry._keyLabel = keyLabel
+                entry._statusContainer = statusContainer
+                entry._statusLabel = statusLabel
+                entry._keybindData = keybindData
+            end)
+            
+            return entry
+        end)
         
-        local entry = Create("Frame", {
-            Name = "KeybindEntry",
-            Size = UDim2.new(1, -8, 0, 32),
-            BackgroundColor3 = Theme.Panel,
-            BorderSizePixel = 0,
-            LayoutOrder = layoutOrder,
-            Parent = self._keybindScrollFrame
-        })
-        
-        Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = entry})
-        Create("UIStroke", {
-            Color = Theme.Stroke,
-            Thickness = 1,
-            Transparency = 0.4,
-            Parent = entry
-        })
-        
-        -- Keybind name (left side)
-        local nameLabel = Create("TextLabel", {
-            Name = "NameLabel",
-            Size = UDim2.new(0.4, -8, 1, 0),
-            Position = UDim2.fromOffset(12, 0),
-            BackgroundTransparency = 1,
-            Text = tostring(keybindData.name or "Unknown"),
-            TextColor3 = Theme.Text,
-            TextSize = 12,
-            Font = Fonts.Medium,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextTruncate = Enum.TextTruncate.AtEnd,
-            Parent = entry
-        })
-        
-        -- Key display (center)
-        local keyContainer = Create("Frame", {
-            Name = "KeyContainer",
-            Size = UDim2.new(0, 45, 0, 20),
-            Position = UDim2.new(0.4, 5, 0.5, -10),
-            BackgroundColor3 = Theme.Bg,
-            BorderSizePixel = 0,
-            Parent = entry
-        })
-        
-        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = keyContainer})
-        Create("UIStroke", {
-            Color = Theme.Accent,
-            Thickness = 1,
-            Transparency = 0.3,
-            Parent = keyContainer
-        })
-        
-        local keyLabel = Create("TextLabel", {
-            Name = "KeyLabel",
-            Size = UDim2.new(1, 0, 1, 0),
-            BackgroundTransparency = 1,
-            Text = tostring(keybindData.key or "?"),
-            TextColor3 = Theme.Accent,
-            TextSize = 10,
-            Font = Fonts.Bold,
-            TextXAlignment = Enum.TextXAlignment.Center,
-            Parent = keyContainer
-        })
-        
-        -- Status indicator (right side)
-        local isActive = false
-        if keybindData.type == "Keybind" then
-            -- For AddKeybind, show if keybind is currently being pressed
-            isActive = keybindData.active or false
-        elseif keybindData.type == "ToggleKeybind" then
-            -- For AddToggleKeybind, show if toggle is enabled
-            isActive = keybindData.toggleEnabled or false
+        if not success then
+            print("Keybind entry creation error:", result)
+            return nil
         end
         
-        local statusColor = isActive and Theme.Good or Theme.Bad
-        local statusText = isActive and "ON" or "OFF"
-        
-        local statusContainer = Create("Frame", {
-            Name = "StatusContainer",
-            Size = UDim2.new(0, 32, 0, 18),
-            Position = UDim2.new(1, -38, 0.5, -9),
-            BackgroundColor3 = statusColor,
-            BorderSizePixel = 0,
-            Parent = entry
-        })
-        
-        Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = statusContainer})
-        
-        local statusLabel = Create("TextLabel", {
-            Name = "StatusLabel",
-            Size = UDim2.new(1, 0, 1, 0),
-            BackgroundTransparency = 1,
-            Text = statusText,
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 9,
-            Font = Fonts.Bold,
-            TextXAlignment = Enum.TextXAlignment.Center,
-            Parent = statusContainer
-        })
-        
-        -- Store references for updates
-        entry._nameLabel = nameLabel
-        entry._keyLabel = keyLabel
-        entry._statusContainer = statusContainer
-        entry._statusLabel = statusLabel
-        entry._keybindData = keybindData
+        return result
         
         return entry
     end
     
-    -- Update keybind display
+    -- Update keybind display with comprehensive error handling
     function Library:_updateKeybindDisplay()
-        if not self._keybindScrollFrame then return end
-        
-        -- Clear existing entries
-        for _, child in pairs(self._keybindScrollFrame:GetChildren()) do
-            if child and child.Parent and child:IsA("Frame") and child.Name == "KeybindEntry" then
-                pcall(function() child:Destroy() end)
-            end
-        end
-        
-
-        
-        local layoutOrder = 1
-        
-        -- Process all tracked keybinds
-        for id, keybindData in pairs(self._keybinds) do
-            local shouldShow = false
+        local success, error = pcall(function()
+            if not self._keybindScrollFrame then return end
             
-            if keybindData.type == "Keybind" then
-                -- AddKeybind: show if user added it to list
-                shouldShow = keybindData.showInList
-            elseif keybindData.type == "ToggleKeybind" then
-                -- AddToggleKeybind: only show if toggle is enabled AND in list
-                shouldShow = keybindData.showInList and keybindData.toggleEnabled
+            -- Clear existing entries safely
+            local children = self._keybindScrollFrame:GetChildren()
+            for i = 1, #children do
+                local child = children[i]
+                if child and child.Parent and child:IsA("Frame") and child.Name == "KeybindEntry" then
+                    pcall(function() 
+                        -- Clear any custom properties first
+                        child._nameLabel = nil
+                        child._keyLabel = nil
+                        child._statusContainer = nil
+                        child._statusLabel = nil
+                        child._keybindData = nil
+                        -- Then destroy
+                        child:Destroy() 
+                    end)
+                end
             end
             
-            if shouldShow then
-                -- Get current state from the keybind object
-                if keybindData.keybindObject then
-                    if keybindData.type == "Keybind" then
-                        -- For regular keybind, we track when it's active
-                        keybindData.active = keybindData.keybindObject._isActive or false
-                    elseif keybindData.type == "ToggleKeybind" then
-                        -- For toggle keybind, get current toggle state
-                        local state = keybindData.keybindObject:GetToggle()
-                        keybindData.toggleEnabled = state
-                        -- Update key name in case it changed
-                        local keyData = keybindData.keybindObject:Get()
-                        if keyData and keyData.KeyName then
-                            keybindData.key = keyData.KeyName
+            local layoutOrder = 1
+            
+            -- Process all tracked keybinds safely
+            if self._keybinds then
+                for id, keybindData in pairs(self._keybinds) do
+                    if keybindData and type(keybindData) == "table" then
+                        local shouldShow = false
+                        
+                        if keybindData.type == "Keybind" then
+                            -- AddKeybind: show if user added it to list
+                            shouldShow = keybindData.showInList
+                        elseif keybindData.type == "ToggleKeybind" then
+                            -- AddToggleKeybind: only show if toggle is enabled AND in list
+                            shouldShow = keybindData.showInList and keybindData.toggleEnabled
+                        end
+                        
+                        if shouldShow then
+                            -- Get current state from the keybind object safely
+                            if keybindData.keybindObject then
+                                pcall(function()
+                                    if keybindData.type == "Keybind" then
+                                        -- For regular keybind, we track when it's active
+                                        keybindData.active = keybindData.keybindObject._isActive or false
+                                    elseif keybindData.type == "ToggleKeybind" then
+                                        -- For toggle keybind, get current toggle state
+                                        local state = keybindData.keybindObject:GetToggle()
+                                        keybindData.toggleEnabled = state
+                                        -- Update key name in case it changed
+                                        local keyData = keybindData.keybindObject:Get()
+                                        if keyData and keyData.KeyName then
+                                            keybindData.key = keyData.KeyName
+                                        end
+                                    end
+                                end)
+                            end
+                            
+                            -- Only show ToggleKeybind if it's actually enabled
+                            if keybindData.type == "ToggleKeybind" and not keybindData.toggleEnabled then
+                                -- Skip this entry
+                            else
+                                pcall(function()
+                                    self:_createKeybindEntry(keybindData, layoutOrder)
+                                end)
+                                layoutOrder = layoutOrder + 1
+                            end
                         end
                     end
                 end
-                
-                -- Only show ToggleKeybind if it's actually enabled
-                if keybindData.type == "ToggleKeybind" and not keybindData.toggleEnabled then
-                    -- Skip this entry
-                else
-                    self:_createKeybindEntry(keybindData, layoutOrder)
-                    layoutOrder = layoutOrder + 1
-                end
             end
+        end)
+        
+        if not success then
+            print("Keybind display update error:", error)
         end
     end
     
@@ -898,20 +934,36 @@ do
         end
     end
     
-    -- Public visibility functions
+    -- Public visibility functions with debugging
     function Library:ShowKeybindList(visible)
-        self._keybindListVisible = (visible == true)
-        
-        if self._keybindListVisible then
-            if not self._keybindList or not self._keybindList.Parent then
-                self:_createKeybindList()
+        local success, error = pcall(function()
+            print("DEBUG: ShowKeybindList called with visible =", visible)
+            self._keybindListVisible = (visible == true)
+            
+            if self._keybindListVisible then
+                print("DEBUG: Showing keybind list...")
+                if not self._keybindList or not self._keybindList.Parent then
+                    print("DEBUG: Creating new keybind list")
+                    self:_createKeybindList()
+                    print("DEBUG: Keybind list created, updating display")
+                    self:_updateKeybindDisplay()
+                    print("DEBUG: Display updated")
+                else
+                    print("DEBUG: Enabling existing keybind list")
+                    self._keybindList.Enabled = true
+                    self:_updateKeybindDisplay()
+                end
             else
-                self._keybindList.Enabled = true
+                print("DEBUG: Hiding keybind list")
+                if self._keybindList and self._keybindList.Parent then
+                    self._keybindList.Enabled = false
+                end
             end
-        else
-            if self._keybindList and self._keybindList.Parent then
-                self._keybindList.Enabled = false
-            end
+        end)
+        
+        if not success then
+            print("ShowKeybindList error:", error)
+            warn("Failed to show/hide keybind list: " .. tostring(error))
         end
     end
     
