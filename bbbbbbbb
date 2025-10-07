@@ -503,14 +503,14 @@ end
 -- Keybind List System - Completely Rewritten
 do
     Library._keybindList = nil
-    Library._keybindListVisible = true
+    Library._keybindListVisible = false
     Library._keybinds = {}
     
     -- Initialize keybind list system
     function Library:InitializeKeybindList()
         self._keybinds = {}
         self._keybindList = nil
-        self._keybindListVisible = true
+        self._keybindListVisible = false
         self._keybindScrollFrame = nil
     end
     
@@ -715,8 +715,8 @@ do
         -- Main frame
         local mainFrame = Create("TextButton", {
             Name = "MainFrame",
-            Size = UDim2.fromOffset(280, 400),
-            Position = UDim2.fromOffset(20, 100),
+            Size = UDim2.fromOffset(240, 300),
+            Position = UDim2.fromOffset(16, 80),
             BackgroundColor3 = Theme.Bg,
             AutoButtonColor = false,
             BorderSizePixel = 0,
@@ -3146,15 +3146,15 @@ function Library:CreateLibrary(opts)
                                 Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
                             })
                             local textLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Text = modeText, Font = labelFont, TextSize = labelSize, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
-                            local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, isSelected and 1 or 0, 0, 2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,-2), Parent = btn})
-                            if isSelected then
-                                T(underline, 0.2, {Size = UDim2.new(0.8, 0, 0, 2)}):Play()
-                            end
+                            local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, isSelected and 1 or 0, 0, 1), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,-1), Parent = btn})
+                            if isSelected then T(underline, 0.2, {Size = UDim2.new(0.8, 0, 0, 1)}):Play() end
                             
                             btn.MouseEnter:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Hover}):Play() end)
                             btn.MouseLeave:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Bg}):Play() end)
                             btn.MouseButton1Click:Connect(function() 
                                 keybindMode = modeText
+                                -- Apply mode to Keybind object and update list state
+                                if Keybind and Keybind.SetMode then Keybind:SetMode(modeText, true) end
                                 closeKeybindCtx() 
                             end)
                             return btn
@@ -3224,6 +3224,30 @@ function Library:CreateLibrary(opts)
                     })
                     Keybind._keybindId = keybindId
                     Keybind._isActive = false
+                    Keybind._mode = keybindMode -- "Hold" | "Toggle" | "Always"
+                    Keybind._toggleState = false -- only used in Toggle mode
+
+                    function Keybind:GetMode()
+                        return self._mode
+                    end
+
+                    function Keybind:SetMode(newMode, silent)
+                        if newMode ~= "Hold" and newMode ~= "Toggle" and newMode ~= "Always" then return end
+                        self._mode = newMode
+                        -- Compute current active based on mode
+                        local newActive
+                        if newMode == "Always" then
+                            newActive = true
+                        elseif newMode == "Toggle" then
+                            newActive = self._toggleState
+                        else -- Hold
+                            newActive = false
+                        end
+                        self._isActive = newActive and true or false
+                        if self._keybindId then
+                            Library:_updateKeybind(self._keybindId, { active = self._isActive })
+                        end
+                    end
                     
                     -- Track when keybind is active
                     local originalUserInputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -3239,8 +3263,17 @@ function Library:CreateLibrary(opts)
                             end
                         end
                         if matches then
-                            Keybind._isActive = true
-                            Library:_updateKeybind(keybindId, {active = true})
+                            if Keybind._mode == "Toggle" then
+                                Keybind._toggleState = not (Keybind._toggleState == true)
+                                Keybind._isActive = Keybind._toggleState
+                                Library:_updateKeybind(keybindId, {active = Keybind._isActive})
+                            elseif Keybind._mode == "Always" then
+                                Keybind._isActive = true
+                                Library:_updateKeybind(keybindId, {active = true})
+                            else -- Hold
+                                Keybind._isActive = true
+                                Library:_updateKeybind(keybindId, {active = true})
+                            end
                         end
                     end)
                     
@@ -3256,8 +3289,12 @@ function Library:CreateLibrary(opts)
                             end
                         end
                         if matches then
-                            Keybind._isActive = false
-                            Library:_updateKeybind(keybindId, {active = false})
+                            if Keybind._mode == "Hold" then
+                                Keybind._isActive = false
+                                Library:_updateKeybind(keybindId, {active = false})
+                            else
+                                -- In Toggle / Always, do not change active on release
+                            end
                         end
                     end)
                     
