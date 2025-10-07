@@ -655,6 +655,10 @@ do
         return self._keybindListTransparency or 0
     end
     
+    function Library:ResetKeybindListTransparency(tweenTime)
+        self:_applyKeybindListTransparency(0, tweenTime)
+    end
+    
     -- Update keybind display
     function Library:_updateKeybindDisplay()
         if not self._keybindScrollFrame then return end
@@ -756,7 +760,7 @@ do
         local mainFrame = Create("TextButton", {
             Name = "MainFrame",
             Size = UDim2.fromOffset(240, 300),
-            Position = UDim2.fromOffset(16, 80),
+            Position = UDim2.new(0, 16, 0.5, -150), -- middle-left (height 300 => offset -150)
             BackgroundColor3 = Theme.Bg,
             AutoButtonColor = false,
             BorderSizePixel = 0,
@@ -845,14 +849,14 @@ do
         })
         
         -- Dragging system
-        local dragging = false
-        local dragOffset = Vector2.new(0, 0)
-        local dragInputType = nil -- track whether we're dragging via mouse or touch
+    local dragging = false
+    local dragOffset = Vector2.new(0, 0)
+    local dragIsTouch = false -- track whether we're dragging via touch
         
         mainFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
-                dragInputType = input.UserInputType
+                dragIsTouch = (input.UserInputType == Enum.UserInputType.Touch)
                 local pos
                 if input.UserInputType == Enum.UserInputType.Touch then
                     pos = input.Position
@@ -872,8 +876,7 @@ do
         
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                if dragInputType and input.UserInputType ~= dragInputType then return end
+            if (not dragIsTouch and input.UserInputType == Enum.UserInputType.MouseMovement) or (dragIsTouch and input.UserInputType == Enum.UserInputType.Touch) then
                 local pos
                 if input.UserInputType == Enum.UserInputType.Touch then
                     pos = input.Position
@@ -900,13 +903,15 @@ do
         UserInputService.InputEnded:Connect(function(input)
             if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and dragging then
                 dragging = false
-                dragInputType = nil
+                dragIsTouch = false
                 T(outerStroke, 0.2, {Color = Theme.Stroke, Thickness = 1}):Play()
             end
         end)
         
-        -- Initial update
+    -- Initial update
         self:_updateKeybindDisplay()
+    -- Apply current transparency to freshly created UI
+    self:_applyKeybindListTransparency(self._keybindListTransparency or 0, 0)
         
         -- Real-time updates
         task.spawn(function()
