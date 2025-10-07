@@ -516,6 +516,8 @@ do
     
     -- Create beautiful keybind entry
     function Library:_createKeybindEntry(keybindData, layoutOrder)
+        if not self._keybindScrollFrame or not keybindData then return nil end
+        
         local entry = Create("Frame", {
             Name = "KeybindEntry",
             Size = UDim2.new(1, -8, 0, 32),
@@ -539,7 +541,7 @@ do
             Size = UDim2.new(0.4, -8, 1, 0),
             Position = UDim2.fromOffset(12, 0),
             BackgroundTransparency = 1,
-            Text = keybindData.name,
+            Text = tostring(keybindData.name or "Unknown"),
             TextColor3 = Theme.Text,
             TextSize = 12,
             Font = Fonts.Medium,
@@ -570,7 +572,7 @@ do
             Name = "KeyLabel",
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Text = keybindData.key,
+            Text = tostring(keybindData.key or "?"),
             TextColor3 = Theme.Accent,
             TextSize = 10,
             Font = Fonts.Bold,
@@ -630,8 +632,8 @@ do
         
         -- Clear existing entries
         for _, child in pairs(self._keybindScrollFrame:GetChildren()) do
-            if child:IsA("Frame") and child.Name == "KeybindEntry" then
-                child:Destroy()
+            if child and child.Parent and child:IsA("Frame") and child.Name == "KeybindEntry" then
+                pcall(function() child:Destroy() end)
             end
         end
         
@@ -4411,6 +4413,14 @@ function Library:CreateLibrary(opts)
                     local isHolding = false
                     local keybindToggleState = false -- Track toggle state for Toggle mode
                     local connections = {}
+                    local keybindId = nil -- Will be set later when KeybindToggle is created
+                    
+                    -- Helper function to safely update keybind tracking
+                    local function updateKeybindTracking(updates)
+                        if keybindId and Library._keybinds and Library._keybinds[keybindId] then
+                            Library:_updateKeybind(keybindId, updates)
+                        end
+                    end
                     
                     -- Build row
                     local rowH = 30
@@ -4755,14 +4765,6 @@ function Library:CreateLibrary(opts)
                     
                     -- Public API
                     local KeybindToggle = { id = id }
-                    local keybindId = nil -- Will be set after KeybindToggle is defined
-                    
-                    -- Helper function to safely update keybind tracking
-                    local function updateKeybindTracking(updates)
-                        if keybindId and Library._keybinds and Library._keybinds[keybindId] then
-                            Library:_updateKeybind(keybindId, updates)
-                        end
-                    end
                     
                     -- Initialize
                     setupKeybindListener()
