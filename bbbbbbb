@@ -579,14 +579,8 @@ do
         })
         
         -- Status indicator (right side)
-        local isActive = false
-        if keybindData.type == "Keybind" then
-            -- For AddKeybind, show if keybind is currently being pressed
-            isActive = keybindData.active or false
-        elseif keybindData.type == "ToggleKeybind" then
-            -- For AddToggleKeybind, show if toggle is enabled
-            isActive = keybindData.toggleEnabled or false
-        end
+        -- Use unified 'active' flag for both Keybind and ToggleKeybind entries
+        local isActive = keybindData.active and true or false
         
         local statusColor = isActive and Theme.Good or Theme.Bad
         local statusText = isActive and "ON" or "OFF"
@@ -644,35 +638,48 @@ do
                 -- AddKeybind: show if user added it to list
                 shouldShow = keybindData.showInList
             elseif keybindData.type == "ToggleKeybind" then
-                -- AddToggleKeybind: only show if toggle is enabled AND in list
-                shouldShow = keybindData.showInList and keybindData.toggleEnabled
+                -- AddToggleKeybind: show whenever its toggle is enabled, regardless of list toggle
+                -- (per requirement: appears only when toggle is enabled and shows when turned on)
+                if keybindData.keybindObject and keybindData.keybindObject.GetToggle then
+                    local ok, toggled = pcall(function()
+                        return keybindData.keybindObject:GetToggle()
+                    end)
+                    shouldShow = ok and (toggled == true) or false
+                else
+                    shouldShow = keybindData.toggleEnabled == true
+                end
             end
             
             if shouldShow then
                 -- Get current state from the keybind object
                 if keybindData.keybindObject then
                     if keybindData.type == "Keybind" then
-                        -- For regular keybind, we track when it's active
-                        keybindData.active = keybindData.keybindObject._isActive or false
+                        -- Regular keybind: reflect mode-specific active state tracked on the object
+                        keybindData.active = keybindData.keybindObject._isActive and true or false
                     elseif keybindData.type == "ToggleKeybind" then
-                        -- For toggle keybind, get current toggle state
-                        local state = keybindData.keybindObject:GetToggle()
-                        keybindData.toggleEnabled = state
-                        -- Update key name in case it changed
-                        local keyData = keybindData.keybindObject:Get()
-                        if keyData and keyData.KeyName then
-                            keybindData.key = keyData.KeyName
+                        -- Toggle keybind: pull toggle + active + key name via Get()
+                        local info = nil
+                        local ok, res = pcall(function()
+                            return keybindData.keybindObject:Get()
+                        end)
+                        if ok then info = res end
+                        if info then
+                            keybindData.toggleEnabled = info.Toggle and true or false
+                            keybindData.active = info.Active and true or false
+                            if info.KeyName then keybindData.key = info.KeyName end
+                        else
+                            -- Fallbacks
+                            local ok2, toggled = pcall(function()
+                                return keybindData.keybindObject:GetToggle()
+                            end)
+                            keybindData.toggleEnabled = ok2 and (toggled == true) or false
+                            keybindData.active = keybindData.toggleEnabled
                         end
                     end
                 end
-                
-                -- Only show ToggleKeybind if it's actually enabled
-                if keybindData.type == "ToggleKeybind" and not keybindData.toggleEnabled then
-                    -- Skip this entry
-                else
-                    self:_createKeybindEntry(keybindData, layoutOrder)
-                    layoutOrder = layoutOrder + 1
-                end
+                -- Create UI entry
+                self:_createKeybindEntry(keybindData, layoutOrder)
+                layoutOrder = layoutOrder + 1
             end
         end
     end
@@ -3212,7 +3219,7 @@ function Library:CreateLibrary(opts)
                     
                     local keybindId = Library:_addKeybind(label, getDefaultKeyName(default), "Keybind", {
                         active = false,
-                        showInList = false, -- User adds via context menu
+                        showInList = true, -- Default: show in list; context starts as "Remove From List"
                         keybindObject = Keybind
                     })
                     Keybind._keybindId = keybindId
@@ -4406,7 +4413,7 @@ function Library:CreateLibrary(opts)
                     local isToggled = defaultToggle
                     local isBinding = false
                     local isHolding = false
-                    local keybindToggleState = false -- Track toggle state for Toggle mode
+                    local keybindToggleState = false -- Track active sub-state for Toggle mode (true when toggled via key)
                     local connections = {}
                     
                     -- Build row
@@ -4573,11 +4580,18 @@ function Library:CreateLibrary(opts)
                             if mode == "Toggle" then
                                 -- In toggle mode, pressing keybind alternates state
                                 keybindToggleState = not keybindToggleState
+                                -- Update list 'active' to reflect Toggle sub-state
+                                if updateKeybindTracking ~= nil then
+                                    updateKeybindTracking({ active = keybindToggleState, toggleEnabled = isToggled })
+                                end
                                 if type(cb) == "function" then
                                     pcall(cb, keybindToggleState, currentKey or currentInputType)
                                 end
                             elseif mode == "Hold" then
                                 isHolding = true
+                                if updateKeybindTracking ~= nil then
+                                    updateKeybindTracking({ active = true, toggleEnabled = isToggled })
+                                end
                                 if type(cb) == "function" then
                                     pcall(cb, true, currentKey or currentInputType)
                                 end
@@ -4599,6 +4613,9 @@ function Library:CreateLibrary(opts)
                                 
                                 if not matches then return end
                                 isHolding = false
+                                if updateKeybindTracking ~= nil then
+                                    updateKeybindTracking({ active = false, toggleEnabled = isToggled })
+                                end
                                 if type(cb) == "function" then
                                     pcall(cb, false, currentKey or currentInputType)
                                 end
@@ -4799,10 +4816,15 @@ function Library:CreateLibrary(opts)
                         
                         -- Update keybind list tracking
                         if updateKeybindTracking ~= nil then
-                            updateKeybindTracking({
-                                toggleEnabled = isToggled,
-                                active = isToggled -- For ToggleKeybind, active state = toggle state
-                            })
+                            local newActive
+                            if mode == "Always" then
+                                newActive = true
+                            elseif mode == "Hold" then
+                                newActive = false -- until pressed
+                            elseif mode == "Toggle" then
+                                newActive = keybindToggleState
+                            end
+                            updateKeybindTracking({ toggleEnabled = isToggled, active = newActive })
                         end
                         
                         if not silent and type(cb) == "function" then
@@ -4848,11 +4870,20 @@ function Library:CreateLibrary(opts)
                     end
                     
                     function KeybindToggle:Get()
+                        local activeState
+                        if mode == "Always" then
+                            activeState = true
+                        elseif mode == "Hold" then
+                            activeState = isToggled and isHolding or false
+                        elseif mode == "Toggle" then
+                            activeState = isToggled and keybindToggleState or false
+                        end
                         return {
                             Key = currentKey or currentInputType,
                             Toggle = isToggled,
                             Mode = mode,
-                            KeyName = getKeyName(currentKey, currentInputType)
+                            KeyName = getKeyName(currentKey, currentInputType),
+                            Active = activeState
                         }
                     end
                     
@@ -4862,10 +4893,18 @@ function Library:CreateLibrary(opts)
                     end
                     
                     -- Add to keybind list tracking system
+                    local initialActive
+                    if mode == "Always" then
+                        initialActive = true
+                    elseif mode == "Hold" then
+                        initialActive = false
+                    elseif mode == "Toggle" then
+                        initialActive = keybindToggleState
+                    end
                     keybindId = Library:_addKeybind(label, getKeyName(currentKey, currentInputType), "ToggleKeybind", {
-                        active = false,
+                        active = initialActive,
                         toggleEnabled = isToggled,
-                        showInList = true, -- Show by default for testing
+                        showInList = true, -- Default added is fine; visibility is driven by toggle
                         keybindObject = KeybindToggle
                     })
                     KeybindToggle._keybindId = keybindId
