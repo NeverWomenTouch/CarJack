@@ -635,6 +635,8 @@ do
             end
         end
         
+
+        
         local layoutOrder = 1
         
         -- Process all tracked keybinds
@@ -3213,7 +3215,7 @@ function Library:CreateLibrary(opts)
                     
                     local keybindId = Library:_addKeybind(label, getDefaultKeyName(default), "Keybind", {
                         active = false,
-                        showInList = false, -- Start with false, user can add via context menu
+                        showInList = true, -- Show by default for testing
                         keybindObject = Keybind
                     })
                     Keybind._keybindId = keybindId
@@ -4614,12 +4616,10 @@ function Library:CreateLibrary(opts)
                         updateToggleVisual()
                         
                         -- Update keybind list tracking
-                        if KeybindToggle._keybindId then
-                            Library:_updateKeybind(KeybindToggle._keybindId, {
-                                toggleEnabled = isToggled,
-                                active = isToggled
-                            })
-                        end
+                        updateKeybindTracking({
+                            toggleEnabled = isToggled,
+                            active = isToggled
+                        })
                         -- Toggle just enables/disables the keybind, doesn't trigger callback
                     end)
                     
@@ -4753,13 +4753,21 @@ function Library:CreateLibrary(opts)
                         end
                     end)
                     
+                    -- Public API
+                    local KeybindToggle = { id = id }
+                    local keybindId = nil -- Will be set after KeybindToggle is defined
+                    
+                    -- Helper function to safely update keybind tracking
+                    local function updateKeybindTracking(updates)
+                        if keybindId and Library._keybinds and Library._keybinds[keybindId] then
+                            Library:_updateKeybind(keybindId, updates)
+                        end
+                    end
+                    
                     -- Initialize
                     setupKeybindListener()
                     updateToggleVisual()
                     updateKeybindVisual()
-                    
-                    -- Public API
-                    local KeybindToggle = { id = id }
                     
                     function KeybindToggle:GetKey()
                         return currentKey
@@ -4791,12 +4799,10 @@ function Library:CreateLibrary(opts)
                         updateToggleVisual()
                         
                         -- Update keybind list tracking
-                        if KeybindToggle._keybindId then
-                            Library:_updateKeybind(KeybindToggle._keybindId, {
-                                toggleEnabled = isToggled,
-                                active = isToggled -- For ToggleKeybind, active state = toggle state
-                            })
-                        end
+                        updateKeybindTracking({
+                            toggleEnabled = isToggled,
+                            active = isToggled -- For ToggleKeybind, active state = toggle state
+                        })
                         
                         if not silent and type(cb) == "function" then
                             pcall(cb, isToggled, currentKey)
@@ -4816,12 +4822,10 @@ function Library:CreateLibrary(opts)
                                 if updateToggleVisual then updateToggleVisual() end
                                 
                                 -- Update keybind list tracking for Always mode
-                                if KeybindToggle._keybindId then
-                                    Library:_updateKeybind(KeybindToggle._keybindId, {
-                                        toggleEnabled = true,
-                                        active = true
-                                    })
-                                end
+                                updateKeybindTracking({
+                                    toggleEnabled = true,
+                                    active = true
+                                })
                                 
                                 if not silent and type(cb) == "function" then
                                     pcall(cb, true, currentKey or currentInputType)
@@ -4855,10 +4859,10 @@ function Library:CreateLibrary(opts)
                     end
                     
                     -- Add to keybind list tracking system
-                    local keybindId = Library:_addKeybind(label, getKeyName(currentKey, currentInputType), "ToggleKeybind", {
+                    keybindId = Library:_addKeybind(label, getKeyName(currentKey, currentInputType), "ToggleKeybind", {
                         active = false,
                         toggleEnabled = isToggled,
-                        showInList = false, -- Start with false, will show only when toggle is enabled
+                        showInList = true, -- Show by default for testing
                         keybindObject = KeybindToggle
                     })
                     KeybindToggle._keybindId = keybindId
@@ -5104,8 +5108,8 @@ function Library:CreateLibrary(opts)
     Window.DeleteConfig = function(name) Config.Delete(name) end
     
     -- Create keybind list immediately when library is created
-    spawn(function()
-        wait(1) -- Small delay to ensure everything is properly initialized
+    task.spawn(function()
+        task.wait(1) -- Small delay to ensure everything is properly initialized
         if Library._keybindListVisible then
             Library:_createKeybindList()
         end
@@ -5124,27 +5128,5 @@ function Library:SetFlag(name, value, silent)
     local c = (self.Flags and self.Flags[name]) or self._controls[name]
     if c and c.Set then c:Set(value, silent) end
 end
-
---[[
-Keybind List System - NEW AND IMPROVED:
-Library:ShowKeybindList(true/false) -- Show/hide the keybind list
-Library:GetKeybindListVisibility() -- Get current visibility state  
-Library:ToggleKeybindList() -- Toggle visibility
-
-Features:
-• Beautiful, draggable UI with library theming
-• Real-time status indicators (ON/OFF) with color coding
-• AddKeybind: Right-click to add/remove from list, shows active state
-• AddToggleKeybind: Only appears when toggle is enabled, shows toggle state
-• Automatic tracking of all keybind states
-• Smooth animations and professional design
-• Context menu with shorter button text to prevent overflow
-
-Usage:
-1. Create keybinds with AddKeybind or AddToggleKeybind
-2. Right-click AddKeybind entries to toggle visibility in list
-3. AddToggleKeybind automatically shows when toggle is enabled
-4. Drag the keybind list to reposition it anywhere on screen
---]]
 
 return Library
