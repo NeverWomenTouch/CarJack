@@ -267,12 +267,18 @@ do
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 
-                -- Get mouse position accounting for GUI inset
-                local mousePos = UserInputService:GetMouseLocation()
+                -- Get pointer position accounting for GUI inset
+                local pos
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    pos = input.Position
+                else
+                    local mousePos = UserInputService:GetMouseLocation()
+                    pos = Vector2.new(mousePos.X, mousePos.Y)
+                end
                 local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
+                local adjustedMousePos = Vector2.new(pos.X - guiInset.X, pos.Y - guiInset.Y)
                 
-                -- Calculate offset from mouse to frame's top-left corner
+                -- Calculate offset from pointer to frame's top-left corner
                 local framePos = watermarkFrame.AbsolutePosition
                 dragOffset = Vector2.new(adjustedMousePos.X - framePos.X, adjustedMousePos.Y - framePos.Y)
                 
@@ -284,15 +290,21 @@ do
             end
         end)
         
-        -- Perfect cursor-following movement
+        -- Perfect pointer-following movement (mouse or touch)
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
             
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                -- Get current mouse position with GUI inset correction
-                local mousePos = UserInputService:GetMouseLocation()
+                -- Get current pointer position with GUI inset correction
+                local pos
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    pos = input.Position
+                else
+                    local mousePos = UserInputService:GetMouseLocation()
+                    pos = Vector2.new(mousePos.X, mousePos.Y)
+                end
                 local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
+                local adjustedMousePos = Vector2.new(pos.X - guiInset.X, pos.Y - guiInset.Y)
                 
                 -- Calculate new frame position maintaining the offset
                 local newX = adjustedMousePos.X - dragOffset.X
