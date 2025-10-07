@@ -24,6 +24,10 @@ local function Create(className, props, children)
 end
 local function Round(num, inc) inc = inc or 1 return math.floor(num / inc + 0.5) * inc end
 local function Clamp(v, a, b) return (v < a and a) or (v > b and b) or v end
+-- Fix math.clamp compatibility
+if not math.clamp then
+    math.clamp = Clamp
+end
 local Theme = {
     Bg = Color3.fromRGB(12, 14, 13),
     Panel = Color3.fromRGB(18, 20, 19),
@@ -496,156 +500,191 @@ do
     end
 end
 
--- Keybind List System - Super Simple Version That WILL Work
+-- Keybind List System - Completely Rewritten
 do
-    Library._keybindListGui = nil
-    Library._keybindListVisible = true -- Show by default
+    Library._keybindList = nil
+    Library._keybindListVisible = true
     Library._keybinds = {}
     
-    function Library:_updateKeybindDisplay()
-        if not self._keybindScrollFrame then 
-            print("No scroll frame found!")
-            return 
-        end
-        
-        print("Updating keybind display...")
-        print("Keybinds count:", table.maxn(self._keybinds) > 0 and "Has keybinds" or "No keybinds")
-        
-        -- Clear existing entries
-        for _, child in ipairs(self._keybindScrollFrame:GetChildren()) do
-            if child:IsA("Frame") and child.Name == "KeybindEntry" then
-                child:Destroy()
-            end
-        end
-        
-        -- Create entries for each keybind
-        local layoutOrder = 1
-        for id, keybind in pairs(self._keybinds) do
-            print("Processing keybind:", id, keybind.name, "showInList:", keybind.showInList)
-            if keybind.showInList then
-                print("Creating entry for:", keybind.name)
-                -- Always show for now to debug
-                
-                -- Get current enabled state from keybind object
-                local currentEnabled = keybind.enabled
-                if keybind.keybindObject and keybind.keybindObject.Get then
-                    currentEnabled = keybind.keybindObject:Get()
-                end
-                
-                -- Update keybind data with current state
-                keybind.enabled = currentEnabled
-                
-                self:_createKeybindEntry(keybind, layoutOrder)
-                layoutOrder = layoutOrder + 1
-            end
-        end
-        
-        print("Created", layoutOrder - 1, "keybind entries")
+    -- Initialize keybind list system
+    function Library:InitializeKeybindList()
+        self._keybinds = {}
+        self._keybindList = nil
+        self._keybindListVisible = true
+        self._keybindScrollFrame = nil
     end
     
-    function Library:_createKeybindEntry(keybind, layoutOrder)
-        print("Creating keybind entry for:", keybind.name, "key:", keybind.key, "enabled:", keybind.enabled)
-        -- Create entry frame with detailed styling
-        local entryFrame = Create("Frame", {
+    -- Create beautiful keybind entry
+    function Library:_createKeybindEntry(keybindData, layoutOrder)
+        local entry = Create("Frame", {
             Name = "KeybindEntry",
-            Size = UDim2.new(1, -4, 0, 28),
+            Size = UDim2.new(1, -8, 0, 32),
             BackgroundColor3 = Theme.Panel,
             BorderSizePixel = 0,
             LayoutOrder = layoutOrder,
             Parent = self._keybindScrollFrame
         })
         
-        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = entryFrame})
-        
-        -- Entry border
-        local entryStroke = Create("UIStroke", {
+        Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = entry})
+        Create("UIStroke", {
             Color = Theme.Stroke,
             Thickness = 1,
-            Transparency = 0.5,
-            Parent = entryFrame
+            Transparency = 0.4,
+            Parent = entry
         })
         
-        -- Keybind name label
-        Create("TextLabel", {
+        -- Keybind name (left side)
+        local nameLabel = Create("TextLabel", {
             Name = "NameLabel",
-            Size = UDim2.new(0.5, -5, 1, 0),
-            Position = UDim2.fromOffset(8, 0),
+            Size = UDim2.new(0.4, -8, 1, 0),
+            Position = UDim2.fromOffset(12, 0),
             BackgroundTransparency = 1,
-            Text = keybind.name,
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 11,
-            Font = Enum.Font.Gotham,
+            Text = keybindData.name,
+            TextColor3 = Theme.Text,
+            TextSize = 12,
+            Font = Fonts.Medium,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextTruncate = Enum.TextTruncate.AtEnd,
-            Parent = entryFrame
+            Parent = entry
         })
         
-        -- Key display with accent styling
-        local keyFrame = Create("Frame", {
-            Name = "KeyFrame",
-            Size = UDim2.new(0, 50, 0, 18),
-            Position = UDim2.new(0.5, 5, 0.5, -9),
+        -- Key display (center)
+        local keyContainer = Create("Frame", {
+            Name = "KeyContainer",
+            Size = UDim2.new(0, 45, 0, 20),
+            Position = UDim2.new(0.4, 5, 0.5, -10),
             BackgroundColor3 = Theme.Bg,
             BorderSizePixel = 0,
-            Parent = entryFrame
+            Parent = entry
         })
         
-        Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = keyFrame})
+        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = keyContainer})
         Create("UIStroke", {
-            Color = Library._accent,
+            Color = Theme.Accent,
             Thickness = 1,
-            Transparency = 0.4,
-            Parent = keyFrame
+            Transparency = 0.3,
+            Parent = keyContainer
         })
         
-        Create("TextLabel", {
+        local keyLabel = Create("TextLabel", {
             Name = "KeyLabel",
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Text = keybind.key,
-            TextColor3 = Library._accent,
+            Text = keybindData.key,
+            TextColor3 = Theme.Accent,
             TextSize = 10,
-            Font = Enum.Font.GothamBold,
+            Font = Fonts.Bold,
             TextXAlignment = Enum.TextXAlignment.Center,
-            Parent = keyFrame
+            Parent = keyContainer
         })
         
-        -- Status indicator (enabled/disabled)
-        local statusColor = keybind.enabled and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 60, 60)
-        local statusText = keybind.enabled and "ON" or "OFF"
+        -- Status indicator (right side)
+        local isActive = false
+        if keybindData.type == "Keybind" then
+            -- For AddKeybind, show if keybind is currently being pressed
+            isActive = keybindData.active or false
+        elseif keybindData.type == "ToggleKeybind" then
+            -- For AddToggleKeybind, show if toggle is enabled
+            isActive = keybindData.toggleEnabled or false
+        end
         
-        local statusFrame = Create("Frame", {
-            Name = "StatusFrame",
-            Size = UDim2.new(0, 35, 0, 16),
-            Position = UDim2.new(1, -40, 0.5, -8),
+        local statusColor = isActive and Theme.Good or Theme.Bad
+        local statusText = isActive and "ON" or "OFF"
+        
+        local statusContainer = Create("Frame", {
+            Name = "StatusContainer",
+            Size = UDim2.new(0, 32, 0, 18),
+            Position = UDim2.new(1, -38, 0.5, -9),
             BackgroundColor3 = statusColor,
             BorderSizePixel = 0,
-            Parent = entryFrame
+            Parent = entry
         })
         
-        Create("UICorner", {CornerRadius = UDim.new(0, 2), Parent = statusFrame})
+        Create("UICorner", {CornerRadius = UDim.new(0, 3), Parent = statusContainer})
         
-        Create("TextLabel", {
-            Name = "StatusLabel", 
+        local statusLabel = Create("TextLabel", {
+            Name = "StatusLabel",
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
             Text = statusText,
             TextColor3 = Color3.fromRGB(255, 255, 255),
             TextSize = 9,
-            Font = Enum.Font.GothamBold,
+            Font = Fonts.Bold,
             TextXAlignment = Enum.TextXAlignment.Center,
-            Parent = statusFrame
+            Parent = statusContainer
         })
+        
+        -- Store references for updates
+        entry._nameLabel = nameLabel
+        entry._keyLabel = keyLabel
+        entry._statusContainer = statusContainer
+        entry._statusLabel = statusLabel
+        entry._keybindData = keybindData
+        
+        return entry
     end
     
-    -- Create keybind list using EXACT watermark pattern
-    function Library:_createKeybindList()
-        -- Destroy existing
-        if Library._keybindList then
-            pcall(function() Library._keybindList:Destroy() end)
+    -- Update keybind display
+    function Library:_updateKeybindDisplay()
+        if not self._keybindScrollFrame then return end
+        
+        -- Clear existing entries
+        for _, child in pairs(self._keybindScrollFrame:GetChildren()) do
+            if child:IsA("Frame") and child.Name == "KeybindEntry" then
+                child:Destroy()
+            end
         end
         
-        -- Find library ScreenGui for proper parenting
+        local layoutOrder = 1
+        
+        -- Process all tracked keybinds
+        for id, keybindData in pairs(self._keybinds) do
+            local shouldShow = false
+            
+            if keybindData.type == "Keybind" then
+                -- AddKeybind: show if user added it to list
+                shouldShow = keybindData.showInList
+            elseif keybindData.type == "ToggleKeybind" then
+                -- AddToggleKeybind: only show if toggle is enabled AND in list
+                shouldShow = keybindData.showInList and keybindData.toggleEnabled
+            end
+            
+            if shouldShow then
+                -- Get current state from the keybind object
+                if keybindData.keybindObject then
+                    if keybindData.type == "Keybind" then
+                        -- For regular keybind, we track when it's active
+                        keybindData.active = keybindData.keybindObject._isActive or false
+                    elseif keybindData.type == "ToggleKeybind" then
+                        -- For toggle keybind, get current toggle state
+                        local state = keybindData.keybindObject:GetToggle()
+                        keybindData.toggleEnabled = state
+                        -- Update key name in case it changed
+                        local keyData = keybindData.keybindObject:Get()
+                        if keyData and keyData.KeyName then
+                            keybindData.key = keyData.KeyName
+                        end
+                    end
+                end
+                
+                -- Only show ToggleKeybind if it's actually enabled
+                if keybindData.type == "ToggleKeybind" and not keybindData.toggleEnabled then
+                    -- Skip this entry
+                else
+                    self:_createKeybindEntry(keybindData, layoutOrder)
+                    layoutOrder = layoutOrder + 1
+                end
+            end
+        end
+    end
+    
+    -- Create the main keybind list GUI
+    function Library:_createKeybindList()
+        if self._keybindList then
+            pcall(function() self._keybindList:Destroy() end)
+        end
+        
+        -- Find the library's ScreenGui
         local libraryGui = nil
         for _, gui in pairs(CoreGui:GetChildren()) do
             if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
@@ -655,247 +694,210 @@ do
         end
         
         if not libraryGui then
-            warn("Could not find library GUI for keybind list parenting")
+            warn("Could not find library GUI for keybind list")
             return
         end
         
-        -- Calculate middle-left position
-        local screenSize = workspace.CurrentCamera.ViewportSize
-        local posX = 20
-        local posY = (screenSize.Y / 2) - 150
+        -- Create keybind list ScreenGui
+        self._keybindList = Create("ScreenGui", {
+            Name = "KeybindList",
+            Parent = libraryGui,
+            ResetOnSpawn = false,
+            DisplayOrder = 999998
+        })
         
-        -- Create ScreenGui parented to library GUI
-        Library._keybindList = Instance.new("ScreenGui")
-        Library._keybindList.Name = "KeybindList" 
-        Library._keybindList.Parent = libraryGui
-        Library._keybindList.ResetOnSpawn = false
-        Library._keybindList.DisplayOrder = 999998
-        
-        -- Create main draggable frame with library theming
-        local keybindListFrame = Create("TextButton", {
-            Name = "KeybindListFrame",
+        -- Main frame
+        local mainFrame = Create("TextButton", {
+            Name = "MainFrame",
+            Size = UDim2.fromOffset(280, 400),
+            Position = UDim2.fromOffset(20, 100),
             BackgroundColor3 = Theme.Bg,
             AutoButtonColor = false,
             BorderSizePixel = 0,
-            Size = UDim2.fromOffset(250, 350),
-            Position = UDim2.fromOffset(posX, posY),
-            AnchorPoint = Vector2.new(0, 0),
-            ZIndex = 1000,
             Text = "",
-            Parent = Library._keybindList
+            Parent = self._keybindList
         })
         
-
+        Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = mainFrame})
         
-        -- Rounded corners
-        Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = keybindListFrame})
-        
-        -- Main outer border with library theme
-        local outerBorder = Create("UIStroke", {
+        -- Outer border
+        local outerStroke = Create("UIStroke", {
             Color = Theme.Stroke,
             Thickness = 1,
-            Transparency = 0,
-            Parent = keybindListFrame
+            Transparency = 0.2,
+            Parent = mainFrame
         })
         
-        -- Accent border frame (inner glow effect like library)
+        -- Accent glow effect
         local accentFrame = Create("Frame", {
-            Name = "AccentFrame",
             Size = UDim2.new(1, -2, 1, -2),
             Position = UDim2.fromOffset(1, 1),
-            BackgroundColor3 = Theme.Panel,
+            BackgroundTransparency = 1,
             BorderSizePixel = 0,
-            Parent = keybindListFrame
+            Parent = mainFrame
         })
         
-        Create("UICorner", {CornerRadius = UDim.new(0, 5), Parent = accentFrame})
-        
-        -- Accent stroke (glowing accent line)
-        local accentStroke = Create("UIStroke", {
-            Color = Library._accent,
+        Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = accentFrame})
+        Create("UIStroke", {
+            Color = Theme.Accent,
             Thickness = 1,
-            Transparency = 0.6,
+            Transparency = 0.7,
             Parent = accentFrame
         })
         
-        -- Inner background
-        local innerBg = Create("Frame", {
-            Size = UDim2.new(1, -2, 1, -2),
-            Position = UDim2.fromOffset(1, 1),
-            BackgroundColor3 = Theme.Bg,
-            BorderSizePixel = 0,
-            Parent = accentFrame
-        })
-        
-        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = innerBg})
-        
-        -- Title bar with detailed styling
+        -- Title bar
         local titleBar = Create("Frame", {
             Name = "TitleBar",
-            Size = UDim2.new(1, 0, 0, 32),
-            BackgroundColor3 = Theme.ElementColor,
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundColor3 = Theme.Panel,
             BorderSizePixel = 0,
-            Parent = innerBg
+            Parent = mainFrame
         })
         
-        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = titleBar})
-        
-        -- Title bar stroke
+        Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = titleBar})
         Create("UIStroke", {
-            Color = Theme.OutlineColor,
+            Color = Theme.Stroke,
             Thickness = 1,
-            Transparency = 0.3,
+            Transparency = 0.5,
             Parent = titleBar
         })
         
         -- Title text
         Create("TextLabel", {
             Name = "TitleText",
-            Size = UDim2.new(1, -10, 1, 0),
-            Position = UDim2.fromOffset(8, 0),
+            Size = UDim2.new(1, -16, 1, 0),
+            Position = UDim2.fromOffset(16, 0),
             BackgroundTransparency = 1,
-            Text = "Keybinds",
-            TextColor3 = Theme.TextColor,
-            TextSize = 13,
-            Font = Enum.Font.GothamBold,
+            Text = "🔥 Keybind List",
+            TextColor3 = Theme.Text,
+            TextSize = 14,
+            Font = Fonts.Bold,
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = titleBar
         })
         
-        -- Scrolling frame for keybind entries
-        Library._keybindScrollFrame = Create("ScrollingFrame", {
+        -- Scrolling frame for entries
+        self._keybindScrollFrame = Create("ScrollingFrame", {
             Name = "ScrollingFrame",
-            Size = UDim2.new(1, -8, 1, -40),
-            Position = UDim2.fromOffset(4, 36),
-            BackgroundColor3 = Theme.BackgroundColor,
+            Size = UDim2.new(1, -12, 1, -48),
+            Position = UDim2.fromOffset(6, 42),
+            BackgroundTransparency = 1,
             BorderSizePixel = 0,
-            ScrollBarThickness = 4,
-            ScrollBarImageColor3 = Library._accent,
-            ScrollBarImageTransparency = 0.3,
+            ScrollBarThickness = 6,
+            ScrollBarImageColor3 = Theme.Accent,
+            ScrollBarImageTransparency = 0.4,
             CanvasSize = UDim2.fromOffset(0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            Parent = innerBg
+            Parent = mainFrame
         })
         
-        -- List layout for keybind entries
+        -- Layout for entries
         Create("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
-            Padding = UDim.new(0, 2),
-            Parent = Library._keybindScrollFrame
+            Padding = UDim.new(0, 4),
+            Parent = self._keybindScrollFrame
         })
         
-        -- PRECISE cursor-locked dragging system (copied from watermark)
+        -- Dragging system
         local dragging = false
         local dragOffset = Vector2.new(0, 0)
         
-        keybindListFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        mainFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
-                
-                -- Get mouse position accounting for GUI inset
                 local mousePos = UserInputService:GetMouseLocation()
                 local guiInset = game:GetService("GuiService"):GetGuiInset()
                 local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
-                
-                -- Calculate offset from mouse to frame's top-left corner
-                local framePos = keybindListFrame.AbsolutePosition
+                local framePos = mainFrame.AbsolutePosition
                 dragOffset = Vector2.new(adjustedMousePos.X - framePos.X, adjustedMousePos.Y - framePos.Y)
                 
                 -- Visual feedback
-                T(outerBorder, 0.1, {Color = Library._accent, Thickness = 2}):Play()
-                T(accentStroke, 0.1, {Transparency = 0.2}):Play()
+                T(outerStroke, 0.15, {Color = Theme.Accent, Thickness = 2}):Play()
             end
         end)
         
-        -- Perfect cursor-following movement
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
-            
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                -- Get current mouse position with GUI inset correction
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
                 local mousePos = UserInputService:GetMouseLocation()
                 local guiInset = game:GetService("GuiService"):GetGuiInset()
                 local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
                 
-                -- Calculate new frame position maintaining the offset
                 local newX = adjustedMousePos.X - dragOffset.X
                 local newY = adjustedMousePos.Y - dragOffset.Y
                 
-                -- Screen boundaries
                 local screenSize = workspace.CurrentCamera.ViewportSize
-                local frameSize = keybindListFrame.AbsoluteSize
+                local frameSize = mainFrame.AbsoluteSize
                 
-                -- Clamp to screen bounds
                 newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
                 newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
                 
-                -- Apply position instantly for smooth movement
-                keybindListFrame.Position = UDim2.fromOffset(newX, newY)
+                mainFrame.Position = UDim2.fromOffset(newX, newY)
             end
         end)
         
         UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                if dragging then
-                    dragging = false
-                    -- Reset visual feedback
-                    T(outerBorder, 0.2, {Color = Theme.OutlineColor, Thickness = 1}):Play()
-                    T(accentStroke, 0.2, {Transparency = 0.6}):Play()
-                end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+                dragging = false
+                T(outerStroke, 0.2, {Color = Theme.Stroke, Thickness = 1}):Play()
             end
         end)
         
-        -- Add some test keybinds to show immediately
-        self._keybinds = self._keybinds or {}
-        self._keybinds["test1"] = {name = "Aimbot", key = "F", enabled = true, showInList = true, type = "Keybind"}
-        self._keybinds["test2"] = {name = "ESP", key = "G", enabled = false, showInList = true, type = "Keybind"}
-        self._keybinds["test3"] = {name = "Fly", key = "H", enabled = true, showInList = true, type = "Keybind"}
-        
-        -- Add test keybinds to ensure display works
-        self._keybinds["Test_Aimbot_F"] = {
-            name = "Aimbot",
-            key = "F",
-            type = "Keybind",
-            enabled = true,
-            showInList = true,
-            keybindObject = nil
-        }
-        self._keybinds["Test_ESP_G"] = {
-            name = "ESP",
-            key = "G", 
-            type = "Keybind",
-            enabled = false,
-            showInList = true,
-            keybindObject = nil
-        }
-        self._keybinds["Test_Fly_H"] = {
-            name = "Fly",
-            key = "H",
-            type = "ToggleKeybind", 
-            enabled = true,
-            showInList = true,
-            keybindObject = nil
-        }
-        
-        -- Update display with current keybinds
+        -- Initial update
         self:_updateKeybindDisplay()
         
-        -- Set up periodic updates to show real-time states
-        spawn(function()
-            while Library._keybindList and Library._keybindList.Parent do
-                wait(0.5) -- Update twice per second
-                if Library._keybindListVisible then
-                    Library:_updateKeybindDisplay()
+        -- Real-time updates
+        task.spawn(function()
+            while self._keybindList and self._keybindList.Parent do
+                task.wait(0.3)
+                if self._keybindListVisible then
+                    self:_updateKeybindDisplay()
                 end
             end
         end)
     end
     
-    -- EXACT COPY OF WATERMARK VISIBILITY FUNCTION
+    -- Keybind tracking functions
+    function Library:_addKeybind(name, key, type, data)
+        local id = name .. "_" .. (key or "None") .. "_" .. type
+        self._keybinds[id] = {
+            name = name,
+            key = key,
+            type = type,
+            active = data.active or false,
+            toggleEnabled = data.toggleEnabled or false,
+            showInList = data.showInList ~= false,
+            keybindObject = data.keybindObject
+        }
+        return id
+    end
+    
+    function Library:_updateKeybind(id, updates)
+        if self._keybinds[id] then
+            for k, v in pairs(updates) do
+                self._keybinds[id][k] = v
+            end
+        end
+    end
+    
+    function Library:_toggleKeybindInList(id)
+        if self._keybinds[id] then
+            self._keybinds[id].showInList = not self._keybinds[id].showInList
+            return self._keybinds[id].showInList
+        end
+        return false
+    end
+    
+    function Library:_removeKeybind(id)
+        if self._keybinds[id] then
+            self._keybinds[id] = nil
+        end
+    end
+    
+    -- Public visibility functions
     function Library:ShowKeybindList(visible)
         self._keybindListVisible = (visible == true)
         
-        -- Create keybind list if it doesn't exist and should be visible
         if self._keybindListVisible then
             if not self._keybindList or not self._keybindList.Parent then
                 self:_createKeybindList()
@@ -903,7 +905,6 @@ do
                 self._keybindList.Enabled = true
             end
         else
-            -- Hide existing keybind list
             if self._keybindList and self._keybindList.Parent then
                 self._keybindList.Enabled = false
             end
@@ -914,38 +915,8 @@ do
         return self._keybindListVisible
     end
     
-    -- Keybind tracking functions
-    function Library:_addKeybind(name, key, type, data)
-        local id = name .. "_" .. key
-        self._keybinds[id] = {
-            name = name,
-            key = key,
-            type = type,
-            enabled = data.enabled or false,
-            toggleEnabled = data.toggleEnabled or false,
-            showInList = data.showInList ~= false,
-            keybindObject = data.keybindObject -- Store reference to the actual keybind object
-        }
-        if self._keybindListVisible then self:_updateKeybindDisplay() end
-        return id
-    end
-    
-    function Library:_updateKeybind(id, updates)
-        if self._keybinds[id] then
-            for k, v in pairs(updates) do
-                self._keybinds[id][k] = v
-            end
-            if self._keybindListVisible then self:_updateKeybindDisplay() end
-        end
-    end
-    
-    function Library:_toggleKeybindInList(id)
-        if self._keybinds[id] then
-            self._keybinds[id].showInList = not self._keybinds[id].showInList
-            if self._keybindListVisible then self:_updateKeybindDisplay() end
-            return self._keybinds[id].showInList
-        end
-        return false
+    function Library:ToggleKeybindList()
+        self:ShowKeybindList(not self._keybindListVisible)
     end
 end
 
@@ -973,6 +944,8 @@ function Library:CreateLibrary(opts)
     self._searchEntries = {}
     -- reset public Flags mapping for the new UI instance
     self.Flags = {}
+    -- Initialize keybind list system
+    self:InitializeKeybindList()
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
     local libraryName = tostring(opts.LibraryName or "Dendrite UI")
@@ -3132,14 +3105,23 @@ function Library:CreateLibrary(opts)
                         
                         local textService = game:GetService("TextService")
                         local labelFont = Fonts.Medium
-                        local labelSize = 12
+                        local labelSize = 11
                         local sidePad, vPad, gap, itemH = 10, 6, 2, 24
                         local function measure(text)
                             local sz = textService:GetTextSize(text or "", labelSize, labelFont, Vector2.new(1000, itemH))
                             return sz.X
                         end
-                        local maxTextW = math.max(measure("Hold"), measure("Toggle"), measure("Always"))
-                        local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 24), 100, 160)
+                        -- Include keybind list toggle text in width calculation
+                        local keybindListText1 = measure("Add To List")
+                        local keybindListText2 = measure("Remove From List")
+                        local maxTextW = math.max(
+                            measure("Hold"), 
+                            measure("Toggle"), 
+                            measure("Always"),
+                            keybindListText1,
+                            keybindListText2
+                        )
+                        local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 16), 120, 200)
                         
                         keybindCtxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = menuZBase + 1, ClipsDescendants = true, Parent = RootGui}, {
                             Create("UICorner", {CornerRadius = UDim.new(0,6)}),
@@ -3175,7 +3157,7 @@ function Library:CreateLibrary(opts)
                         -- Add keybind list toggle option
                         local function createKeybindListToggle()
                             local isInList = Keybind._keybindId and Library._keybinds[Keybind._keybindId] and Library._keybinds[Keybind._keybindId].showInList
-                            local toggleText = isInList and "Remove From Keybindlist" or "Add To Keybindlist"
+                            local toggleText = isInList and "Remove From List" or "Add To List"
                             
                             local btn = Create("TextButton", {AutoButtonColor = false, BackgroundTransparency = 0, BackgroundColor3 = Theme.Bg, Size = UDim2.new(1,0,0,itemH), Text = "", ZIndex = content.ZIndex + 1, Parent = content}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
@@ -3230,11 +3212,48 @@ function Library:CreateLibrary(opts)
                     end
                     
                     local keybindId = Library:_addKeybind(label, getDefaultKeyName(default), "Keybind", {
-                        enabled = false,
-                        showInList = true,
+                        active = false,
+                        showInList = false, -- Start with false, user can add via context menu
                         keybindObject = Keybind
                     })
                     Keybind._keybindId = keybindId
+                    Keybind._isActive = false
+                    
+                    -- Track when keybind is active
+                    local originalUserInputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                        if gameProcessed then return end
+                        local matches = false
+                        if Keybind._value then
+                            if typeof(Keybind._value) == "EnumItem" then
+                                if Keybind._value.EnumType == Enum.KeyCode then
+                                    matches = input.KeyCode == Keybind._value
+                                elseif Keybind._value.EnumType == Enum.UserInputType then
+                                    matches = input.UserInputType == Keybind._value
+                                end
+                            end
+                        end
+                        if matches then
+                            Keybind._isActive = true
+                            Library:_updateKeybind(keybindId, {active = true})
+                        end
+                    end)
+                    
+                    local originalUserInputEnded = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                        local matches = false
+                        if Keybind._value then
+                            if typeof(Keybind._value) == "EnumItem" then
+                                if Keybind._value.EnumType == Enum.KeyCode then
+                                    matches = input.KeyCode == Keybind._value
+                                elseif Keybind._value.EnumType == Enum.UserInputType then
+                                    matches = input.UserInputType == Keybind._value
+                                end
+                            end
+                        end
+                        if matches then
+                            Keybind._isActive = false
+                            Library:_updateKeybind(keybindId, {active = false})
+                        end
+                    end)
                     
                     Library:_registerControl(Keybind)
                     table.insert(Group._controls, Keybind)
@@ -4593,6 +4612,14 @@ function Library:CreateLibrary(opts)
                         if mode == "Always" then return end -- Can't manually toggle in Always mode
                         isToggled = not isToggled
                         updateToggleVisual()
+                        
+                        -- Update keybind list tracking
+                        if KeybindToggle._keybindId then
+                            Library:_updateKeybind(KeybindToggle._keybindId, {
+                                toggleEnabled = isToggled,
+                                active = isToggled
+                            })
+                        end
                         -- Toggle just enables/disables the keybind, doesn't trigger callback
                     end)
                     
@@ -4764,10 +4791,10 @@ function Library:CreateLibrary(opts)
                         updateToggleVisual()
                         
                         -- Update keybind list tracking
-                        if self._keybindId then
-                            Library:_updateKeybind(self._keybindId, {
-                                enabled = isToggled,
-                                toggleEnabled = isToggled
+                        if KeybindToggle._keybindId then
+                            Library:_updateKeybind(KeybindToggle._keybindId, {
+                                toggleEnabled = isToggled,
+                                active = isToggled -- For ToggleKeybind, active state = toggle state
                             })
                         end
                         
@@ -4789,10 +4816,10 @@ function Library:CreateLibrary(opts)
                                 if updateToggleVisual then updateToggleVisual() end
                                 
                                 -- Update keybind list tracking for Always mode
-                                if self._keybindId then
-                                    Library:_updateKeybind(self._keybindId, {
-                                        enabled = true,
-                                        toggleEnabled = true
+                                if KeybindToggle._keybindId then
+                                    Library:_updateKeybind(KeybindToggle._keybindId, {
+                                        toggleEnabled = true,
+                                        active = true
                                     })
                                 end
                                 
@@ -4829,9 +4856,9 @@ function Library:CreateLibrary(opts)
                     
                     -- Add to keybind list tracking system
                     local keybindId = Library:_addKeybind(label, getKeyName(currentKey, currentInputType), "ToggleKeybind", {
-                        enabled = isToggled,
+                        active = false,
                         toggleEnabled = isToggled,
-                        showInList = true,
+                        showInList = false, -- Start with false, will show only when toggle is enabled
                         keybindObject = KeybindToggle
                     })
                     KeybindToggle._keybindId = keybindId
@@ -5099,17 +5126,25 @@ function Library:SetFlag(name, value, silent)
 end
 
 --[[
-Keybind List Usage:
-Library:ShowKeybindList(true) -- Show the keybind list
-Library:ShowKeybindList(false) -- Hide the keybind list
-Library:GetKeybindListVisibility() -- Get visibility state
-Library:SetKeybindListPosition({X = 100, Y = 150}) -- Set position
-Library:GetKeybindListPosition() -- Get current position
+Keybind List System - NEW AND IMPROVED:
+Library:ShowKeybindList(true/false) -- Show/hide the keybind list
+Library:GetKeybindListVisibility() -- Get current visibility state  
+Library:ToggleKeybindList() -- Toggle visibility
 
-The keybind list automatically tracks all AddKeybind and AddToggleKeybind instances.
-Right-click any AddKeybind to add/remove it from the list.
-AddToggleKeybind entries only show when the toggle is enabled.
-The list shows: Name, Key, Status (ON/OFF for keybinds, TOGGLE for toggle keybinds)
+Features:
+• Beautiful, draggable UI with library theming
+• Real-time status indicators (ON/OFF) with color coding
+• AddKeybind: Right-click to add/remove from list, shows active state
+• AddToggleKeybind: Only appears when toggle is enabled, shows toggle state
+• Automatic tracking of all keybind states
+• Smooth animations and professional design
+• Context menu with shorter button text to prevent overflow
+
+Usage:
+1. Create keybinds with AddKeybind or AddToggleKeybind
+2. Right-click AddKeybind entries to toggle visibility in list
+3. AddToggleKeybind automatically shows when toggle is enabled
+4. Drag the keybind list to reposition it anywhere on screen
 --]]
 
 return Library
