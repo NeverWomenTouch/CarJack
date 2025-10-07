@@ -505,6 +505,7 @@ do
     Library._keybindList = nil
     Library._keybindListVisible = false
     Library._keybinds = {}
+    Library._keybindListTransparency = 0 -- 0 = opaque, 1 = fully transparent
     
     -- Initialize keybind list system
     function Library:InitializeKeybindList()
@@ -512,6 +513,7 @@ do
         self._keybindList = nil
         self._keybindListVisible = false
         self._keybindScrollFrame = nil
+        self._keybindListTransparency = 0
     end
     
     -- Create beautiful keybind entry
@@ -520,6 +522,7 @@ do
             Name = "KeybindEntry",
             Size = UDim2.new(1, -8, 0, 32),
             BackgroundColor3 = Theme.Panel,
+            BackgroundTransparency = self._keybindListTransparency or 0,
             BorderSizePixel = 0,
             LayoutOrder = layoutOrder,
             Parent = self._keybindScrollFrame
@@ -554,6 +557,7 @@ do
             Size = UDim2.new(0, 45, 0, 20),
             Position = UDim2.new(0.4, 5, 0.5, -10),
             BackgroundColor3 = Theme.Bg,
+            BackgroundTransparency = math.clamp((self._keybindListTransparency or 0) * 0.8, 0, 1),
             BorderSizePixel = 0,
             Parent = entry
         })
@@ -613,6 +617,42 @@ do
         -- For now, no external references are required for updates.
 
         return entry
+    end
+
+    -- Apply transparency to existing keybind list UI
+    function Library:_applyKeybindListTransparency(alpha, tweenTime)
+        self._keybindListTransparency = math.clamp(tonumber(alpha) or 0, 0, 1)
+        local tt = tonumber(tweenTime) or 0.15
+        if not self._keybindList then return end
+        local mainFrame = self._keybindList:FindFirstChild("MainFrame")
+        if mainFrame then
+            T(mainFrame, tt, {BackgroundTransparency = self._keybindListTransparency}):Play()
+            -- Title bar
+            local titleBar = mainFrame:FindFirstChild("TitleBar")
+            if titleBar then
+                T(titleBar, tt, {BackgroundTransparency = self._keybindListTransparency}):Play()
+            end
+        end
+        -- Entries
+        if self._keybindScrollFrame then
+            for _, child in ipairs(self._keybindScrollFrame:GetChildren()) do
+                if child:IsA("Frame") and child.Name == "KeybindEntry" then
+                    T(child, tt, {BackgroundTransparency = self._keybindListTransparency}):Play()
+                    local keyContainer = child:FindFirstChild("KeyContainer")
+                    if keyContainer then
+                        T(keyContainer, tt, {BackgroundTransparency = math.clamp(self._keybindListTransparency * 0.8, 0, 1)}):Play()
+                    end
+                end
+            end
+        end
+    end
+
+    function Library:SetKeybindListTransparency(alpha, tweenTime)
+        self:_applyKeybindListTransparency(alpha, tweenTime)
+    end
+
+    function Library:GetKeybindListTransparency()
+        return self._keybindListTransparency or 0
     end
     
     -- Update keybind display
@@ -807,13 +847,21 @@ do
         -- Dragging system
         local dragging = false
         local dragOffset = Vector2.new(0, 0)
+        local dragInputType = nil -- track whether we're dragging via mouse or touch
         
         mainFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
-                local mousePos = UserInputService:GetMouseLocation()
+                dragInputType = input.UserInputType
+                local pos
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    pos = input.Position
+                else
+                    local mousePos = UserInputService:GetMouseLocation()
+                    pos = Vector2.new(mousePos.X, mousePos.Y)
+                end
                 local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
+                local adjustedMousePos = Vector2.new(pos.X - guiInset.X, pos.Y - guiInset.Y)
                 local framePos = mainFrame.AbsolutePosition
                 dragOffset = Vector2.new(adjustedMousePos.X - framePos.X, adjustedMousePos.Y - framePos.Y)
                 
@@ -824,10 +872,17 @@ do
         
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
-            if input.UserInputType == Enum.UserInputType.MouseMovement then
-                local mousePos = UserInputService:GetMouseLocation()
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                if dragInputType and input.UserInputType ~= dragInputType then return end
+                local pos
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    pos = input.Position
+                else
+                    local mousePos = UserInputService:GetMouseLocation()
+                    pos = Vector2.new(mousePos.X, mousePos.Y)
+                end
                 local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(mousePos.X - guiInset.X, mousePos.Y - guiInset.Y)
+                local adjustedMousePos = Vector2.new(pos.X - guiInset.X, pos.Y - guiInset.Y)
                 
                 local newX = adjustedMousePos.X - dragOffset.X
                 local newY = adjustedMousePos.Y - dragOffset.Y
@@ -843,8 +898,9 @@ do
         end)
         
         UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+            if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and dragging then
                 dragging = false
+                dragInputType = nil
                 T(outerStroke, 0.2, {Color = Theme.Stroke, Thickness = 1}):Play()
             end
         end)
@@ -858,6 +914,8 @@ do
                 task.wait(0.3)
                 if self._keybindListVisible then
                     self:_updateKeybindDisplay()
+                    -- re-apply transparency to any new entries
+                    self:_applyKeybindListTransparency(self._keybindListTransparency, 0)
                 end
             end
         end)
