@@ -747,6 +747,71 @@ do
         end
     end
     
+    -- New keybind list dragging system
+    function Library:_setupKeybindListDragging(frame, strokeElement)
+        local isDragging = false
+        local startPos = Vector2.new(0, 0)
+        local frameStartPos = Vector2.new(0, 0)
+        
+        frame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isDragging = true
+                
+                -- Record starting positions
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    startPos = input.Position
+                else
+                    startPos = UserInputService:GetMouseLocation()
+                end
+                frameStartPos = Vector2.new(frame.AbsolutePosition.X, frame.AbsolutePosition.Y)
+                
+                -- Visual feedback
+                T(strokeElement, 0.15, {Color = Theme.Accent, Thickness = 2}):Play()
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if not isDragging then return end
+            
+            local currentPos
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                currentPos = UserInputService:GetMouseLocation()
+            elseif input.UserInputType == Enum.UserInputType.Touch then
+                currentPos = input.Position
+            else
+                return
+            end
+            
+            -- Calculate how much we've moved
+            local deltaX = currentPos.X - startPos.X
+            local deltaY = currentPos.Y - startPos.Y
+            
+            -- Calculate new position
+            local newX = frameStartPos.X + deltaX
+            local newY = frameStartPos.Y + deltaY
+            
+            -- Get screen size for bounds checking
+            local viewportSize = workspace.CurrentCamera.ViewportSize
+            local frameSize = frame.AbsoluteSize
+            
+            -- Simple bounds - allow dragging to any edge (0,0 to screen size)
+            newX = math.clamp(newX, 0, viewportSize.X - frameSize.X)
+            newY = math.clamp(newY, 0, viewportSize.Y - frameSize.Y)
+            
+            -- Apply new position
+            frame.Position = UDim2.fromOffset(newX, newY)
+        end)
+        
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if isDragging then
+                    isDragging = false
+                    T(strokeElement, 0.2, {Color = Theme.Stroke, Thickness = 1}):Play()
+                end
+            end
+        end)
+    end
+    
     -- Create the main keybind list GUI
     function Library:_createKeybindList()
         if self._keybindList then
@@ -876,80 +941,8 @@ do
             Parent = self._keybindScrollFrame
         })
         
-        -- Dragging system
-        local dragging = false
-        local dragOffset = Vector2.new(0, 0)
-        local dragIsTouch = false
-        
-        mainFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragIsTouch = (input.UserInputType == Enum.UserInputType.Touch)
-                
-                -- Get mouse/touch position in screen coordinates
-                local inputPos
-                if dragIsTouch then
-                    inputPos = input.Position
-                else
-                    inputPos = UserInputService:GetMouseLocation()
-                end
-                
-                -- Calculate offset from input position to frame position (both in screen coordinates)
-                local framePos = mainFrame.AbsolutePosition
-                dragOffset = Vector2.new(inputPos.X - framePos.X, inputPos.Y - framePos.Y)
-                
-                -- Visual feedback
-                T(outerStroke, 0.15, {Color = Theme.Accent, Thickness = 2}):Play()
-            end
-        end)
-        
-        UserInputService.InputChanged:Connect(function(input)
-            if not dragging then return end
-            if (not dragIsTouch and input.UserInputType == Enum.UserInputType.MouseMovement) or 
-               (dragIsTouch and input.UserInputType == Enum.UserInputType.Touch) then
-                
-                -- Get current input position in screen coordinates
-                local inputPos
-                if dragIsTouch then
-                    inputPos = input.Position
-                else
-                    inputPos = UserInputService:GetMouseLocation()
-                end
-                
-                -- Calculate new frame position in screen coordinates
-                local newScreenX = inputPos.X - dragOffset.X
-                local newScreenY = inputPos.Y - dragOffset.Y
-                
-                -- Get screen bounds
-                local screenSize = workspace.CurrentCamera.ViewportSize
-                local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local frameSize = mainFrame.AbsoluteSize
-                
-                -- Screen bounds in screen coordinates (0,0 to screenSize + guiInset)
-                local minX = guiInset.X
-                local minY = guiInset.Y
-                local maxX = screenSize.X + guiInset.X - frameSize.X
-                local maxY = screenSize.Y + guiInset.Y - frameSize.Y
-                
-                -- Clamp to screen bounds
-                newScreenX = math.clamp(newScreenX, minX, maxX)
-                newScreenY = math.clamp(newScreenY, minY, maxY)
-                
-                -- Convert screen coordinates to GUI coordinates for positioning
-                local newGuiX = newScreenX - guiInset.X
-                local newGuiY = newScreenY - guiInset.Y
-                
-                mainFrame.Position = UDim2.fromOffset(newGuiX, newGuiY)
-            end
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input)
-            if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and dragging then
-                dragging = false
-                dragIsTouch = false
-                T(outerStroke, 0.2, {Color = Theme.Stroke, Thickness = 1}):Play()
-            end
-        end)
+        -- Simple and reliable keybind list dragging
+        self:_setupKeybindListDragging(mainFrame, outerStroke)
         
     -- Initial update
         self:_updateKeybindDisplay()
