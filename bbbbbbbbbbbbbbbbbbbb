@@ -260,20 +260,24 @@ do
         end
         
         -- Simple watermark dragging - fixed version
-        local dragging = false
-        local dragStart = Vector2.new(0, 0)
-        local frameStart = Vector2.new(0, 0)
+    local dragging = false
+    local dragStart = Vector2.new(0, 0) -- in viewport coords (minus GuiInset)
+    local frameStart = Vector2.new(0, 0) -- AbsolutePosition (viewport coords)
         
         watermarkFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 
-                -- Get start position
+                -- Get start position in viewport coords (mouse/touch minus GuiInset)
+                local pos
                 if input.UserInputType == Enum.UserInputType.Touch then
-                    dragStart = input.Position
+                    pos = input.Position
                 else
-                    dragStart = UserInputService:GetMouseLocation()
+                    local m = UserInputService:GetMouseLocation()
+                    pos = Vector2.new(m.X, m.Y)
                 end
+                local inset = game:GetService("GuiService"):GetGuiInset()
+                dragStart = Vector2.new(pos.X - inset.X, pos.Y - inset.Y)
                 frameStart = Vector2.new(watermarkFrame.AbsolutePosition.X, watermarkFrame.AbsolutePosition.Y)
                 
                 -- Visual feedback
@@ -287,14 +291,18 @@ do
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
             
-            local currentPos
-            if input.UserInputType == Enum.UserInputType.MouseMovement then
-                currentPos = UserInputService:GetMouseLocation()
-            elseif input.UserInputType == Enum.UserInputType.Touch then
-                currentPos = input.Position
+            -- Current input position in viewport coords
+            local pos
+            if input.UserInputType == Enum.UserInputType.Touch then
+                pos = input.Position
+            elseif input.UserInputType == Enum.UserInputType.MouseMovement then
+                local m = UserInputService:GetMouseLocation()
+                pos = Vector2.new(m.X, m.Y)
             else
                 return
             end
+            local inset = game:GetService("GuiService"):GetGuiInset()
+            local currentPos = Vector2.new(pos.X - inset.X, pos.Y - inset.Y)
             
             -- Calculate movement delta
             local deltaX = currentPos.X - dragStart.X
@@ -305,7 +313,7 @@ do
             local newY = frameStart.Y + deltaY
             
             -- Screen bounds
-            local viewport = workspace.CurrentCamera.ViewportSize
+            local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
             local frameSize = watermarkFrame.AbsoluteSize
             
             -- Clamp to bounds
@@ -734,20 +742,24 @@ do
     
     -- New keybind list dragging system
     function Library:_setupKeybindListDragging(frame, strokeElement)
-        local isDragging = false
-        local startPos = Vector2.new(0, 0)
-        local frameStartPos = Vector2.new(0, 0)
+    local isDragging = false
+    local startPos = Vector2.new(0, 0) -- viewport coords (minus GuiInset)
+    local frameStartPos = Vector2.new(0, 0) -- AbsolutePosition (viewport coords)
         
         frame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isDragging = true
                 
-                -- Record starting positions
+                -- Record starting input position in viewport coords
+                local pos
                 if input.UserInputType == Enum.UserInputType.Touch then
-                    startPos = input.Position
+                    pos = input.Position
                 else
-                    startPos = UserInputService:GetMouseLocation()
+                    local m = UserInputService:GetMouseLocation()
+                    pos = Vector2.new(m.X, m.Y)
                 end
+                local inset = game:GetService("GuiService"):GetGuiInset()
+                startPos = Vector2.new(pos.X - inset.X, pos.Y - inset.Y)
                 frameStartPos = Vector2.new(frame.AbsolutePosition.X, frame.AbsolutePosition.Y)
                 
                 -- Visual feedback
@@ -758,14 +770,18 @@ do
         UserInputService.InputChanged:Connect(function(input)
             if not isDragging then return end
             
-            local currentPos
-            if input.UserInputType == Enum.UserInputType.MouseMovement then
-                currentPos = UserInputService:GetMouseLocation()
-            elseif input.UserInputType == Enum.UserInputType.Touch then
-                currentPos = input.Position
+            -- Current input position in viewport coords
+            local pos
+            if input.UserInputType == Enum.UserInputType.Touch then
+                pos = input.Position
+            elseif input.UserInputType == Enum.UserInputType.MouseMovement then
+                local m = UserInputService:GetMouseLocation()
+                pos = Vector2.new(m.X, m.Y)
             else
                 return
             end
+            local inset = game:GetService("GuiService"):GetGuiInset()
+            local currentPos = Vector2.new(pos.X - inset.X, pos.Y - inset.Y)
             
             -- Calculate how much we've moved
             local deltaX = currentPos.X - startPos.X
@@ -776,7 +792,7 @@ do
             local newY = frameStartPos.Y + deltaY
             
             -- Get screen size for bounds checking
-            local viewportSize = workspace.CurrentCamera.ViewportSize
+            local viewportSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
             local frameSize = frame.AbsoluteSize
             
             -- Simple bounds - allow dragging to any edge (0,0 to screen size)
@@ -822,7 +838,8 @@ do
             Name = "KeybindList",
             Parent = libraryGui,
             ResetOnSpawn = false,
-            DisplayOrder = 999998
+            DisplayOrder = 999998,
+            IgnoreGuiInset = true
         })
         
         -- Main frame
