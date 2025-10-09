@@ -262,10 +262,12 @@ do
         -- PRECISE cursor-locked dragging system
         local dragging = false
         local dragOffset = Vector2.new(0, 0)
+        local dragIsTouch = false -- track whether we're dragging via touch
         
         watermarkFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
+                dragIsTouch = (input.UserInputType == Enum.UserInputType.Touch)
                 
                 -- Get pointer position accounting for GUI inset
                 local pos
@@ -293,8 +295,7 @@ do
         -- Perfect pointer-following movement (mouse or touch)
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
-            
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            if (not dragIsTouch and input.UserInputType == Enum.UserInputType.MouseMovement) or (dragIsTouch and input.UserInputType == Enum.UserInputType.Touch) then
                 -- Get current pointer position with GUI inset correction
                 local pos
                 if input.UserInputType == Enum.UserInputType.Touch then
@@ -310,13 +311,20 @@ do
                 local newX = adjustedMousePos.X - dragOffset.X
                 local newY = adjustedMousePos.Y - dragOffset.Y
                 
-                -- Screen boundaries (using viewport size which accounts for insets)
-                local screenSize = workspace.CurrentCamera.ViewportSize
+                -- Get proper screen bounds accounting for GUI inset
+                local camera = workspace.CurrentCamera
+                local viewportSize = camera.ViewportSize
                 local frameSize = watermarkFrame.AbsoluteSize
                 
+                -- The actual usable screen area (viewport coordinates)
+                local minX = 0
+                local minY = 0
+                local maxX = viewportSize.X - frameSize.X
+                local maxY = viewportSize.Y - frameSize.Y
+                
                 -- Clamp to screen bounds
-                newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
-                newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
+                newX = math.clamp(newX, minX, maxX)
+                newY = math.clamp(newY, minY, maxY)
                 
                 -- Apply position instantly for smooth dragging
                 watermarkFrame.Position = UDim2.fromOffset(newX, newY)
@@ -324,18 +332,17 @@ do
         end)
         
         UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                if dragging then
-                    dragging = false
-                    
-                    -- Save position
-                    savePosition()
-                    
-                    -- Reset visual feedback
-                    T(outerBorder, 0.15, {Color = Theme.Stroke, Thickness = 1.5}):Play()
-                    if accentBorder:FindFirstChild("UIStroke") then
-                        T(accentBorder.UIStroke, 0.15, {Transparency = 0.4}):Play()
-                    end
+            if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+                dragging = false
+                dragIsTouch = false
+                
+                -- Save position
+                savePosition()
+                
+                -- Reset visual feedback
+                T(outerBorder, 0.15, {Color = Theme.Stroke, Thickness = 1.5}):Play()
+                if accentBorder:FindFirstChild("UIStroke") then
+                    T(accentBorder.UIStroke, 0.15, {Transparency = 0.4}):Play()
                 end
             end
         end)
@@ -532,7 +539,7 @@ do
     function Library:_createKeybindEntry(keybindData, layoutOrder)
         local entry = Create("Frame", {
             Name = "KeybindEntry",
-            Size = UDim2.new(1, -8, 0, 32),
+            Size = UDim2.new(1, 0, 0, 32),
             BackgroundColor3 = Theme.Panel,
             BackgroundTransparency = self._keybindListTransparency or 0,
             BorderSizePixel = 0,
@@ -860,6 +867,15 @@ do
             Parent = self._keybindScrollFrame
         })
         
+        -- Add padding to center entries within the frame
+        Create("UIPadding", {
+            PaddingLeft = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 8),
+            PaddingTop = UDim.new(0, 4),
+            PaddingBottom = UDim.new(0, 4),
+            Parent = self._keybindScrollFrame
+        })
+        
         -- Dragging system
     local dragging = false
     local dragOffset = Vector2.new(0, 0)
@@ -902,11 +918,20 @@ do
                 local newX = adjustedMousePos.X - dragOffset.X
                 local newY = adjustedMousePos.Y - dragOffset.Y
                 
-                local screenSize = workspace.CurrentCamera.ViewportSize
+                -- Get proper screen bounds accounting for GUI inset
+                local camera = workspace.CurrentCamera
+                local viewportSize = camera.ViewportSize
                 local frameSize = mainFrame.AbsoluteSize
                 
-                newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
-                newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
+                -- The actual usable screen area (viewport coordinates)
+                local minX = 0
+                local minY = 0
+                local maxX = viewportSize.X - frameSize.X
+                local maxY = viewportSize.Y - frameSize.Y
+                
+                -- Clamp to screen bounds
+                newX = math.clamp(newX, minX, maxX)
+                newY = math.clamp(newY, minY, maxY)
                 
                 mainFrame.Position = UDim2.fromOffset(newX, newY)
             end
