@@ -1,5 +1,5 @@
 --!nocheck
--- luacheck: globals cloneref isfile isfolder makefolder writefile readfile listfiles delfile Color3 Enum game UDim2 Vector2 Rect
+-- luacheck: globals cloneref isfile isfolder makefolder writefile readfile listfiles delfile Color3 Enum game UDim2 Vector2 Rect workspace
 local cloneref = cloneref or function(x) return x end
 local function SRV(name) return cloneref(game:GetService(name)) end
 local CoreGui = SRV("CoreGui")
@@ -262,27 +262,24 @@ do
         -- PRECISE cursor-locked dragging system
         local dragging = false
         local dragOffset = Vector2.new(0, 0)
-        local dragIsTouch = false -- track whether we're dragging via touch
+        local dragIsTouch = false
         
         watermarkFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragIsTouch = (input.UserInputType == Enum.UserInputType.Touch)
                 
-                -- Get pointer position accounting for GUI inset
-                local pos
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    pos = input.Position
+                -- Get mouse/touch position in screen coordinates
+                local inputPos
+                if dragIsTouch then
+                    inputPos = input.Position
                 else
-                    local mousePos = UserInputService:GetMouseLocation()
-                    pos = Vector2.new(mousePos.X, mousePos.Y)
+                    inputPos = UserInputService:GetMouseLocation()
                 end
-                local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(pos.X - guiInset.X, pos.Y - guiInset.Y)
                 
-                -- Calculate offset from pointer to frame's top-left corner
+                -- Calculate offset from input position to frame position (both in screen coordinates)
                 local framePos = watermarkFrame.AbsolutePosition
-                dragOffset = Vector2.new(adjustedMousePos.X - framePos.X, adjustedMousePos.Y - framePos.Y)
+                dragOffset = Vector2.new(inputPos.X - framePos.X, inputPos.Y - framePos.Y)
                 
                 -- Visual feedback
                 T(outerBorder, 0.1, {Color = Library._watermarkAccentColor, Thickness = 2}):Play()
@@ -295,39 +292,42 @@ do
         -- Perfect pointer-following movement (mouse or touch)
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
-            if (not dragIsTouch and input.UserInputType == Enum.UserInputType.MouseMovement) or (dragIsTouch and input.UserInputType == Enum.UserInputType.Touch) then
-                -- Get current pointer position with GUI inset correction
-                local pos
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    pos = input.Position
+            if (not dragIsTouch and input.UserInputType == Enum.UserInputType.MouseMovement) or 
+               (dragIsTouch and input.UserInputType == Enum.UserInputType.Touch) then
+                
+                -- Get current input position in screen coordinates
+                local inputPos
+                if dragIsTouch then
+                    inputPos = input.Position
                 else
-                    local mousePos = UserInputService:GetMouseLocation()
-                    pos = Vector2.new(mousePos.X, mousePos.Y)
+                    inputPos = UserInputService:GetMouseLocation()
                 end
+                
+                -- Calculate new frame position in screen coordinates
+                local newScreenX = inputPos.X - dragOffset.X
+                local newScreenY = inputPos.Y - dragOffset.Y
+                
+                -- Get screen bounds
+                local screenSize = workspace.CurrentCamera.ViewportSize
                 local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(pos.X - guiInset.X, pos.Y - guiInset.Y)
-                
-                -- Calculate new frame position maintaining the offset
-                local newX = adjustedMousePos.X - dragOffset.X
-                local newY = adjustedMousePos.Y - dragOffset.Y
-                
-                -- Get proper screen bounds accounting for GUI inset
-                local camera = workspace.CurrentCamera
-                local viewportSize = camera.ViewportSize
                 local frameSize = watermarkFrame.AbsoluteSize
                 
-                -- The actual usable screen area (viewport coordinates)
-                local minX = 0
-                local minY = 0
-                local maxX = viewportSize.X - frameSize.X
-                local maxY = viewportSize.Y - frameSize.Y
+                -- Screen bounds in screen coordinates (0,0 to screenSize + guiInset)
+                local minX = guiInset.X
+                local minY = guiInset.Y
+                local maxX = screenSize.X + guiInset.X - frameSize.X
+                local maxY = screenSize.Y + guiInset.Y - frameSize.Y
                 
                 -- Clamp to screen bounds
-                newX = math.clamp(newX, minX, maxX)
-                newY = math.clamp(newY, minY, maxY)
+                newScreenX = math.clamp(newScreenX, minX, maxX)
+                newScreenY = math.clamp(newScreenY, minY, maxY)
+                
+                -- Convert screen coordinates to GUI coordinates for positioning
+                local newGuiX = newScreenX - guiInset.X
+                local newGuiY = newScreenY - guiInset.Y
                 
                 -- Apply position instantly for smooth dragging
-                watermarkFrame.Position = UDim2.fromOffset(newX, newY)
+                watermarkFrame.Position = UDim2.fromOffset(newGuiX, newGuiY)
             end
         end)
         
@@ -877,25 +877,26 @@ do
         })
         
         -- Dragging system
-    local dragging = false
-    local dragOffset = Vector2.new(0, 0)
-    local dragIsTouch = false -- track whether we're dragging via touch
+        local dragging = false
+        local dragOffset = Vector2.new(0, 0)
+        local dragIsTouch = false
         
         mainFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragIsTouch = (input.UserInputType == Enum.UserInputType.Touch)
-                local pos
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    pos = input.Position
+                
+                -- Get mouse/touch position in screen coordinates
+                local inputPos
+                if dragIsTouch then
+                    inputPos = input.Position
                 else
-                    local mousePos = UserInputService:GetMouseLocation()
-                    pos = Vector2.new(mousePos.X, mousePos.Y)
+                    inputPos = UserInputService:GetMouseLocation()
                 end
-                local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(pos.X - guiInset.X, pos.Y - guiInset.Y)
+                
+                -- Calculate offset from input position to frame position (both in screen coordinates)
                 local framePos = mainFrame.AbsolutePosition
-                dragOffset = Vector2.new(adjustedMousePos.X - framePos.X, adjustedMousePos.Y - framePos.Y)
+                dragOffset = Vector2.new(inputPos.X - framePos.X, inputPos.Y - framePos.Y)
                 
                 -- Visual feedback
                 T(outerStroke, 0.15, {Color = Theme.Accent, Thickness = 2}):Play()
@@ -904,36 +905,41 @@ do
         
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
-            if (not dragIsTouch and input.UserInputType == Enum.UserInputType.MouseMovement) or (dragIsTouch and input.UserInputType == Enum.UserInputType.Touch) then
-                local pos
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    pos = input.Position
+            if (not dragIsTouch and input.UserInputType == Enum.UserInputType.MouseMovement) or 
+               (dragIsTouch and input.UserInputType == Enum.UserInputType.Touch) then
+                
+                -- Get current input position in screen coordinates
+                local inputPos
+                if dragIsTouch then
+                    inputPos = input.Position
                 else
-                    local mousePos = UserInputService:GetMouseLocation()
-                    pos = Vector2.new(mousePos.X, mousePos.Y)
+                    inputPos = UserInputService:GetMouseLocation()
                 end
+                
+                -- Calculate new frame position in screen coordinates
+                local newScreenX = inputPos.X - dragOffset.X
+                local newScreenY = inputPos.Y - dragOffset.Y
+                
+                -- Get screen bounds
+                local screenSize = workspace.CurrentCamera.ViewportSize
                 local guiInset = game:GetService("GuiService"):GetGuiInset()
-                local adjustedMousePos = Vector2.new(pos.X - guiInset.X, pos.Y - guiInset.Y)
-                
-                local newX = adjustedMousePos.X - dragOffset.X
-                local newY = adjustedMousePos.Y - dragOffset.Y
-                
-                -- Get proper screen bounds accounting for GUI inset
-                local camera = workspace.CurrentCamera
-                local viewportSize = camera.ViewportSize
                 local frameSize = mainFrame.AbsoluteSize
                 
-                -- The actual usable screen area (viewport coordinates)
-                local minX = 0
-                local minY = 0
-                local maxX = viewportSize.X - frameSize.X
-                local maxY = viewportSize.Y - frameSize.Y
+                -- Screen bounds in screen coordinates (0,0 to screenSize + guiInset)
+                local minX = guiInset.X
+                local minY = guiInset.Y
+                local maxX = screenSize.X + guiInset.X - frameSize.X
+                local maxY = screenSize.Y + guiInset.Y - frameSize.Y
                 
                 -- Clamp to screen bounds
-                newX = math.clamp(newX, minX, maxX)
-                newY = math.clamp(newY, minY, maxY)
+                newScreenX = math.clamp(newScreenX, minX, maxX)
+                newScreenY = math.clamp(newScreenY, minY, maxY)
                 
-                mainFrame.Position = UDim2.fromOffset(newX, newY)
+                -- Convert screen coordinates to GUI coordinates for positioning
+                local newGuiX = newScreenX - guiInset.X
+                local newGuiY = newScreenY - guiInset.Y
+                
+                mainFrame.Position = UDim2.fromOffset(newGuiX, newGuiY)
             end
         end)
         
