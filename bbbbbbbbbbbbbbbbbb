@@ -88,6 +88,94 @@ do
         YOffset = 10 -- Offset
     }
     
+    -- Brand new watermark dragging system
+    function Library:_createWatermarkDragging(frame, outerBorder, accentBorder, saveCallback)
+        local dragging = false
+        local offset = Vector2.new(0, 0)
+        local inputType = nil
+        
+        -- Store dragging state for hover effects
+        Library._isWatermarkDragging = function() return dragging end
+        
+        frame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                inputType = input.UserInputType
+                
+                -- Get input position
+                local inputPos
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    inputPos = input.Position
+                else
+                    inputPos = UserInputService:GetMouseLocation()
+                end
+                
+                -- Calculate offset from input to frame top-left
+                local framePos = frame.AbsolutePosition
+                offset = Vector2.new(inputPos.X - framePos.X, inputPos.Y - framePos.Y)
+                
+                -- Visual feedback
+                T(outerBorder, 0.1, {Color = Library._watermarkAccentColor, Thickness = 2}):Play()
+                if accentBorder and accentBorder:FindFirstChild("UIStroke") then
+                    T(accentBorder.UIStroke, 0.1, {Transparency = 0.2}):Play()
+                end
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if not dragging then return end
+            
+            -- Only respond to the correct input type
+            if (inputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseMovement) or
+               (inputType == Enum.UserInputType.Touch and input.UserInputType == Enum.UserInputType.Touch) then
+                
+                -- Get current input position
+                local currentPos
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    currentPos = input.Position
+                else
+                    currentPos = UserInputService:GetMouseLocation()
+                end
+                
+                -- Calculate frame position based on input position and offset
+                local frameX = currentPos.X - offset.X
+                local frameY = currentPos.Y - offset.Y
+                
+                -- Screen bounds
+                local camera = workspace.CurrentCamera
+                if camera then
+                    local viewportSize = camera.ViewportSize
+                    local frameSize = frame.AbsoluteSize
+                    
+                    -- Clamp to screen bounds
+                    frameX = math.max(0, math.min(frameX, viewportSize.X - frameSize.X))
+                    frameY = math.max(0, math.min(frameY, viewportSize.Y - frameSize.Y))
+                end
+                
+                -- Set position
+                frame.Position = UDim2.fromOffset(frameX, frameY)
+            end
+        end)
+        
+        UserInputService.InputEnded:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+                dragging = false
+                inputType = nil
+                
+                -- Save position
+                if saveCallback then
+                    saveCallback()
+                end
+                
+                -- Reset visual feedback
+                T(outerBorder, 0.15, {Color = Theme.Stroke, Thickness = 1.5}):Play()
+                if accentBorder and accentBorder:FindFirstChild("UIStroke") then
+                    T(accentBorder.UIStroke, 0.15, {Transparency = 0.4}):Play()
+                end
+            end
+        end)
+    end
+    
     -- Create optimized watermark GUI
     local function createWatermark()
         -- Clean up existing watermarks
@@ -259,84 +347,13 @@ do
             end
         end
         
-        -- Simple and reliable watermark dragging system
-        local isDragging = false
-        local startPos = Vector2.new(0, 0)
-        local frameStartPos = Vector2.new(0, 0)
-        
-        watermarkFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isDragging = true
-                
-                -- Record starting positions
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    startPos = input.Position
-                else
-                    startPos = UserInputService:GetMouseLocation()
-                end
-                frameStartPos = Vector2.new(watermarkFrame.AbsolutePosition.X, watermarkFrame.AbsolutePosition.Y)
-                
-                -- Visual feedback
-                T(outerBorder, 0.1, {Color = Library._watermarkAccentColor, Thickness = 2}):Play()
-                if accentBorder:FindFirstChild("UIStroke") then
-                    T(accentBorder.UIStroke, 0.1, {Transparency = 0.2}):Play()
-                end
-            end
-        end)
-        
-        UserInputService.InputChanged:Connect(function(input)
-            if not isDragging then return end
-            
-            local currentPos
-            if input.UserInputType == Enum.UserInputType.MouseMovement then
-                currentPos = UserInputService:GetMouseLocation()
-            elseif input.UserInputType == Enum.UserInputType.Touch then
-                currentPos = input.Position
-            else
-                return
-            end
-            
-            -- Calculate how much we've moved
-            local deltaX = currentPos.X - startPos.X
-            local deltaY = currentPos.Y - startPos.Y
-            
-            -- Calculate new position
-            local newX = frameStartPos.X + deltaX
-            local newY = frameStartPos.Y + deltaY
-            
-            -- Get screen size for bounds checking
-            local viewportSize = workspace.CurrentCamera.ViewportSize
-            local frameSize = watermarkFrame.AbsoluteSize
-            
-            -- Simple bounds - allow dragging to any edge (0,0 to screen size)
-            newX = math.clamp(newX, 0, viewportSize.X - frameSize.X)
-            newY = math.clamp(newY, 0, viewportSize.Y - frameSize.Y)
-            
-            -- Apply new position
-            watermarkFrame.Position = UDim2.fromOffset(newX, newY)
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                if isDragging then
-                    isDragging = false
-                    
-                    -- Save position
-                    savePosition()
-                    
-                    -- Reset visual feedback
-                    T(outerBorder, 0.15, {Color = Theme.Stroke, Thickness = 1.5}):Play()
-                    if accentBorder:FindFirstChild("UIStroke") then
-                        T(accentBorder.UIStroke, 0.15, {Transparency = 0.4}):Play()
-                    end
-                end
-            end
-        end)
+        -- NEW WATERMARK DRAGGING SYSTEM - Completely rewritten
+        self:_createWatermarkDragging(watermarkFrame, outerBorder, accentBorder, savePosition)
         
         -- Hover effects for PC (no glow)
         if not (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) then
             watermarkFrame.MouseEnter:Connect(function()
-                if not isDragging then
+                if not Library._isWatermarkDragging() then
                     T(outerBorder, 0.15, {Transparency = 0.1}):Play()
                     if accentBorder:FindFirstChild("UIStroke") then
                         T(accentBorder.UIStroke, 0.15, {Transparency = 0.3}):Play()
@@ -346,7 +363,7 @@ do
             end)
             
             watermarkFrame.MouseLeave:Connect(function()
-                if not isDragging then
+                if not Library._isWatermarkDragging() then
                     T(outerBorder, 0.15, {Transparency = 0.2}):Play()
                     if accentBorder:FindFirstChild("UIStroke") then
                         T(accentBorder.UIStroke, 0.15, {Transparency = 0.4}):Play()
