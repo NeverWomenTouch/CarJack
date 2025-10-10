@@ -268,7 +268,7 @@ do
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 
-                -- Get start position in viewport coords (pointer minus GuiInset)
+                -- Get start position in GUI-space (account for IgnoreGuiInset)
                 local pos
                 if input.UserInputType == Enum.UserInputType.Touch then
                     pos = input.Position
@@ -277,7 +277,11 @@ do
                     pos = Vector2.new(m.X, m.Y)
                 end
                 local inset = game:GetService("GuiService"):GetGuiInset()
-                dragStart = Vector2.new(pos.X - inset.X, pos.Y - inset.Y)
+                if watermarkGui.IgnoreGuiInset then
+                    dragStart = Vector2.new(pos.X, pos.Y)
+                else
+                    dragStart = Vector2.new(pos.X - inset.X, pos.Y - inset.Y)
+                end
                 frameStart = Vector2.new(watermarkFrame.AbsolutePosition.X, watermarkFrame.AbsolutePosition.Y)
                 
                 -- Visual feedback
@@ -291,7 +295,7 @@ do
         UserInputService.InputChanged:Connect(function(input)
             if not dragging then return end
             
-            -- Current input position in viewport coords
+            -- Current input position in GUI-space
             local pos
             if input.UserInputType == Enum.UserInputType.Touch then
                 pos = input.Position
@@ -302,7 +306,12 @@ do
                 return
             end
             local inset = game:GetService("GuiService"):GetGuiInset()
-            local currentPos = Vector2.new(pos.X - inset.X, pos.Y - inset.Y)
+            local currentPos
+            if watermarkGui.IgnoreGuiInset then
+                currentPos = Vector2.new(pos.X, pos.Y)
+            else
+                currentPos = Vector2.new(pos.X - inset.X, pos.Y - inset.Y)
+            end
             
             -- Calculate movement delta
             local deltaX = currentPos.X - dragStart.X
@@ -312,12 +321,20 @@ do
             local newX = frameStart.X + deltaX
             local newY = frameStart.Y + deltaY
             
-            -- Screen bounds (viewport coordinates)
+            -- Screen bounds (respect IgnoreGuiInset)
             local camera = workspace.CurrentCamera
             local viewport = camera and camera.ViewportSize or Vector2.new(1920,1080)
             local frameSize = watermarkFrame.AbsoluteSize
-            newX = math.clamp(newX, 0, math.max(0, viewport.X - frameSize.X))
-            newY = math.clamp(newY, 0, math.max(0, viewport.Y - frameSize.Y))
+            local maxW, maxH = viewport.X, viewport.Y
+            if watermarkGui.IgnoreGuiInset then
+                -- GUI can occupy inset area; extend bounds by inset
+                local gi = inset
+                maxW = maxW + gi.X
+                maxH = maxH + gi.Y
+            end
+            -- Clamp to bounds (min at 0,0; max at available size - frameSize)
+            newX = math.clamp(newX, 0, math.max(0, maxW - frameSize.X))
+            newY = math.clamp(newY, 0, math.max(0, maxH - frameSize.Y))
             
             watermarkFrame.Position = UDim2.fromOffset(newX, newY)
         end)
