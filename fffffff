@@ -269,15 +269,17 @@ do
         local function getMouseGuiPos(input)
             local pos
             if input and input.UserInputType == Enum.UserInputType.Touch then
+                -- Touch positions are already in GUI space; do not subtract inset
                 pos = Vector2.new(input.Position.X, input.Position.Y)
             else
+                -- Mouse location includes top inset; subtract it to align with AbsolutePosition
                 pos = UserInputService:GetMouseLocation()
-            end
-            local ok, inset = pcall(function()
-                return game:GetService("GuiService"):GetGuiInset()
-            end)
-            if ok and typeof(inset) == "Vector2" then
-                pos = Vector2.new(pos.X, pos.Y - inset.Y)
+                local ok, inset = pcall(function()
+                    return game:GetService("GuiService"):GetGuiInset()
+                end)
+                if ok and typeof(inset) == "Vector2" then
+                    pos = Vector2.new(pos.X, pos.Y - inset.Y)
+                end
             end
             return pos
         end
@@ -764,15 +766,16 @@ do
         local function getMouseGuiPos(input)
             local pos
             if input and input.UserInputType == Enum.UserInputType.Touch then
+                -- Touch already uses GUI coordinate space in AbsolutePosition terms
                 pos = Vector2.new(input.Position.X, input.Position.Y)
             else
                 pos = UserInputService:GetMouseLocation()
-            end
-            local ok, inset = pcall(function()
-                return game:GetService("GuiService"):GetGuiInset()
-            end)
-            if ok and typeof(inset) == "Vector2" then
-                pos = Vector2.new(pos.X, pos.Y - inset.Y)
+                local ok, inset = pcall(function()
+                    return game:GetService("GuiService"):GetGuiInset()
+                end)
+                if ok and typeof(inset) == "Vector2" then
+                    pos = Vector2.new(pos.X, pos.Y - inset.Y)
+                end
             end
             return pos
         end
@@ -5125,15 +5128,16 @@ function Library:CreateLibrary(opts)
         local function getMouseGuiPos(input)
             local pos
             if input and input.UserInputType == Enum.UserInputType.Touch then
+                -- Touch is already in GUI coordinate space; don't subtract inset
                 pos = Vector2.new(input.Position.X, input.Position.Y)
             else
                 pos = UserInputService:GetMouseLocation()
-            end
-            local ok, inset = pcall(function()
-                return game:GetService("GuiService"):GetGuiInset()
-            end)
-            if ok and typeof(inset) == "Vector2" then
-                pos = Vector2.new(pos.X, pos.Y - inset.Y)
+                local ok, inset = pcall(function()
+                    return game:GetService("GuiService"):GetGuiInset()
+                end)
+                if ok and typeof(inset) == "Vector2" then
+                    pos = Vector2.new(pos.X, pos.Y - inset.Y)
+                end
             end
             return pos
         end
