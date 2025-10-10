@@ -738,16 +738,29 @@ do
         local startPos = Vector2.new(0, 0)
         local frameStartPos = Vector2.new(0, 0)
         
+        -- Helper to get mouse/touch position in GUI space (accounts for top inset)
+        local function getMouseGuiPos(input)
+            local pos
+            if input and input.UserInputType == Enum.UserInputType.Touch then
+                pos = Vector2.new(input.Position.X, input.Position.Y)
+            else
+                pos = UserInputService:GetMouseLocation()
+            end
+            local ok, inset = pcall(function()
+                return game:GetService("GuiService"):GetGuiInset()
+            end)
+            if ok and typeof(inset) == "Vector2" then
+                pos = Vector2.new(pos.X, pos.Y - inset.Y)
+            end
+            return pos
+        end
+        
         frame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isDragging = true
                 
                 -- Record starting positions
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    startPos = input.Position
-                else
-                    startPos = UserInputService:GetMouseLocation()
-                end
+                startPos = getMouseGuiPos(input)
                 frameStartPos = Vector2.new(frame.AbsolutePosition.X, frame.AbsolutePosition.Y)
                 
                 -- Visual feedback
@@ -760,9 +773,9 @@ do
             
             local currentPos
             if input.UserInputType == Enum.UserInputType.MouseMovement then
-                currentPos = UserInputService:GetMouseLocation()
+                currentPos = getMouseGuiPos(input)
             elseif input.UserInputType == Enum.UserInputType.Touch then
-                currentPos = input.Position
+                currentPos = getMouseGuiPos(input)
             else
                 return
             end
@@ -821,6 +834,7 @@ do
         self._keybindList = Create("ScreenGui", {
             Name = "KeybindList",
             Parent = libraryGui,
+            IgnoreGuiInset = true,
             ResetOnSpawn = false,
             DisplayOrder = 999998
         })
