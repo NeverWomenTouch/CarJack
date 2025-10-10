@@ -596,11 +596,37 @@ do
             Parent = keyContainer
         })
         
+        local function getKeyShortcutText(key)
+            if typeof(key) == "EnumItem" then
+                if key.EnumType == Enum.KeyCode then
+                    local shortcuts = {
+                        RightShift = "RShift", LeftShift = "LShift", RightControl = "RCtrl", LeftControl = "LCtrl", RightAlt = "RAlt", LeftAlt = "LAlt",
+                        MouseButton1 = "Mouse1", MouseButton2 = "Mouse2", MouseButton3 = "Mouse3",
+                        ButtonR2 = "R2", ButtonL2 = "L2", ButtonR1 = "R1", ButtonL1 = "L1",
+                        ButtonA = "A", ButtonB = "B", ButtonX = "X", ButtonY = "Y",
+                        DPadUp = "DPad↑", DPadDown = "DPad↓", DPadLeft = "DPad←", DPadRight = "DPad→",
+                        Backspace = "Bksp", CapsLock = "Caps", NumLock = "Num", ScrollLock = "Scroll",
+                        Insert = "Ins", Delete = "Del", Home = "Home", End = "End", PageUp = "PgUp", PageDown = "PgDn",
+                        Return = "Enter", Space = "Space", Tab = "Tab", Escape = "Esc"
+                    }
+                    return shortcuts[key.Name] or key.Name
+                elseif key.EnumType == Enum.UserInputType then
+                    local shortcuts = {
+                        MouseButton1 = "Mouse1", MouseButton2 = "Mouse2", MouseButton3 = "Mouse3",
+                        Touch = "Touch", Keyboard = "KB", Gamepad = "Pad"
+                    }
+                    return shortcuts[key.Name] or key.Name
+                end
+            elseif typeof(key) == "string" then
+                return key
+            end
+            return tostring(key)
+        end
         local keyLabel = Create("TextLabel", {
             Name = "KeyLabel",
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Text = keybindData.key,
+            Text = getKeyShortcutText(keybindData.key),
             TextColor3 = Theme.Accent,
             TextSize = 10,
             Font = Fonts.Bold,
@@ -5108,6 +5134,7 @@ function Library:CreateLibrary(opts)
         return Category
     end
     -- enhanced mobile toggle (gradient ring + hamburger->X + ripple + drag)
+    local _mobileToggleSync
     if showMobileBtn then
         local accent = Theme.Accent
         local container = Create("Frame", {
@@ -5203,8 +5230,8 @@ function Library:CreateLibrary(opts)
             end
         end
 
-        local open = true
-        local function applyState(animated)
+    local open = root and root.Visible or true
+    local function applyState(animated)
             local good = Theme.Good or Color3.fromRGB(85, 255, 127)
             local bad = Theme.Bad or Color3.fromRGB(255, 85, 85)
             status.BackgroundColor3 = open and good or bad
@@ -5236,6 +5263,12 @@ function Library:CreateLibrary(opts)
             setIcon(open)
         end
         applyState(false)
+        -- Sync function for library keybind
+        _mobileToggleSync = function(newVisible)
+            open = newVisible
+            if root then root.Visible = open end
+            applyState(true)
+        end
 
         -- Hover feedback on desktop
         button.MouseEnter:Connect(function()
@@ -5286,7 +5319,7 @@ function Library:CreateLibrary(opts)
             T(toggleFrame, 0.16, { Size = UDim2.new(0, 50, 0, 50), Position = UDim2.new(0, 10, 0, 10) }):Play()
             if wasTap then
                 open = not open
-                root.Visible = open
+                if _mobileToggleSync then _mobileToggleSync(open) else if root then root.Visible = open end end
                 applyState(true)
             end
             dragging = false
@@ -5325,23 +5358,32 @@ function Library:CreateLibrary(opts)
             end
         end)
     end
-    -- global library toggle keybind (default RightShift)
+    -- global library toggle keybind (default RightShift), syncs with mobile toggle
     do
         Library._libraryKeybind = Library._libraryKeybind or Enum.KeyCode.RightShift
         Library._rootFrame = root
+        Library._mobileToggleSync = _mobileToggleSync
         if Library._libraryKeyConn then
             pcall(function() Library._libraryKeyConn:Disconnect() end)
             Library._libraryKeyConn = nil
+        end
+        local function syncToggle(newVisible)
+            if root then root.Visible = newVisible end
+            if Library._mobileToggleSync and typeof(Library._mobileToggleSync) == "function" then
+                Library._mobileToggleSync(newVisible)
+            end
         end
         Library._libraryKeyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if gameProcessed then return end
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 local key = Library._libraryKeybind or Enum.KeyCode.RightShift
                 if input.KeyCode == key and Library._rootFrame and Library._rootFrame.Parent then
-                    Library._rootFrame.Visible = not Library._rootFrame.Visible
+                    local newVisible = not Library._rootFrame.Visible
+                    syncToggle(newVisible)
                 end
             end
         end)
+        Library._syncToggle = syncToggle
     end
     
     Window.AddTab = Window.AddCategory
@@ -5492,19 +5534,23 @@ function Library:LibraryKeybind(key)
         pcall(function() self._libraryKeyConn:Disconnect() end)
         self._libraryKeyConn = nil
     end
-    if not self._rootFrame then
-        -- Try to locate the current root frame from any existing window
-        -- No-op if unavailable; will be set on next CreateLibrary
+    local function syncToggle(newVisible)
+        if self._rootFrame then self._rootFrame.Visible = newVisible end
+        if self._mobileToggleSync and typeof(self._mobileToggleSync) == "function" then
+            self._mobileToggleSync(newVisible)
+        end
     end
     self._libraryKeyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if input.UserInputType == Enum.UserInputType.Keyboard then
             local k = self._libraryKeybind or Enum.KeyCode.RightShift
             if input.KeyCode == k and self._rootFrame and self._rootFrame.Parent then
-                self._rootFrame.Visible = not self._rootFrame.Visible
+                local newVisible = not self._rootFrame.Visible
+                syncToggle(newVisible)
             end
         end
     end)
+    self._syncToggle = syncToggle
 end
 
 return Library
