@@ -5115,9 +5115,9 @@ function Library:CreateLibrary(opts)
         Create("UICorner", {CornerRadius = UDim.new(0,12), Parent = toggleFrame})
         local stroke = Create("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = presetColor, Thickness = 2, Transparency = 0.3, Parent = toggleFrame})
         local glow = Create("ImageLabel", {Name = "Glow", BackgroundTransparency = 1, Position = UDim2.new(0.5,-30,0.5,-30), Size = UDim2.new(0,60,0,60), Image = "rbxassetid://4996891970", ImageColor3 = presetColor, ImageTransparency = 0.7, ScaleType = Enum.ScaleType.Slice, SliceCenter = Rect.new(20,20,280,280), ZIndex = 1, Parent = toggleFrame})
-        local button = Create("TextButton", {Name = "ToggleButton", BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Font = Fonts.Medium, Text = "", TextTransparency = 1, AutoButtonColor = false, ZIndex = 3, Parent = toggleFrame})
-        local iconContainer = Create("Frame", {Name = "IconContainer", BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), ZIndex = 3, Parent = button})
-        local icon = Create("ImageLabel", {Name = "ToggleIcon", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Size = UDim2.new(0,24,0,24), Image = "rbxassetid://109809645126775", ImageColor3 = Color3.fromRGB(255,255,255), ZIndex = 3, Parent = iconContainer})
+    local button = Create("TextButton", {Name = "ToggleButton", BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Font = Fonts.Medium, Text = "", TextTransparency = 1, AutoButtonColor = false, ZIndex = 3, Parent = toggleFrame})
+    -- ON/OFF text label (replaces icon)
+    local stateLabel = Create("TextLabel", {Name = "StateLabel", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Size = UDim2.new(1,-8,1,-8), Text = "ON", Font = Fonts.Bold, TextSize = 16, TextColor3 = Color3.fromRGB(255,255,255), TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 3, Parent = button})
         local status = Create("Frame", {Name = "StatusIndicator", BackgroundColor3 = Color3.fromRGB(255,85,85), BorderSizePixel = 0, Position = UDim2.new(1,-12,0,4), Size = UDim2.new(0,8,0,8), ZIndex = 4, Parent = toggleFrame})
         Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = status})
         local open = true
@@ -5146,10 +5146,14 @@ function Library:CreateLibrary(opts)
                 status.BackgroundColor3 = Color3.fromRGB(85,255,127)
                 T(toggleFrame,0.3,{BackgroundColor3 = Color3.fromRGB(32,42,32)}):Play()
                 T(stroke,0.3,{Transparency = 0.1}):Play()
+                stateLabel.Text = "ON"
+                stateLabel.TextColor3 = Color3.fromRGB(255,255,255)
             else
                 status.BackgroundColor3 = Color3.fromRGB(255,85,85)
                 T(toggleFrame,0.3,{BackgroundColor3 = Color3.fromRGB(27,27,27)}):Play()
                 T(stroke,0.3,{Transparency = 0.3}):Play()
+                stateLabel.Text = "OFF"
+                stateLabel.TextColor3 = Color3.fromRGB(255,255,255)
             end
         end
         updateState()
@@ -5172,7 +5176,8 @@ function Library:CreateLibrary(opts)
             local abs = container.AbsolutePosition
             dragOffset = Vector2.new(mouse.X - abs.X, mouse.Y - abs.Y)
             T(toggleFrame,0.1,{Size = UDim2.new(0,46,0,46), Position = UDim2.new(0,12,0,12)}):Play()
-            T(icon,0.1,{Size = UDim2.new(0,20,0,20)}):Play()
+            -- subtle press feedback on label
+            T(stateLabel,0.1,{TextSize = 15}):Play()
         end)
         -- Support touch start as well
         button.InputBegan:Connect(function(inp)
@@ -5183,14 +5188,14 @@ function Library:CreateLibrary(opts)
                 local abs = container.AbsolutePosition
                 dragOffset = Vector2.new(mouse.X - abs.X, mouse.Y - abs.Y)
                 T(toggleFrame,0.1,{Size = UDim2.new(0,46,0,46), Position = UDim2.new(0,12,0,12)}):Play()
-                T(icon,0.1,{Size = UDim2.new(0,20,0,20)}):Play()
+                T(stateLabel,0.1,{TextSize = 15}):Play()
             end
         end)
         button.MouseButton1Up:Connect(function()
             local wasTap = holding and (tick() - pressTime) < 0.4 and not dragging
             holding = false
             T(toggleFrame,0.2,{Size = UDim2.new(0,50,0,50), Position = UDim2.new(0,10,0,10)}):Play()
-            T(icon,0.2,{Size = UDim2.new(0,24,0,24)}):Play()
+            T(stateLabel,0.2,{TextSize = 16}):Play()
             if wasTap then
                 open = not open
                 root.Visible = open
@@ -5226,7 +5231,7 @@ function Library:CreateLibrary(opts)
                     local wasTap = holding and not dragging and (tick() - (pressTime or tick())) < 0.4
                     holding = false
                     T(toggleFrame,0.2,{Size = UDim2.new(0,50,0,50), Position = UDim2.new(0,10,0,10)}):Play()
-                    T(icon,0.2,{Size = UDim2.new(0,24,0,24)}):Play()
+                    T(stateLabel,0.2,{TextSize = 16}):Play()
                     if wasTap then
                         open = not open
                         root.Visible = open
