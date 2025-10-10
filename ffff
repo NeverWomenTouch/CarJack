@@ -737,6 +737,8 @@ do
         local isDragging = false
         local startPos = Vector2.new(0, 0)
         local frameStartPos = Vector2.new(0, 0)
+        local dragOffset = Vector2.new(0, 0)
+        local parentAbsAtStart = Vector2.new(0, 0)
         
         -- Helper to get mouse/touch position in GUI space (accounts for top inset)
         local function getMouseGuiPos(input)
@@ -762,6 +764,14 @@ do
                 -- Record starting positions
                 startPos = getMouseGuiPos(input)
                 frameStartPos = Vector2.new(frame.AbsolutePosition.X, frame.AbsolutePosition.Y)
+                -- Capture the offset between the cursor and the frame's top-left so it stays under the mouse
+                dragOffset = startPos - frameStartPos
+                -- Capture parent's absolute position at start for consistent relative calculations
+                if frame.Parent and frame.Parent.AbsolutePosition then
+                    parentAbsAtStart = Vector2.new(frame.Parent.AbsolutePosition.X, frame.Parent.AbsolutePosition.Y)
+                else
+                    parentAbsAtStart = Vector2.new(0, 0)
+                end
                 
                 -- Visual feedback
                 T(strokeElement, 0.15, {Color = Theme.Accent, Thickness = 2}):Play()
@@ -780,22 +790,31 @@ do
                 return
             end
             
-            -- Calculate how much we've moved
-            local deltaX = currentPos.X - startPos.X
-            local deltaY = currentPos.Y - startPos.Y
-            
-            -- Calculate new position
-            local newX = frameStartPos.X + deltaX
-            local newY = frameStartPos.Y + deltaY
-            
-            -- Get screen size for bounds checking
-            local viewportSize = workspace.CurrentCamera.ViewportSize
+            -- Calculate new position using parent-relative coordinates and the initial grab offset
+            local parentAbsNow = Vector2.new(0, 0)
+            if frame.Parent and frame.Parent.AbsolutePosition then
+                parentAbsNow = Vector2.new(frame.Parent.AbsolutePosition.X, frame.Parent.AbsolutePosition.Y)
+            end
+            -- Cursor position relative to parent
+            local relX = currentPos.X - parentAbsNow.X
+            local relY = currentPos.Y - parentAbsNow.Y
+            -- New top-left by subtracting the grab offset
+            local newX = relX - dragOffset.X
+            local newY = relY - dragOffset.Y
+
+            -- Bounds using parent's size for robustness
+            local containerW, containerH = 0, 0
+            if frame.Parent and frame.Parent.AbsoluteSize then
+                containerW = frame.Parent.AbsoluteSize.X
+                containerH = frame.Parent.AbsoluteSize.Y
+            else
+                local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+                containerW, containerH = vp.X, vp.Y
+            end
             local frameSize = frame.AbsoluteSize
-            
-            -- Simple bounds - allow dragging to any edge (0,0 to screen size)
-            newX = math.clamp(newX, 0, viewportSize.X - frameSize.X)
-            newY = math.clamp(newY, 0, viewportSize.Y - frameSize.Y)
-            
+            newX = math.clamp(newX, 0, math.max(0, containerW - frameSize.X))
+            newY = math.clamp(newY, 0, math.max(0, containerH - frameSize.Y))
+
             -- Apply new position
             frame.Position = UDim2.fromOffset(newX, newY)
         end)
