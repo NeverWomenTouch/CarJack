@@ -596,11 +596,37 @@ do
             Parent = keyContainer
         })
         
+        local function getKeyShortcutText(key)
+            if typeof(key) == "EnumItem" then
+                if key.EnumType == Enum.KeyCode then
+                    local shortcuts = {
+                        RightShift = "RShift", LeftShift = "LShift", RightControl = "RCtrl", LeftControl = "LCtrl", RightAlt = "RAlt", LeftAlt = "LAlt",
+                        MouseButton1 = "Mouse1", MouseButton2 = "Mouse2", MouseButton3 = "Mouse3",
+                        ButtonR2 = "R2", ButtonL2 = "L2", ButtonR1 = "R1", ButtonL1 = "L1",
+                        ButtonA = "A", ButtonB = "B", ButtonX = "X", ButtonY = "Y",
+                        DPadUp = "DPad↑", DPadDown = "DPad↓", DPadLeft = "DPad←", DPadRight = "DPad→",
+                        Backspace = "Bksp", CapsLock = "Caps", NumLock = "Num", ScrollLock = "Scroll",
+                        Insert = "Ins", Delete = "Del", Home = "Home", End = "End", PageUp = "PgUp", PageDown = "PgDn",
+                        Return = "Enter", Space = "Space", Tab = "Tab", Escape = "Esc"
+                    }
+                    return shortcuts[key.Name] or key.Name
+                elseif key.EnumType == Enum.UserInputType then
+                    local shortcuts = {
+                        MouseButton1 = "Mouse1", MouseButton2 = "Mouse2", MouseButton3 = "Mouse3",
+                        Touch = "Touch", Keyboard = "KB", Gamepad = "Pad"
+                    }
+                    return shortcuts[key.Name] or key.Name
+                end
+            elseif typeof(key) == "string" then
+                return key
+            end
+            return tostring(key)
+        end
         local keyLabel = Create("TextLabel", {
             Name = "KeyLabel",
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Text = keybindData.key,
+            Text = getKeyShortcutText(keybindData.key),
             TextColor3 = Theme.Accent,
             TextSize = 10,
             Font = Fonts.Bold,
