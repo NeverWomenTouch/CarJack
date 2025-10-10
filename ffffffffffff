@@ -5325,6 +5325,25 @@ function Library:CreateLibrary(opts)
             end
         end)
     end
+    -- global library toggle keybind (default RightShift)
+    do
+        Library._libraryKeybind = Library._libraryKeybind or Enum.KeyCode.RightShift
+        Library._rootFrame = root
+        if Library._libraryKeyConn then
+            pcall(function() Library._libraryKeyConn:Disconnect() end)
+            Library._libraryKeyConn = nil
+        end
+        Library._libraryKeyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed then return end
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                local key = Library._libraryKeybind or Enum.KeyCode.RightShift
+                if input.KeyCode == key and Library._rootFrame and Library._rootFrame.Parent then
+                    Library._rootFrame.Visible = not Library._rootFrame.Visible
+                end
+            end
+        end)
+    end
+    
     Window.AddTab = Window.AddCategory
     -- enhanced search with fuzzy matching and ranking
     function Window:Search(term, suppressHighlight)
@@ -5445,6 +5464,47 @@ end
 function Library:SetFlag(name, value, silent)
     local c = (self.Flags and self.Flags[name]) or self._controls[name]
     if c and c.Set then c:Set(value, silent) end
+end
+
+-- Set or change the library-wide toggle keybind
+-- Accepts:
+--  - Enum.KeyCode (preferred)
+--  - string name of key (e.g., "RightShift", "E")
+--  - a control/flag object with a Value property (e.g., Library.Flags.MyKeybind.Value)
+function Library:LibraryKeybind(key)
+    local resolve
+    if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
+        resolve = key
+    elseif typeof(key) == "string" and Enum.KeyCode[key] then
+        resolve = Enum.KeyCode[key]
+    elseif type(key) == "table" and key.Value then
+        local v = key.Value
+        if typeof(v) == "EnumItem" and v.EnumType == Enum.KeyCode then
+            resolve = v
+        elseif typeof(v) == "string" and Enum.KeyCode[v] then
+            resolve = Enum.KeyCode[v]
+        end
+    end
+    resolve = resolve or Enum.KeyCode.RightShift
+    self._libraryKeybind = resolve
+    -- Rebuild connection if needed
+    if self._libraryKeyConn then
+        pcall(function() self._libraryKeyConn:Disconnect() end)
+        self._libraryKeyConn = nil
+    end
+    if not self._rootFrame then
+        -- Try to locate the current root frame from any existing window
+        -- No-op if unavailable; will be set on next CreateLibrary
+    end
+    self._libraryKeyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            local k = self._libraryKeybind or Enum.KeyCode.RightShift
+            if input.KeyCode == k and self._rootFrame and self._rootFrame.Parent then
+                self._rootFrame.Visible = not self._rootFrame.Visible
+            end
+        end
+    end)
 end
 
 return Library
