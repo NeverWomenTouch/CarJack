@@ -5147,40 +5147,24 @@ function Library:CreateLibrary(opts)
             Parent = container
         })
 
-        -- Accent gradient ring around the button
-        local ring = Create("Frame", {
-            Name = "Ring",
-            BackgroundTransparency = 1,
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0.5, 10, 0.5, 10),
-            Size = UDim2.new(0, 58, 0, 58),
-            ZIndex = 4,
-            Parent = container
-        })
-        Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = ring })
-        local ringStroke = Create("UIStroke", {
-            ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-            Color = accent,
-            Thickness = 2,
-            Transparency = 0.35,
-            Parent = ring
-        })
-        local ringGrad = Create("UIGradient", {
-            Rotation = 0,
+        -- Subtle internal gradient on the button for depth
+        local fillGrad = Create("UIGradient", {
+            Rotation = 90,
             Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0.00, accent),
-                ColorSequenceKeypoint.new(0.50, Color3.fromRGB(255, 255, 255)),
-                ColorSequenceKeypoint.new(1.00, accent)
+                ColorSequenceKeypoint.new(0.00, Theme.Bg),
+                ColorSequenceKeypoint.new(1.00, Theme.Button)
             }),
-            Parent = ring
+            Parent = toggleFrame
         })
 
         -- Button stroke
         local stroke = Create("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = accent, Thickness = 1.5, Transparency = 0.5, Parent = toggleFrame })
 
-        -- Status dot (green/red) on the top-right of the button
-        local status = Create("Frame", { Name = "StatusIndicator", BackgroundColor3 = Color3.fromRGB(255,85,85), BorderSizePixel = 0, Position = UDim2.new(1, -10, 0, 6), Size = UDim2.new(0, 8, 0, 8), ZIndex = 6, Parent = toggleFrame })
+    -- Status dot (green/red) on the top-right of the button, with subtle outline and glow
+    local status = Create("Frame", { Name = "StatusIndicator", BackgroundColor3 = Color3.fromRGB(255,85,85), BorderSizePixel = 0, Position = UDim2.new(1, -10, 0, 7), Size = UDim2.new(0, 8, 0, 8), ZIndex = 6, Parent = toggleFrame })
         Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = status })
+    local statusStroke = Create("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Bg, Thickness = 1, Transparency = 0, Parent = status })
+    local statusGlow = Create("ImageLabel", { Name = "StatusGlow", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -10, 0, 7), Size = UDim2.new(0, 18, 0, 18), Image = "rbxassetid://4996891970", ImageColor3 = Color3.fromRGB(255,85,85), ImageTransparency = 0.75, ScaleType = Enum.ScaleType.Slice, SliceCenter = Rect.new(20,20,280,280), ZIndex = 5, Parent = toggleFrame })
 
         -- Press/click surface
         local button = Create("TextButton", { Name = "ToggleButton", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Text = "", AutoButtonColor = false, ZIndex = 7, Parent = toggleFrame })
@@ -5221,27 +5205,37 @@ function Library:CreateLibrary(opts)
 
         local open = true
         local function applyState(animated)
-            status.BackgroundColor3 = open and Color3.fromRGB(85, 255, 127) or Color3.fromRGB(255, 85, 85)
+            local good = Theme.Good or Color3.fromRGB(85, 255, 127)
+            local bad = Theme.Bad or Color3.fromRGB(255, 85, 85)
+            status.BackgroundColor3 = open and good or bad
+            statusGlow.ImageColor3 = open and good or bad
             if animated then
+                -- Background and stroke soften/harden
                 T(toggleFrame, 0.20, { BackgroundColor3 = open and Theme.Panel or Theme.Bg }):Play()
                 T(stroke, 0.20, { Transparency = open and 0.25 or 0.5 }):Play()
+                -- Update gradient for a subtle light-from-top effect
+                local seq = open and ColorSequence.new({
+                    ColorSequenceKeypoint.new(0.00, Theme.Panel),
+                    ColorSequenceKeypoint.new(1.00, Theme.Bg)
+                }) or ColorSequence.new({
+                    ColorSequenceKeypoint.new(0.00, Theme.Bg),
+                    ColorSequenceKeypoint.new(1.00, Theme.Button)
+                })
+                fillGrad.Color = seq
             else
                 toggleFrame.BackgroundColor3 = open and Theme.Panel or Theme.Bg
                 stroke.Transparency = open and 0.25 or 0.5
+                fillGrad.Color = open and ColorSequence.new({
+                    ColorSequenceKeypoint.new(0.00, Theme.Panel),
+                    ColorSequenceKeypoint.new(1.00, Theme.Bg)
+                }) or ColorSequence.new({
+                    ColorSequenceKeypoint.new(0.00, Theme.Bg),
+                    ColorSequenceKeypoint.new(1.00, Theme.Button)
+                })
             end
             setIcon(open)
         end
         applyState(false)
-
-        -- Subtle ring rotation loop when closed (breathing)
-        task.spawn(function()
-            local rotation = 0
-            while ring and ring.Parent do
-                rotation = (rotation + (open and 0 or 1)) % 360
-                ringGrad.Rotation = rotation
-                task.wait(0.03)
-            end
-        end)
 
         -- Hover feedback on desktop
         button.MouseEnter:Connect(function()
