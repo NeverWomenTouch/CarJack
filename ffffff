@@ -5120,6 +5120,23 @@ function Library:CreateLibrary(opts)
         local open = true
         local holding, dragging = false, false
         local holdStart, dragStart
+        
+        -- Helper to get mouse/touch position in GUI space (accounts for top inset)
+        local function getMouseGuiPos(input)
+            local pos
+            if input and input.UserInputType == Enum.UserInputType.Touch then
+                pos = Vector2.new(input.Position.X, input.Position.Y)
+            else
+                pos = UserInputService:GetMouseLocation()
+            end
+            local ok, inset = pcall(function()
+                return game:GetService("GuiService"):GetGuiInset()
+            end)
+            if ok and typeof(inset) == "Vector2" then
+                pos = Vector2.new(pos.X, pos.Y - inset.Y)
+            end
+            return pos
+        end
         local function updateState()
             if open then
                 status.BackgroundColor3 = Color3.fromRGB(85,255,127)
@@ -5146,12 +5163,24 @@ function Library:CreateLibrary(opts)
         local DRAG_THRESHOLD = 6
         button.MouseButton1Down:Connect(function()
             holding = true; pressTime = tick(); dragging = false
-            local mouse = UserInputService:GetMouseLocation()
+            local mouse = getMouseGuiPos()
             pressPos = Vector2.new(mouse.X, mouse.Y)
             local abs = container.AbsolutePosition
             dragOffset = Vector2.new(mouse.X - abs.X, mouse.Y - abs.Y)
             T(toggleFrame,0.1,{Size = UDim2.new(0,46,0,46), Position = UDim2.new(0,12,0,12)}):Play()
             T(icon,0.1,{Size = UDim2.new(0,20,0,20)}):Play()
+        end)
+        -- Support touch start as well
+        button.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.Touch then
+                holding = true; pressTime = tick(); dragging = false
+                local mouse = getMouseGuiPos(inp)
+                pressPos = Vector2.new(mouse.X, mouse.Y)
+                local abs = container.AbsolutePosition
+                dragOffset = Vector2.new(mouse.X - abs.X, mouse.Y - abs.Y)
+                T(toggleFrame,0.1,{Size = UDim2.new(0,46,0,46), Position = UDim2.new(0,12,0,12)}):Play()
+                T(icon,0.1,{Size = UDim2.new(0,20,0,20)}):Play()
+            end
         end)
         button.MouseButton1Up:Connect(function()
             local wasTap = holding and (tick() - pressTime) < 0.4 and not dragging
@@ -5168,7 +5197,7 @@ function Library:CreateLibrary(opts)
         end)
         UserInputService.InputChanged:Connect(function(inp)
             if holding and pressPos and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                local mouse = UserInputService:GetMouseLocation()
+                local mouse = getMouseGuiPos(inp)
                 if not dragging then
                     local dx = mouse.X - pressPos.X
                     local dy = mouse.Y - pressPos.Y
