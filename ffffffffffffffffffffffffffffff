@@ -3269,7 +3269,7 @@ function Library:CreateLibrary(opts)
                     })
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = box})
                     local Textbox = { id = id, _value = default }
-                    function Textbox:Get() return self._value end
+                    function Textbox:Get() return box and box.Text or self._value end
                     function Textbox:Set(v, silent) v = tostring(v or "") self._value = v box.Text = v if not silent and type(cb)=="function" then pcall(cb,v) end end
                     -- One-time clear on first focus if it's still showing the default text
                     local _clearedOnce = false
@@ -5818,7 +5818,7 @@ function Library:CreateLibrary(opts)
         opts = opts or {}
         if not group or type(group) ~= "table" or not group.AddDropdown then return nil end
         local cfgLabel = tostring(opts.Label or "Configs")
-        local namePlaceholder = tostring(opts.Placeholder or "Config name...")
+        local namePlaceholder = tostring(opts.Placeholder or "MyConfig Name")
 
         -- Row 1: Dropdown
         local dd = group:AddDropdown({
@@ -5834,49 +5834,50 @@ function Library:CreateLibrary(opts)
             dd:SetOptions(list)
         end
 
-        -- Row 2: Name textbox
-        local nameBox = group:AddTextbox({ Name = "Name", Placeholder = namePlaceholder, Default = "" })
+    -- Row 2: Name textbox
+    local nameBox = group:AddTextbox({ Name = "Config Name", Placeholder = namePlaceholder, Default = "" })
 
         -- Row 3: Buttons (Create/Save/Load/Delete)
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
-            local name = nameBox:Get()
+            -- Always read live textbox value
+            local name = nameBox and nameBox.Get and nameBox:Get() or ""
             if type(name) == "string" and name:lower() == "__meta" then return end
             if not name or name == "" then return end
-            Window.SaveConfig(name)
-            refreshList()
-            dd:Set(name, true)
+            if Window.SaveConfig(name) then
+                refreshList()
+                dd:Set(name, true)
+                -- keep textbox text
+                if nameBox and nameBox.Set then nameBox:Set(name, true) end
+            end
         end })
         local saveBtn = group:AddButton({ Name = "Save", Compact = true, Callback = function()
-            local name = dd:Get() or nameBox:Get()
+            local name = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
             if type(name) == "string" and name:lower() == "__meta" then return end
             if not name or name == "" then return end
-            Window.SaveConfig(name)
-            refreshList()
-            dd:Set(name, true)
+            if Window.SaveConfig(name) then
+                refreshList()
+                dd:Set(name, true)
+                if nameBox and nameBox.Set then nameBox:Set(name, true) end
+            end
         end })
         local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
-            local name = dd:Get() or nameBox:Get()
+            local name = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
             if type(name) == "string" and name:lower() == "__meta" then return end
             if not name or name == "" then return end
             Window.LoadConfig(name)
         end })
         local deleteBtn = group:AddButton({ Name = "Delete", Compact = true, Callback = function()
-            local name = dd:Get() or nameBox:Get()
+            local name = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
             if type(name) == "string" and name:lower() == "__meta" then return end
             if not name or name == "" then return end
             Window.DeleteConfig(name)
             refreshList()
             dd:Set(nil, true)
+            if nameBox and nameBox.Set then nameBox:Set("", true) end
         end })
 
-        -- Row 4: Auto-load toggle for currently selected config
-        local autoToggle = group:AddToggle({ Name = "Auto Load Selected", Default = false, Callback = function(on)
-            local name = dd:Get()
-            if not name or name == "" then return end
-            pcall(function() Config.SetAutoLoad(name, on) end)
-        end })
-
-        -- Row 5: Refresh List (moved below Delete)
+        -- Row 4: Refresh List (move above auto-load)
+        local autoToggle -- forward declare for callback below
         local refreshBtn = group:AddButton({ Name = "Refresh List", Callback = function()
             refreshList()
             -- Re-sync autoload state to current selection after refresh
@@ -5885,6 +5886,13 @@ function Library:CreateLibrary(opts)
             pcall(function() on = Config.GetAutoLoad(name) end)
             autoToggle:Set(on, true)
         end, Compact = true })
+
+        -- Row 5: Auto-load toggle for currently selected config
+        autoToggle = group:AddToggle({ Name = "Auto Load Config", Default = false, Callback = function(on)
+            local name = dd:Get()
+            if not name or name == "" then return end
+            pcall(function() Config.SetAutoLoad(name, on) end)
+        end })
 
         -- Keep autoload toggle in sync when selection changes
         dd:OnOpen(function()
