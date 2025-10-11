@@ -1281,9 +1281,81 @@ function Library:CreateLibrary(opts)
         local Folder = Base .. "/" .. gameKey()
         function Config.Ensure() if not _isfolder(Base) then _makefolder(Base) end if not _isfolder(Folder) then _makefolder(Folder) end end
         function Config.Path(n) Config.Ensure() return Folder .. "/" .. sanitize(n) .. ".json" end
-        function Config.Save(n, d) local p = Config.Path(n) local ok, j = pcall(function() return HttpService:JSONEncode(d or {}) end) if ok then _writefile(p, j) end return ok end
-        function Config.Load(n) local p = Config.Path(n) if _isfile(p) then local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end) if ok and type(t)=="table" then return t end end return {} end
-        function Config.List() Config.Ensure() local r = {} for _, f in ipairs(_listfiles(Folder) or {}) do local n = f:match("([^/\\]+)$") or f n = n:gsub("%.json$", "") table.insert(r, n) end table.sort(r) return r end
+
+        -- JSON-safe serialization helpers
+        local function serialize(val)
+            local t = typeof(val)
+            if t == "nil" or t == "number" or t == "boolean" or t == "string" then
+                return val
+            elseif t == "Color3" then
+                return { __t = "c3", r = math.floor(val.R*255+0.5), g = math.floor(val.G*255+0.5), b = math.floor(val.B*255+0.5) }
+            elseif t == "EnumItem" then
+                local et = val.EnumType and val.EnumType.Name or nil
+                local vn = val.Name
+                return { __t = "enum", e = et, v = vn }
+            elseif t == "UDim2" then
+                return { __t = "ud2", xs = val.X.Scale, xo = val.X.Offset, ys = val.Y.Scale, yo = val.Y.Offset }
+            elseif t == "Vector2" then
+                return { __t = "v2", x = val.X, y = val.Y }
+            elseif t == "table" then
+                local out = {}
+                for k, v in pairs(val) do out[k] = serialize(v) end
+                return out
+            else
+                -- Fallback to string (e.g., unknown userdata) to avoid encode failure
+                return tostring(val)
+            end
+        end
+        local function deserialize(val)
+            local t = typeof(val)
+            if t ~= "table" then return val end
+            if val.__t == "c3" then
+                local r,g,b = tonumber(val.r) or 255, tonumber(val.g) or 255, tonumber(val.b) or 255
+                return Color3.fromRGB(r,g,b)
+            elseif val.__t == "enum" then
+                local eName, vName = tostring(val.e or ""), tostring(val.v or "")
+                if Enum[eName] and Enum[eName][vName] then return Enum[eName][vName] end
+                -- KeyCode/UserInputType special case via parser
+                local parsed = ParseKeyFromString(vName)
+                return parsed or vName
+            elseif val.__t == "ud2" then
+                return UDim2.new(val.xs or 0, val.xo or 0, val.ys or 0, val.yo or 0)
+            elseif val.__t == "v2" then
+                return Vector2.new(val.x or 0, val.y or 0)
+            end
+            local out = {}
+            for k, v in pairs(val) do out[k] = deserialize(v) end
+            return out
+        end
+
+        function Config.Save(n, d)
+            local p = Config.Path(n)
+            local ok, j = pcall(function() return HttpService:JSONEncode(serialize(d or {})) end)
+            if ok then _writefile(p, j) end
+            return ok
+        end
+        function Config.Load(n)
+            local p = Config.Path(n)
+            if _isfile(p) then
+                local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
+                if ok and type(t) == "table" then return deserialize(t) end
+            end
+            return {}
+        end
+        function Config.List()
+            Config.Ensure()
+            local r = {}
+            for _, f in ipairs(_listfiles(Folder) or {}) do
+                local n = f:match("([^/\\]+)$") or f
+                -- skip meta file
+                if n ~= "__meta.json" then
+                    n = n:gsub("%.json$", "")
+                    table.insert(r, n)
+                end
+            end
+            table.sort(r)
+            return r
+        end
         function Config.Delete(n) local p = Config.Path(n) if _isfile(p) then _delfile(p) end end
 
         -- Meta persistence for autoload flags and last-saved timestamps
@@ -1310,6 +1382,11 @@ function Library:CreateLibrary(opts)
             if not name or name == "" then return end
             local m = LoadMeta()
             m.autoload[sanitize(name)] = (on == true) or nil -- nil removes key
+            -- if enabling autoload and no timestamp yet, seed it so MostRecent works
+            if on == true then
+                local key = sanitize(name)
+                m.lastSaved[key] = m.lastSaved[key] or os.time()
+            end
             SaveMeta(m)
         end
         function Config.GetAutoLoad(name)
@@ -1320,8 +1397,12 @@ function Library:CreateLibrary(opts)
         function Config.RecordSave(name)
             if not name or name == "" then return end
             local m = LoadMeta()
-            m.lastSaved[sanitize(name)] = os.time()
-            SaveMeta(m)
+            local key = sanitize(name)
+            -- Only persist meta if this config is autoloaded (avoid creating __meta until needed)
+            if m.autoload[key] then
+                m.lastSaved[key] = os.time()
+                SaveMeta(m)
+            end
         end
         function Config.ClearMeta(name)
             if not name or name == "" then return end
@@ -5739,7 +5820,7 @@ function Library:CreateLibrary(opts)
         local cfgLabel = tostring(opts.Label or "Configs")
         local namePlaceholder = tostring(opts.Placeholder or "Config name...")
 
-        -- Row 1: Dropdown + Refresh
+        -- Row 1: Dropdown
         local dd = group:AddDropdown({
             Name = cfgLabel,
             Options = Window.ListConfigs(),
@@ -5752,8 +5833,6 @@ function Library:CreateLibrary(opts)
             local list = Window.ListConfigs() or {}
             dd:SetOptions(list)
         end
-        -- Add a small "Refresh" button right under dropdown to keep layout simple
-        local refreshBtn = group:AddButton({ Name = "Refresh List", Callback = refreshList, Compact = true })
 
         -- Row 2: Name textbox
         local nameBox = group:AddTextbox({ Name = "Name", Placeholder = namePlaceholder, Default = "" })
@@ -5761,6 +5840,7 @@ function Library:CreateLibrary(opts)
         -- Row 3: Buttons (Create/Save/Load/Delete)
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
             local name = nameBox:Get()
+            if type(name) == "string" and name:lower() == "__meta" then return end
             if not name or name == "" then return end
             Window.SaveConfig(name)
             refreshList()
@@ -5768,6 +5848,7 @@ function Library:CreateLibrary(opts)
         end })
         local saveBtn = group:AddButton({ Name = "Save", Compact = true, Callback = function()
             local name = dd:Get() or nameBox:Get()
+            if type(name) == "string" and name:lower() == "__meta" then return end
             if not name or name == "" then return end
             Window.SaveConfig(name)
             refreshList()
@@ -5775,11 +5856,13 @@ function Library:CreateLibrary(opts)
         end })
         local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
             local name = dd:Get() or nameBox:Get()
+            if type(name) == "string" and name:lower() == "__meta" then return end
             if not name or name == "" then return end
             Window.LoadConfig(name)
         end })
         local deleteBtn = group:AddButton({ Name = "Delete", Compact = true, Callback = function()
             local name = dd:Get() or nameBox:Get()
+            if type(name) == "string" and name:lower() == "__meta" then return end
             if not name or name == "" then return end
             Window.DeleteConfig(name)
             refreshList()
@@ -5792,6 +5875,16 @@ function Library:CreateLibrary(opts)
             if not name or name == "" then return end
             pcall(function() Config.SetAutoLoad(name, on) end)
         end })
+
+        -- Row 5: Refresh List (moved below Delete)
+        local refreshBtn = group:AddButton({ Name = "Refresh List", Callback = function()
+            refreshList()
+            -- Re-sync autoload state to current selection after refresh
+            local name = dd:Get()
+            local on = false
+            pcall(function() on = Config.GetAutoLoad(name) end)
+            autoToggle:Set(on, true)
+        end, Compact = true })
 
         -- Keep autoload toggle in sync when selection changes
         dd:OnOpen(function()
@@ -5818,7 +5911,7 @@ function Library:CreateLibrary(opts)
             end
         end
 
-        return { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle }
+    return { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle }
     end
     
     -- Auto-load most recent autoload-marked config for this place, if any
