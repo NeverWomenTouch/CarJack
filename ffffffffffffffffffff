@@ -22,6 +22,43 @@ local function Create(className, props, children)
     if children then for _, c in ipairs(children) do c.Parent = inst end end
     return inst
 end
+-- Convert a string like "Keypad5", "KeypadFive", "Mouse1" to Enum.KeyCode/UserInputType
+local function ParseKeyFromString(name)
+    if type(name) ~= "string" then return nil end
+    local s = name
+    local lower = s:lower()
+    -- Mouse buttons
+    if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return Enum.UserInputType.MouseButton1 end
+    if lower == "mouse2" or lower == "mb2" or lower == "mousebutton2" then return Enum.UserInputType.MouseButton2 end
+    -- Exact Enum name
+    if Enum.KeyCode[s] then return Enum.KeyCode[s] end
+    -- Keypad numbers as digits -> map to Enum names KeypadZero..KeypadNine
+    local d = s:match("^Keypad(%d)$")
+    if d then
+        local digitToWord = { ["0"]="Zero", ["1"]="One", ["2"]="Two", ["3"]="Three", ["4"]="Four", ["5"]="Five", ["6"]="Six", ["7"]="Seven", ["8"]="Eight", ["9"]="Nine" }
+        local word = digitToWord[d]
+        if word and Enum.KeyCode["Keypad" .. word] then
+            return Enum.KeyCode["Keypad" .. word]
+        end
+    end
+    -- Keypad spelled numbers (e.g., KeypadFive)
+    local cap = s:match("^Keypad(%a+)$")
+    if cap and Enum.KeyCode["Keypad" .. cap] then return Enum.KeyCode["Keypad" .. cap] end
+    -- Operators
+    if s == "KeypadPlus" or s == "+" then return Enum.KeyCode.KeypadPlus end
+    if s == "KeypadMinus" or s == "-" then return Enum.KeyCode.KeypadMinus end
+    if s == "KeypadMultiply" or lower == "keypadmul" or s == "*" then return Enum.KeyCode.KeypadMultiply end
+    if s == "KeypadDivide" or lower == "keypaddiv" or s == "/" then return Enum.KeyCode.KeypadDivide end
+    if s == "KeypadPeriod" or lower == "keypaddot" or lower == "keypaddecimal" or s == "." then return Enum.KeyCode.KeypadPeriod end
+    if s == "KeypadEnter" then return Enum.KeyCode.KeypadEnter end
+    -- Common names
+    if lower == "enter" then return Enum.KeyCode.Return end
+    if lower == "esc" or lower == "escape" then return Enum.KeyCode.Escape end
+    if lower == "space" or lower == "spacebar" then return Enum.KeyCode.Space end
+    -- Fallback: try raw
+    if Enum.KeyCode[s] then return Enum.KeyCode[s] end
+    return nil
+end
 local function Round(num, inc) inc = inc or 1 return math.floor(num / inc + 0.5) * inc end
 local function Clamp(v, a, b) return (v < a and a) or (v > b and b) or v end
 -- Fix math.clamp compatibility
@@ -597,6 +634,7 @@ do
         })
         
         local function formatKeyShortcut(key)
+            -- Formats both Enum and string key names into a user-friendly short form.
             if typeof(key) == "EnumItem" then
                 local s = tostring(key):gsub("^Enum%.[^%.]+%.", "")
                 local shortcuts = {
@@ -624,6 +662,27 @@ do
                 shortcuts["KeypadPeriod"] = "Keypad." 
                 return shortcuts[s] or s
             elseif type(key) == "string" then
+                -- Normalize common keypad/string variations for display
+                local k = key
+                -- If the string is an exact Enum name like "KeypadFive", prettify to Keypad5
+                local wordToDigit = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
+                local cap = k:match("^Keypad(%a+)$")
+                if cap and wordToDigit[cap] then
+                    return "Keypad" .. wordToDigit[cap]
+                end
+                -- Already short like Keypad5
+                if k:match("^Keypad%d$") then return k end
+                -- Operators
+                if k == "KeypadPlus" or k == "+" then return "Keypad+" end
+                if k == "KeypadMinus" or k == "-" then return "Keypad-" end
+                if k == "KeypadMultiply" or k:lower() == "keypadmul" or k == "*" then return "Keypad*" end
+                if k == "KeypadDivide" or k:lower() == "keypaddiv" or k == "/" then return "Keypad/" end
+                if k == "KeypadPeriod" or k:lower() == "keypaddot" or k:lower() == "keypaddecimal" or k == "." then return "Keypad." end
+                if k == "KeypadEnter" then return "KeypadEnter" end
+                -- Mouse aliases
+                local lower = k:lower()
+                if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return "Mouse1" end
+                if lower == "mouse2" or lower == "mb2" or lower == "mousebutton2" then return "Mouse2" end
                 return key
             end
             return "?"
@@ -3105,6 +3164,9 @@ function Library:CreateLibrary(opts)
                     o = o or {}
                     local label = tostring(o.Name or "Keybind")
                     local default = o.Default
+                    if typeof(default) ~= "EnumItem" and type(default) == "string" then
+                        default = ParseKeyFromString(default) or default
+                    end
                     local cb = o.Callback
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     
@@ -3148,6 +3210,11 @@ function Library:CreateLibrary(opts)
                     local Keybind = { id = id, _value = default }
                     function Keybind:Get() return self._value end
                     function Keybind:Set(keycode, silent)
+                        -- Allow string inputs by parsing to Enum
+                        if type(keycode) == "string" then
+                            local parsed = ParseKeyFromString(keycode)
+                            keycode = parsed or keycode
+                        end
                         self._value = keycode
                         -- Handle both KeyCode and UserInputType (for mouse buttons)
                         if keycode and keycode.Name then
@@ -3166,7 +3233,7 @@ function Library:CreateLibrary(opts)
                         
                         -- Update keybind list tracking
                         if self._keybindId then
-                            local keyName = keycode and (keycode.Name or mouseButtonNames[keycode]) or "None"
+                            local keyName = keycode and (keycode.Name or mouseButtonNames[keycode]) or (type(keycode)=="string" and keycode or "None")
                             Library:_updateKeybind(self._keybindId, {
                                 key = keyName
                             })
@@ -3384,6 +3451,10 @@ function Library:CreateLibrary(opts)
                             return keycode.Name
                         elseif keycode and mouseButtonNames[keycode] then
                             return mouseButtonNames[keycode]
+                        elseif type(keycode) == "string" then
+                            -- Normalize to display-friendly name
+                            local parsed = ParseKeyFromString(keycode)
+                            return (parsed and parsed.Name) or keycode
                         else
                             return "None"
                         end
@@ -4578,6 +4649,9 @@ function Library:CreateLibrary(opts)
                     local label = tostring(o.Name or "Keybind Toggle")
                     local cb = o.Callback
                     local defaultKey = o.Default or o.Key or Enum.KeyCode.E
+                    if typeof(defaultKey) ~= "EnumItem" and type(defaultKey) == "string" then
+                        defaultKey = ParseKeyFromString(defaultKey) or defaultKey
+                    end
                     local mode = o.Mode or "Hold" -- "Toggle", "Hold", "Always"
                     local defaultToggle = o.DefaultToggle or (mode == "Hold" or mode == "Always") -- Default ON for Hold and Always modes
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s"):format(Category.Name, Page.Name, Group.Name, label)
@@ -4613,6 +4687,13 @@ function Library:CreateLibrary(opts)
                         end
                         if keyNames[keyCode] then return keyNames[keyCode] end
                         local name = tostring(keyCode):match("Enum%.KeyCode%.(.+)")
+                        -- Prettify keypad
+                        if name and name:match("^Keypad%d$") then return name end
+                        if name == "KeypadPlus" then return "Keypad+" end
+                        if name == "KeypadMinus" then return "Keypad-" end
+                        if name == "KeypadMultiply" then return "Keypad*" end
+                        if name == "KeypadDivide" then return "Keypad/" end
+                        if name == "KeypadPeriod" then return "Keypad." end
                         return name or "None"
                     end
                     
@@ -4999,6 +5080,10 @@ function Library:CreateLibrary(opts)
                     end
                     
                     function KeybindToggle:SetKey(keyCode, silent)
+                        if type(keyCode) == "string" then
+                            local parsed = ParseKeyFromString(keyCode)
+                            keyCode = parsed or keyCode
+                        end
                         if typeof(keyCode) == "EnumItem" then
                             if keyCode.EnumType == Enum.KeyCode then
                                 currentKey = keyCode
@@ -5523,14 +5608,14 @@ function Library:LibraryKeybind(key)
     local resolve
     if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
         resolve = key
-    elseif typeof(key) == "string" and Enum.KeyCode[key] then
-        resolve = Enum.KeyCode[key]
+    elseif typeof(key) == "string" then
+        resolve = Enum.KeyCode[key] or ParseKeyFromString(key)
     elseif type(key) == "table" and key.Value then
         local v = key.Value
         if typeof(v) == "EnumItem" and v.EnumType == Enum.KeyCode then
             resolve = v
-        elseif typeof(v) == "string" and Enum.KeyCode[v] then
-            resolve = Enum.KeyCode[v]
+        elseif typeof(v) == "string" then
+            resolve = Enum.KeyCode[v] or ParseKeyFromString(v)
         end
     end
     resolve = resolve or Enum.KeyCode.RightShift
