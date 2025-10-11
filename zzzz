@@ -1278,26 +1278,14 @@ function Library:CreateLibrary(opts)
             return "Place_" .. tostring(game.PlaceId)
         end
     local Base = sanitize(libraryName)
-        -- Build a per-game subfolder key (sanitized name + place id). Fallbacks ensure it works everywhere.
+        -- Build a stable per-game subfolder key (PlaceId only) to avoid duplicate folders
         local function getGameFolder()
             local placeId = 0
             local okPlace, pid = pcall(function() return game.PlaceId end)
             if okPlace and tonumber(pid) then placeId = tonumber(pid) end
-            local placeName = nil
-            local okName, info = pcall(function()
-                if placeId and placeId ~= 0 then
-                    return MarketplaceService:GetProductInfo(placeId)
-                end
-                return nil
-            end)
-            if okName and type(info) == "table" and info.Name then
-                placeName = tostring(info.Name)
-            end
-            local namePart = sanitize(placeName or "Game")
-            local idPart = tostring(placeId or 0)
-            return ("%s_%s"):format(namePart, idPart)
+            return tostring(placeId or 0)
         end
-        local Folder = Base .. "/" .. getGameFolder()
+    local Folder = Base .. "/" .. getGameFolder()
         -- Memory-backed fallback storage for environments without file APIs
         Library._memConfig = Library._memConfig or { files = {}, meta = {} }
         local function memGetFolder()
@@ -1307,16 +1295,14 @@ function Library:CreateLibrary(opts)
             return key
         end
         local function fsAvailable()
-            -- Probe simple write capability in Base
+            -- Consider fs available if these shims exist and we can create the base folder
+            if not (_isfolder and _makefolder and _writefile and _readfile and _listfiles and _isfile and _delfile) then
+                return false
+            end
             local okBase = pcall(function()
                 if not _isfolder(Base) then _makefolder(Base) end
             end)
-            if not okBase then return false end
-            local probe = Base .. "/__fs_probe__.tmp"
-            local okWrite = pcall(function() _writefile(probe, "1") end)
-            local okIs = _isfile(probe) == true
-            pcall(function() _delfile(probe) end)
-            return okWrite and okIs
+            return okBase == true
         end
         local MEM_MODE = false
         function Config.Ensure()
@@ -1330,9 +1316,7 @@ function Library:CreateLibrary(opts)
             end
             -- Filesystem mode
             if not _isfolder(Base) then _makefolder(Base) end
-            local desired = Base .. "/" .. getGameFolder()
-            if not _isfolder(desired) then _makefolder(desired) end
-            if _isfolder(desired) then Folder = desired else Folder = Base end
+            if not _isfolder(Folder) then _makefolder(Folder) end
         end
         function Config.Path(n)
             Config.Ensure()
@@ -1392,7 +1376,10 @@ function Library:CreateLibrary(opts)
 
         function Config.Save(n, d)
             local p = Config.Path(n)
-            if not p then return false end
+            if not p then
+                warn("Config.Save: invalid name")
+                return false
+            end
             local data = serialize(d or {})
             if MEM_MODE then
                 local key = memGetFolder()
@@ -1425,7 +1412,7 @@ function Library:CreateLibrary(opts)
             if MEM_MODE then
                 local key = memGetFolder()
                 for name, _ in pairs(Library._memConfig.files[key]) do
-                    if name ~= "__meta" then table.insert(r, name) end
+                    if name and name ~= "__meta" then table.insert(r, name) end
                 end
             else
                 for _, f in ipairs(_listfiles(Folder) or {}) do
