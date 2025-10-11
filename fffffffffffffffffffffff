@@ -78,8 +78,12 @@ local function FormatKeyName(key)
             Up = "↑", Down = "↓", Left = "←", Right = "→",
             F1 = "F1", F2 = "F2", F3 = "F3", F4 = "F4", F5 = "F5", F6 = "F6", F7 = "F7", F8 = "F8", F9 = "F9", F10 = "F10", F11 = "F11", F12 = "F12"
         }
-        -- Keypad digits: show as Keypad0..Keypad9
-        for i = 0, 9 do shortcuts["Keypad" .. tostring(i)] = "Keypad" .. tostring(i) end
+        -- Keypad digits: convert KeypadZero..KeypadNine -> Keypad0..Keypad9 for compact display
+        local wordToDigit = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
+        local cap = s:match("^Keypad(%a+)$")
+        if cap and wordToDigit[cap] then
+            return "Keypad" .. wordToDigit[cap]
+        end
         -- Operators / misc
         shortcuts["KeypadEnter"] = "KeypadEnter"
         shortcuts["KeypadPlus"] = "Keypad+"
@@ -95,6 +99,22 @@ local function FormatKeyName(key)
         -- Mouse
         if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return "Mouse1" end
         if lower == "mouse2" or lower == "mb2" or lower == "mousebutton2" then return "Mouse2" end
+        -- Common keys
+        if lower == "backspace" then return "Bksp" end
+        if lower == "tab" then return "Tab" end
+        if lower == "return" or lower == "enter" then return "Enter" end
+        if lower == "escape" or lower == "esc" then return "Esc" end
+        if lower == "space" or lower == "spacebar" then return "Space" end
+        if lower == "insert" then return "Ins" end
+        if lower == "delete" or lower == "del" then return "Del" end
+        if lower == "home" then return "Home" end
+        if lower == "end" then return "End" end
+        if lower == "pageup" or lower == "pgup" then return "PgUp" end
+        if lower == "pagedown" or lower == "pgdn" then return "PgDn" end
+        if lower == "up" then return "↑" end
+        if lower == "down" then return "↓" end
+        if lower == "left" then return "←" end
+        if lower == "right" then return "→" end
         -- Keypad spelled digits to compact
         local wordToDigit = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
         local cap = k:match("^Keypad(%a+)$")
@@ -107,10 +127,7 @@ local function FormatKeyName(key)
         if k == "KeypadDivide" or lower == "keypaddiv" or k == "/" then return "Keypad/" end
         if k == "KeypadPeriod" or lower == "keypaddot" or lower == "keypaddecimal" or k == "." then return "Keypad." end
         if k == "KeypadEnter" then return "KeypadEnter" end
-        -- Common abbreviations
-        if lower == "enter" then return "Enter" end
-        if lower == "escape" or lower == "esc" then return "Esc" end
-        if lower == "space" or lower == "spacebar" then return "Space" end
+        -- Modifier abbreviations
         if lower == "leftshift" then return "LShift" end
         if lower == "rightshift" then return "RShift" end
         if lower == "leftcontrol" or lower == "lctrl" then return "LCtrl" end
@@ -699,58 +716,7 @@ do
         })
         
         local function formatKeyShortcut(key)
-            -- Formats both Enum and string key names into a user-friendly short form.
-            if typeof(key) == "EnumItem" then
-                local s = tostring(key):gsub("^Enum%.[^%.]+%.", "")
-                local shortcuts = {
-                    MouseButton1 = "Mouse1", MouseButton2 = "Mouse2", MouseButton3 = "Mouse3",
-                    ButtonR2 = "R2", ButtonL2 = "L2", ButtonR1 = "R1", ButtonL1 = "L1",
-                    ButtonA = "A", ButtonB = "B", ButtonX = "X", ButtonY = "Y",
-                    DPadUp = "DPad↑", DPadDown = "DPad↓", DPadLeft = "DPad←", DPadRight = "DPad→",
-                    Thumbstick1 = "StickL", Thumbstick2 = "StickR",
-                    Backspace = "Bksp", Return = "Enter", Space = "Space", Tab = "Tab", Escape = "Esc",
-                    LeftShift = "LShift", RightShift = "RShift", LeftControl = "LCtrl", RightControl = "RCtrl",
-                    LeftAlt = "LAlt", RightAlt = "RAlt", CapsLock = "Caps", Insert = "Ins", Delete = "Del",
-                    Home = "Home", End = "End", PageUp = "PgUp", PageDown = "PgDn",
-                    Up = "↑", Down = "↓", Left = "←", Right = "→",
-                    F1 = "F1", F2 = "F2", F3 = "F3", F4 = "F4", F5 = "F5", F6 = "F6", F7 = "F7", F8 = "F8", F9 = "F9", F10 = "F10", F11 = "F11", F12 = "F12"
-                }
-                -- Keypad keys
-                for i = 0, 9 do
-                    shortcuts["Keypad" .. tostring(i)] = "Keypad" .. tostring(i)
-                end
-                shortcuts["KeypadEnter"] = "KeypadEnter"
-                shortcuts["KeypadPlus"] = "Keypad+"
-                shortcuts["KeypadMinus"] = "Keypad-"
-                shortcuts["KeypadMultiply"] = "Keypad*"
-                shortcuts["KeypadDivide"] = "Keypad/"
-                shortcuts["KeypadPeriod"] = "Keypad." 
-                return shortcuts[s] or s
-            elseif type(key) == "string" then
-                -- Normalize common keypad/string variations for display
-                local k = key
-                -- If the string is an exact Enum name like "KeypadFive", prettify to Keypad5
-                local wordToDigit = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
-                local cap = k:match("^Keypad(%a+)$")
-                if cap and wordToDigit[cap] then
-                    return "Keypad" .. wordToDigit[cap]
-                end
-                -- Already short like Keypad5
-                if k:match("^Keypad%d$") then return k end
-                -- Operators
-                if k == "KeypadPlus" or k == "+" then return "Keypad+" end
-                if k == "KeypadMinus" or k == "-" then return "Keypad-" end
-                if k == "KeypadMultiply" or k:lower() == "keypadmul" or k == "*" then return "Keypad*" end
-                if k == "KeypadDivide" or k:lower() == "keypaddiv" or k == "/" then return "Keypad/" end
-                if k == "KeypadPeriod" or k:lower() == "keypaddot" or k:lower() == "keypaddecimal" or k == "." then return "Keypad." end
-                if k == "KeypadEnter" then return "KeypadEnter" end
-                -- Mouse aliases
-                local lower = k:lower()
-                if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return "Mouse1" end
-                if lower == "mouse2" or lower == "mb2" or lower == "mousebutton2" then return "Mouse2" end
-                return key
-            end
-            return "?"
+            return Library.FormatKeyName(key)
         end
         local keyLabel = Create("TextLabel", {
             Name = "KeyLabel",
