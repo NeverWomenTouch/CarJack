@@ -5840,6 +5840,8 @@ function Library:CreateLibrary(opts)
         end
     end)
     
+    -- expose this instance as the active window so Library-level helpers can forward
+    self._activeWindow = Window
     return Window
 end
 function Library:MakeWindow(o) return self:CreateLibrary(o) end
@@ -5897,6 +5899,14 @@ function Library:LibraryKeybind(key)
         end
     end)
     self._syncToggle = syncToggle
+end
+
+-- Convenience proxy: allow Library:AddConfigSystem(group, opts)
+function Library:AddConfigSystem(group, opts)
+    if self and self._activeWindow and self._activeWindow.AddConfigSystem then
+        return self._activeWindow:AddConfigSystem(group, opts)
+    end
+    return nil
 end
 
 return Library
