@@ -59,6 +59,69 @@ local function ParseKeyFromString(name)
     if Enum.KeyCode[s] then return Enum.KeyCode[s] end
     return nil
 end
+
+-- Pretty-print key names consistently across the library
+function Library.FormatKeyName(key)
+    -- Accepts EnumItem (KeyCode/UserInputType) or string
+    if typeof(key) == "EnumItem" then
+        local s = tostring(key):gsub("^Enum%.[^%.]+%.", "")
+        local shortcuts = {
+            MouseButton1 = "Mouse1", MouseButton2 = "Mouse2", MouseButton3 = "Mouse3",
+            ButtonR2 = "R2", ButtonL2 = "L2", ButtonR1 = "R1", ButtonL1 = "L1",
+            ButtonA = "A", ButtonB = "B", ButtonX = "X", ButtonY = "Y",
+            DPadUp = "DPad↑", DPadDown = "DPad↓", DPadLeft = "DPad←", DPadRight = "DPad→",
+            Thumbstick1 = "StickL", Thumbstick2 = "StickR",
+            Backspace = "Bksp", Return = "Enter", Space = "Space", Tab = "Tab", Escape = "Esc",
+            LeftShift = "LShift", RightShift = "RShift", LeftControl = "LCtrl", RightControl = "RCtrl",
+            LeftAlt = "LAlt", RightAlt = "RAlt", CapsLock = "Caps", Insert = "Ins", Delete = "Del",
+            Home = "Home", End = "End", PageUp = "PgUp", PageDown = "PgDn",
+            Up = "↑", Down = "↓", Left = "←", Right = "→",
+            F1 = "F1", F2 = "F2", F3 = "F3", F4 = "F4", F5 = "F5", F6 = "F6", F7 = "F7", F8 = "F8", F9 = "F9", F10 = "F10", F11 = "F11", F12 = "F12"
+        }
+        -- Keypad digits: show as Keypad0..Keypad9
+        for i = 0, 9 do shortcuts["Keypad" .. tostring(i)] = "Keypad" .. tostring(i) end
+        -- Operators / misc
+        shortcuts["KeypadEnter"] = "KeypadEnter"
+        shortcuts["KeypadPlus"] = "Keypad+"
+        shortcuts["KeypadMinus"] = "Keypad-"
+        shortcuts["KeypadMultiply"] = "Keypad*"
+        shortcuts["KeypadDivide"] = "Keypad/"
+        shortcuts["KeypadPeriod"] = "Keypad."
+        return shortcuts[s] or s
+    elseif type(key) == "string" then
+        -- Normalize string names and aliases
+        local k = key
+        local lower = k:lower()
+        -- Mouse
+        if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return "Mouse1" end
+        if lower == "mouse2" or lower == "mb2" or lower == "mousebutton2" then return "Mouse2" end
+        -- Keypad spelled digits to compact
+        local wordToDigit = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
+        local cap = k:match("^Keypad(%a+)$")
+        if cap and wordToDigit[cap] then return "Keypad" .. wordToDigit[cap] end
+        if k:match("^Keypad%d$") then return k end
+        -- Operators
+        if k == "KeypadPlus" or k == "+" then return "Keypad+" end
+        if k == "KeypadMinus" or k == "-" then return "Keypad-" end
+        if k == "KeypadMultiply" or lower == "keypadmul" or k == "*" then return "Keypad*" end
+        if k == "KeypadDivide" or lower == "keypaddiv" or k == "/" then return "Keypad/" end
+        if k == "KeypadPeriod" or lower == "keypaddot" or lower == "keypaddecimal" or k == "." then return "Keypad." end
+        if k == "KeypadEnter" then return "KeypadEnter" end
+        -- Common abbreviations
+        if lower == "enter" then return "Enter" end
+        if lower == "escape" or lower == "esc" then return "Esc" end
+        if lower == "space" or lower == "spacebar" then return "Space" end
+        if lower == "leftshift" then return "LShift" end
+        if lower == "rightshift" then return "RShift" end
+        if lower == "leftcontrol" or lower == "lctrl" then return "LCtrl" end
+        if lower == "rightcontrol" or lower == "rctrl" then return "RCtrl" end
+        if lower == "leftalt" or lower == "lalt" then return "LAlt" end
+        if lower == "rightalt" or lower == "ralt" then return "RAlt" end
+        if lower == "capslock" then return "Caps" end
+        return key
+    end
+    return "?"
+end
 local function Round(num, inc) inc = inc or 1 return math.floor(num / inc + 0.5) * inc end
 local function Clamp(v, a, b) return (v < a and a) or (v > b and b) or v end
 -- Fix math.clamp compatibility
@@ -3177,7 +3240,15 @@ function Library:CreateLibrary(opts)
                     }
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,30), Position = UDim2.fromOffset(0,nextY(30)), Parent = gFrame})
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.5,-8,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5,-4,1,0), Position = UDim2.new(0.5,4,0,0), Text = default and default.Name or "Press a key...", Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    local initText
+                    if default and typeof(default) == "EnumItem" then
+                        initText = Library.FormatKeyName(default)
+                    elseif type(default) == "string" then
+                        initText = Library.FormatKeyName(default)
+                    else
+                        initText = "Press a key..."
+                    end
+                    local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5,-4,1,0), Position = UDim2.new(0.5,4,0,0), Text = initText, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                     -- Focus line (like Textbox) shown during capture
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = box})
                     local stroke = box:FindFirstChild("Stroke")
@@ -3216,11 +3287,9 @@ function Library:CreateLibrary(opts)
                             keycode = parsed or keycode
                         end
                         self._value = keycode
-                        -- Handle both KeyCode and UserInputType (for mouse buttons)
-                        if keycode and keycode.Name then
-                            box.Text = keycode.Name
-                        elseif keycode and mouseButtonNames[keycode] then
-                            box.Text = mouseButtonNames[keycode]
+                        -- Handle both KeyCode and UserInputType/string (mouse/buttons)
+                        if keycode then
+                            box.Text = Library.FormatKeyName(keycode)
                         else
                             box.Text = "None"
                         end
@@ -3312,7 +3381,11 @@ function Library:CreateLibrary(opts)
                             waiting = false
                             stopVisual()
                             unbindSink()
-                            box.Text = Keybind._value and (Keybind._value.Name or mouseButtonNames[Keybind._value] or "None") or "None"
+                            if Keybind._value then
+                                box.Text = Library.FormatKeyName(Keybind._value)
+                            else
+                                box.Text = "None"
+                            end
                             box.TextColor3 = Keybind._value and Theme.Text or Theme.SubText
                             box.Font = Fonts.Regular
                         end
@@ -4716,7 +4789,7 @@ function Library:CreateLibrary(opts)
                     local rightLayout = Create("UIListLayout", {Parent = rightContainer, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,8), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
                     
                     -- Keybind button (positioned first, so it appears on the right) - styled like normal AddKeybind but same height as toggle
-                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(60, 18), Text = getKeyName(currentKey, currentInputType), Font = Fonts.Regular, TextSize = 11, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(60, 18), Text = Library.FormatKeyName(getKeyName(currentKey, currentInputType)), Font = Fonts.Regular, TextSize = 11, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                     -- Focus line for keybind capture (like normal AddKeybind)
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = keybindBtn})
                     local stroke = keybindBtn:FindFirstChild("Stroke")
@@ -4763,7 +4836,7 @@ function Library:CreateLibrary(opts)
                             end
                             if stroke then T(stroke,0.15,{Transparency = 0.18}):Play() end
                         else
-                            keybindBtn.Text = getKeyName(currentKey, currentInputType)
+                            keybindBtn.Text = Library.FormatKeyName(getKeyName(currentKey, currentInputType))
                             keybindBtn.TextColor3 = currentKey and Theme.Text or Theme.SubText
                             keybindBtn.Font = Fonts.Regular
                             -- Auto-resize based on text content (match toggle height of 18px)
