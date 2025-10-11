@@ -1278,7 +1278,26 @@ function Library:CreateLibrary(opts)
             return "Place_" .. tostring(game.PlaceId)
         end
         local Base = sanitize(libraryName)
-        local Folder = Base .. "/" .. gameKey()
+        -- Build a per-game subfolder key (sanitized name + place id). Fallbacks ensure it works everywhere.
+        local function getGameFolder()
+            local placeId = 0
+            local okPlace, pid = pcall(function() return game.PlaceId end)
+            if okPlace and tonumber(pid) then placeId = tonumber(pid) end
+            local placeName = nil
+            local okName, info = pcall(function()
+                if placeId and placeId ~= 0 then
+                    return MarketplaceService:GetProductInfo(placeId)
+                end
+                return nil
+            end)
+            if okName and type(info) == "table" and info.Name then
+                placeName = tostring(info.Name)
+            end
+            local namePart = sanitize(placeName or "Game")
+            local idPart = tostring(placeId or 0)
+            return ("%s_%s"):format(namePart, idPart)
+        end
+        local Folder = Base .. "/" .. getGameFolder()
         function Config.Ensure() if not _isfolder(Base) then _makefolder(Base) end if not _isfolder(Folder) then _makefolder(Folder) end end
         function Config.Path(n) Config.Ensure() return Folder .. "/" .. sanitize(n) .. ".json" end
 
@@ -5803,15 +5822,24 @@ function Library:CreateLibrary(opts)
     -- Add Config functions to Window object
     Window.LibraryName = libraryName
     Window.SaveConfig = function(name)
-        local ok = Config.Save(name, Library:_getSnapshot())
+        local safe = sanitize(name or "")
+        if safe == "" or safe:lower() == "__meta" then return false end
+        local ok = Config.Save(safe, Library:_getSnapshot())
         if ok then pcall(function() Config.RecordSave(name) end) end
         return ok
     end
-    Window.LoadConfig = function(name) local data = Config.Load(name) for id, value in pairs(data) do Library:_setValue(id, value, true) end end
+    Window.LoadConfig = function(name)
+        local safe = sanitize(name or "")
+        if safe == "" or safe:lower() == "__meta" then return end
+        local data = Config.Load(safe)
+        for id, value in pairs(data) do Library:_setValue(id, value, true) end
+    end
     Window.ListConfigs = function() return Config.List() end
     Window.DeleteConfig = function(name)
-        Config.Delete(name)
-        pcall(function() Config.ClearMeta(name) end)
+        local safe = sanitize(name or "")
+        if safe == "" or safe:lower() == "__meta" then return end
+        Config.Delete(safe)
+        pcall(function() Config.ClearMeta(safe) end)
     end
     -- Build a Configs UI inside a provided Group
     Window.AddConfigSystem = function(self, group, opts)
@@ -5840,37 +5868,46 @@ function Library:CreateLibrary(opts)
         -- Row 3: Buttons (Create/Save/Load/Delete)
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
             -- Always read live textbox value
-            local name = nameBox and nameBox.Get and nameBox:Get() or ""
-            if type(name) == "string" and name:lower() == "__meta" then return end
-            if not name or name == "" then return end
-            if Window.SaveConfig(name) then
+            local raw = nameBox and nameBox.Get and nameBox:Get() or ""
+            if type(raw) == "string" and raw:lower() == "__meta" then return end
+            if not raw or raw == "" then return end
+            local safe = sanitize(raw)
+            if safe == "" or safe:lower() == "__meta" then return end
+            if Window.SaveConfig(safe) then
                 refreshList()
-                dd:Set(name, true)
-                -- keep textbox text
-                if nameBox and nameBox.Set then nameBox:Set(name, true) end
+                dd:Set(safe, true)
+                -- reflect stored name back into textbox so it matches the list
+                if nameBox and nameBox.Set then nameBox:Set(safe, true) end
             end
         end })
         local saveBtn = group:AddButton({ Name = "Save", Compact = true, Callback = function()
-            local name = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
-            if type(name) == "string" and name:lower() == "__meta" then return end
-            if not name or name == "" then return end
-            if Window.SaveConfig(name) then
+            local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
+            if type(raw) == "string" and raw:lower() == "__meta" then return end
+            if not raw or raw == "" then return end
+            local safe = sanitize(raw)
+            if safe == "" or safe:lower() == "__meta" then return end
+            if Window.SaveConfig(safe) then
                 refreshList()
-                dd:Set(name, true)
-                if nameBox and nameBox.Set then nameBox:Set(name, true) end
+                dd:Set(safe, true)
+                if nameBox and nameBox.Set then nameBox:Set(safe, true) end
             end
         end })
         local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
-            local name = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
-            if type(name) == "string" and name:lower() == "__meta" then return end
-            if not name or name == "" then return end
-            Window.LoadConfig(name)
+            local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
+            if type(raw) == "string" and raw:lower() == "__meta" then return end
+            if not raw or raw == "" then return end
+            local safe = sanitize(raw)
+            Window.LoadConfig(safe)
+            -- keep UI in sync with sanitized name
+            dd:Set(safe, true)
+            if nameBox and nameBox.Set then nameBox:Set(safe, true) end
         end })
         local deleteBtn = group:AddButton({ Name = "Delete", Compact = true, Callback = function()
-            local name = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
-            if type(name) == "string" and name:lower() == "__meta" then return end
-            if not name or name == "" then return end
-            Window.DeleteConfig(name)
+            local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
+            if type(raw) == "string" and raw:lower() == "__meta" then return end
+            if not raw or raw == "" then return end
+            local safe = sanitize(raw)
+            Window.DeleteConfig(safe)
             refreshList()
             dd:Set(nil, true)
             if nameBox and nameBox.Set then nameBox:Set("", true) end
@@ -5881,17 +5918,19 @@ function Library:CreateLibrary(opts)
         local refreshBtn = group:AddButton({ Name = "Refresh List", Callback = function()
             refreshList()
             -- Re-sync autoload state to current selection after refresh
-            local name = dd:Get()
+            local raw = dd:Get()
+            local safe = raw and sanitize(raw) or nil
             local on = false
-            pcall(function() on = Config.GetAutoLoad(name) end)
-            autoToggle:Set(on, true)
+            pcall(function() on = Config.GetAutoLoad(safe) end)
+            if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
         end, Compact = true })
 
         -- Row 5: Auto-load toggle for currently selected config
         autoToggle = group:AddToggle({ Name = "Auto Load Config", Default = false, Callback = function(on)
-            local name = dd:Get()
-            if not name or name == "" then return end
-            pcall(function() Config.SetAutoLoad(name, on) end)
+            local raw = dd:Get()
+            local safe = raw and sanitize(raw) or nil
+            if not safe or safe == "" then return end
+            pcall(function() Config.SetAutoLoad(safe, on) end)
         end })
 
         -- Keep autoload toggle in sync when selection changes
@@ -5902,11 +5941,12 @@ function Library:CreateLibrary(opts)
         local _ddSet = dd.Set
         function dd:Set(v, silent)
             _ddSet(self, v, silent)
-            local name = self:Get()
+            local raw = self:Get()
+            local safe = raw and sanitize(raw) or nil
             local on = false
-            pcall(function() on = Config.GetAutoLoad(name) end)
-            autoToggle:Set(on, true)
-            if nameBox and nameBox.Set then nameBox:Set(name or "", true) end
+            pcall(function() on = Config.GetAutoLoad(safe) end)
+            if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
+            if nameBox and nameBox.Set then nameBox:Set(safe or "", true) end
         end
 
         -- Initialize autoload state to current selection (if any)
