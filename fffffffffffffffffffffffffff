@@ -1285,6 +1285,63 @@ function Library:CreateLibrary(opts)
         function Config.Load(n) local p = Config.Path(n) if _isfile(p) then local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end) if ok and type(t)=="table" then return t end end return {} end
         function Config.List() Config.Ensure() local r = {} for _, f in ipairs(_listfiles(Folder) or {}) do local n = f:match("([^/\\]+)$") or f n = n:gsub("%.json$", "") table.insert(r, n) end table.sort(r) return r end
         function Config.Delete(n) local p = Config.Path(n) if _isfile(p) then _delfile(p) end end
+
+        -- Meta persistence for autoload flags and last-saved timestamps
+        local function MetaPath() Config.Ensure() return Folder .. "/__meta.json" end
+        local function LoadMeta()
+            local p = MetaPath()
+            if _isfile(p) then
+                local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
+                if ok and type(t) == "table" then
+                    t.autoload = t.autoload or {}
+                    t.lastSaved = t.lastSaved or {}
+                    return t
+                end
+            end
+            return { autoload = {}, lastSaved = {} }
+        end
+        local function SaveMeta(m)
+            local p = MetaPath()
+            local ok, j = pcall(function() return HttpService:JSONEncode(m or {autoload = {}, lastSaved = {}}) end)
+            if ok then _writefile(p, j) end
+            return ok
+        end
+        function Config.SetAutoLoad(name, on)
+            if not name or name == "" then return end
+            local m = LoadMeta()
+            m.autoload[sanitize(name)] = (on == true) or nil -- nil removes key
+            SaveMeta(m)
+        end
+        function Config.GetAutoLoad(name)
+            if not name or name == "" then return false end
+            local m = LoadMeta()
+            return m.autoload[sanitize(name)] == true
+        end
+        function Config.RecordSave(name)
+            if not name or name == "" then return end
+            local m = LoadMeta()
+            m.lastSaved[sanitize(name)] = os.time()
+            SaveMeta(m)
+        end
+        function Config.ClearMeta(name)
+            if not name or name == "" then return end
+            local key = sanitize(name)
+            local m = LoadMeta()
+            m.autoload[key] = nil
+            m.lastSaved[key] = nil
+            SaveMeta(m)
+        end
+        function Config.MostRecentAutoLoad()
+            local m = LoadMeta()
+            local newest, newestT = nil, -math.huge
+            for n, on in pairs(m.autoload) do
+                if on then
+                    local t = tonumber(m.lastSaved[n] or 0) or 0
+                    if t > newestT then newestT, newest = t, n end
+                end
+            end
+            return newest
+        end
     end
     
     -- Create ScreenGui with custom name
@@ -5664,11 +5721,117 @@ function Library:CreateLibrary(opts)
     
     -- Add Config functions to Window object
     Window.LibraryName = libraryName
-    Window.SaveConfig = function(name) return Config.Save(name, Library:_getSnapshot()) end
+    Window.SaveConfig = function(name)
+        local ok = Config.Save(name, Library:_getSnapshot())
+        if ok then pcall(function() Config.RecordSave(name) end) end
+        return ok
+    end
     Window.LoadConfig = function(name) local data = Config.Load(name) for id, value in pairs(data) do Library:_setValue(id, value, true) end end
     Window.ListConfigs = function() return Config.List() end
-    Window.DeleteConfig = function(name) Config.Delete(name) end
+    Window.DeleteConfig = function(name)
+        Config.Delete(name)
+        pcall(function() Config.ClearMeta(name) end)
+    end
+    -- Build a Configs UI inside a provided Group
+    Window.AddConfigSystem = function(self, group, opts)
+        opts = opts or {}
+        if not group or type(group) ~= "table" or not group.AddDropdown then return nil end
+        local cfgLabel = tostring(opts.Label or "Configs")
+        local namePlaceholder = tostring(opts.Placeholder or "Config name...")
+
+        -- Row 1: Dropdown + Refresh
+        local dd = group:AddDropdown({
+            Name = cfgLabel,
+            Options = Window.ListConfigs(),
+            Default = nil,
+            Multi = false,
+            Search = true,
+            Placeholder = "Select a config"
+        })
+        local function refreshList()
+            local list = Window.ListConfigs() or {}
+            dd:SetOptions(list)
+        end
+        -- Add a small "Refresh" button right under dropdown to keep layout simple
+        local refreshBtn = group:AddButton({ Name = "Refresh List", Callback = refreshList, Compact = true })
+
+        -- Row 2: Name textbox
+        local nameBox = group:AddTextbox({ Name = "Name", Placeholder = namePlaceholder, Default = "" })
+
+        -- Row 3: Buttons (Create/Save/Load/Delete)
+        local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
+            local name = nameBox:Get()
+            if not name or name == "" then return end
+            Window.SaveConfig(name)
+            refreshList()
+            dd:Set(name, true)
+        end })
+        local saveBtn = group:AddButton({ Name = "Save", Compact = true, Callback = function()
+            local name = dd:Get() or nameBox:Get()
+            if not name or name == "" then return end
+            Window.SaveConfig(name)
+            refreshList()
+            dd:Set(name, true)
+        end })
+        local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
+            local name = dd:Get() or nameBox:Get()
+            if not name or name == "" then return end
+            Window.LoadConfig(name)
+        end })
+        local deleteBtn = group:AddButton({ Name = "Delete", Compact = true, Callback = function()
+            local name = dd:Get() or nameBox:Get()
+            if not name or name == "" then return end
+            Window.DeleteConfig(name)
+            refreshList()
+            dd:Set(nil, true)
+        end })
+
+        -- Row 4: Auto-load toggle for currently selected config
+        local autoToggle = group:AddToggle({ Name = "Auto Load Selected", Default = false, Callback = function(on)
+            local name = dd:Get()
+            if not name or name == "" then return end
+            pcall(function() Config.SetAutoLoad(name, on) end)
+        end })
+
+        -- Keep autoload toggle in sync when selection changes
+        dd:OnOpen(function()
+            -- no-op, but ensures dd exists
+        end)
+        -- There isn't a direct OnChanged, so wrap Set and call original
+        local _ddSet = dd.Set
+        function dd:Set(v, silent)
+            _ddSet(self, v, silent)
+            local name = self:Get()
+            local on = false
+            pcall(function() on = Config.GetAutoLoad(name) end)
+            autoToggle:Set(on, true)
+            if nameBox and nameBox.Set then nameBox:Set(name or "", true) end
+        end
+
+        -- Initialize autoload state to current selection (if any)
+        do
+            local cur = dd:Get()
+            if cur and cur ~= "" then
+                local on = false
+                pcall(function() on = Config.GetAutoLoad(cur) end)
+                autoToggle:Set(on, true)
+            end
+        end
+
+        return { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle }
+    end
     
+    -- Auto-load most recent autoload-marked config for this place, if any
+    task.spawn(function()
+        -- slight delay to let controls register so _setValue calls propagate
+        task.wait(0.25)
+        local toLoad = nil
+        pcall(function() toLoad = Config.MostRecentAutoLoad() end)
+        if toLoad and type(toLoad) == "string" and #toLoad > 0 then
+            pcall(function() Window.LoadConfig(toLoad) end)
+        end
+    end)
+
     -- Create keybind list immediately when library is created
     task.spawn(function()
         task.wait(1) -- Small delay to ensure everything is properly initialized
