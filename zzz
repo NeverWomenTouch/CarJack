@@ -1277,7 +1277,7 @@ function Library:CreateLibrary(opts)
             if ok and info and info.Name and #info.Name > 0 then return sanitize(info.Name) end
             return "Place_" .. tostring(game.PlaceId)
         end
-        local Base = sanitize(libraryName)
+    local Base = sanitize(libraryName)
         -- Build a per-game subfolder key (sanitized name + place id). Fallbacks ensure it works everywhere.
         local function getGameFolder()
             local placeId = 0
@@ -1298,22 +1298,49 @@ function Library:CreateLibrary(opts)
             return ("%s_%s"):format(namePart, idPart)
         end
         local Folder = Base .. "/" .. getGameFolder()
+        -- Memory-backed fallback storage for environments without file APIs
+        Library._memConfig = Library._memConfig or { files = {}, meta = {} }
+        local function memGetFolder()
+            local key = Folder
+            if not Library._memConfig.files[key] then Library._memConfig.files[key] = {} end
+            if not Library._memConfig.meta[key] then Library._memConfig.meta[key] = {autoload = {}, lastSaved = {}} end
+            return key
+        end
+        local function fsAvailable()
+            -- Probe simple write capability in Base
+            local okBase = pcall(function()
+                if not _isfolder(Base) then _makefolder(Base) end
+            end)
+            if not okBase then return false end
+            local probe = Base .. "/__fs_probe__.tmp"
+            local okWrite = pcall(function() _writefile(probe, "1") end)
+            local okIs = _isfile(probe) == true
+            pcall(function() _delfile(probe) end)
+            return okWrite and okIs
+        end
+        local MEM_MODE = false
         function Config.Ensure()
-            -- Always ensure base exists
+            -- Decide storage mode once
+            if MEM_MODE == false then
+                MEM_MODE = (not fsAvailable())
+            end
+            if MEM_MODE then
+                memGetFolder()
+                return
+            end
+            -- Filesystem mode
             if not _isfolder(Base) then _makefolder(Base) end
-            -- Try to ensure per-game folder; if not possible, fall back to base
             local desired = Base .. "/" .. getGameFolder()
             if not _isfolder(desired) then _makefolder(desired) end
-            if _isfolder(desired) then
-                Folder = desired
-            else
-                Folder = Base
-            end
+            if _isfolder(desired) then Folder = desired else Folder = Base end
         end
         function Config.Path(n)
             Config.Ensure()
             local s = sanitize(n or "")
             if s == "" or s:lower() == "__meta" then return nil end
+            if MEM_MODE then
+                return s -- logical key for memory mode
+            end
             return Folder .. "/" .. s .. ".json"
         end
 
@@ -1366,28 +1393,48 @@ function Library:CreateLibrary(opts)
         function Config.Save(n, d)
             local p = Config.Path(n)
             if not p then return false end
-            local ok, j = pcall(function() return HttpService:JSONEncode(serialize(d or {})) end)
-            if ok then _writefile(p, j) end
-            return ok
+            local data = serialize(d or {})
+            if MEM_MODE then
+                local key = memGetFolder()
+                Library._memConfig.files[key][p] = data
+                return true
+            else
+                local ok, j = pcall(function() return HttpService:JSONEncode(data) end)
+                if ok then _writefile(p, j) end
+                return ok
+            end
         end
         function Config.Load(n)
             local p = Config.Path(n)
             if not p then return {} end
-            if _isfile(p) then
-                local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
-                if ok and type(t) == "table" then return deserialize(t) end
+            if MEM_MODE then
+                local key = memGetFolder()
+                local t = Library._memConfig.files[key][p]
+                return deserialize(t or {})
+            else
+                if _isfile(p) then
+                    local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
+                    if ok and type(t) == "table" then return deserialize(t) end
+                end
+                return {}
             end
-            return {}
         end
         function Config.List()
             Config.Ensure()
             local r = {}
-            for _, f in ipairs(_listfiles(Folder) or {}) do
-                local n = f:match("([^/\\]+)$") or f
-                -- skip meta file
-                if n ~= "__meta.json" then
-                    n = n:gsub("%.json$", "")
-                    table.insert(r, n)
+            if MEM_MODE then
+                local key = memGetFolder()
+                for name, _ in pairs(Library._memConfig.files[key]) do
+                    if name ~= "__meta" then table.insert(r, name) end
+                end
+            else
+                for _, f in ipairs(_listfiles(Folder) or {}) do
+                    local n = f:match("([^/\\]+)$") or f
+                    -- skip meta file
+                    if n ~= "__meta.json" then
+                        n = n:gsub("%.json$", "")
+                        table.insert(r, n)
+                    end
                 end
             end
             table.sort(r)
@@ -1395,28 +1442,53 @@ function Library:CreateLibrary(opts)
         end
         function Config.Delete(n)
             local p = Config.Path(n)
-            if p and _isfile(p) then _delfile(p) end
+            if not p then return end
+            if MEM_MODE then
+                local key = memGetFolder()
+                Library._memConfig.files[key][p] = nil
+            else
+                if _isfile(p) then _delfile(p) end
+            end
         end
 
         -- Meta persistence for autoload flags and last-saved timestamps
-        local function MetaPath() Config.Ensure() return Folder .. "/__meta.json" end
+        local function MetaPath()
+            Config.Ensure()
+            if MEM_MODE then return "__meta" end
+            return Folder .. "/__meta.json"
+        end
         local function LoadMeta()
-            local p = MetaPath()
-            if _isfile(p) then
-                local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
-                if ok and type(t) == "table" then
-                    t.autoload = t.autoload or {}
-                    t.lastSaved = t.lastSaved or {}
-                    return t
+            if MEM_MODE then
+                local key = memGetFolder()
+                local m = Library._memConfig.meta[key] or {autoload = {}, lastSaved = {}}
+                m.autoload = m.autoload or {}
+                m.lastSaved = m.lastSaved or {}
+                Library._memConfig.meta[key] = m
+                return m
+            else
+                local p = MetaPath()
+                if _isfile(p) then
+                    local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
+                    if ok and type(t) == "table" then
+                        t.autoload = t.autoload or {}
+                        t.lastSaved = t.lastSaved or {}
+                        return t
+                    end
                 end
+                return { autoload = {}, lastSaved = {} }
             end
-            return { autoload = {}, lastSaved = {} }
         end
         local function SaveMeta(m)
-            local p = MetaPath()
-            local ok, j = pcall(function() return HttpService:JSONEncode(m or {autoload = {}, lastSaved = {}}) end)
-            if ok then _writefile(p, j) end
-            return ok
+            if MEM_MODE then
+                local key = memGetFolder()
+                Library._memConfig.meta[key] = m or {autoload = {}, lastSaved = {}}
+                return true
+            else
+                local p = MetaPath()
+                local ok, j = pcall(function() return HttpService:JSONEncode(m or {autoload = {}, lastSaved = {}}) end)
+                if ok then _writefile(p, j) end
+                return ok
+            end
         end
         function Config.SetAutoLoad(name, on)
             if not name or name == "" then return end
@@ -5846,7 +5918,7 @@ function Library:CreateLibrary(opts)
         local safe = sanitize(name or "")
         if safe == "" or safe:lower() == "__meta" then return false end
         local ok = Config.Save(safe, Library:_getSnapshot())
-        if ok then pcall(function() Config.RecordSave(name) end) end
+        if ok then pcall(function() Config.RecordSave(safe) end) end
         return ok
     end
     Window.LoadConfig = function(name)
