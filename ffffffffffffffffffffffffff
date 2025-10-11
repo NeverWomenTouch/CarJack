@@ -2142,7 +2142,7 @@ function Library:CreateLibrary(opts)
                     local container = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1,0,1,0), Parent = row})
                     local labelWidth = 0.44
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(labelWidth,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = container})
-                    local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(40,18), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-4,0.5,0), Parent = container})
+                    local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(40,18), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,0,0.5,0), Parent = container})
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
                     local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(36,14), Position = UDim2.fromOffset(2,2), Parent = shell})
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = recess})
@@ -5470,17 +5470,18 @@ function Library:CreateLibrary(opts)
         local DRAG_THRESHOLD = 6
 
         local function getMouseGuiPos(input)
+            -- Normalize to the same GUI coordinate space used by RootGui (IgnoreGuiInset = true)
+            local ok, inset = pcall(function()
+                return game:GetService("GuiService"):GetGuiInset()
+            end)
             local pos
             if input and input.UserInputType == Enum.UserInputType.Touch then
                 pos = Vector2.new(input.Position.X, input.Position.Y)
             else
                 pos = UserInputService:GetMouseLocation()
-                local ok, inset = pcall(function()
-                    return game:GetService("GuiService"):GetGuiInset()
-                end)
-                if ok and typeof(inset) == "Vector2" then
-                    pos = Vector2.new(pos.X, pos.Y - inset.Y)
-                end
+            end
+            if ok and typeof(inset) == "Vector2" then
+                pos = Vector2.new(pos.X, pos.Y - inset.Y)
             end
             return pos
         end
