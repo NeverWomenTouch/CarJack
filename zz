@@ -1298,8 +1298,24 @@ function Library:CreateLibrary(opts)
             return ("%s_%s"):format(namePart, idPart)
         end
         local Folder = Base .. "/" .. getGameFolder()
-        function Config.Ensure() if not _isfolder(Base) then _makefolder(Base) end if not _isfolder(Folder) then _makefolder(Folder) end end
-        function Config.Path(n) Config.Ensure() return Folder .. "/" .. sanitize(n) .. ".json" end
+        function Config.Ensure()
+            -- Always ensure base exists
+            if not _isfolder(Base) then _makefolder(Base) end
+            -- Try to ensure per-game folder; if not possible, fall back to base
+            local desired = Base .. "/" .. getGameFolder()
+            if not _isfolder(desired) then _makefolder(desired) end
+            if _isfolder(desired) then
+                Folder = desired
+            else
+                Folder = Base
+            end
+        end
+        function Config.Path(n)
+            Config.Ensure()
+            local s = sanitize(n or "")
+            if s == "" or s:lower() == "__meta" then return nil end
+            return Folder .. "/" .. s .. ".json"
+        end
 
         -- JSON-safe serialization helpers
         local function serialize(val)
@@ -1349,12 +1365,14 @@ function Library:CreateLibrary(opts)
 
         function Config.Save(n, d)
             local p = Config.Path(n)
+            if not p then return false end
             local ok, j = pcall(function() return HttpService:JSONEncode(serialize(d or {})) end)
             if ok then _writefile(p, j) end
             return ok
         end
         function Config.Load(n)
             local p = Config.Path(n)
+            if not p then return {} end
             if _isfile(p) then
                 local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
                 if ok and type(t) == "table" then return deserialize(t) end
@@ -1375,7 +1393,10 @@ function Library:CreateLibrary(opts)
             table.sort(r)
             return r
         end
-        function Config.Delete(n) local p = Config.Path(n) if _isfile(p) then _delfile(p) end end
+        function Config.Delete(n)
+            local p = Config.Path(n)
+            if p and _isfile(p) then _delfile(p) end
+        end
 
         -- Meta persistence for autoload flags and last-saved timestamps
         local function MetaPath() Config.Ensure() return Folder .. "/__meta.json" end
@@ -5875,9 +5896,11 @@ function Library:CreateLibrary(opts)
             if safe == "" or safe:lower() == "__meta" then return end
             if Window.SaveConfig(safe) then
                 refreshList()
-                dd:Set(safe, true)
-                -- reflect stored name back into textbox so it matches the list
-                if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+                -- Defer selection until options refresh propagate in UI
+                task.defer(function()
+                    pcall(function() dd:Set(safe, true) end)
+                    if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+                end)
             end
         end })
         local saveBtn = group:AddButton({ Name = "Save", Compact = true, Callback = function()
@@ -5888,8 +5911,10 @@ function Library:CreateLibrary(opts)
             if safe == "" or safe:lower() == "__meta" then return end
             if Window.SaveConfig(safe) then
                 refreshList()
-                dd:Set(safe, true)
-                if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+                task.defer(function()
+                    pcall(function() dd:Set(safe, true) end)
+                    if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+                end)
             end
         end })
         local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
