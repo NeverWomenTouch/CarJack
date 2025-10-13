@@ -1269,66 +1269,88 @@ function Library:CreateLibrary(opts)
     local libraryName = tostring(opts.LibraryName or "Dendrite UI")
     local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static | type
     
-    -- Create Config system for this library instance
+    -- Create Config system for this library instance (robust + safe JSON + atomic-ish writes)
     local Config = {}
     do
-        local function gameKey()
-            local ok, info = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
-            if ok and info and info.Name and #info.Name > 0 then return sanitize(info.Name) end
-            return "Place_" .. tostring(game.PlaceId)
-        end
-    local Base = sanitize(libraryName)
-        -- Build a stable per-game subfolder key (PlaceId only) to avoid duplicate folders
+        local Base = sanitize(libraryName)
+        -- Per-game subfolder based on PlaceId only
         local function getGameFolder()
             local placeId = 0
             local okPlace, pid = pcall(function() return game.PlaceId end)
             if okPlace and tonumber(pid) then placeId = tonumber(pid) end
             return tostring(placeId or 0)
         end
-    local Folder = Base .. "/" .. getGameFolder()
-        -- Memory-backed fallback storage for environments without file APIs
+        local Folder = Base .. "/" .. getGameFolder()
+
+        -- Backing store: memory fallback when file APIs are unavailable
         Library._memConfig = Library._memConfig or { files = {}, meta = {} }
-        local function memGetFolder()
+        local function memEnsure()
             local key = Folder
             if not Library._memConfig.files[key] then Library._memConfig.files[key] = {} end
-            if not Library._memConfig.meta[key] then Library._memConfig.meta[key] = {autoload = {}, lastSaved = {}} end
+            if not Library._memConfig.meta[key] then Library._memConfig.meta[key] = { autoload = {}, lastSaved = {} } end
             return key
         end
+
+        -- FS helpers
+        local function ensureFolder()
+            if _isfolder and not _isfolder(Base) then _makefolder(Base) end
+            if _isfolder and not _isfolder(Folder) then _makefolder(Folder) end
+        end
         local function fsAvailable()
-            -- Consider fs available if these shims exist and we can create the base folder
-            if not (_isfolder and _makefolder and _writefile and _readfile and _listfiles and _isfile and _delfile) then
+            if type(_isfolder) ~= "function" or type(_makefolder) ~= "function" or type(_writefile) ~= "function" or type(_readfile) ~= "function" or type(_listfiles) ~= "function" or type(_isfile) ~= "function" or type(_delfile) ~= "function" then
                 return false
             end
-            local okBase = pcall(function()
-                if not _isfolder(Base) then _makefolder(Base) end
+            local ok = pcall(function()
+                ensureFolder()
             end)
-            return okBase == true
+            if not ok then return false end
+            -- Probe actual write capability
+            local probeName = "__probe_" .. tostring(math.random(100000,999999))
+            local probePath = Folder .. "/" .. probeName .. ".tmp"
+            local content = "ok"
+            local wrote = pcall(function() _writefile(probePath, content) end)
+            if not wrote then return false end
+            local rdOk, rd = pcall(function() return _readfile(probePath) end)
+            pcall(function() _delfile(probePath) end)
+            if not rdOk then return false end
+            return rd == content
         end
-        local MEM_MODE = false
+
+        local MEM_MODE = nil -- set on first Ensure()
         function Config.Ensure()
-            -- Decide storage mode once
-            if MEM_MODE == false then
+            if MEM_MODE == nil then
                 MEM_MODE = (not fsAvailable())
             end
             if MEM_MODE then
-                memGetFolder()
-                return
+                memEnsure()
+            else
+                ensureFolder()
             end
-            -- Filesystem mode
-            if not _isfolder(Base) then _makefolder(Base) end
-            if not _isfolder(Folder) then _makefolder(Folder) end
         end
-        function Config.Path(n)
-            Config.Ensure()
-            local s = sanitize(n or "")
-            if s == "" or s:lower() == "__meta" then return nil end
-            if MEM_MODE then
-                return s -- logical key for memory mode
+
+        local function atomicWrite(path, content)
+            local tmp = path .. ".tmp"
+            _writefile(tmp, content)
+            -- Best-effort replace without rename support
+            if _isfile(path) then pcall(_delfile, path) end
+            local ok, tmpContent = pcall(_readfile, tmp)
+            if ok and type(tmpContent) == "string" then
+                _writefile(path, tmpContent)
+            else
+                _writefile(path, content)
             end
+            pcall(_delfile, tmp)
+        end
+
+        function Config.Path(name)
+            Config.Ensure()
+            local s = sanitize(name or "")
+            if s == "" or s:lower() == "__meta" then return nil end
+            if MEM_MODE then return s end
             return Folder .. "/" .. s .. ".json"
         end
 
-        -- JSON-safe serialization helpers
+        -- JSON-safe serialization helpers (preserve existing save format)
         local function serialize(val)
             local t = typeof(val)
             if t == "nil" or t == "number" or t == "boolean" or t == "string" then
@@ -1348,20 +1370,17 @@ function Library:CreateLibrary(opts)
                 for k, v in pairs(val) do out[k] = serialize(v) end
                 return out
             else
-                -- Fallback to string (e.g., unknown userdata) to avoid encode failure
                 return tostring(val)
             end
         end
         local function deserialize(val)
-            local t = typeof(val)
-            if t ~= "table" then return val end
+            if typeof(val) ~= "table" then return val end
             if val.__t == "c3" then
                 local r,g,b = tonumber(val.r) or 255, tonumber(val.g) or 255, tonumber(val.b) or 255
                 return Color3.fromRGB(r,g,b)
             elseif val.__t == "enum" then
                 local eName, vName = tostring(val.e or ""), tostring(val.v or "")
                 if Enum[eName] and Enum[eName][vName] then return Enum[eName][vName] end
-                -- KeyCode/UserInputType special case via parser
                 local parsed = ParseKeyFromString(vName)
                 return parsed or vName
             elseif val.__t == "ud2" then
@@ -1374,50 +1393,57 @@ function Library:CreateLibrary(opts)
             return out
         end
 
-        function Config.Save(n, d)
-            local p = Config.Path(n)
-            if not p then
-                warn("Config.Save: invalid name")
-                return false
-            end
-            local data = serialize(d or {})
+        function Config.Save(name, data)
+            local p = Config.Path(name)
+            if not p then warn("Config.Save: invalid name") return false end
+            local payload = serialize(data or {})
             if MEM_MODE then
-                local key = memGetFolder()
-                Library._memConfig.files[key][p] = data
+                local key = memEnsure()
+                Library._memConfig.files[key][p] = payload
                 return true
-            else
-                local ok, j = pcall(function() return HttpService:JSONEncode(data) end)
-                if ok then _writefile(p, j) end
-                return ok
             end
+            local ok, json = pcall(function() return HttpService:JSONEncode(payload) end)
+            if not ok then return false end
+            local ok2, err = pcall(function() atomicWrite(p, json) end)
+            if not ok2 then warn("Config.Save write failed: ", err) return false end
+            return true
         end
-        function Config.Load(n)
-            local p = Config.Path(n)
+
+        function Config.Load(name)
+            local p = Config.Path(name)
             if not p then return {} end
             if MEM_MODE then
-                local key = memGetFolder()
+                local key = memEnsure()
                 local t = Library._memConfig.files[key][p]
                 return deserialize(t or {})
-            else
-                if _isfile(p) then
-                    local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
-                    if ok and type(t) == "table" then return deserialize(t) end
-                end
-                return {}
             end
+            if _isfile(p) then
+                local raw = _readfile(p)
+                if type(raw) == "string" and #raw > 0 then
+                    local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
+                    if ok and type(decoded) == "table" then
+                        return deserialize(decoded)
+                    else
+                        -- backup corrupted file and return empty
+                        pcall(function() _writefile(p .. ".bak", raw) end)
+                    end
+                end
+            end
+            return {}
         end
+
         function Config.List()
             Config.Ensure()
             local r = {}
             if MEM_MODE then
-                local key = memGetFolder()
+                local key = memEnsure()
                 for name, _ in pairs(Library._memConfig.files[key]) do
                     if name and name ~= "__meta" then table.insert(r, name) end
                 end
             else
-                for _, f in ipairs(_listfiles(Folder) or {}) do
+                local files = _listfiles(Folder) or {}
+                for _, f in ipairs(files) do
                     local n = f:match("([^/\\]+)$") or f
-                    -- skip meta file
                     if n ~= "__meta.json" then
                         n = n:gsub("%.json$", "")
                         table.insert(r, n)
@@ -1427,14 +1453,15 @@ function Library:CreateLibrary(opts)
             table.sort(r)
             return r
         end
-        function Config.Delete(n)
-            local p = Config.Path(n)
+
+        function Config.Delete(name)
+            local p = Config.Path(name)
             if not p then return end
             if MEM_MODE then
-                local key = memGetFolder()
+                local key = memEnsure()
                 Library._memConfig.files[key][p] = nil
             else
-                if _isfile(p) then _delfile(p) end
+                if _isfile(p) then pcall(_delfile, p) end
             end
         end
 
@@ -1446,8 +1473,8 @@ function Library:CreateLibrary(opts)
         end
         local function LoadMeta()
             if MEM_MODE then
-                local key = memGetFolder()
-                local m = Library._memConfig.meta[key] or {autoload = {}, lastSaved = {}}
+                local key = memEnsure()
+                local m = Library._memConfig.meta[key] or { autoload = {}, lastSaved = {} }
                 m.autoload = m.autoload or {}
                 m.lastSaved = m.lastSaved or {}
                 Library._memConfig.meta[key] = m
@@ -1455,11 +1482,14 @@ function Library:CreateLibrary(opts)
             else
                 local p = MetaPath()
                 if _isfile(p) then
-                    local ok, t = pcall(function() return HttpService:JSONDecode(_readfile(p)) end)
-                    if ok and type(t) == "table" then
-                        t.autoload = t.autoload or {}
-                        t.lastSaved = t.lastSaved or {}
-                        return t
+                    local raw = _readfile(p)
+                    if type(raw) == "string" and #raw > 0 then
+                        local ok, t = pcall(function() return HttpService:JSONDecode(raw) end)
+                        if ok and type(t) == "table" then
+                            t.autoload = t.autoload or {}
+                            t.lastSaved = t.lastSaved or {}
+                            return t
+                        end
                     end
                 end
                 return { autoload = {}, lastSaved = {} }
@@ -1467,21 +1497,22 @@ function Library:CreateLibrary(opts)
         end
         local function SaveMeta(m)
             if MEM_MODE then
-                local key = memGetFolder()
-                Library._memConfig.meta[key] = m or {autoload = {}, lastSaved = {}}
+                local key = memEnsure()
+                Library._memConfig.meta[key] = m or { autoload = {}, lastSaved = {} }
                 return true
             else
                 local p = MetaPath()
-                local ok, j = pcall(function() return HttpService:JSONEncode(m or {autoload = {}, lastSaved = {}}) end)
-                if ok then _writefile(p, j) end
-                return ok
+                local ok, json = pcall(function() return HttpService:JSONEncode(m or { autoload = {}, lastSaved = {} }) end)
+                if not ok then return false end
+                local ok2 = pcall(function() atomicWrite(p, json) end)
+                return ok2 == true
             end
         end
+
         function Config.SetAutoLoad(name, on)
             if not name or name == "" then return end
             local m = LoadMeta()
-            m.autoload[sanitize(name)] = (on == true) or nil -- nil removes key
-            -- if enabling autoload and no timestamp yet, seed it so MostRecent works
+            m.autoload[sanitize(name)] = (on == true) or nil
             if on == true then
                 local key = sanitize(name)
                 m.lastSaved[key] = m.lastSaved[key] or os.time()
@@ -1497,7 +1528,6 @@ function Library:CreateLibrary(opts)
             if not name or name == "" then return end
             local m = LoadMeta()
             local key = sanitize(name)
-            -- Only persist meta if this config is autoloaded (avoid creating __meta until needed)
             if m.autoload[key] then
                 m.lastSaved[key] = os.time()
                 SaveMeta(m)
