@@ -1297,8 +1297,8 @@ function Library:CreateLibrary(opts)
             if _isfolder and not _isfolder(Folder) then _makefolder(Folder) end
         end
         local function fsAvailable()
-            -- Only require core FS capabilities; listing/deleting are optional and handled via index
-            if type(_isfolder) ~= "function" or type(_makefolder) ~= "function" or type(_writefile) ~= "function" or type(_readfile) ~= "function" or type(_isfile) ~= "function" then
+            -- Only require core FS capabilities; listing/deleting/exists are optional
+            if type(_isfolder) ~= "function" or type(_makefolder) ~= "function" or type(_writefile) ~= "function" or type(_readfile) ~= "function" then
                 return false
             end
             local ok = pcall(function()
@@ -1333,7 +1333,7 @@ function Library:CreateLibrary(opts)
             local tmp = path .. ".tmp"
             _writefile(tmp, content)
             -- Best-effort replace without rename support
-            if _isfile(path) then pcall(_delfile, path) end
+            pcall(_delfile, path)
             local ok, tmpContent = pcall(_readfile, tmp)
             if ok and type(tmpContent) == "string" then
                 _writefile(path, tmpContent)
@@ -1425,9 +1425,9 @@ function Library:CreateLibrary(opts)
             if not p then warn("Config.Save: invalid name") return false end
             -- Preserve any existing __meta in the file
             local existingMeta = nil
-            if not MEM_MODE and _isfile(p) then
-                local raw = _readfile(p)
-                if type(raw) == "string" and #raw > 0 then
+            if not MEM_MODE then
+                local okRaw, raw = pcall(_readfile, p)
+                if okRaw and type(raw) == "string" and #raw > 0 then
                     local okD, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                     if okD and type(dec) == "table" and dec.__meta ~= nil then
                         existingMeta = dec.__meta
@@ -1461,9 +1461,9 @@ function Library:CreateLibrary(opts)
                 if type(obj) == "table" then obj.__meta = nil end
                 return obj
             end
-            if _isfile(p) then
-                local raw = _readfile(p)
-                if type(raw) == "string" and #raw > 0 then
+            do
+                local okRaw, raw = pcall(_readfile, p)
+                if okRaw and type(raw) == "string" and #raw > 0 then
                     local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
                     if ok and type(decoded) == "table" then
                         local obj = deserialize(decoded)
@@ -1512,7 +1512,7 @@ function Library:CreateLibrary(opts)
                 local key = memEnsure()
                 Library._memConfig.files[key][p] = nil
             else
-                if _isfile(p) then pcall(_delfile, p) end
+                pcall(_delfile, p)
                 sessionRemove(sanitize(name or ""))
             end
         end
@@ -1531,10 +1531,12 @@ function Library:CreateLibrary(opts)
                 return
             end
             local obj = {}
-            if _isfile(p) then
-                local raw = _readfile(p)
-                local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                if ok and type(dec) == "table" then obj = dec end
+            do
+                local okRaw, raw = pcall(_readfile, p)
+                if okRaw then
+                    local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                    if ok and type(dec) == "table" then obj = dec end
+                end
             end
             obj.__meta = obj.__meta or {}
             obj.__meta.autoload = (on == true) or nil
@@ -1549,11 +1551,13 @@ function Library:CreateLibrary(opts)
                 local t = Library._memConfig.files[key][p]
                 return type(t) == "table" and t.__meta and t.__meta.autoload == true
             end
-            if _isfile(p) then
-                local raw = _readfile(p)
-                local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                if ok and type(dec) == "table" and type(dec.__meta) == "table" then
-                    return dec.__meta.autoload == true
+            do
+                local okRaw, raw = pcall(_readfile, p)
+                if okRaw then
+                    local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                    if ok and type(dec) == "table" and type(dec.__meta) == "table" then
+                        return dec.__meta.autoload == true
+                    end
                 end
             end
             return false
@@ -1569,15 +1573,17 @@ function Library:CreateLibrary(opts)
                 end
                 return
             end
-            if _isfile(p) then
-                local raw = _readfile(p)
-                local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                if ok and type(dec) == "table" then
-                    dec.__meta = dec.__meta or {}
-                    if dec.__meta.autoload then
-                        dec.__meta.lastSaved = os.time()
-                        local okJ, json = pcall(function() return HttpService:JSONEncode(dec) end)
-                        if okJ then pcall(function() atomicWrite(p, json) end) end
+            do
+                local okRaw, raw = pcall(_readfile, p)
+                if okRaw then
+                    local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                    if ok and type(dec) == "table" then
+                        dec.__meta = dec.__meta or {}
+                        if dec.__meta.autoload then
+                            dec.__meta.lastSaved = os.time()
+                            local okJ, json = pcall(function() return HttpService:JSONEncode(dec) end)
+                            if okJ then pcall(function() atomicWrite(p, json) end) end
+                        end
                     end
                 end
             end
@@ -1593,16 +1599,18 @@ function Library:CreateLibrary(opts)
                 end
                 return
             end
-            if _isfile(p) then
-                local raw = _readfile(p)
-                local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                if ok and type(dec) == "table" then
-                    if type(dec.__meta) == "table" then
-                        dec.__meta.autoload = nil
-                        dec.__meta.lastSaved = nil
+            do
+                local okRaw, raw = pcall(_readfile, p)
+                if okRaw then
+                    local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                    if ok and type(dec) == "table" then
+                        if type(dec.__meta) == "table" then
+                            dec.__meta.autoload = nil
+                            dec.__meta.lastSaved = nil
+                        end
+                        local okJ, json = pcall(function() return HttpService:JSONEncode(dec) end)
+                        if okJ then pcall(function() atomicWrite(p, json) end) end
                     end
-                    local okJ, json = pcall(function() return HttpService:JSONEncode(dec) end)
-                    if okJ then pcall(function() atomicWrite(p, json) end) end
                 end
             end
         end
@@ -1622,8 +1630,8 @@ function Library:CreateLibrary(opts)
             for _, f in ipairs(files) do
                 local n = f:match("([^/\\]+)$") or f
                 if n ~= "__meta.json" then
-                    local raw = _readfile(f)
-                    if type(raw) == "string" and #raw > 0 then
+                    local okRaw, raw = pcall(_readfile, f)
+                    if okRaw and type(raw) == "string" and #raw > 0 then
                         local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                         if ok and type(dec) == "table" and type(dec.__meta) == "table" and dec.__meta.autoload then
                             local ts = tonumber(dec.__meta.lastSaved or 0) or 0
