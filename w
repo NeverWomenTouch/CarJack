@@ -1297,7 +1297,8 @@ function Library:CreateLibrary(opts)
             if _isfolder and not _isfolder(Folder) then _makefolder(Folder) end
         end
         local function fsAvailable()
-            if type(_isfolder) ~= "function" or type(_makefolder) ~= "function" or type(_writefile) ~= "function" or type(_readfile) ~= "function" or type(_listfiles) ~= "function" or type(_isfile) ~= "function" or type(_delfile) ~= "function" then
+            -- Only require core FS capabilities; listing/deleting are optional and handled via index
+            if type(_isfolder) ~= "function" or type(_makefolder) ~= "function" or type(_writefile) ~= "function" or type(_readfile) ~= "function" or type(_isfile) ~= "function" then
                 return false
             end
             local ok = pcall(function()
@@ -1345,12 +1346,17 @@ function Library:CreateLibrary(opts)
         function Config.Path(name)
             Config.Ensure()
             local s = sanitize(name or "")
-            if s == "" or s:lower() == "__meta" then return nil end
+            if s == "" then return nil end
+            local low = s:lower()
+            if low == "__meta" or low == "__index" then return nil end
             if MEM_MODE then return s end
             return Folder .. "/" .. s .. ".json"
         end
 
-        -- JSON-safe serialization helpers (preserve existing save format)
+    -- JSON-safe serialization helpers (preserve existing save format)
+
+    -- Forward declarations for index helpers so they are visible in all functions below
+    local IndexAdd, IndexRemove, SaveIndex, LoadIndex
         local function serialize(val)
             local t = typeof(val)
             if t == "nil" or t == "number" or t == "boolean" or t == "string" then
@@ -1393,19 +1399,55 @@ function Library:CreateLibrary(opts)
             return out
         end
 
+        -- In-session index of names (only used if listfiles isn't available; not persisted)
+        local SessionIndex = {}
+        local function sessionAdd(name)
+            local key = Folder
+            SessionIndex[key] = SessionIndex[key] or {}
+            local set = SessionIndex[key]
+            set[name] = true
+        end
+        local function sessionRemove(name)
+            local key = Folder
+            if SessionIndex[key] then SessionIndex[key][name] = nil end
+        end
+        local function sessionList()
+            local key = Folder
+            local set = SessionIndex[key] or {}
+            local out = {}
+            for n, on in pairs(set) do if on then out[#out+1] = n end end
+            table.sort(out)
+            return out
+        end
+
         function Config.Save(name, data)
             local p = Config.Path(name)
             if not p then warn("Config.Save: invalid name") return false end
+            -- Preserve any existing __meta in the file
+            local existingMeta = nil
+            if not MEM_MODE and _isfile(p) then
+                local raw = _readfile(p)
+                if type(raw) == "string" and #raw > 0 then
+                    local okD, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                    if okD and type(dec) == "table" and dec.__meta ~= nil then
+                        existingMeta = dec.__meta
+                    end
+                end
+            end
             local payload = serialize(data or {})
+            if type(payload) ~= "table" then payload = {} end
+            if existingMeta ~= nil then payload.__meta = existingMeta end
             if MEM_MODE then
                 local key = memEnsure()
                 Library._memConfig.files[key][p] = payload
+                sessionAdd(p)
                 return true
             end
             local ok, json = pcall(function() return HttpService:JSONEncode(payload) end)
             if not ok then return false end
             local ok2, err = pcall(function() atomicWrite(p, json) end)
             if not ok2 then warn("Config.Save write failed: ", err) return false end
+            sessionAdd(sanitize(name))
             return true
         end
 
@@ -1415,14 +1457,18 @@ function Library:CreateLibrary(opts)
             if MEM_MODE then
                 local key = memEnsure()
                 local t = Library._memConfig.files[key][p]
-                return deserialize(t or {})
+                local obj = deserialize(t or {})
+                if type(obj) == "table" then obj.__meta = nil end
+                return obj
             end
             if _isfile(p) then
                 local raw = _readfile(p)
                 if type(raw) == "string" and #raw > 0 then
                     local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
                     if ok and type(decoded) == "table" then
-                        return deserialize(decoded)
+                        local obj = deserialize(decoded)
+                        if type(obj) == "table" then obj.__meta = nil end
+                        return obj
                     else
                         -- backup corrupted file and return empty
                         pcall(function() _writefile(p .. ".bak", raw) end)
@@ -1441,13 +1487,18 @@ function Library:CreateLibrary(opts)
                     if name and name ~= "__meta" then table.insert(r, name) end
                 end
             else
-                local files = _listfiles(Folder) or {}
-                for _, f in ipairs(files) do
-                    local n = f:match("([^/\\]+)$") or f
-                    if n ~= "__meta.json" then
-                        n = n:gsub("%.json$", "")
-                        table.insert(r, n)
+                -- Directory scan if available; otherwise, return in-session list
+                local files = type(_listfiles) == "function" and (_listfiles(Folder) or {}) or nil
+                if files then
+                    for _, f in ipairs(files) do
+                        local n = f:match("([^/\\]+)$") or f
+                        if n ~= "__meta.json" then
+                            n = n:gsub("%.json$", "")
+                            table.insert(r, n)
+                        end
                     end
+                else
+                    r = sessionList()
                 end
             end
             table.sort(r)
@@ -1462,92 +1513,126 @@ function Library:CreateLibrary(opts)
                 Library._memConfig.files[key][p] = nil
             else
                 if _isfile(p) then pcall(_delfile, p) end
+                sessionRemove(sanitize(name or ""))
             end
         end
 
-        -- Meta persistence for autoload flags and last-saved timestamps
-        local function MetaPath()
-            Config.Ensure()
-            if MEM_MODE then return "__meta" end
-            return Folder .. "/__meta.json"
-        end
-        local function LoadMeta()
-            if MEM_MODE then
-                local key = memEnsure()
-                local m = Library._memConfig.meta[key] or { autoload = {}, lastSaved = {} }
-                m.autoload = m.autoload or {}
-                m.lastSaved = m.lastSaved or {}
-                Library._memConfig.meta[key] = m
-                return m
-            else
-                local p = MetaPath()
-                if _isfile(p) then
-                    local raw = _readfile(p)
-                    if type(raw) == "string" and #raw > 0 then
-                        local ok, t = pcall(function() return HttpService:JSONDecode(raw) end)
-                        if ok and type(t) == "table" then
-                            t.autoload = t.autoload or {}
-                            t.lastSaved = t.lastSaved or {}
-                            return t
-                        end
-                    end
-                end
-                return { autoload = {}, lastSaved = {} }
-            end
-        end
-        local function SaveMeta(m)
-            if MEM_MODE then
-                local key = memEnsure()
-                Library._memConfig.meta[key] = m or { autoload = {}, lastSaved = {} }
-                return true
-            else
-                local p = MetaPath()
-                local ok, json = pcall(function() return HttpService:JSONEncode(m or { autoload = {}, lastSaved = {} }) end)
-                if not ok then return false end
-                local ok2 = pcall(function() atomicWrite(p, json) end)
-                return ok2 == true
-            end
-        end
-
+        -- Autoload flags embedded per-config inside the JSON under __meta
         function Config.SetAutoLoad(name, on)
-            if not name or name == "" then return end
-            local m = LoadMeta()
-            m.autoload[sanitize(name)] = (on == true) or nil
-            if on == true then
-                local key = sanitize(name)
-                m.lastSaved[key] = m.lastSaved[key] or os.time()
+            local p = Config.Path(name)
+            if not p then return end
+            if MEM_MODE then
+                local key = memEnsure()
+                local t = Library._memConfig.files[key][p] or {}
+                if type(t) ~= "table" then t = {} end
+                t.__meta = t.__meta or {}
+                t.__meta.autoload = (on == true) or nil
+                Library._memConfig.files[key][p] = t
+                return
             end
-            SaveMeta(m)
+            local obj = {}
+            if _isfile(p) then
+                local raw = _readfile(p)
+                local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                if ok and type(dec) == "table" then obj = dec end
+            end
+            obj.__meta = obj.__meta or {}
+            obj.__meta.autoload = (on == true) or nil
+            local okJ, json = pcall(function() return HttpService:JSONEncode(obj) end)
+            if okJ then pcall(function() atomicWrite(p, json) end) end
         end
         function Config.GetAutoLoad(name)
-            if not name or name == "" then return false end
-            local m = LoadMeta()
-            return m.autoload[sanitize(name)] == true
+            local p = Config.Path(name)
+            if not p then return false end
+            if MEM_MODE then
+                local key = memEnsure()
+                local t = Library._memConfig.files[key][p]
+                return type(t) == "table" and t.__meta and t.__meta.autoload == true
+            end
+            if _isfile(p) then
+                local raw = _readfile(p)
+                local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                if ok and type(dec) == "table" and type(dec.__meta) == "table" then
+                    return dec.__meta.autoload == true
+                end
+            end
+            return false
         end
         function Config.RecordSave(name)
-            if not name or name == "" then return end
-            local m = LoadMeta()
-            local key = sanitize(name)
-            if m.autoload[key] then
-                m.lastSaved[key] = os.time()
-                SaveMeta(m)
+            local p = Config.Path(name)
+            if not p then return end
+            if MEM_MODE then
+                local key = memEnsure()
+                local t = Library._memConfig.files[key][p]
+                if type(t) == "table" and type(t.__meta) == "table" and t.__meta.autoload then
+                    t.__meta.lastSaved = os.time()
+                end
+                return
+            end
+            if _isfile(p) then
+                local raw = _readfile(p)
+                local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                if ok and type(dec) == "table" then
+                    dec.__meta = dec.__meta or {}
+                    if dec.__meta.autoload then
+                        dec.__meta.lastSaved = os.time()
+                        local okJ, json = pcall(function() return HttpService:JSONEncode(dec) end)
+                        if okJ then pcall(function() atomicWrite(p, json) end) end
+                    end
+                end
             end
         end
         function Config.ClearMeta(name)
-            if not name or name == "" then return end
-            local key = sanitize(name)
-            local m = LoadMeta()
-            m.autoload[key] = nil
-            m.lastSaved[key] = nil
-            SaveMeta(m)
+            local p = Config.Path(name)
+            if not p then return end
+            if MEM_MODE then
+                local key = memEnsure()
+                local t = Library._memConfig.files[key][p]
+                if type(t) == "table" then
+                    if t.__meta then t.__meta.autoload = nil; t.__meta.lastSaved = nil end
+                end
+                return
+            end
+            if _isfile(p) then
+                local raw = _readfile(p)
+                local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                if ok and type(dec) == "table" then
+                    if type(dec.__meta) == "table" then
+                        dec.__meta.autoload = nil
+                        dec.__meta.lastSaved = nil
+                    end
+                    local okJ, json = pcall(function() return HttpService:JSONEncode(dec) end)
+                    if okJ then pcall(function() atomicWrite(p, json) end) end
+                end
+            end
         end
         function Config.MostRecentAutoLoad()
-            local m = LoadMeta()
-            local newest, newestT = nil, -math.huge
-            for n, on in pairs(m.autoload) do
-                if on then
-                    local t = tonumber(m.lastSaved[n] or 0) or 0
-                    if t > newestT then newestT, newest = t, n end
+            local newest, newestT
+            if MEM_MODE then
+                local key = memEnsure()
+                for name, t in pairs(Library._memConfig.files[key]) do
+                    if type(t) == "table" and type(t.__meta) == "table" and t.__meta.autoload then
+                        local ts = tonumber(t.__meta.lastSaved or 0) or 0
+                        if not newestT or ts > newestT then newestT, newest = ts, name end
+                    end
+                end
+                return newest
+            end
+            local files = type(_listfiles) == "function" and (_listfiles(Folder) or {}) or {}
+            for _, f in ipairs(files) do
+                local n = f:match("([^/\\]+)$") or f
+                if n ~= "__meta.json" then
+                    local raw = _readfile(f)
+                    if type(raw) == "string" and #raw > 0 then
+                        local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                        if ok and type(dec) == "table" and type(dec.__meta) == "table" and dec.__meta.autoload then
+                            local ts = tonumber(dec.__meta.lastSaved or 0) or 0
+                            if not newestT or ts > newestT then
+                                newestT = ts
+                                newest = (n:gsub("%.json$",""))
+                            end
+                        end
+                    end
                 end
             end
             return newest
@@ -5933,21 +6018,28 @@ function Library:CreateLibrary(opts)
     Window.LibraryName = libraryName
     Window.SaveConfig = function(name)
         local safe = sanitize(name or "")
-        if safe == "" or safe:lower() == "__meta" then return false end
+        local low = safe:lower()
+        if safe == "" or low == "__meta" or low == "__index" then return false end
         local ok = Config.Save(safe, Library:_getSnapshot())
         if ok then pcall(function() Config.RecordSave(safe) end) end
         return ok
     end
     Window.LoadConfig = function(name)
         local safe = sanitize(name or "")
-        if safe == "" or safe:lower() == "__meta" then return end
+        local low = safe:lower()
+        if safe == "" or low == "__meta" or low == "__index" then return end
         local data = Config.Load(safe)
-        for id, value in pairs(data) do Library:_setValue(id, value, true) end
+        for id, value in pairs(data) do
+            if not (type(id) == "string" and id:sub(1,2) == "__") then
+                Library:_setValue(id, value, true)
+            end
+        end
     end
     Window.ListConfigs = function() return Config.List() end
     Window.DeleteConfig = function(name)
         local safe = sanitize(name or "")
-        if safe == "" or safe:lower() == "__meta" then return end
+        local low = safe:lower()
+        if safe == "" or low == "__meta" or low == "__index" then return end
         Config.Delete(safe)
         pcall(function() Config.ClearMeta(safe) end)
     end
@@ -5979,10 +6071,14 @@ function Library:CreateLibrary(opts)
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
             -- Always read live textbox value
             local raw = nameBox and nameBox.Get and nameBox:Get() or ""
-            if type(raw) == "string" and raw:lower() == "__meta" then return end
+            if type(raw) == "string" then
+                local l = raw:lower()
+                if l == "__meta" or l == "__index" then return end
+            end
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
-            if safe == "" or safe:lower() == "__meta" then return end
+            local low = safe:lower()
+            if safe == "" or low == "__meta" or low == "__index" then return end
             if Window.SaveConfig(safe) then
                 refreshList()
                 -- Defer selection until options refresh propagate in UI
@@ -5994,10 +6090,14 @@ function Library:CreateLibrary(opts)
         end })
         local saveBtn = group:AddButton({ Name = "Save", Compact = true, Callback = function()
             local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
-            if type(raw) == "string" and raw:lower() == "__meta" then return end
+            if type(raw) == "string" then
+                local l = raw:lower()
+                if l == "__meta" or l == "__index" then return end
+            end
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
-            if safe == "" or safe:lower() == "__meta" then return end
+            local low = safe:lower()
+            if safe == "" or low == "__meta" or low == "__index" then return end
             if Window.SaveConfig(safe) then
                 refreshList()
                 task.defer(function()
@@ -6008,7 +6108,10 @@ function Library:CreateLibrary(opts)
         end })
         local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
             local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
-            if type(raw) == "string" and raw:lower() == "__meta" then return end
+            if type(raw) == "string" then
+                local l = raw:lower()
+                if l == "__meta" or l == "__index" then return end
+            end
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
             Window.LoadConfig(safe)
@@ -6018,7 +6121,10 @@ function Library:CreateLibrary(opts)
         end })
         local deleteBtn = group:AddButton({ Name = "Delete", Compact = true, Callback = function()
             local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
-            if type(raw) == "string" and raw:lower() == "__meta" then return end
+            if type(raw) == "string" then
+                local l = raw:lower()
+                if l == "__meta" or l == "__index" then return end
+            end
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
             Window.DeleteConfig(safe)
