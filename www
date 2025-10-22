@@ -1296,25 +1296,40 @@ function Library:CreateLibrary(opts)
             if _isfolder and not _isfolder(Base) then _makefolder(Base) end
             if _isfolder and not _isfolder(Folder) then _makefolder(Folder) end
         end
+        -- Determine where we can write: prefer subfolder but fall back to root if needed
+        local CAN_WRITE_FOLDER, CAN_WRITE_ROOT = false, false
         local function fsAvailable()
-            -- Only require core FS capabilities; listing/deleting/exists are optional
-            if type(_isfolder) ~= "function" or type(_makefolder) ~= "function" or type(_writefile) ~= "function" or type(_readfile) ~= "function" then
+            if type(_writefile) ~= "function" or type(_readfile) ~= "function" then
                 return false
             end
-            local ok = pcall(function()
-                ensureFolder()
-            end)
-            if not ok then return false end
-            -- Probe actual write capability
-            local probeName = "__probe_" .. tostring(math.random(100000,999999))
-            local probePath = Folder .. "/" .. probeName .. ".tmp"
-            local content = "ok"
-            local wrote = pcall(function() _writefile(probePath, content) end)
-            if not wrote then return false end
-            local rdOk, rd = pcall(function() return _readfile(probePath) end)
-            pcall(function() _delfile(probePath) end)
-            if not rdOk then return false end
-            return rd == content
+            -- Try folder write
+            do
+                pcall(function()
+                    if type(_makefolder) == "function" then
+                        pcall(_makefolder, Base)
+                        pcall(_makefolder, Folder)
+                    end
+                end)
+                local probeName = "__probe_" .. tostring(math.random(100000,999999))
+                local probePath = Folder .. "/" .. probeName .. ".tmp"
+                local wrote = pcall(_writefile, probePath, "ok")
+                local rdOk, rd = pcall(_readfile, probePath)
+                pcall(_delfile, probePath)
+                if wrote and rdOk and rd == "ok" then
+                    CAN_WRITE_FOLDER = true
+                end
+            end
+            -- Try root write if folder failed
+            if not CAN_WRITE_FOLDER then
+                local probeRoot = (sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "__probe.tmp")
+                local wrote = pcall(_writefile, probeRoot, "ok")
+                local rdOk, rd = pcall(_readfile, probeRoot)
+                pcall(_delfile, probeRoot)
+                if wrote and rdOk and rd == "ok" then
+                    CAN_WRITE_ROOT = true
+                end
+            end
+            return (CAN_WRITE_FOLDER or CAN_WRITE_ROOT)
         end
 
         local MEM_MODE = nil -- set on first Ensure()
@@ -1343,6 +1358,10 @@ function Library:CreateLibrary(opts)
             pcall(_delfile, tmp)
         end
 
+        local function rootPathFor(name)
+            local s = sanitize(name or "")
+            return (sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "_" .. s .. ".json")
+        end
         function Config.Path(name)
             Config.Ensure()
             local s = sanitize(name or "")
@@ -1350,7 +1369,14 @@ function Library:CreateLibrary(opts)
             local low = s:lower()
             if low == "__meta" or low == "__index" then return nil end
             if MEM_MODE then return s end
-            return Folder .. "/" .. s .. ".json"
+            if CAN_WRITE_FOLDER then
+                return Folder .. "/" .. s .. ".json"
+            elseif CAN_WRITE_ROOT then
+                return rootPathFor(s)
+            else
+                -- Should not happen when MEM_MODE == false, but return folder path by default
+                return Folder .. "/" .. s .. ".json"
+            end
         end
 
     -- JSON-safe serialization helpers (preserve existing save format)
@@ -1445,7 +1471,13 @@ function Library:CreateLibrary(opts)
             end
             local ok, json = pcall(function() return HttpService:JSONEncode(payload) end)
             if not ok then return false end
+            -- Try preferred path first, then root fallback (if different)
             local ok2, err = pcall(function() atomicWrite(p, json) end)
+            if not ok2 and CAN_WRITE_ROOT and CAN_WRITE_FOLDER and p ~= (sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "_" .. sanitize(name) .. ".json") then
+                local alt = (sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "_" .. sanitize(name) .. ".json")
+                ok2, err = pcall(function() atomicWrite(alt, json) end)
+                if ok2 then p = alt end
+            end
             if not ok2 then warn("Config.Save write failed: ", err) return false end
             sessionAdd(sanitize(name))
             return true
@@ -1461,8 +1493,12 @@ function Library:CreateLibrary(opts)
                 if type(obj) == "table" then obj.__meta = nil end
                 return obj
             end
-            do
-                local okRaw, raw = pcall(_readfile, p)
+            -- Try preferred path then root fallback
+            local tryPaths = { p }
+            local alt = sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "_" .. sanitize(name) .. ".json"
+            if alt ~= p then table.insert(tryPaths, alt) end
+            for _, path in ipairs(tryPaths) do
+                local okRaw, raw = pcall(_readfile, path)
                 if okRaw and type(raw) == "string" and #raw > 0 then
                     local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
                     if ok and type(decoded) == "table" then
@@ -1470,8 +1506,7 @@ function Library:CreateLibrary(opts)
                         if type(obj) == "table" then obj.__meta = nil end
                         return obj
                     else
-                        -- backup corrupted file and return empty
-                        pcall(function() _writefile(p .. ".bak", raw) end)
+                        pcall(function() _writefile(path .. ".bak", raw) end)
                     end
                 end
             end
@@ -1513,6 +1548,9 @@ function Library:CreateLibrary(opts)
                 Library._memConfig.files[key][p] = nil
             else
                 pcall(_delfile, p)
+                -- Also try deleting root-fallback path
+                local alt = sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "_" .. sanitize(name) .. ".json"
+                if alt ~= p then pcall(_delfile, alt) end
                 sessionRemove(sanitize(name or ""))
             end
         end
@@ -1551,8 +1589,11 @@ function Library:CreateLibrary(opts)
                 local t = Library._memConfig.files[key][p]
                 return type(t) == "table" and t.__meta and t.__meta.autoload == true
             end
-            do
-                local okRaw, raw = pcall(_readfile, p)
+            local tryPaths = { p }
+            local alt = sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "_" .. sanitize(name) .. ".json"
+            if alt ~= p then table.insert(tryPaths, alt) end
+            for _, path in ipairs(tryPaths) do
+                local okRaw, raw = pcall(_readfile, path)
                 if okRaw then
                     local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                     if ok and type(dec) == "table" and type(dec.__meta) == "table" then
@@ -1573,8 +1614,11 @@ function Library:CreateLibrary(opts)
                 end
                 return
             end
-            do
-                local okRaw, raw = pcall(_readfile, p)
+            local tryPaths = { p }
+            local alt = sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "_" .. sanitize(name) .. ".json"
+            if alt ~= p then table.insert(tryPaths, alt) end
+            for _, path in ipairs(tryPaths) do
+                local okRaw, raw = pcall(_readfile, path)
                 if okRaw then
                     local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                     if ok and type(dec) == "table" then
@@ -1582,7 +1626,8 @@ function Library:CreateLibrary(opts)
                         if dec.__meta.autoload then
                             dec.__meta.lastSaved = os.time()
                             local okJ, json = pcall(function() return HttpService:JSONEncode(dec) end)
-                            if okJ then pcall(function() atomicWrite(p, json) end) end
+                            if okJ then pcall(function() atomicWrite(path, json) end) end
+                            break
                         end
                     end
                 end
@@ -1599,8 +1644,11 @@ function Library:CreateLibrary(opts)
                 end
                 return
             end
-            do
-                local okRaw, raw = pcall(_readfile, p)
+            local tryPaths = { p }
+            local alt = sanitize(Base) .. "_" .. tostring(getGameFolder()) .. "_" .. sanitize(name) .. ".json"
+            if alt ~= p then table.insert(tryPaths, alt) end
+            for _, path in ipairs(tryPaths) do
+                local okRaw, raw = pcall(_readfile, path)
                 if okRaw then
                     local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                     if ok and type(dec) == "table" then
@@ -1609,7 +1657,8 @@ function Library:CreateLibrary(opts)
                             dec.__meta.lastSaved = nil
                         end
                         local okJ, json = pcall(function() return HttpService:JSONEncode(dec) end)
-                        if okJ then pcall(function() atomicWrite(p, json) end) end
+                        if okJ then pcall(function() atomicWrite(path, json) end) end
+                        break
                     end
                 end
             end
