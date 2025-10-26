@@ -1334,14 +1334,26 @@ function Library:CreateLibrary(opts)
             if t == "Color3" then
                 return {__t = "c3", r = v.R, g = v.G, b = v.B}
             elseif t == "EnumItem" then
-                return {__t = "enum", e = v.EnumType and v.EnumType.Name or "", v = v.Name}
+                local ok, enumName = pcall(function() return v.EnumType and v.EnumType.Name end)
+                local ok2, vname = pcall(function() return v.Name end)
+                return {__t = "enumitem", e = (ok and enumName) or "", v = (ok2 and vname) or tostring(v)}
+            elseif t == "Enum" then
+                local ok, en = pcall(function() return v.Name end)
+                return {__t = "enum", e = (ok and en) or tostring(v)}
             elseif t == "UDim2" then
                 return {__t = "ud2", x = {v.X.Scale, v.X.Offset}, y = {v.Y.Scale, v.Y.Offset}}
             elseif t == "Vector2" then
                 return {__t = "v2", x = v.X, y = v.Y}
+            elseif t == "Instance" then
+                local okc, cls = pcall(function() return v.ClassName end)
+                local okn, nm = pcall(function() return v.Name end)
+                return {__t = "instance", class = (okc and cls) or "", name = (okn and nm) or ""}
             elseif t == "table" then
                 local out = {}
-                for k, val in pairs(v) do out[k] = serialize(val) end
+                for k, val in pairs(v) do
+                    local ok, s = pcall(function() return serialize(val) end)
+                    if ok then out[k] = s else out[k] = tostring(val) end
+                end
                 return out
             else
                 return v
@@ -1350,12 +1362,17 @@ function Library:CreateLibrary(opts)
         local function deserialize(v)
             if type(v) ~= "table" then return v end
             if v.__t == "c3" then return Color3.new(tonumber(v.r) or 1, tonumber(v.g) or 1, tonumber(v.b) or 1) end
-            if v.__t == "enum" then
-                if Enum[v.e] and Enum[v.e][v.v] then return Enum[v.e][v.v] end
+            if v.__t == "enumitem" then
+                if v.e and v.v and Enum[v.e] and Enum[v.e][v.v] then return Enum[v.e][v.v] end
                 return v.v
+            end
+            if v.__t == "enum" then
+                if v.e and Enum[v.e] then return Enum[v.e] end
+                return v.e
             end
             if v.__t == "ud2" and v.x and v.y then return UDim2.new(tonumber(v.x[1]) or 0, tonumber(v.x[2]) or 0, tonumber(v.y[1]) or 0, tonumber(v.y[2]) or 0) end
             if v.__t == "v2" then return Vector2.new(tonumber(v.x) or 0, tonumber(v.y) or 0) end
+            if v.__t == "instance" then return nil end
             local out = {}
             for k, val in pairs(v) do out[k] = deserialize(val) end
             return out
