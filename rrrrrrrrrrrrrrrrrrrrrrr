@@ -1444,7 +1444,8 @@ function Library:CreateLibrary(opts)
             local s = sanitize(name or "")
             warn("[Config] Save called for:", tostring(s), "MEM_MODE=", tostring(MEM_MODE))
             if s == "" then return false end
-            local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, values = {} }
+            -- New payload shape: metadata + controls (easier for users to edit manually)
+            local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, controls = {} }
             -- Build enhanced snapshot when data not supplied so we can capture control modes (colorpicker rainbow/pulse)
             local snapshot = data
             if not snapshot then
@@ -1476,17 +1477,45 @@ function Library:CreateLibrary(opts)
                     end
                 end
             end
-            -- Safely serialize each value; avoid throwing on unexpected types (Enums/Instances/functions)
+            -- Build a human-friendly representation per-control.
             for id, val in pairs(snapshot or {}) do
-                local ok, ser = pcall(function() return serialize(val) end)
-                if ok then
-                    payload.values[id] = ser
+                -- Colorpicker: store per-slot structured objects for manual editing
+                if type(val) == 'table' and (val.__ctrl == 'Colorpicker' or (Library._controls[id] and Library._controls[id]._slots)) then
+                    local cp = { __ctrl = 'Colorpicker', slots = {} }
+                    -- Prefer explicit per-slot data if available in 'val', else read from control internals
+                    local rawSlots = nil
+                    if type(val.slots) == 'table' then
+                        rawSlots = val.slots
+                    elseif type(val.colors) == 'table' then
+                        rawSlots = {}
+                        for i=1,#val.colors do rawSlots[i] = { color = val.colors[i], rainbow = (val.rainbow and val.rainbow[i]) or false, pulse = (val.pulse and val.pulse[i]) or false, hueOffset = (val.hueOffsets and val.hueOffsets[i]) or 0, pulseHueOffset = (val.pulseHueOffsets and val.pulseHueOffsets[i]) or 0 } end
+                    elseif Library._controls[id] and Library._controls[id]._slots then
+                        rawSlots = {}
+                        for i=1,#Library._controls[id]._slots do
+                            local slot = Library._controls[id]._slots[i]
+                            rawSlots[i] = { color = (slot and slot.color) or nil, rainbow = slot and slot.rainbow or false, pulse = slot and slot.pulse or false, hueOffset = slot and slot.hueOffset or 0, pulseHueOffset = slot and slot.pulseHueOffset or 0 }
+                        end
+                    end
+                    if rawSlots then
+                        for i=1,#rawSlots do
+                            local rs = rawSlots[i]
+                            local okc, serColor = pcall(function() return serialize((rs and rs.color) or Theme.Accent) end)
+                            if not okc then serColor = serialize(Theme.Accent) end
+                            cp.slots[i] = { color = serColor, rainbow = rs and (rs.rainbow == true) or false, pulse = rs and (rs.pulse == true) or false, hueOffset = tonumber(rs and rs.hueOffset) or 0, pulseHueOffset = tonumber(rs and rs.pulseHueOffset) or 0 }
+                        end
+                    end
+                    payload.controls[id] = cp
+                    warn("[Config] captured Colorpicker for saving:", tostring(id), "slots=", tostring(#(cp.slots or {})))
                 else
-                    -- fallback: store a string representation so saving still succeeds
-                    warn("[Config] serialize failed for id=", tostring(id), "type=", typeof(val), "err=", tostring(ser))
-                    local safeString = nil
-                    pcall(function() safeString = tostring(val) end)
-                    payload.values[id] = safeString
+                    local ok, ser = pcall(function() return serialize(val) end)
+                    if ok then
+                        payload.controls[id] = ser
+                    else
+                        warn("[Config] serialize failed for id=", tostring(id), "type=", typeof(val), "err=", tostring(ser))
+                        local safeString = nil
+                        pcall(function() safeString = tostring(val) end)
+                        payload.controls[id] = safeString
+                    end
                 end
             end
             if MEM_MODE then
@@ -1586,11 +1615,41 @@ function Library:CreateLibrary(opts)
             local ok, raw = pcall(function() return gr(path) end)
             if ok and type(raw) == "string" and #raw > 0 then
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                if okj and type(dec) == "table" and type(dec.values) == "table" then
+                if okj and type(dec) == "table" then
                     local out = {}
-                    for k, v in pairs(dec.values) do out[k] = deserialize(v) end
+                    -- New format: dec.controls (human-editable). Fall back to old dec.values for backwards compatibility.
+                    if type(dec.controls) == "table" then
+                        for k, v in pairs(dec.controls) do
+                            if type(v) == 'table' and v.__ctrl == 'Colorpicker' and type(v.slots) == 'table' then
+                                local cp = { __ctrl = 'Colorpicker', colors = {}, rainbow = {}, pulse = {}, hueOffsets = {}, pulseHueOffsets = {} }
+                                for i=1,#v.slots do
+                                    local slot = v.slots[i]
+                                    if type(slot) == 'table' then
+                                        cp.colors[i] = deserialize(slot.color)
+                                        cp.rainbow[i] = slot.rainbow == true
+                                        cp.pulse[i] = slot.pulse == true
+                                        cp.hueOffsets[i] = tonumber(slot.hueOffset) or 0
+                                        cp.pulseHueOffsets[i] = tonumber(slot.pulseHueOffset) or 0
+                                    else
+                                        cp.colors[i] = deserialize(slot)
+                                        cp.rainbow[i] = false
+                                        cp.pulse[i] = false
+                                        cp.hueOffsets[i] = 0
+                                        cp.pulseHueOffsets[i] = 0
+                                    end
+                                end
+                                out[k] = cp
+                            else
+                                out[k] = deserialize(v)
+                            end
+                        end
                         sessionAdd(s)
-                    return out
+                        return out
+                    elseif type(dec.values) == "table" then
+                        for k, v in pairs(dec.values) do out[k] = deserialize(v) end
+                        sessionAdd(s)
+                        return out
+                    end
                 end
             end
             return {}
