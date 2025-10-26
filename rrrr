@@ -1272,8 +1272,8 @@ function Library:CreateLibrary(opts)
     -- Config / SaveManager (Linoria-style behavior)
     local Config = {}
     do
-        local Base = sanitize(libraryName)
-        local DIR = tostring(opts.ConfigFolder or Library.ConfigFolder or "Dendrite.cc")
+    local Base = sanitize(libraryName)
+    local DIR = tostring(opts.ConfigFolder or Library.ConfigFolder or Base)
 
         -- Detect available global FS APIs (prefer real globals)
         local gw = (type(writefile) == "function") and writefile or nil
@@ -1297,10 +1297,8 @@ function Library:CreateLibrary(opts)
         local function ensureFolders()
             if not gif or not gmf then return end
             if not gif(DIR) then pcall(gmf, DIR) end
-            local sdir = DIR .. "/settings"
-            local tdir = DIR .. "/themes"
-            if not gif(sdir) then pcall(gmf, sdir) end
-            if not gif(tdir) then pcall(gmf, tdir) end
+            local cdir = DIR .. "/Configs"
+            if not gif(cdir) then pcall(gmf, cdir) end
         end
 
         local function atomicWrite(path, content)
@@ -1353,11 +1351,10 @@ function Library:CreateLibrary(opts)
             return out
         end
 
-        -- helper paths
-        local function settingsFolder() return DIR .. "/settings" end
-        local function themesFolder() return DIR .. "/themes" end
-        local function filePath(name) return settingsFolder() .. "/" .. sanitize(name) .. ".json" end
-        local indexFile = settingsFolder() .. "/__index.json"
+    -- helper paths
+    local function configsFolder() return DIR .. "/Configs" end
+    local function filePath(name) return configsFolder() .. "/" .. sanitize(name) .. ".json" end
+    local indexFile = configsFolder() .. "/__index.json"
 
         function Config.Ensure()
             if MEM_MODE ~= nil then return end
@@ -1467,7 +1464,7 @@ function Library:CreateLibrary(opts)
                 return out
             end
             if not glf then return {} end
-            local folder = settingsFolder()
+            local folder = configsFolder()
             local ok, files = pcall(function() return glf(folder) end)
             local out = {}
             if ok and type(files) == "table" then
