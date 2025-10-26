@@ -6215,7 +6215,8 @@ function Library:CreateLibrary(opts)
                             -- 3) restore per-slot hue/pulse offsets
                             -- 4) attempt to enable effects via public/internal APIs
                             -- 5) if hooks still missing, recreate sync listeners and attach fallback hooks
-                            pcall(function()
+                            warn("[ConfigDebug] Entering Colorpicker load handler for", tostring(targetId))
+                            local okOuter, outerErr = pcall(function()
                                 warn("[ConfigDebug] Loading Colorpicker for", tostring(targetId))
                                 -- dump incoming value for diagnostics
                                 pcall(function()
@@ -6233,13 +6234,17 @@ function Library:CreateLibrary(opts)
                                         end
                                     end
                                     local okv, sval = pcall(function() return HttpService:JSONEncode(makeSerializable(value)) end)
-                                    if okv then warn("[ConfigDebug] incoming value JSON:", sval) end
+                                    if okv then warn("[ConfigDebug] incoming value JSON:", sval) else warn("[ConfigDebug] JSON dump failed:", tostring(sval)) end
                                 end)
-
+                                
                                 local function applyOnce()
                                     local colors = value.colors or {}
                                     local decColors = {}
-                                    for i=1, #colors do decColors[i] = deserialize(colors[i]) end
+                                    for i=1, #colors do
+                                        local okd, dc = pcall(function() return deserialize(colors[i]) end)
+                                        if okd then decColors[i] = dc else decColors[i] = nil; warn("[ConfigDebug] deserialize failed for slot", i, tostring(dc)) end
+                                    end
+                                    warn("[ConfigDebug] decoded color slots:", tostring(#decColors))
 
                                     -- Apply colors silently first
                                     pcall(function() Library:_setValue(targetId, decColors, true) end)
