@@ -1269,7 +1269,7 @@ function Library:CreateLibrary(opts)
     local libraryName = tostring(opts.LibraryName or "Dendrite UI")
     local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static | type
     
-    -- Simple, robust Config system (replace previous implementation)
+    -- Config / SaveManager (Linoria-style behavior)
     local Config = {}
     do
         local Base = sanitize(libraryName)
@@ -1283,7 +1283,7 @@ function Library:CreateLibrary(opts)
         local gmf = (type(makefolder) == "function") and makefolder or nil
         local glf = (type(listfiles) == "function") and listfiles or nil
 
-        -- Memory fallback store (per DIR key)
+        -- in-memory fallback
         Library._memConfig = Library._memConfig or { files = {}, meta = {} }
         local function memEnsure()
             local key = DIR
@@ -1293,38 +1293,42 @@ function Library:CreateLibrary(opts)
         end
 
         local MEM_MODE = nil
-        local CAN_WRITE_DIR = false
 
-        local function ensureFolder()
-            if gif and gmf then
-                if not gif(DIR) then pcall(gmf, DIR) end
-            end
+        local function ensureFolders()
+            if not gif or not gmf then return end
+            if not gif(DIR) then pcall(gmf, DIR) end
+            local sdir = DIR .. "/settings"
+            local tdir = DIR .. "/themes"
+            if not gif(sdir) then pcall(gmf, sdir) end
+            if not gif(tdir) then pcall(gmf, tdir) end
         end
 
         local function atomicWrite(path, content)
-            -- Use globals when available, otherwise error
             if not gw or not gr then error("No filesystem write support") end
             local tmp = path .. ".tmp"
-            pcall(gw, tmp, content)
-            -- try to read back tmp and then write final
-            local ok, tmpc = pcall(gr, tmp)
-            if ok and type(tmpc) == "string" then
-                pcall(gw, path, tmpc)
+            local ok, err = pcall(function() gw(tmp, content) end)
+            if not ok then -- try direct
+                pcall(function() gw(path, content) end)
+                return
+            end
+            local ok2, tmpc = pcall(function() return gr(tmp) end)
+            if ok2 and type(tmpc) == "string" then
+                pcall(function() gw(path, tmpc) end)
             else
-                pcall(gw, path, content)
+                pcall(function() gw(path, content) end)
             end
             if gd then pcall(gd, tmp) end
         end
 
-        -- Basic serializer/deserializer for common Roblox types
+        -- serialize/deserialize helpers (kept small and compatible)
         local function serialize(v)
             local t = typeof(v)
             if t == "Color3" then
-                return {__t = "c3", r = math.floor(v.R*255+0.5), g = math.floor(v.G*255+0.5), b = math.floor(v.B*255+0.5)}
+                return {__t = "c3", r = v.R, g = v.G, b = v.B}
             elseif t == "EnumItem" then
                 return {__t = "enum", e = v.EnumType and v.EnumType.Name or "", v = v.Name}
             elseif t == "UDim2" then
-                return {__t = "ud2", xs = v.X.Scale, xo = v.X.Offset, ys = v.Y.Scale, yo = v.Y.Offset}
+                return {__t = "ud2", x = {v.X.Scale, v.X.Offset}, y = {v.Y.Scale, v.Y.Offset}}
             elseif t == "Vector2" then
                 return {__t = "v2", x = v.X, y = v.Y}
             elseif t == "table" then
@@ -1337,77 +1341,92 @@ function Library:CreateLibrary(opts)
         end
         local function deserialize(v)
             if type(v) ~= "table" then return v end
-            if v.__t == "c3" then return Color3.fromRGB(tonumber(v.r) or 255, tonumber(v.g) or 255, tonumber(v.b) or 255) end
+            if v.__t == "c3" then return Color3.new(tonumber(v.r) or 1, tonumber(v.g) or 1, tonumber(v.b) or 1) end
             if v.__t == "enum" then
                 if Enum[v.e] and Enum[v.e][v.v] then return Enum[v.e][v.v] end
-                return ParseKeyFromString(v.v) or v.v
+                return v.v
             end
-            if v.__t == "ud2" then return UDim2.new(tonumber(v.xs) or 0, tonumber(v.xo) or 0, tonumber(v.ys) or 0, tonumber(v.yo) or 0) end
+            if v.__t == "ud2" and v.x and v.y then return UDim2.new(tonumber(v.x[1]) or 0, tonumber(v.x[2]) or 0, tonumber(v.y[1]) or 0, tonumber(v.y[2]) or 0) end
             if v.__t == "v2" then return Vector2.new(tonumber(v.x) or 0, tonumber(v.y) or 0) end
             local out = {}
             for k, val in pairs(v) do out[k] = deserialize(val) end
             return out
         end
 
-        local SessionIndex = {}
-        local function sessionAdd(name) SessionIndex[name] = true end
-        local function sessionRemove(name) SessionIndex[name] = nil end
-        local function sessionList()
-            local out = {}
-            for n in pairs(SessionIndex) do table.insert(out, n) end
-            table.sort(out)
-            return out
-        end
+        -- helper paths
+        local function settingsFolder() return DIR .. "/settings" end
+        local function themesFolder() return DIR .. "/themes" end
+        local function filePath(name) return settingsFolder() .. "/" .. sanitize(name) .. ".json" end
+        local indexFile = settingsFolder() .. "/__index.json"
 
         function Config.Ensure()
             if MEM_MODE ~= nil then return end
             MEM_MODE = not (gw and gr)
             if not MEM_MODE then
-                -- if folder apis available, try to create folder
-                pcall(ensureFolder)
-                CAN_WRITE_DIR = (gif and gif(DIR)) or false
+                pcall(ensureFolders)
             else
                 memEnsure()
             end
         end
 
-        local function rootPathFor(name)
-            return sanitize(Base) .. "_" .. sanitize(name or "") .. ".json"
-        end
-
-        function Config.Path(name)
+        -- RecordSave / ClearMeta: keep a simple index file of saves and timestamps
+        function Config.RecordSave(name)
             Config.Ensure()
             local s = sanitize(name or "")
-            if s == "" then return nil end
-            if MEM_MODE then return s end
-            if CAN_WRITE_DIR then return DIR .. "/" .. s .. ".json" end
-            return rootPathFor(s)
+            if s == "" then return end
+            if MEM_MODE then
+                local key = memEnsure()
+                Library._memConfig.meta[key] = Library._memConfig.meta[key] or {}
+                Library._memConfig.meta[key][s] = { lastModified = os.time() }
+                return
+            end
+            local idx = {}
+            local ok, raw = pcall(function() return gr(indexFile) end)
+            if ok and type(raw) == "string" and #raw > 0 then
+                pcall(function() idx = HttpService:JSONDecode(raw) or {} end)
+            end
+            idx[s] = { lastModified = os.time() }
+            local okj, json = pcall(function() return HttpService:JSONEncode(idx) end)
+            if okj then pcall(function() atomicWrite(indexFile, json) end) end
+        end
+
+        function Config.ClearMeta(name)
+            Config.Ensure()
+            local s = sanitize(name or "")
+            if s == "" then return end
+            if MEM_MODE then
+                local key = memEnsure()
+                if Library._memConfig.meta[key] then Library._memConfig.meta[key][s] = nil end
+                return
+            end
+            local ok, raw = pcall(function() return gr(indexFile) end)
+            if not ok or type(raw) ~= "string" then return end
+            local idx = {}
+            pcall(function() idx = HttpService:JSONDecode(raw) or {} end)
+            idx[s] = nil
+            local okj, json = pcall(function() return HttpService:JSONEncode(idx) end)
+            if okj then pcall(function() atomicWrite(indexFile, json) end) end
         end
 
         function Config.Save(name, data)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return false end
-            local p = Config.Path(s)
-            if not p then return false end
-            local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, values = serialize(data or {}) }
+            local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, values = {} }
+            local snapshot = data or Library:_getSnapshot()
+            for id, val in pairs(snapshot or {}) do payload.values[id] = serialize(val) end
             if MEM_MODE then
                 local key = memEnsure()
                 Library._memConfig.files[key][s] = payload
-                sessionAdd(s)
+                Config.RecordSave(s)
                 return true
             end
-            local ok, json = pcall(function() return HttpService:JSONEncode(payload) end)
-            if not ok or not json then return false end
-            local ok2, err = pcall(function() atomicWrite(p, json) end)
-            if not ok2 then
-                -- fallback: try root path
-                local alt = rootPathFor(s)
-                ok2 = pcall(function() atomicWrite(alt, json) end)
-                if ok2 then p = alt end
-            end
-            if not ok2 then warn("Config.Save failed:", err) return false end
-            sessionAdd(s)
+            local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
+            if not okj or not json then return false end
+            local path = filePath(s)
+            local okw, err = pcall(function() atomicWrite(path, json) end)
+            if not okw then warn("Config.Save failed to write: ", tostring(err)) return false end
+            pcall(function() Config.RecordSave(s) end)
             return true
         end
 
@@ -1418,19 +1437,21 @@ function Library:CreateLibrary(opts)
             if MEM_MODE then
                 local key = memEnsure()
                 local t = Library._memConfig.files[key][s]
-                if type(t) == "table" and type(t.values) == "table" then return deserialize(t.values) end
+                if type(t) == "table" and type(t.values) == "table" then
+                    local out = {}
+                    for k, v in pairs(t.values) do out[k] = deserialize(v) end
+                    return out
+                end
                 return {}
             end
-            local paths = { Config.Path(s) }
-            local alt = rootPathFor(s)
-            if alt ~= paths[1] then table.insert(paths, alt) end
-            for _, path in ipairs(paths) do
-                local ok, raw = pcall(gr, path)
-                if ok and type(raw) == "string" and #raw > 0 then
-                    local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                    if okj and type(dec) == "table" and type(dec.values) == "table" then
-                        return deserialize(dec.values)
-                    end
+            local path = filePath(s)
+            local ok, raw = pcall(function() return gr(path) end)
+            if ok and type(raw) == "string" and #raw > 0 then
+                local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                if okj and type(dec) == "table" and type(dec.values) == "table" then
+                    local out = {}
+                    for k, v in pairs(dec.values) do out[k] = deserialize(v) end
+                    return out
                 end
             end
             return {}
@@ -1438,19 +1459,26 @@ function Library:CreateLibrary(opts)
 
         function Config.List()
             Config.Ensure()
-            if MEM_MODE then return sessionList() end
-            if glf and gif and gif(DIR) then
-                local files = glf(DIR) or {}
+            if MEM_MODE then
+                local key = memEnsure()
                 local out = {}
-                for _, f in ipairs(files) do
-                    local n = f:match("([^/\\]+)$") or f
-                    n = n:gsub("%.json$", "")
-                    if n ~= "" and n:sub(1,2) ~= "__" then table.insert(out, n) end
-                end
+                for n in pairs(Library._memConfig.files[key] or {}) do table.insert(out, n) end
                 table.sort(out)
                 return out
             end
-            return sessionList()
+            if not glf then return {} end
+            local folder = settingsFolder()
+            local ok, files = pcall(function() return glf(folder) end)
+            local out = {}
+            if ok and type(files) == "table" then
+                for _, f in ipairs(files) do
+                    local n = f:match("([^/\\]+)$") or f
+                    n = n:gsub("%.json$", "")
+                    if n ~= "" and not n:match("^__") then table.insert(out, n) end
+                end
+            end
+            table.sort(out)
+            return out
         end
 
         function Config.Delete(name)
@@ -1460,14 +1488,12 @@ function Library:CreateLibrary(opts)
             if MEM_MODE then
                 local key = memEnsure()
                 Library._memConfig.files[key][s] = nil
-                sessionRemove(s)
+                Config.ClearMeta(s)
                 return
             end
-            local p = Config.Path(s)
-            pcall(function() if gd then gd(p) end end)
-            local alt = rootPathFor(s)
-            if alt ~= p then pcall(function() if gd then gd(alt) end end) end
-            sessionRemove(s)
+            local path = filePath(s)
+            pcall(function() if gd then gd(path) end end)
+            pcall(function() Config.ClearMeta(s) end)
         end
 
         function Config.SetAutoLoad(name, on)
@@ -1483,18 +1509,17 @@ function Library:CreateLibrary(opts)
                 Library._memConfig.files[key][s] = t
                 return
             end
-            local p = Config.Path(s)
-            local ok, raw = pcall(gr, p)
+            local path = filePath(s)
             local obj = {}
+            local ok, raw = pcall(function() return gr(path) end)
             if ok and type(raw) == "string" and #raw > 0 then
-                local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                if okj and type(dec) == "table" then obj = dec end
+                pcall(function() obj = HttpService:JSONDecode(raw) or {} end)
             end
             obj.metadata = obj.metadata or {}
             obj.metadata.autoLoad = (on == true) or nil
             obj.metadata.lastModified = os.time()
             local okj, json = pcall(function() return HttpService:JSONEncode(obj) end)
-            if okj then pcall(function() atomicWrite(p, json) end) end
+            if okj then pcall(function() atomicWrite(path, json) end) end
         end
 
         function Config.GetAutoLoad(name)
@@ -1506,8 +1531,8 @@ function Library:CreateLibrary(opts)
                 local t = Library._memConfig.files[key][s]
                 return type(t) == "table" and t.metadata and t.metadata.autoLoad == true
             end
-            local p = Config.Path(s)
-            local ok, raw = pcall(gr, p)
+            local path = filePath(s)
+            local ok, raw = pcall(function() return gr(path) end)
             if ok and type(raw) == "string" and #raw > 0 then
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(dec) == "table" and type(dec.metadata) == "table" then return dec.metadata.autoLoad == true end
@@ -1519,7 +1544,8 @@ function Library:CreateLibrary(opts)
             Config.Ensure()
             if MEM_MODE then
                 local newest, best
-                for name, t in pairs(Library._memConfig.files[DIR] or {}) do
+                local key = memEnsure()
+                for name, t in pairs(Library._memConfig.files[key] or {}) do
                     if type(t) == "table" and t.metadata and t.metadata.autoLoad then
                         local ts = tonumber(t.metadata.lastModified or 0) or 0
                         if not newest or ts > newest then newest, best = ts, name end
@@ -1527,23 +1553,19 @@ function Library:CreateLibrary(opts)
                 end
                 return best
             end
-            if glf and gif and gif(DIR) then
-                local newest, best
-                local files = glf(DIR) or {}
-                for _, f in ipairs(files) do
-                    local ok, raw = pcall(gr, f)
-                    if ok and type(raw) == "string" and #raw > 0 then
-                        local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                        if okj and type(dec) == "table" and dec.metadata and dec.metadata.autoLoad then
-                            local ts = tonumber(dec.metadata.lastModified or 0) or 0
-                            local n = (f:match("([^/\\]+)$") or f):gsub("%.json$", "")
-                            if not newest or ts > newest then newest, best = ts, n end
-                        end
+            local list = Config.List()
+            local newest, best
+            for _, name in ipairs(list) do
+                local ok, raw = pcall(function() return gr(filePath(name)) end)
+                if ok and type(raw) == "string" and #raw > 0 then
+                    local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                    if okj and type(dec) == "table" and dec.metadata and dec.metadata.autoLoad then
+                        local ts = tonumber(dec.metadata.lastModified or 0) or 0
+                        if not newest or ts > newest then newest, best = ts, name end
                     end
                 end
-                return best
             end
-            return nil
+            return best
         end
     end
     
