@@ -1417,21 +1417,36 @@ function Library:CreateLibrary(opts)
                 Config.RecordSave(s)
                 return true
             end
+            -- Diagnostics: attempt to encode JSON
             local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
-            if not okj or not json then return false end
+            if not okj or type(json) ~= "string" then
+                warn("[Config] JSON encode failed for:", s, "okj:", tostring(okj), "jsonType:", type(json))
+                return false
+            end
             local path = filePath(s)
             -- ensure folders exist when possible
             if gif and gmf then pcall(ensureFolders) end
+            warn("[Config] Save: attempting write to:", tostring(path))
             local okw, err = pcall(function() atomicWrite(path, json) end)
             if not okw then
+                warn("[Config] primary atomicWrite failed:", tostring(err))
                 -- fallback to root-style filename when we can't create folders
                 local alt = sanitize(Base) .. "_" .. sanitize(s) .. ".json"
+                warn("[Config] Save: attempting fallback write to:", tostring(alt))
                 local altOk, altErr = pcall(function() atomicWrite(alt, json) end)
-                if not altOk then warn("Config.Save failed to write: ", tostring(err), tostring(altErr)) return false end
+                if not altOk then
+                    warn("[Config] fallback atomicWrite also failed:", tostring(altErr))
+                    return false
+                end
                 -- record the alternative path in session index
                 sessionAdd(s)
+                pcall(function() Config.RecordSave(s) end)
+                return true
             end
+            -- success
+            sessionAdd(s)
             pcall(function() Config.RecordSave(s) end)
+            warn("[Config] Save successful:", s, "->", tostring(path))
             return true
         end
 
