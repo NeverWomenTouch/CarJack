@@ -1411,7 +1411,19 @@ function Library:CreateLibrary(opts)
             if s == "" then return false end
             local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, values = {} }
             local snapshot = data or Library:_getSnapshot()
-            for id, val in pairs(snapshot or {}) do payload.values[id] = serialize(val) end
+            -- Safely serialize each value; avoid throwing on unexpected types (Enums/Instances/functions)
+            for id, val in pairs(snapshot or {}) do
+                local ok, ser = pcall(function() return serialize(val) end)
+                if ok then
+                    payload.values[id] = ser
+                else
+                    -- fallback: store a string representation so saving still succeeds
+                    warn("[Config] serialize failed for id=", tostring(id), "type=", typeof(val), "err=", tostring(ser))
+                    local safeString = nil
+                    pcall(function() safeString = tostring(val) end)
+                    payload.values[id] = safeString
+                end
+            end
             if MEM_MODE then
                 local key = memEnsure()
                 Library._memConfig.files[key][s] = payload
