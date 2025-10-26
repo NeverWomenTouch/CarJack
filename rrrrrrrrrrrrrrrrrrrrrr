@@ -6150,84 +6150,124 @@ function Library:CreateLibrary(opts)
                     else
                         -- If the saved value is a Colorpicker object, apply colors and modes explicitly
                         if type(value) == 'table' and (value.__ctrl == 'Colorpicker' or value.colors) then
-                            local success = true
+                            -- Robust Colorpicker load flow:
+                            -- 1) log diagnostic
+                            -- 2) decode colors and apply silently
+                            -- 3) restore per-slot hue/pulse offsets
+                            -- 4) attempt to enable effects via public/internal APIs
+                            -- 5) if hooks still missing, recreate sync listeners and attach fallback hooks
                             pcall(function()
+                                warn("[ConfigDebug] Loading Colorpicker for", tostring(targetId))
                                 local colors = value.colors or {}
-                                -- deserialized values may already be Color3s
-                                local okc, decColors = pcall(function()
-                                    local out = {}
-                                    for i=1, #colors do out[i] = deserialize(colors[i]) end
-                                    return out
-                                end)
-                                if okc and type(decColors) == 'table' then
-                                    -- try enabling effects BEFORE applying colors (some internal hooks expect this)
-                                    if type(value.rainbow) == 'table' then
-                                        for i=1, #value.rainbow do
-                                            local on = value.rainbow[i] == true
-                                            pcall(function() if ctrl._enableRainbow then ctrl._enableRainbow(i) end end)
-                                            pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(on, i) end end)
-                                            if on and Library._globalRGBSync then Library._globalRGBSync.active = true end
-                                        end
-                                    end
-                                    if type(value.pulse) == 'table' then
-                                        for i=1, #value.pulse do
-                                            local on = value.pulse[i] == true
-                                            pcall(function() if ctrl._enablePulse then ctrl._enablePulse(i) end end)
-                                            pcall(function() if ctrl.SetPulse then ctrl:SetPulse(on, i) end end)
-                                            if on and Library._globalPulseSync then Library._globalPulseSync.active = true end
-                                        end
-                                    end
-                                    -- set colors (silent)
-                                    Library:_setValue(targetId, decColors, true)
-                                    -- try enabling again to ensure hooks are attached
-                                    if type(value.rainbow) == 'table' then
-                                        for i=1, #value.rainbow do
-                                            local on = value.rainbow[i] == true
-                                            pcall(function() if ctrl._enableRainbow then ctrl._enableRainbow(i) end end)
-                                            pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(on, i) end end)
-                                        end
-                                    end
-                                    if type(value.pulse) == 'table' then
-                                        for i=1, #value.pulse do
-                                            local on = value.pulse[i] == true
-                                            pcall(function() if ctrl._enablePulse then ctrl._enablePulse(i) end end)
-                                            pcall(function() if ctrl.SetPulse then ctrl:SetPulse(on, i) end end)
-                                        end
-                                    end
-                                    -- restore hue offsets if present (best-effort)
-                                    if type(value.hueOffsets) == 'table' then
-                                        for i=1, #value.hueOffsets do
-                                            pcall(function() if ctrl._slots and ctrl._slots[i] then ctrl._slots[i].hueOffset = value.hueOffsets[i] end end)
-                                        end
-                                    end
-                                    if type(value.pulseHueOffsets) == 'table' then
-                                        for i=1, #value.pulseHueOffsets do
-                                            pcall(function() if ctrl._slots and ctrl._slots[i] then ctrl._slots[i].pulseHueOffset = value.pulseHueOffsets[i] end end)
-                                        end
-                                    end
-                                else
-                                    success = false
+                                local decColors = {}
+                                for i=1, #colors do
+                                    decColors[i] = deserialize(colors[i])
                                 end
-                            end)
-                            if success then
-                                -- Fallback: if internal enable hooks didn't attach their rainbow/pulse hooks,
-                                -- attach library-managed hooks so effects actually run after load.
+
+                                -- Apply colors silently first
+                                pcall(function() Library:_setValue(targetId, decColors, true) end)
+
+                                -- If control exposes slots, try to set internal slot data too
+                                if ctrl and ctrl._slots and type(ctrl._slots) == 'table' then
+                                    for i=1, #ctrl._slots do
+                                        local slot = ctrl._slots[i]
+                                        -- set color/hsv fields from decColors when present
+                                        local c = decColors[i] or decColors[1] or slot and slot.color
+                                        if c then
+                                            local okc, h,s,v = pcall(function() return Color3.toHSV(c) end)
+                                            if okc and h then
+                                                slot.hsv = {h,s,v}
+                                            end
+                                            slot.color = c
+                                            pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
+                                        end
+                                        -- restore saved offsets
+                                        if type(value.hueOffsets) == 'table' then slot.hueOffset = value.hueOffsets[i] or slot.hueOffset end
+                                        if type(value.pulseHueOffsets) == 'table' then slot.pulseHueOffset = value.pulseHueOffsets[i] or slot.pulseHueOffset end
+                                    end
+                                end
+
+                                -- Ensure global sync flags if any slot requests them
+                                local anyRainbow, anyPulse = false, false
+                                if type(value.rainbow) == 'table' then
+                                    for _,v in ipairs(value.rainbow) do if v then anyRainbow = true break end end
+                                end
+                                if type(value.pulse) == 'table' then
+                                    for _,v in ipairs(value.pulse) do if v then anyPulse = true break end end
+                                end
+                                if anyRainbow and Library._globalRGBSync then Library._globalRGBSync.active = true end
+                                if anyPulse and Library._globalPulseSync then Library._globalPulseSync.active = true end
+
+                                -- Helper: recreate sync listener for a slot (mimic enableRainbow/enablePulse behavior)
+                                local function ensure_sync_ids(slot, mode)
+                                    if not slot then return end
+                                    if mode == 'rainbow' then
+                                        if not slot._syncId then
+                                            slot._syncId = tostring(targetId .. "_rgb_" .. tostring(math.random(1000000,9999999)))
+                                            Library._globalRGBSync.listeners = Library._globalRGBSync.listeners or {}
+                                            Library._globalRGBSync.listeners[slot._syncId] = function(syncColor, sourceId)
+                                                if not slot.rainbow or sourceId == slot._syncId then return end
+                                                local ok, h,s,v = pcall(function() return Color3.toHSV(syncColor) end)
+                                                if ok and h then slot.hsv = {h,s,v} end
+                                                slot.color = syncColor
+                                                pcall(function() if slot.fill then slot.fill.BackgroundColor3 = syncColor end end)
+                                                if type(ctrl._cb) == 'function' then pcall(ctrl._cb, syncColor, tonumber(slot._index)) end
+                                            end
+                                        end
+                                    elseif mode == 'pulse' then
+                                        if not slot._pulseSyncId then
+                                            slot._pulseSyncId = tostring(targetId .. "_pulse_" .. tostring(math.random(1000000,9999999)))
+                                            Library._globalPulseSync.listeners = Library._globalPulseSync.listeners or {}
+                                            Library._globalPulseSync.listeners[slot._pulseSyncId] = function(syncColor, sourceId)
+                                                if not slot.pulse or sourceId == slot._pulseSyncId then return end
+                                                slot.color = syncColor
+                                                pcall(function() if slot.fill then slot.fill.BackgroundColor3 = syncColor end end)
+                                                if type(ctrl._cb) == 'function' then pcall(ctrl._cb, syncColor, tonumber(slot._index)) end
+                                            end
+                                        end
+                                    end
+                                end
+
+                                -- Attempt enabling via control's API (best-effort)
+                                if ctrl then
+                                    for i=1, math.max(#(ctrl._slots or {}), 1) do
+                                        local wantR = type(value.rainbow) == 'table' and value.rainbow[i]
+                                        local wantP = type(value.pulse) == 'table' and value.pulse[i]
+                                        -- try internal enable hooks first
+                                        if wantR then
+                                            pcall(function() if ctrl._enableRainbow then ctrl._enableRainbow(i) end end)
+                                            pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(true, i) end end)
+                                        else
+                                            pcall(function() if ctrl._disableRainbow then ctrl._disableRainbow(i) end end)
+                                        end
+                                        if wantP then
+                                            pcall(function() if ctrl._enablePulse then ctrl._enablePulse(i) end end)
+                                            pcall(function() if ctrl.SetPulse then ctrl:SetPulse(true, i) end end)
+                                        else
+                                            pcall(function() if ctrl._disablePulse then ctrl._disablePulse(i) end end)
+                                        end
+                                        -- ensure sync ids exist when requested
+                                        if ctrl._slots and ctrl._slots[i] then
+                                            ctrl._slots[i]._index = i
+                                            if wantR then ensure_sync_ids(ctrl._slots[i], 'rainbow') end
+                                            if wantP then ensure_sync_ids(ctrl._slots[i], 'pulse') end
+                                        end
+                                    end
+                                end
+
+                                -- Final safety: attach fallback rainbow/pulse hooks for any slot that still lacks them
                                 pcall(function()
-                                    if type(ctrl._slots) == 'table' then
+                                    if ctrl and ctrl._slots then
                                         for i=1,#ctrl._slots do
                                             local slot = ctrl._slots[i]
-                                            -- Ensure hue offsets exist
+                                            -- ensure offsets
                                             slot.hueOffset = slot.hueOffset or 0
                                             slot.pulseHueOffset = slot.pulseHueOffset or 0
-                                            -- Rainbow fallback
+                                            -- attach rainbow fallback
                                             if type(value.rainbow) == 'table' and value.rainbow[i] == true and not slot.rainbowHook then
-                                                -- mark state
-                                                slot.rainbow = true
-                                                -- ensure global sync marker
-                                                if Library._globalRGBSync then Library._globalRGBSync.active = true end
-                                                -- attach a safe hook using rainbowAdd if available
                                                 if rainbowAdd then
-                                                    local function fb(h)
+                                                    slot.rainbow = true
+                                                    slot.rainbowHook = rainbowAdd(function(h)
                                                         local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
                                                         local v = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
                                                         local hh = (h + (slot.hueOffset or 0)) % 1
@@ -6235,19 +6275,17 @@ function Library:CreateLibrary(opts)
                                                         local c = Color3.fromHSV(hh, s, v)
                                                         slot.color = c
                                                         pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
-                                                        -- best-effort callback fire if ctrl exposes cb (not guaranteed)
-                                                        pcall(function() if ctrl._cb then ctrl._cb(c, i) end end)
-                                                    end
-                                                    slot.rainbowHook = rainbowAdd(fb)
-                                                    warn("[ConfigDebug] attached fallback rainbowHook for", tostring(targetId), "slot", i)
+                                                        if slot._syncId then syncRGBColor(c, slot._syncId) end
+                                                        if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
+                                                    end)
+                                                    warn("[ConfigDebug] fallback rainbowHook attached for", tostring(targetId), "slot", i)
                                                 end
                                             end
-                                            -- Pulse fallback
+                                            -- attach pulse fallback
                                             if type(value.pulse) == 'table' and value.pulse[i] == true and not slot.pulseHook then
-                                                slot.pulse = true
-                                                if Library._globalPulseSync then Library._globalPulseSync.active = true end
                                                 if rainbowAdd then
-                                                    local function pf(h)
+                                                    slot.pulse = true
+                                                    slot.pulseHook = rainbowAdd(function(h)
                                                         local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
                                                         local baseV = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
                                                         local hh = (h + (slot.pulseHueOffset or 0)) % 1
@@ -6256,20 +6294,20 @@ function Library:CreateLibrary(opts)
                                                         slot.hsv = {hh, s, baseV}
                                                         slot.color = c
                                                         pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
-                                                        pcall(function() if ctrl._cb then ctrl._cb(c, i) end end)
-                                                    end
-                                                    slot.pulseHook = rainbowAdd(pf)
-                                                    warn("[ConfigDebug] attached fallback pulseHook for", tostring(targetId), "slot", i)
+                                                        if slot._pulseSyncId then syncPulseColor(c, slot._pulseSyncId) end
+                                                        if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
+                                                    end)
+                                                    warn("[ConfigDebug] fallback pulseHook attached for", tostring(targetId), "slot", i)
                                                 end
                                             end
                                         end
                                     end
                                 end)
-                                applied = applied + 1
-                                -- Debug dump internal slot state to help diagnose why rainbow/pulse may not be active
+
+                                -- Diagnostic dump after attempts
                                 pcall(function()
                                     warn("[ConfigDebug] Colorpicker state for", tostring(targetId))
-                                    if ctrl._slots then
+                                    if ctrl and ctrl._slots then
                                         for i=1,#ctrl._slots do
                                             local slot = ctrl._slots[i]
                                             warn(string.format("[ConfigDebug] slot %d: color=%s, rainbow=%s, rainbowHook=%s, _syncId=%s, pulse=%s, pulseHook=%s, _pulseSyncId=%s", i, tostring(slot and slot.color), tostring(slot and slot.rainbow), tostring(slot and slot.rainbowHook ~= nil), tostring(slot and slot._syncId), tostring(slot and slot.pulse), tostring(slot and slot.pulseHook ~= nil), tostring(slot and slot._pulseSyncId)))
@@ -6280,7 +6318,9 @@ function Library:CreateLibrary(opts)
                                     warn("[ConfigDebug] global rainbow listeners:", tostring(#(Library._rainbowBus and Library._rainbowBus.listeners or {})), "globalRGBSync.active=", tostring(Library._globalRGBSync and Library._globalRGBSync.active))
                                     warn("[ConfigDebug] global pulse listeners:", tostring(#(Library._globalPulseSync and Library._globalPulseSync.listeners or {})), "globalPulseSync.active=", tostring(Library._globalPulseSync and Library._globalPulseSync.active))
                                 end)
-                            else warn("[Window] Failed to apply Colorpicker for id:", tostring(targetId)) end
+
+                                applied = applied + 1
+                            end)
                         else
                             local ok, err = pcall(function() Library:_setValue(targetId, value, true) end)
                             if not ok then
