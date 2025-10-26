@@ -1246,7 +1246,17 @@ function Library:_registerControl(c)
         self.Flags[c.id] = c
     end
 end
-function Library:_setValue(id, v, s) local c = self._controls[id]; if c and c.Set then c:Set(v, s) end end
+function Library:_setValue(id, v, s)
+    local c = self._controls[id]
+    if not (c and c.Set) then return end
+    -- Many controls implement Set(value, silent) but some (Colorpicker) use Set(value, index, silent).
+    -- When caller passes a boolean 's' (silent flag), avoid passing it as the 'index' parameter.
+    if type(s) == "boolean" then
+        pcall(function() c:Set(v, nil, s) end)
+    else
+        pcall(function() c:Set(v, s) end)
+    end
+end
 function Library:_getSnapshot() local d = {} for id, c in pairs(self._controls) do if c.Get then d[id] = c:Get() end end return d end
 -- Config functions will be added to Window instance in CreateLibrary
 
