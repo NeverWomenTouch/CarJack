@@ -1363,11 +1363,19 @@ function Library:CreateLibrary(opts)
             if type(v) ~= "table" then return v end
             if v.__t == "c3" then return Color3.new(tonumber(v.r) or 1, tonumber(v.g) or 1, tonumber(v.b) or 1) end
             if v.__t == "enumitem" then
-                if v.e and v.v and Enum[v.e] and Enum[v.e][v.v] then return Enum[v.e][v.v] end
+                if v.e and v.v then
+                    local ok, val = pcall(function()
+                        if Enum[v.e] and Enum[v.e][v.v] then return Enum[v.e][v.v] end
+                    end)
+                    if ok and val then return val end
+                end
                 return v.v
             end
             if v.__t == "enum" then
-                if v.e and Enum[v.e] then return Enum[v.e] end
+                if v.e then
+                    local ok, val = pcall(function() return Enum[v.e] end)
+                    if ok and val then return val end
+                end
                 return v.e
             end
             if v.__t == "ud2" and v.x and v.y then return UDim2.new(tonumber(v.x[1]) or 0, tonumber(v.x[2]) or 0, tonumber(v.y[1]) or 0, tonumber(v.y[2]) or 0) end
