@@ -6159,26 +6159,38 @@ function Library:CreateLibrary(opts)
                                     return out
                                 end)
                                 if okc and type(decColors) == 'table' then
-                                    -- set colors
-                                    Library:_setValue(targetId, decColors, true)
-                                    -- apply rainbow/pulse flags per slot
+                                    -- try enabling effects BEFORE applying colors (some internal hooks expect this)
                                     if type(value.rainbow) == 'table' then
                                         for i=1, #value.rainbow do
                                             local on = value.rainbow[i] == true
-                                            -- try public API first
-                                            pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(on, i) end end)
-                                            -- fallback to internal enable function which sets up hooks directly
                                             pcall(function() if ctrl._enableRainbow then ctrl._enableRainbow(i) end end)
-                                            -- ensure global sync flag is on when enabling
+                                            pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(on, i) end end)
                                             if on and Library._globalRGBSync then Library._globalRGBSync.active = true end
                                         end
                                     end
                                     if type(value.pulse) == 'table' then
                                         for i=1, #value.pulse do
                                             local on = value.pulse[i] == true
-                                            pcall(function() if ctrl.SetPulse then ctrl:SetPulse(on, i) end end)
                                             pcall(function() if ctrl._enablePulse then ctrl._enablePulse(i) end end)
+                                            pcall(function() if ctrl.SetPulse then ctrl:SetPulse(on, i) end end)
                                             if on and Library._globalPulseSync then Library._globalPulseSync.active = true end
+                                        end
+                                    end
+                                    -- set colors (silent)
+                                    Library:_setValue(targetId, decColors, true)
+                                    -- try enabling again to ensure hooks are attached
+                                    if type(value.rainbow) == 'table' then
+                                        for i=1, #value.rainbow do
+                                            local on = value.rainbow[i] == true
+                                            pcall(function() if ctrl._enableRainbow then ctrl._enableRainbow(i) end end)
+                                            pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(on, i) end end)
+                                        end
+                                    end
+                                    if type(value.pulse) == 'table' then
+                                        for i=1, #value.pulse do
+                                            local on = value.pulse[i] == true
+                                            pcall(function() if ctrl._enablePulse then ctrl._enablePulse(i) end end)
+                                            pcall(function() if ctrl.SetPulse then ctrl:SetPulse(on, i) end end)
                                         end
                                     end
                                     -- restore hue offsets if present (best-effort)
