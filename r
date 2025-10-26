@@ -1294,7 +1294,9 @@ function Library:CreateLibrary(opts)
         -- Determine where we can write: prefer DIR but fall back to root if needed
         local CAN_WRITE_DIR, CAN_WRITE_ROOT = false, false
         local function fsAvailable()
-            if type(_writefile) ~= "function" or type(_readfile) ~= "function" then
+            -- Prefer checking the real global functions rather than the local shimmed
+            -- variables (_writefile/_readfile) which may be dummy no-op wrappers.
+            if type(writefile) ~= "function" or type(readfile) ~= "function" then
                 return false
             end
             -- Try folder write
@@ -1304,9 +1306,10 @@ function Library:CreateLibrary(opts)
                 end)
                 local probeName = "__probe_" .. tostring(math.random(100000,999999))
                 local probePath = DIR .. "/" .. probeName .. ".tmp"
-                local wrote = pcall(_writefile, probePath, "ok")
-                local rdOk, rd = pcall(_readfile, probePath)
-                pcall(_delfile, probePath)
+                -- Use the real globals for probing when available for best accuracy.
+                local wrote = pcall(writefile, probePath, "ok")
+                local rdOk, rd = pcall(readfile, probePath)
+                pcall(delfile, probePath)
                 if wrote and rdOk and rd == "ok" then
                     CAN_WRITE_DIR = true
                 end
@@ -1314,9 +1317,9 @@ function Library:CreateLibrary(opts)
             -- Try root write if folder failed
             if not CAN_WRITE_DIR then
                 local probeRoot = (sanitize(Base) .. "__probe.tmp")
-                local wrote = pcall(_writefile, probeRoot, "ok")
-                local rdOk, rd = pcall(_readfile, probeRoot)
-                pcall(_delfile, probeRoot)
+                local wrote = pcall(writefile, probeRoot, "ok")
+                local rdOk, rd = pcall(readfile, probeRoot)
+                pcall(delfile, probeRoot)
                 if wrote and rdOk and rd == "ok" then
                     CAN_WRITE_ROOT = true
                 end
