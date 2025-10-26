@@ -6208,7 +6208,23 @@ function Library:CreateLibrary(opts)
                                     success = false
                                 end
                             end)
-                            if success then applied = applied + 1 else warn("[Window] Failed to apply Colorpicker for id:", tostring(targetId)) end
+                            if success then
+                                applied = applied + 1
+                                -- Debug dump internal slot state to help diagnose why rainbow/pulse may not be active
+                                pcall(function()
+                                    warn("[ConfigDebug] Colorpicker state for", tostring(targetId))
+                                    if ctrl._slots then
+                                        for i=1,#ctrl._slots do
+                                            local slot = ctrl._slots[i]
+                                            warn(string.format("[ConfigDebug] slot %d: color=%s, rainbow=%s, rainbowHook=%s, _syncId=%s, pulse=%s, pulseHook=%s, _pulseSyncId=%s", i, tostring(slot and slot.color), tostring(slot and slot.rainbow), tostring(slot and slot.rainbowHook ~= nil), tostring(slot and slot._syncId), tostring(slot and slot.pulse), tostring(slot and slot.pulseHook ~= nil), tostring(slot and slot._pulseSyncId)))
+                                        end
+                                    else
+                                        warn("[ConfigDebug] ctrl._slots missing for", tostring(targetId))
+                                    end
+                                    warn("[ConfigDebug] global rainbow listeners:", tostring(#(Library._rainbowBus and Library._rainbowBus.listeners or {})), "globalRGBSync.active=", tostring(Library._globalRGBSync and Library._globalRGBSync.active))
+                                    warn("[ConfigDebug] global pulse listeners:", tostring(#(Library._globalPulseSync and Library._globalPulseSync.listeners or {})), "globalPulseSync.active=", tostring(Library._globalPulseSync and Library._globalPulseSync.active))
+                                end)
+                            else warn("[Window] Failed to apply Colorpicker for id:", tostring(targetId)) end
                         else
                             local ok, err = pcall(function() Library:_setValue(targetId, value, true) end)
                             if not ok then
