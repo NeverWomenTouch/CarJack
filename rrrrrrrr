@@ -1407,6 +1407,7 @@ function Library:CreateLibrary(opts)
         function Config.Save(name, data)
             Config.Ensure()
             local s = sanitize(name or "")
+            warn("[Config] Save called for:", tostring(s), "MEM_MODE=", tostring(MEM_MODE))
             if s == "" then return false end
             local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, values = {} }
             local snapshot = data or Library:_getSnapshot()
@@ -5978,9 +5979,20 @@ function Library:CreateLibrary(opts)
     Window.SaveConfig = function(name)
         local safe = sanitize(name or "")
         local low = safe:lower()
+        warn("[Window] SaveConfig called with:", tostring(name), "-> sanitized:", tostring(safe))
         if safe == "" or low == "__meta" or low == "__index" then return false end
-        local ok = Config.Save(safe, Library:_getSnapshot())
+        local snapshot = {}
+        local okSnap, snapRes = pcall(function() return Library:_getSnapshot() end)
+        if okSnap and type(snapRes) == "table" then
+            snapshot = snapRes
+        else
+            warn("[Window] _getSnapshot failed or returned non-table; using empty snapshot. err:", snapRes)
+        end
+        local ok = false
+        local okCall, res = pcall(function() return Config.Save(safe, snapshot) end)
+        if okCall then ok = res else warn("[Window] Config.Save errored:", res) end
         if ok then pcall(function() Config.RecordSave(safe) end) end
+        warn("[Window] SaveConfig result for", tostring(safe), "=", tostring(ok))
         return ok
     end
     Window.LoadConfig = function(name)
