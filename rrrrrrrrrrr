@@ -1453,6 +1453,46 @@ function Library:CreateLibrary(opts)
                 warn("[Config] JSON encode failed for:", s, "okj:", tostring(okj), "jsonType:", type(json))
                 return false
             end
+            -- Pretty-print JSON to be user-editable (lightweight formatter)
+            local function prettyJSON(str)
+                local indent = 0
+                local inString = false
+                local out = {}
+                for i = 1, #str do
+                    local c = str:sub(i,i)
+                    if c == '"' then
+                        -- toggle string state if previous char isn't backslash
+                        local prev = str:sub(i-1,i-1)
+                        if prev ~= '\\' then inString = not inString end
+                        out[#out+1] = c
+                    elseif not inString then
+                        if c == '{' or c == '[' then
+                            indent = indent + 1
+                            out[#out+1] = c
+                            out[#out+1] = '\n'
+                            out[#out+1] = string.rep('    ', indent)
+                        elseif c == '}' or c == ']' then
+                            indent = math.max(indent - 1, 0)
+                            out[#out+1] = '\n'
+                            out[#out+1] = string.rep('    ', indent)
+                            out[#out+1] = c
+                        elseif c == ',' then
+                            out[#out+1] = c
+                            out[#out+1] = '\n'
+                            out[#out+1] = string.rep('    ', indent)
+                        elseif c == ':' then
+                            out[#out+1] = c .. ' '
+                        else
+                            out[#out+1] = c
+                        end
+                    else
+                        out[#out+1] = c
+                    end
+                end
+                return table.concat(out)
+            end
+            local okPretty, pretty = pcall(function() return prettyJSON(json) end)
+            if okPretty and type(pretty) == 'string' and #pretty > 0 then json = pretty end
             local path = filePath(s)
             -- ensure folders exist when possible
             if gif and gmf then pcall(ensureFolders) end
@@ -6028,12 +6068,19 @@ function Library:CreateLibrary(opts)
         local safe = sanitize(name or "")
         local low = safe:lower()
         if safe == "" or low == "__meta" or low == "__index" then return end
-        local data = Config.Load(safe)
+        warn("[Window] LoadConfig called for:", tostring(safe))
+        local okLoad, data = pcall(function() return Config.Load(safe) end)
+        if not okLoad then warn("[Window] Config.Load errored:", tostring(data)) return end
+        if type(data) ~= 'table' then warn("[Window] Config.Load returned non-table") return end
+        local applied = 0
         for id, value in pairs(data) do
             if not (type(id) == "string" and id:sub(1,2) == "__") then
-                Library:_setValue(id, value, true)
+                local ok, err = pcall(function() Library:_setValue(id, value, true) end)
+                if not ok then warn("[Window] _setValue failed for id:", tostring(id), "err:", tostring(err)) end
+                applied = applied + 1
             end
         end
+        warn("[Window] LoadConfig applied values:", applied)
     end
     Window.ListConfigs = function() return Config.List() end
     Window.DeleteConfig = function(name)
