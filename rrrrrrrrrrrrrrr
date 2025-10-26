@@ -1445,7 +1445,36 @@ function Library:CreateLibrary(opts)
             warn("[Config] Save called for:", tostring(s), "MEM_MODE=", tostring(MEM_MODE))
             if s == "" then return false end
             local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, values = {} }
-            local snapshot = data or Library:_getSnapshot()
+            -- Build enhanced snapshot when data not supplied so we can capture control modes (colorpicker rainbow/pulse)
+            local snapshot = data
+            if not snapshot then
+                snapshot = {}
+                for id, c in pairs(Library._controls) do
+                    if c and c.Get then
+                        local ok, val = pcall(function() return c:Get() end)
+                        if not ok then
+                            warn("[Config] _getSnapshot: Get failed for id=", tostring(id), "err=", tostring(val))
+                        else
+                            -- special-case Colorpicker controls to capture modes
+                            if type(c) == 'table' and c._slots and (c.SetRainbow or c.SetPulse) then
+                                local colors = val
+                                if type(colors) ~= 'table' then colors = { colors } end
+                                local rainbowFlags, pulseFlags, hueOffsets, pulseHueOffsets = {}, {}, {}, {}
+                                for i = 1, #(c._slots or {}) do
+                                    local slot = c._slots[i]
+                                    rainbowFlags[i] = slot and (slot.rainbow == true) or false
+                                    pulseFlags[i] = slot and (slot.pulse == true) or false
+                                    hueOffsets[i] = slot and (slot.hueOffset or 0) or 0
+                                    pulseHueOffsets[i] = slot and (slot.pulseHueOffset or 0) or 0
+                                end
+                                snapshot[id] = { __ctrl = "Colorpicker", colors = colors, rainbow = rainbowFlags, pulse = pulseFlags, hueOffsets = hueOffsets, pulseHueOffsets = pulseHueOffsets }
+                            else
+                                snapshot[id] = val
+                            end
+                        end
+                    end
+                end
+            end
             -- Safely serialize each value; avoid throwing on unexpected types (Enums/Instances/functions)
             for id, val in pairs(snapshot or {}) do
                 local ok, ser = pcall(function() return serialize(val) end)
@@ -6118,11 +6147,56 @@ function Library:CreateLibrary(opts)
                     if not ctrl.Set then
                         warn("[Window] LoadConfig: control found but has no Set method:", tostring(targetId))
                     else
-                        local ok, err = pcall(function() Library:_setValue(targetId, value, true) end)
-                        if not ok then
-                            warn("[Window] _setValue failed for id:", tostring(targetId), "err:", tostring(err))
+                        -- If the saved value is a Colorpicker object, apply colors and modes explicitly
+                        if type(value) == 'table' and (value.__ctrl == 'Colorpicker' or value.colors) then
+                            local success = true
+                            pcall(function()
+                                local colors = value.colors or {}
+                                -- deserialized values may already be Color3s
+                                local okc, decColors = pcall(function()
+                                    local out = {}
+                                    for i=1, #colors do out[i] = deserialize(colors[i]) end
+                                    return out
+                                end)
+                                if okc and type(decColors) == 'table' then
+                                    -- set colors
+                                    Library:_setValue(targetId, decColors, true)
+                                    -- apply rainbow/pulse flags per slot
+                                    if type(value.rainbow) == 'table' then
+                                        for i=1, #value.rainbow do
+                                            local on = value.rainbow[i] == true
+                                            pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(on, i) end end)
+                                        end
+                                    end
+                                    if type(value.pulse) == 'table' then
+                                        for i=1, #value.pulse do
+                                            local on = value.pulse[i] == true
+                                            pcall(function() if ctrl.SetPulse then ctrl:SetPulse(on, i) end end)
+                                        end
+                                    end
+                                    -- restore hue offsets if present (best-effort)
+                                    if type(value.hueOffsets) == 'table' then
+                                        for i=1, #value.hueOffsets do
+                                            pcall(function() if ctrl._slots and ctrl._slots[i] then ctrl._slots[i].hueOffset = value.hueOffsets[i] end end)
+                                        end
+                                    end
+                                    if type(value.pulseHueOffsets) == 'table' then
+                                        for i=1, #value.pulseHueOffsets do
+                                            pcall(function() if ctrl._slots and ctrl._slots[i] then ctrl._slots[i].pulseHueOffset = value.pulseHueOffsets[i] end end)
+                                        end
+                                    end
+                                else
+                                    success = false
+                                end
+                            end)
+                            if success then applied = applied + 1 else warn("[Window] Failed to apply Colorpicker for id:", tostring(targetId)) end
                         else
-                            applied = applied + 1
+                            local ok, err = pcall(function() Library:_setValue(targetId, value, true) end)
+                            if not ok then
+                                warn("[Window] _setValue failed for id:", tostring(targetId), "err:", tostring(err))
+                            else
+                                applied = applied + 1
+                            end
                         end
                     end
                 end
