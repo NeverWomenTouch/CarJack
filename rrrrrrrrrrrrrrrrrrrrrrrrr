@@ -6219,7 +6219,20 @@ function Library:CreateLibrary(opts)
                                 warn("[ConfigDebug] Loading Colorpicker for", tostring(targetId))
                                 -- dump incoming value for diagnostics
                                 pcall(function()
-                                    local okv, sval = pcall(function() return HttpService:JSONEncode(value) end)
+                                    -- Build a JSON-safe copy (serialize Color3/Enum/UDim2 etc) so HttpService:JSONEncode doesn't emit null for userdata
+                                    local function makeSerializable(x)
+                                        local tx = typeof(x)
+                                        if tx == 'Color3' or tx == 'EnumItem' or tx == 'UDim2' or tx == 'Vector2' or tx == 'Instance' then
+                                            return serialize(x)
+                                        elseif type(x) == 'table' then
+                                            local out = {}
+                                            for kk, vv in pairs(x) do out[kk] = makeSerializable(vv) end
+                                            return out
+                                        else
+                                            return x
+                                        end
+                                    end
+                                    local okv, sval = pcall(function() return HttpService:JSONEncode(makeSerializable(value)) end)
                                     if okv then warn("[ConfigDebug] incoming value JSON:", sval) end
                                 end)
 
