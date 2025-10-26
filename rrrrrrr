@@ -6029,7 +6029,10 @@ function Library:CreateLibrary(opts)
         -- Row 3: Buttons (Create/Save/Load/Delete)
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
             -- Always read live textbox value
-            local raw = nameBox and nameBox.Get and nameBox:Get() or ""
+            local raw = ""
+            local okg, tmp = pcall(function() return (nameBox and nameBox.Get and nameBox:Get()) or "" end)
+            if okg then raw = tmp end
+            warn("[ConfigUI] Create clicked, raw input:", tostring(raw))
             if type(raw) == "string" then
                 local l = raw:lower()
                 if l == "__meta" or l == "__index" then return end
@@ -6038,7 +6041,9 @@ function Library:CreateLibrary(opts)
             local safe = sanitize(raw)
             local low = safe:lower()
             if safe == "" or low == "__meta" or low == "__index" then return end
-            if Window.SaveConfig(safe) then
+            warn("[ConfigUI] Create -> saving as:", tostring(safe))
+            local okSave, res = pcall(function() return Window.SaveConfig(safe) end)
+            if okSave and res then
                 refreshList()
                 -- Defer selection until options refresh propagate in UI
                 task.defer(function()
@@ -6048,25 +6053,33 @@ function Library:CreateLibrary(opts)
             end
         end })
         local saveBtn = group:AddButton({ Name = "Save", Compact = true, Callback = function()
-            local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
+            local raw = nil
+            pcall(function() raw = dd and dd.Get and dd:Get() end)
+            if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
+            warn("[ConfigUI] Save clicked, raw selection:", tostring(raw))
             if type(raw) == "string" then
                 local l = raw:lower()
                 if l == "__meta" or l == "__index" then return end
             end
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
-            local low = safe:lower()
-            if safe == "" or low == "__meta" or low == "__index" then return end
-            if Window.SaveConfig(safe) then
+            warn("[ConfigUI] Save -> saving as:", tostring(safe))
+            local okSave, res = pcall(function() return Window.SaveConfig(safe) end)
+            if okSave and res then
                 refreshList()
                 task.defer(function()
                     pcall(function() dd:Set(safe, true) end)
                     if nameBox and nameBox.Set then nameBox:Set(safe, true) end
                 end)
+            else
+                if not okSave then warn("[ConfigUI] Save pcall error") end
             end
         end })
         local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
-            local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
+            local raw = nil
+            pcall(function() raw = dd and dd.Get and dd:Get() end)
+            if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
+            warn("[ConfigUI] Load clicked, raw selection:", tostring(raw))
             if type(raw) == "string" then
                 local l = raw:lower()
                 if l == "__meta" or l == "__index" then return end
@@ -6075,11 +6088,14 @@ function Library:CreateLibrary(opts)
             local safe = sanitize(raw)
             Window.LoadConfig(safe)
             -- keep UI in sync with sanitized name
-            dd:Set(safe, true)
+            pcall(function() dd:Set(safe, true) end)
             if nameBox and nameBox.Set then nameBox:Set(safe, true) end
         end })
         local deleteBtn = group:AddButton({ Name = "Delete", Compact = true, Callback = function()
-            local raw = dd:Get() or (nameBox and nameBox.Get and nameBox:Get())
+            local raw = nil
+            pcall(function() raw = dd and dd.Get and dd:Get() end)
+            if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
+            warn("[ConfigUI] Delete clicked, raw selection:", tostring(raw))
             if type(raw) == "string" then
                 local l = raw:lower()
                 if l == "__meta" or l == "__index" then return end
@@ -6088,7 +6104,7 @@ function Library:CreateLibrary(opts)
             local safe = sanitize(raw)
             Window.DeleteConfig(safe)
             refreshList()
-            dd:Set(nil, true)
+            pcall(function() dd:Set(nil, true) end)
             if nameBox and nameBox.Set then nameBox:Set("", true) end
         end })
 
