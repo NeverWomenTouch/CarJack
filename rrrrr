@@ -1293,6 +1293,16 @@ function Library:CreateLibrary(opts)
         end
 
         local MEM_MODE = nil
+        -- session index (when we cannot list files on disk)
+        local SessionIndex = {}
+        local function sessionAdd(name) SessionIndex[name] = true end
+        local function sessionRemove(name) SessionIndex[name] = nil end
+        local function sessionList()
+            local out = {}
+            for n in pairs(SessionIndex) do table.insert(out, n) end
+            table.sort(out)
+            return out
+        end
 
         local function ensureFolders()
             if not gif or not gmf then return end
@@ -1354,11 +1364,14 @@ function Library:CreateLibrary(opts)
     -- helper paths
     local function configsFolder() return DIR .. "/Configs" end
     local function filePath(name) return configsFolder() .. "/" .. sanitize(name) .. ".json" end
-    local indexFile = configsFolder() .. "/__index.json"
 
         function Config.Ensure()
             if MEM_MODE ~= nil then return end
             MEM_MODE = not (gw and gr)
+            -- diagnostics: show detected capabilities and target folder
+            pcall(function()
+                warn("[Config] ensure: MEM_MODE=", tostring(MEM_MODE), " gw=", tostring(gw~=nil), " gr=", tostring(gr~=nil), " gif=", tostring(gif~=nil), " gmf=", tostring(gmf~=nil), " glf=", tostring(glf~=nil), " DIR=", tostring(DIR), " configs=", tostring(configsFolder()))
+            end)
             if not MEM_MODE then
                 pcall(ensureFolders)
             else
@@ -1371,38 +1384,24 @@ function Library:CreateLibrary(opts)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return end
+            -- update session index (used when listfiles isn't available)
+            sessionAdd(s)
             if MEM_MODE then
                 local key = memEnsure()
                 Library._memConfig.meta[key] = Library._memConfig.meta[key] or {}
                 Library._memConfig.meta[key][s] = { lastModified = os.time() }
-                return
             end
-            local idx = {}
-            local ok, raw = pcall(function() return gr(indexFile) end)
-            if ok and type(raw) == "string" and #raw > 0 then
-                pcall(function() idx = HttpService:JSONDecode(raw) or {} end)
-            end
-            idx[s] = { lastModified = os.time() }
-            local okj, json = pcall(function() return HttpService:JSONEncode(idx) end)
-            if okj then pcall(function() atomicWrite(indexFile, json) end) end
         end
 
         function Config.ClearMeta(name)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return end
+            sessionRemove(s)
             if MEM_MODE then
                 local key = memEnsure()
                 if Library._memConfig.meta[key] then Library._memConfig.meta[key][s] = nil end
-                return
             end
-            local ok, raw = pcall(function() return gr(indexFile) end)
-            if not ok or type(raw) ~= "string" then return end
-            local idx = {}
-            pcall(function() idx = HttpService:JSONDecode(raw) or {} end)
-            idx[s] = nil
-            local okj, json = pcall(function() return HttpService:JSONEncode(idx) end)
-            if okj then pcall(function() atomicWrite(indexFile, json) end) end
         end
 
         function Config.Save(name, data)
@@ -1421,8 +1420,17 @@ function Library:CreateLibrary(opts)
             local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
             if not okj or not json then return false end
             local path = filePath(s)
+            -- ensure folders exist when possible
+            if gif and gmf then pcall(ensureFolders) end
             local okw, err = pcall(function() atomicWrite(path, json) end)
-            if not okw then warn("Config.Save failed to write: ", tostring(err)) return false end
+            if not okw then
+                -- fallback to root-style filename when we can't create folders
+                local alt = sanitize(Base) .. "_" .. sanitize(s) .. ".json"
+                local altOk, altErr = pcall(function() atomicWrite(alt, json) end)
+                if not altOk then warn("Config.Save failed to write: ", tostring(err), tostring(altErr)) return false end
+                -- record the alternative path in session index
+                sessionAdd(s)
+            end
             pcall(function() Config.RecordSave(s) end)
             return true
         end
@@ -1448,6 +1456,7 @@ function Library:CreateLibrary(opts)
                 if okj and type(dec) == "table" and type(dec.values) == "table" then
                     local out = {}
                     for k, v in pairs(dec.values) do out[k] = deserialize(v) end
+                        sessionAdd(s)
                     return out
                 end
             end
@@ -1460,20 +1469,27 @@ function Library:CreateLibrary(opts)
                 local key = memEnsure()
                 local out = {}
                 for n in pairs(Library._memConfig.files[key] or {}) do table.insert(out, n) end
+                for n in pairs(SessionIndex) do table.insert(out, n) end
                 table.sort(out)
                 return out
             end
-            if not glf then return {} end
-            local folder = configsFolder()
-            local ok, files = pcall(function() return glf(folder) end)
-            local out = {}
-            if ok and type(files) == "table" then
-                for _, f in ipairs(files) do
-                    local n = f:match("([^/\\]+)$") or f
-                    n = n:gsub("%.json$", "")
-                    if n ~= "" and not n:match("^__") then table.insert(out, n) end
+            -- prefer listing actual files if available
+            if glf and gif and gif(configsFolder()) then
+                local ok, files = pcall(function() return glf(configsFolder()) end)
+                local out = {}
+                if ok and type(files) == "table" then
+                    for _, f in ipairs(files) do
+                        local n = f:match("([^/\\]+)$") or f
+                        n = n:gsub("%.json$", "")
+                        if n ~= "" and not n:match("^__") then table.insert(out, n) end
+                    end
                 end
+                table.sort(out)
+                return out
             end
+            -- fallback to session index when we can't list folder contents
+            local out = {}
+            for n in pairs(SessionIndex) do table.insert(out, n) end
             table.sort(out)
             return out
         end
@@ -1490,6 +1506,7 @@ function Library:CreateLibrary(opts)
             end
             local path = filePath(s)
             pcall(function() if gd then gd(path) end end)
+            sessionRemove(s)
             pcall(function() Config.ClearMeta(s) end)
         end
 
