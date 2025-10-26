@@ -6074,10 +6074,40 @@ function Library:CreateLibrary(opts)
         if type(data) ~= 'table' then warn("[Window] Config.Load returned non-table") return end
         local applied = 0
         for id, value in pairs(data) do
-            if not (type(id) == "string" and id:sub(1,2) == "__") then
-                local ok, err = pcall(function() Library:_setValue(id, value, true) end)
-                if not ok then warn("[Window] _setValue failed for id:", tostring(id), "err:", tostring(err)) end
-                applied = applied + 1
+            if type(id) == "string" and id:sub(1,2) == "__" then
+                -- skip meta keys
+            else
+                local targetId = id
+                local ctrl = Library._controls[targetId]
+                if not ctrl and Library.Flags and Library.Flags[targetId] then
+                    ctrl = Library.Flags[targetId]
+                    -- Flags map stores control objects; its id may differ
+                    targetId = ctrl.id or targetId
+                end
+                -- try suffix match if still not found (handles pathed ids)
+                if not ctrl then
+                    for k, c in pairs(Library._controls) do
+                        if type(k) == 'string' and k:match("/" .. id .. "$") then
+                            ctrl = c
+                            targetId = k
+                            break
+                        end
+                    end
+                end
+                if not ctrl then
+                    warn("[Window] LoadConfig: no control found for id:", tostring(id))
+                else
+                    if not ctrl.Set then
+                        warn("[Window] LoadConfig: control found but has no Set method:", tostring(targetId))
+                    else
+                        local ok, err = pcall(function() Library:_setValue(targetId, value, true) end)
+                        if not ok then
+                            warn("[Window] _setValue failed for id:", tostring(targetId), "err:", tostring(err))
+                        else
+                            applied = applied + 1
+                        end
+                    end
+                end
             end
         end
         warn("[Window] LoadConfig applied values:", applied)
