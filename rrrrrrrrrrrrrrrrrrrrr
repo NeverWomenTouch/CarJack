@@ -6210,6 +6210,61 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
                             if success then
+                                -- Fallback: if internal enable hooks didn't attach their rainbow/pulse hooks,
+                                -- attach library-managed hooks so effects actually run after load.
+                                pcall(function()
+                                    if type(ctrl._slots) == 'table' then
+                                        for i=1,#ctrl._slots do
+                                            local slot = ctrl._slots[i]
+                                            -- Ensure hue offsets exist
+                                            slot.hueOffset = slot.hueOffset or 0
+                                            slot.pulseHueOffset = slot.pulseHueOffset or 0
+                                            -- Rainbow fallback
+                                            if type(value.rainbow) == 'table' and value.rainbow[i] == true and not slot.rainbowHook then
+                                                -- mark state
+                                                slot.rainbow = true
+                                                -- ensure global sync marker
+                                                if Library._globalRGBSync then Library._globalRGBSync.active = true end
+                                                -- attach a safe hook using rainbowAdd if available
+                                                if rainbowAdd then
+                                                    local function fb(h)
+                                                        local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
+                                                        local v = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
+                                                        local hh = (h + (slot.hueOffset or 0)) % 1
+                                                        slot.hsv = {hh, s, v}
+                                                        local c = Color3.fromHSV(hh, s, v)
+                                                        slot.color = c
+                                                        pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
+                                                        -- best-effort callback fire if ctrl exposes cb (not guaranteed)
+                                                        pcall(function() if ctrl._cb then ctrl._cb(c, i) end end)
+                                                    end
+                                                    slot.rainbowHook = rainbowAdd(fb)
+                                                    warn("[ConfigDebug] attached fallback rainbowHook for", tostring(targetId), "slot", i)
+                                                end
+                                            end
+                                            -- Pulse fallback
+                                            if type(value.pulse) == 'table' and value.pulse[i] == true and not slot.pulseHook then
+                                                slot.pulse = true
+                                                if Library._globalPulseSync then Library._globalPulseSync.active = true end
+                                                if rainbowAdd then
+                                                    local function pf(h)
+                                                        local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
+                                                        local baseV = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
+                                                        local hh = (h + (slot.pulseHueOffset or 0)) % 1
+                                                        local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4))
+                                                        local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                                                        slot.hsv = {hh, s, baseV}
+                                                        slot.color = c
+                                                        pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
+                                                        pcall(function() if ctrl._cb then ctrl._cb(c, i) end end)
+                                                    end
+                                                    slot.pulseHook = rainbowAdd(pf)
+                                                    warn("[ConfigDebug] attached fallback pulseHook for", tostring(targetId), "slot", i)
+                                                end
+                                            end
+                                        end
+                                    end
+                                end)
                                 applied = applied + 1
                                 -- Debug dump internal slot state to help diagnose why rainbow/pulse may not be active
                                 pcall(function()
