@@ -813,8 +813,9 @@ function Library:Notification(text, notifyType, timer)
                 Font = Fonts.Medium,
                 TextSize = notifTextSize,
                 TextColor3 = Library._watermarkTextColor or Theme.Text,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextYAlignment = Enum.TextYAlignment.Top,
+                -- Center horizontally and vertically for better appearance
+                TextXAlignment = Enum.TextXAlignment.Center,
+                TextYAlignment = Enum.TextYAlignment.Center,
                 TextWrapped = true,
                 TextTruncate = Enum.TextTruncate.None,
                 Parent = inner
@@ -1006,33 +1007,55 @@ function Library:Notification(text, notifyType, timer)
             
             -- Track this as the active modal (store modalFrame or modalGui for cleanup)
             local closed = false
+
+            -- Safe tween helper: only tween properties that exist on the instance
+            local function safeTween(inst, time, props, style, dir)
+                if not inst or not props or type(props) ~= "table" then return end
+                local valid = {}
+                for k, v in pairs(props) do
+                    local ok = pcall(function()
+                        -- attempt to read the property; if it errors, skip it
+                        local _ = inst[k]
+                    end)
+                    if ok then valid[k] = v end
+                end
+                if not next(valid) then return end
+                style = style or Enum.EasingStyle.Quad
+                dir = dir or Enum.EasingDirection.Out
+                local tw = TweenService:Create(inst, TweenInfo.new(time, style, dir), valid)
+                tw:Play()
+                return tw
+            end
+
             local function closeModal()
                 if closed then return end
                 closed = true
 
-                -- Smooth fade out and scale animation
-                -- First fade out the content
-                local contentElements = {innerPanel, textLabel, btn}
-                for _, element in ipairs(contentElements) do
-                    if element then
-                        T(element, 0.2, {
-                            BackgroundTransparency = 1,
-                            TextTransparency = 1
-                        }):Play()
+                -- Fade out content elements using only properties they support
+                safeTween(textLabel, 0.18, {TextTransparency = 1})
+                safeTween(btn, 0.18, {TextTransparency = 1, BackgroundTransparency = 1})
+                safeTween(innerPanel, 0.18, {BackgroundTransparency = 1})
+
+                -- Then animate the modal frame with a subtle scale+slide+fade
+                task.delay(0.12, function()
+                    if not modalFrame or not modalFrame.Parent then
+                        -- fallback cleanup
+                        if modalGui and modalGui.Parent then modalGui:Destroy() elseif modalFrame and modalFrame.Parent then modalFrame:Destroy() end
+                        return
                     end
-                end
 
-                -- Then animate the modal frame
-                task.delay(0.1, function()
-                    -- Scale and fade animation
-                    local t = T(modalFrame, 0.25, {
-                        Size = UDim2.fromOffset(modalFrame.AbsoluteSize.X * 0.8, modalFrame.AbsoluteSize.Y * 0.8),
+                    local absW = modalFrame.AbsoluteSize.X or 320
+                    local absH = modalFrame.AbsoluteSize.Y or 120
+                    local targetW = math.max(0, math.floor(absW * 0.85))
+                    local targetH = math.max(0, math.floor(absH * 0.85))
+
+                    local tweenProps = {
+                        Size = UDim2.fromOffset(targetW, targetH),
                         BackgroundTransparency = 1,
-                        Position = UDim2.new(modalFrame.Position.X.Scale, modalFrame.Position.X.Offset, 
-                                           modalFrame.Position.Y.Scale, modalFrame.Position.Y.Offset + 20)
-                    }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                        Position = UDim2.new(modalFrame.Position.X.Scale, modalFrame.Position.X.Offset, modalFrame.Position.Y.Scale, modalFrame.Position.Y.Offset + 16)
+                    }
 
-                    -- Cleanup after animation
+                    local t = TweenService:Create(modalFrame, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), tweenProps)
                     t.Completed:Connect(function()
                         if modalGui and modalGui.Parent then
                             modalGui:Destroy()
@@ -1040,7 +1063,6 @@ function Library:Notification(text, notifyType, timer)
                             if modalFrame and modalFrame.Parent then modalFrame:Destroy() end
                         end
                     end)
-
                     t:Play()
                 end)
             end
