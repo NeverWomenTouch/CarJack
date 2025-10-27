@@ -807,7 +807,20 @@ function Library:Notification(text, notifyType, timer)
             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4, Parent = frame})
             local inner = Create("Frame", {BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0.6, Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3,3), Parent = frame})
             Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = inner})
-            local label = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -18, 1, 0), Position = UDim2.fromOffset(9,0), Text = text, Font = Fonts.Medium, TextSize = notifTextSize, TextColor3 = Library._watermarkTextColor or Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center, Parent = inner})
+            local label = Create("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -18, 1, 0),
+                Position = UDim2.fromOffset(9,0),
+                Text = text,
+                Font = Fonts.Medium,
+                TextSize = notifTextSize,
+                TextColor3 = Library._watermarkTextColor or Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                TextWrapped = true,
+                TextTruncate = Enum.TextTruncate.None,
+                Parent = inner
+            })
 
             -- Animate slide in from right (small slide so it sits just inside the top-right area near watermark)
             frame.Position = UDim2.new(finalScaleX, (finalOffsetX + slideOffset), finalScaleY, finalOffsetY)
@@ -855,42 +868,55 @@ function Library:Notification(text, notifyType, timer)
                 end)
             end
             
-            -- Find the library's main GUI and container
-            local window = nil
-            for _, w in pairs(self._windows) do
-                if w.main and w.main.Parent then
-                    window = w
-                    break
+            -- Use the library singleton root (the main window frame) to anchor the modal
+            local mainFrame = self._singletonRoot
+            if not mainFrame or not mainFrame.Parent then
+                -- Fallback: try active window's root-like fields
+                if self._activeWindow and self._activeWindow._globalSearchPopup and self._activeWindow._globalSearchPopup.Parent then
+                    mainFrame = self._activeWindow._globalSearchPopup.Parent.Parent -- best-effort, but prefer singleton
                 end
             end
-            
-            if not window then return end -- Can't show modal without window
-            
-            -- Get the main window frame and its parent ScreenGui
-            local mainFrame = window.main
-            local parentGui = mainFrame.Parent
-            
-            -- Create a new overlay ScreenGui to ensure it's above everything
+            if not mainFrame or not mainFrame.Parent then
+                -- Can't determine library root; fall back to CoreGui
+                mainFrame = nil
+            end
+
+            -- Parent modal to CoreGui and set DisplayOrder above the library's ScreenGui so it appears on top
+            local screenDisplayOrder = 1000000
+            if mainFrame and mainFrame.Parent and mainFrame.Parent.DisplayOrder then
+                screenDisplayOrder = (mainFrame.Parent.DisplayOrder or 999999) + 1
+            end
             local modalGui = Create("ScreenGui", {
                 Name = "LibraryModalGui",
-                DisplayOrder = 999999,
+                DisplayOrder = screenDisplayOrder,
                 IgnoreGuiInset = true,
                 ResetOnSpawn = false,
-                Parent = parentGui
+                Parent = CoreGui
             })
-            
-            -- Create darkened overlay sized to match the main window
-            local mainFrameSize = mainFrame.AbsoluteSize
-            local mainFramePos = mainFrame.AbsolutePosition
-            
-            local overlay = Create("Frame", {
-                Name = "ModalOverlay",
-                BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-                BackgroundTransparency = 0.5,
-                Size = UDim2.fromOffset(mainFrameSize.X, mainFrameSize.Y),
-                Position = UDim2.fromOffset(mainFramePos.X, mainFramePos.Y),
-                Parent = modalGui
-            })
+
+            -- Create darkened overlay sized to match the main window (or full-screen fallback)
+            local overlay
+            if mainFrame then
+                local mainFrameSize = mainFrame.AbsoluteSize
+                local mainFramePos = mainFrame.AbsolutePosition
+                overlay = Create("Frame", {
+                    Name = "ModalOverlay",
+                    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+                    BackgroundTransparency = 0.5,
+                    Size = UDim2.fromOffset(mainFrameSize.X, mainFrameSize.Y),
+                    Position = UDim2.fromOffset(mainFramePos.X, mainFramePos.Y),
+                    Parent = modalGui
+                })
+            else
+                overlay = Create("Frame", {
+                    Name = "ModalOverlay",
+                    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+                    BackgroundTransparency = 0.5,
+                    Size = UDim2.fromScale(1, 1),
+                    Position = UDim2.fromOffset(0, 0),
+                    Parent = modalGui
+                })
+            end
             
             -- Create modal frame centered on the overlay
             local modalFrame = Create("Frame", {
@@ -992,7 +1018,8 @@ function Library:Notification(text, notifyType, timer)
             modalFrame.Size = UDim2.fromOffset(0, 0)
             T(modalFrame, 0.3, {Size = UDim2.fromOffset(320, 120)}, Enum.EasingStyle.Back, Enum.EasingDirection.Out):Play()
             
-            -- Track this as the active modal
+            -- Track this as the active modal (store the ScreenGui so cleanup removes everything)
+            -- Will be overwritten below to refer to the modalGui ScreenGui
             self._activeModalNotification = modalFrame
             
             local closed = false
