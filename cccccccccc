@@ -4282,14 +4282,36 @@ function Library:CreateLibrary(opts)
                             local parsed = ParseKeyFromString(keycode)
                             keycode = parsed or keycode
                         end
-                        self._value = keycode
-                        -- Handle both KeyCode and UserInputType/string (mouse/buttons)
-                        if keycode then
-                            box.Text = Library.FormatKeyName(keycode)
+
+                        -- Support multi-key combos when provided as a table
+                        if type(keycode) == "table" then
+                            -- normalize entries (parse strings)
+                            local list = {}
+                            for _, v in ipairs(keycode) do
+                                if type(v) == "string" then
+                                    local p = ParseKeyFromString(v)
+                                    if p then v = p end
+                                end
+                                table.insert(list, v)
+                            end
+                            self._value = list
+                            -- build display text
+                            local parts = {}
+                            for _, v in ipairs(list) do
+                                table.insert(parts, Library.FormatKeyName(v))
+                            end
+                            box.Text = (#parts > 0) and table.concat(parts, " + ") or "None"
                         else
-                            box.Text = "None"
+                            self._value = keycode
+                            -- Handle both KeyCode and UserInputType/string (mouse/buttons)
+                            if keycode then
+                                box.Text = Library.FormatKeyName(keycode)
+                            else
+                                box.Text = "None"
+                            end
                         end
-                        box.TextColor3 = keycode and Theme.Text or Theme.SubText
+
+                        box.TextColor3 = self._value and Theme.Text or Theme.SubText
                         box.Font = Fonts.Regular
                         -- Auto-resize based on text content
                         local textService = game:GetService("TextService")
@@ -4298,13 +4320,20 @@ function Library:CreateLibrary(opts)
                         
                         -- Update keybind list tracking
                         if self._keybindId then
-                            local keyName = keycode and (keycode.Name or mouseButtonNames[keycode]) or (type(keycode)=="string" and keycode or "None")
-                            Library:_updateKeybind(self._keybindId, {
-                                key = keyName
-                            })
+                            local keyName
+                            if type(self._value) == "table" then
+                                local parts = {}
+                                for _, v in ipairs(self._value) do
+                                    table.insert(parts, (v and (v.Name or mouseButtonNames[v])) or tostring(v))
+                                end
+                                keyName = table.concat(parts, "+")
+                            else
+                                keyName = self._value and (self._value.Name or mouseButtonNames[self._value]) or (type(self._value)=="string" and self._value or "None")
+                            end
+                            Library:_updateKeybind(self._keybindId, { key = keyName })
                         end
                         
-                        if keycode and not silent and type(cb) == "function" then pcall(cb, keycode) end
+                        if self._value and not silent and type(cb) == "function" then pcall(cb, self._value) end
                     end
 
                     local function unbindSink()
@@ -4312,27 +4341,49 @@ function Library:CreateLibrary(opts)
                     end
 
                     local function bindSink()
+                        local capture = {}
+                        local captureVersion = 0
+                        local function finalize()
+                            waiting = false
+                            -- dedupe while preserving order
+                            local seen = {}
+                            local out = {}
+                            for _, v in ipairs(capture) do
+                                local keyStr = tostring(v)
+                                if not seen[keyStr] then seen[keyStr] = true; table.insert(out, v) end
+                            end
+                            if #out == 0 then
+                                stopVisual(); unbindSink(); return
+                            end
+                            if #out == 1 then
+                                Keybind:Set(out[1])
+                            else
+                                Keybind:Set(out)
+                            end
+                            stopVisual()
+                            unbindSink()
+                        end
+
                         local function handler(_, state, input)
                             if not waiting then return Enum.ContextActionResult.Pass end
                             if state ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Sink end
                             if input.UserInputType == Enum.UserInputType.Keyboard then
-                                waiting = false
-                                Keybind:Set(input.KeyCode)
-                                stopVisual()
-                                unbindSink()
+                                table.insert(capture, input.KeyCode)
+                                captureVersion = captureVersion + 1
+                                local myVer = captureVersion
+                                -- allow a short window for combination presses
+                                task.delay(0.22, function()
+                                    if myVer == captureVersion and waiting then finalize() end
+                                end)
                             elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-                                waiting = false
-                                Keybind:Set(input.UserInputType)
-                                stopVisual()
-                                unbindSink()
+                                table.insert(capture, input.UserInputType)
+                                finalize()
                             elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
                                 -- Allow MouseButton2 to be bound, but with slight delay to avoid context menu interference
                                 task.wait(0.1)
-                                if waiting then  -- Still waiting after delay, so it's a legitimate bind attempt
-                                    waiting = false
-                                    Keybind:Set(input.UserInputType)
-                                    stopVisual()
-                                    unbindSink()
+                                if waiting then
+                                    table.insert(capture, input.UserInputType)
+                                    finalize()
                                 end
                             end
                             return Enum.ContextActionResult.Sink
@@ -4352,40 +4403,60 @@ function Library:CreateLibrary(opts)
                     end)
 
                     -- Fallback: still listen to InputBegan (in case CAS is unavailable)
-                    UserInputService.InputBegan:Connect(function(input)
-                        if waiting and input.UserInputType == Enum.UserInputType.Keyboard then
-                            waiting = false
-                            Keybind:Set(input.KeyCode)
-                            stopVisual()
-                            unbindSink()
-                        elseif waiting and input.UserInputType == Enum.UserInputType.MouseButton1 then
-                            waiting = false
-                            Keybind:Set(input.UserInputType)
-                            stopVisual()
-                            unbindSink()
-                        elseif waiting and input.UserInputType == Enum.UserInputType.MouseButton2 then
-                            -- Handle MouseButton2 with delay to avoid context menu interference
-                            task.wait(0.1)
-                            if waiting then
+                    do
+                        local capture = {}
+                        local captureVersion = 0
+                        UserInputService.InputBegan:Connect(function(input)
+                            if not waiting then return end
+                            if input.UserInputType == Enum.UserInputType.Keyboard then
+                                table.insert(capture, input.KeyCode)
+                                captureVersion = captureVersion + 1
+                                local myVer = captureVersion
+                                task.delay(0.22, function()
+                                    if myVer == captureVersion and waiting then
+                                        waiting = false
+                                        -- dedupe
+                                        local seen = {}
+                                        local out = {}
+                                        for _, v in ipairs(capture) do
+                                            local s = tostring(v)
+                                            if not seen[s] then seen[s] = true; table.insert(out, v) end
+                                        end
+                                        if #out == 0 then stopVisual(); unbindSink(); capture = {}; return end
+                                        if #out == 1 then Keybind:Set(out[1]) else Keybind:Set(out) end
+                                        stopVisual()
+                                        unbindSink()
+                                        capture = {}
+                                    end
+                                end)
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
                                 waiting = false
                                 Keybind:Set(input.UserInputType)
                                 stopVisual()
                                 unbindSink()
+                            elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+                                task.wait(0.1)
+                                if waiting then
+                                    waiting = false
+                                    Keybind:Set(input.UserInputType)
+                                    stopVisual()
+                                    unbindSink()
+                                end
+                            elseif input.KeyCode == Enum.KeyCode.Escape then
+                                -- cancel capture with ESC
+                                waiting = false
+                                stopVisual()
+                                unbindSink()
+                                if Keybind._value then
+                                    box.Text = Library.FormatKeyName(Keybind._value)
+                                else
+                                    box.Text = "None"
+                                end
+                                box.TextColor3 = Keybind._value and Theme.Text or Theme.SubText
+                                box.Font = Fonts.Regular
                             end
-                        elseif waiting and input.KeyCode == Enum.KeyCode.Escape then
-                            -- cancel capture with ESC
-                            waiting = false
-                            stopVisual()
-                            unbindSink()
-                            if Keybind._value then
-                                box.Text = Library.FormatKeyName(Keybind._value)
-                            else
-                                box.Text = "None"
-                            end
-                            box.TextColor3 = Keybind._value and Theme.Text or Theme.SubText
-                            box.Font = Fonts.Regular
-                        end
-                    end)
+                        end)
+                    end
 
                     -- Add context menu for mode selection (similar to AddKeybindToggle but simpler)
                     local keybindMode = "Hold" -- Default mode for regular keybind
@@ -4561,19 +4632,42 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     
-                    -- Track when keybind is active
-                    local originalUserInputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-                        if gameProcessed then return end
-                        local matches = false
-                        if Keybind._value then
-                            if typeof(Keybind._value) == "EnumItem" then
-                                if Keybind._value.EnumType == Enum.KeyCode then
-                                    matches = input.KeyCode == Keybind._value
-                                elseif Keybind._value.EnumType == Enum.UserInputType then
-                                    matches = input.UserInputType == Keybind._value
+                    -- Track when keybind is active (supports multi-key combos)
+                    local function comboMatchesOnBegin(value, input)
+                        if not value then return false end
+                        if typeof(value) == "EnumItem" then
+                            if value.EnumType == Enum.KeyCode then
+                                return input.KeyCode == value
+                            elseif value.EnumType == Enum.UserInputType then
+                                return input.UserInputType == value
+                            end
+                            return false
+                        elseif type(value) == "table" then
+                            -- Only trigger when this input corresponds to one of the combo parts
+                            local matchedPart = false
+                            for _, part in ipairs(value) do
+                                if typeof(part) == "EnumItem" then
+                                    if part.EnumType == Enum.KeyCode and input.KeyCode == part then matchedPart = true; break end
+                                    if part.EnumType == Enum.UserInputType and input.UserInputType == part then matchedPart = true; break end
                                 end
                             end
+                            if not matchedPart then return false end
+                            -- ensure all KeyCode parts are currently down
+                            for _, part in ipairs(value) do
+                                if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode then
+                                    if not UserInputService:IsKeyDown(part) then
+                                        return false
+                                    end
+                                end
+                            end
+                            return true
                         end
+                        return false
+                    end
+
+                    local originalUserInputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                        if gameProcessed then return end
+                        local matches = comboMatchesOnBegin(Keybind._value, input)
                         if matches then
                             if Keybind._mode == "Toggle" then
                                 Keybind._toggleState = not (Keybind._toggleState == true)
@@ -4588,18 +4682,29 @@ function Library:CreateLibrary(opts)
                             end
                         end
                     end)
-                    
-                    local originalUserInputEnded = UserInputService.InputEnded:Connect(function(input, gameProcessed)
-                        local matches = false
-                        if Keybind._value then
-                            if typeof(Keybind._value) == "EnumItem" then
-                                if Keybind._value.EnumType == Enum.KeyCode then
-                                    matches = input.KeyCode == Keybind._value
-                                elseif Keybind._value.EnumType == Enum.UserInputType then
-                                    matches = input.UserInputType == Keybind._value
+
+                    local function comboContainsPart(value, input)
+                        if not value then return false end
+                        if typeof(value) == "EnumItem" then
+                            if value.EnumType == Enum.KeyCode then
+                                return input.KeyCode == value
+                            elseif value.EnumType == Enum.UserInputType then
+                                return input.UserInputType == value
+                            end
+                            return false
+                        elseif type(value) == "table" then
+                            for _, part in ipairs(value) do
+                                if typeof(part) == "EnumItem" then
+                                    if part.EnumType == Enum.KeyCode and input.KeyCode == part then return true end
+                                    if part.EnumType == Enum.UserInputType and input.UserInputType == part then return true end
                                 end
                             end
                         end
+                        return false
+                    end
+
+                    local originalUserInputEnded = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                        local matches = comboContainsPart(Keybind._value, input)
                         if matches then
                             if Keybind._mode == "Hold" then
                                 Keybind._isActive = false
@@ -5832,8 +5937,26 @@ function Library:CreateLibrary(opts)
                             end
                             if stroke then T(stroke,0.15,{Transparency = 0.18}):Play() end
                         else
-                            keybindBtn.Text = Library.FormatKeyName(getKeyName(currentKey, currentInputType))
-                            keybindBtn.TextColor3 = currentKey and Theme.Text or Theme.SubText
+                            -- Support currentKey as single EnumItem or table combo
+                            if type(currentKey) == "table" then
+                                local parts = {}
+                                for _, v in ipairs(currentKey) do
+                                    if typeof(v) == "EnumItem" then
+                                        if v.EnumType == Enum.UserInputType then
+                                            table.insert(parts, mouseButtonNames[v] or tostring(v))
+                                        else
+                                            table.insert(parts, getKeyName(v, nil))
+                                        end
+                                    else
+                                        table.insert(parts, tostring(v))
+                                    end
+                                end
+                                keybindBtn.Text = table.concat(parts, " + ")
+                                keybindBtn.TextColor3 = Theme.Text
+                            else
+                                keybindBtn.Text = Library.FormatKeyName(getKeyName(currentKey, currentInputType))
+                                keybindBtn.TextColor3 = currentKey and Theme.Text or Theme.SubText
+                            end
                             keybindBtn.Font = Fonts.Regular
                             -- Auto-resize based on text content (match toggle height of 18px)
                             local textService = game:GetService("TextService")
@@ -5865,24 +5988,42 @@ function Library:CreateLibrary(opts)
                         updateKeybindVisual()
                         disconnectAll()
                         
-                        -- Listen for key and mouse input
+                        -- Listen for key and mouse input (support combos)
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
                             if gameProcessed then return end
                             if input.UserInputType == Enum.UserInputType.Keyboard then
-                                local keyCode = input.KeyCode
-                                if keyCode == Enum.KeyCode.Escape then
+                                if input.KeyCode == Enum.KeyCode.Escape then
                                     -- Cancel binding with ESC
                                     isBinding = false
                                     if updateKeybindVisual then updateKeybindVisual() end
                                     if disconnectAll then disconnectAll() end
                                     if setupKeybindListener then setupKeybindListener() end
-                                elseif keyCode ~= Enum.KeyCode.Unknown then
-                                    currentKey = keyCode
-                                    currentInputType = nil -- It's a keyboard key
-                                    isBinding = false
-                                    if updateKeybindVisual then updateKeybindVisual() end
-                                    if disconnectAll then disconnectAll() end
-                                    if setupKeybindListener then setupKeybindListener() end
+                                else
+                                    -- Start capturing a short combo window
+                                    local capture = {input.KeyCode}
+                                    -- coalescing window started
+                                    task.delay(0.22, function()
+                                        if isBinding then
+                                            -- dedupe
+                                            local seen = {}
+                                            local out = {}
+                                            for _, v in ipairs(capture) do
+                                                local s = tostring(v)
+                                                if not seen[s] then seen[s] = true; table.insert(out, v) end
+                                            end
+                                            if #out == 1 then
+                                                currentKey = out[1]
+                                                currentInputType = nil
+                                            elseif #out > 1 then
+                                                currentKey = out
+                                                currentInputType = nil
+                                            end
+                                            isBinding = false
+                                            if updateKeybindVisual then updateKeybindVisual() end
+                                            if disconnectAll then disconnectAll() end
+                                            if setupKeybindListener then setupKeybindListener() end
+                                        end
+                                    end)
                                 end
                             elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
                                 -- Capture mouse buttons immediately without delay
@@ -5923,19 +6064,38 @@ function Library:CreateLibrary(opts)
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
                             if gameProcessed then return end
                             if not isToggled then return end  -- Only work when toggle is ON
-                            
+
                             local matches = false
-                            
+                            -- support combos stored in currentKey (table)
                             if currentInputType then
-                                -- Mouse button
                                 matches = input.UserInputType == currentInputType
                             else
-                                -- Keyboard key
-                                matches = input.KeyCode == currentKey
+                                if type(currentKey) == "table" then
+                                    -- input must be one of the parts
+                                    local matchedPart = false
+                                    for _, part in ipairs(currentKey) do
+                                        if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode and input.KeyCode == part then matchedPart = true; break end
+                                        if typeof(part) == "EnumItem" and part.EnumType == Enum.UserInputType and input.UserInputType == part then matchedPart = true; break end
+                                    end
+                                    if matchedPart then
+                                        -- ensure all KeyCode parts are currently down
+                                        local allDown = true
+                                        for _, part in ipairs(currentKey) do
+                                            if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode then
+                                                if not UserInputService:IsKeyDown(part) then allDown = false; break end
+                                            end
+                                        end
+                                        matches = allDown
+                                    else
+                                        matches = false
+                                    end
+                                else
+                                    matches = input.KeyCode == currentKey
+                                end
                             end
-                            
+
                             if not matches then return end
-                            
+
                             if mode == "Toggle" then
                                 -- In toggle mode, pressing keybind alternates state
                                 keybindToggleState = not keybindToggleState
@@ -6066,25 +6226,33 @@ function Library:CreateLibrary(opts)
                                 if mode ~= modeText then
                                     mode = modeText  -- Set mode directly instead of calling SetMode
                                     setupKeybindListener()
-                                    if mode == "Always" then
-                                        isToggled = true
-                                        updateToggleVisual()
-                                        if type(cb) == "function" then
-                                            pcall(cb, true, currentKey or currentInputType)
-                                        end
+                                    if mode == "Hold" then
+                                        table.insert(connections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                                            if not isToggled then return end  -- Only work when toggle is ON
+                                            local matches = false
+                                            if currentInputType then
+                                                matches = input.UserInputType == currentInputType
+                                            else
+                                                if type(currentKey) == "table" then
+                                                    -- If any part of the combo was released, consider the hold ended
+                                                    for _, part in ipairs(currentKey) do
+                                                        if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode and input.KeyCode == part then matches = true; break end
+                                                        if typeof(part) == "EnumItem" and part.EnumType == Enum.UserInputType and input.UserInputType == part then matches = true; break end
+                                                    end
+                                                else
+                                                    matches = input.KeyCode == currentKey
+                                                end
+                                            end
+                                            if not matches then return end
+                                            isHolding = false
+                                            if updateKeybindTracking ~= nil then
+                                                updateKeybindTracking({ active = false, toggleEnabled = isToggled })
+                                            end
+                                            if type(cb) == "function" then
+                                                pcall(cb, false, currentKey or currentInputType)
+                                            end
+                                        end))
                                     end
-                                end
-                                closeCtx() 
-                            end)
-                            return btn
-                        end
-                        
-                        createModeItem("Hold", mode == "Hold")
-                        createModeItem("Toggle", mode == "Toggle")
-                        createModeItem("Always", mode == "Always")
-                        
-                        -- Position menu above the keybind button using colorpicker logic
-                        local menuH = (itemH * 3) + (gap * 2) + (vPad * 2)
                         ctxMenu.Size = UDim2.fromOffset(menuW, menuH)
                         local btnAbs = keybindBtn.AbsolutePosition
                         local btnSize = keybindBtn.AbsoluteSize
