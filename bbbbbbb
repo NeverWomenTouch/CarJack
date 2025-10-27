@@ -724,15 +724,16 @@ function Library:Notification(text, notifyType, timer)
         if notifyType == 1 then
             -- Small slide-in notification (watermark style)
             -- slideOffset controls how far the notification starts off-screen before sliding in.
-            -- Make this configurable per-library via Library._notificationSlideOffset (default 4).
-            local slideOffset = tonumber(self._notificationSlideOffset) or 4
+            -- Make this configurable per-library via Library._notificationSlideOffset (default 2).
+            local slideOffset = tonumber(self._notificationSlideOffset) or 2
 
             -- Calculate size based on text and watermark width so it lines up nicely
             local notifFont = Fonts.Medium
             local notifTextSize = 14
             local textSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(math.huge, 30))
             local watermarkWidth = (self._watermarkFrame and self._watermarkFrame.AbsoluteSize.X) or 160
-            local notifWidth = math.max(textSize.X + 20, watermarkWidth)
+            -- Make notification width match watermark width for visual consistency
+            local notifWidth = watermarkWidth
             local notifHeight = (self._watermarkFrame and self._watermarkFrame.AbsoluteSize.Y) or 30
 
             local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
@@ -773,14 +774,19 @@ function Library:Notification(text, notifyType, timer)
 
             -- Animate slide in from right (small slide so it sits just inside the top-right area near watermark)
             frame.Position = UDim2.new(finalScaleX, (finalOffsetX + slideOffset), finalScaleY, finalOffsetY)
-            T(frame, 0.35, {Position = UDim2.new(finalScaleX, finalOffsetX, finalScaleY, finalOffsetY)}):Play()
+            -- Use slightly faster animation with easing for smoother motion
+            T(frame, 0.25, {Position = UDim2.new(finalScaleX, finalOffsetX, finalScaleY, finalOffsetY)}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
 
-            -- Auto dismiss after timer
+            -- Auto dismiss after timer with smoother fade out
             task.spawn(function()
                 task.wait(math.max(0.1,timer))
                 pcall(function()
-                    T(frame, 0.28, {Position = UDim2.new(finalScaleX, (finalOffsetX + slideOffset), finalScaleY, finalOffsetY), BackgroundTransparency = 1}):Play()
-                    task.wait(0.30)
+                    -- Fade out and slide slightly right
+                    T(frame, 0.2, {
+                        Position = UDim2.new(finalScaleX, (finalOffsetX + slideOffset), finalScaleY, finalOffsetY),
+                        BackgroundTransparency = 1
+                    }, Enum.EasingStyle.Quad, Enum.EasingDirection.In):Play()
+                    task.wait(0.22)
                     if notifGui and notifGui.Parent then notifGui:Destroy() end
                 end)
             end)
