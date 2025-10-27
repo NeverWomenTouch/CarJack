@@ -1439,8 +1439,9 @@ function Library:CreateLibrary(opts)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return false end
-            -- New payload shape: metadata + controls (easier for users to edit manually)
-            local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, controls = {} }
+            -- Build controls first (we'll assemble payload with controls on top and metadata last
+            -- so files are easy to read and manually editable)
+            local controlsTbl = {}
             -- Build enhanced snapshot when data not supplied so we can capture control modes (colorpicker rainbow/pulse)
             local snapshot = data
             if not snapshot then
@@ -1498,19 +1499,33 @@ function Library:CreateLibrary(opts)
                             cp.slots[i] = { color = serColor, rainbow = rs and (rs.rainbow == true) or false, pulse = rs and (rs.pulse == true) or false, hueOffset = tonumber(rs and rs.hueOffset) or 0, pulseHueOffset = tonumber(rs and rs.pulseHueOffset) or 0 }
                         end
                     end
-                    payload.controls[id] = cp
+                    controlsTbl[id] = cp
                 else
                     local ok, ser = pcall(function() return serialize(val) end)
                     if ok then
-                        payload.controls[id] = ser
+                        controlsTbl[id] = ser
                     else
                         -- serialization failed for this control; fall back to string representation silently
                         local safeString = nil
                         pcall(function() safeString = tostring(val) end)
-                        payload.controls[id] = safeString
+                        controlsTbl[id] = safeString
                     end
                 end
             end
+            -- Assemble final payload with controls first, metadata last for readability
+            local meta = { name = s, lastModified = os.time() }
+            pcall(function() meta.autoLoad = Config.GetAutoLoad(s) end)
+            pcall(function() meta.path = filePath(s) end)
+            -- Order control keys deterministically for nicer output (alphabetical)
+            local orderedControls = {}
+            do
+                local keys = {}
+                for k in pairs(controlsTbl) do table.insert(keys, k) end
+                table.sort(keys)
+                for _, k in ipairs(keys) do orderedControls[k] = controlsTbl[k] end
+            end
+            local payload = { controls = orderedControls, metadata = meta }
+
             if MEM_MODE then
                 local key = memEnsure()
                 Library._memConfig.files[key][s] = payload
