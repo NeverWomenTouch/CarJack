@@ -239,6 +239,7 @@ Library.FormatKeyName = FormatKeyName
 
 -- Notification tracking system
 Library._activeNotifications = {}
+Library._activeTopNotifications = {}
 Library._activeModalNotification = nil
 
 -- Watermark system
@@ -614,17 +615,34 @@ do
     -- Helper function to update notification positions
     function Library:_updateNotificationPositions()
         local baseY = self._watermarkFrame and self._watermarkFrame.Position.Y.Offset or 10
-        local stackOffset = 35 -- notification height + gap
-        
-        for i, notif in pairs(self._activeNotifications) do
-            if notif and notif.Parent then
-                local frame = notif:FindFirstChild("NotifFrame")
-                if frame then
-                    local newY = baseY + (stackOffset * (i-1))
-                    T(frame, 0.2, {
-                        Position = UDim2.new(1, -10, frame.Position.Y.Scale, newY)
-                    }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
-                end
+        local gap = 5
+
+        -- Use cumulative heights so variable-height notifications stack correctly
+        local currentY = baseY
+        for i, entry in ipairs(self._activeNotifications) do
+            if entry and entry.gui and entry.gui.Parent and entry.frame then
+                local frame = entry.frame
+                T(frame, 0.2, {
+                    Position = UDim2.new(1, -10, frame.Position.Y.Scale, currentY)
+                }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
+                currentY = currentY + (entry.height or frame.AbsoluteSize.Y) + gap
+            end
+        end
+    end
+
+    -- Update positions for top-middle notifications (type 3)
+    function Library:_updateTopNotificationPositions()
+        local baseY = 10 -- top margin
+        local gap = 5
+        local currentY = baseY
+        for i, entry in ipairs(self._activeTopNotifications) do
+            if entry and entry.gui and entry.gui.Parent and entry.frame then
+                local frame = entry.frame
+                -- center X at 0.5
+                T(frame, 0.2, {
+                    Position = UDim2.new(0.5, 0, frame.Position.Y.Scale, currentY)
+                }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
+                currentY = currentY + (entry.height or frame.AbsoluteSize.Y) + gap
             end
         end
     end
@@ -777,15 +795,15 @@ function Library:Notification(text, notifyType, timer)
                 finalOffsetY = (self._watermarkPosition and self._watermarkPosition.YOffset) or 10
             end
             
-            -- Stack notifications vertically by adjusting Y offset
-            local stackOffset = notifHeight + 5 -- 5 pixel gap between notifications
-            local activeCount = 0
-            for _, notif in pairs(self._activeNotifications) do
-                if notif and notif.Parent then
-                    activeCount = activeCount + 1
+            -- Stack notifications vertically by summing existing notifications' heights + gap
+            local gap = 5
+            local currentOffset = finalOffsetY
+            for _, entry in ipairs(self._activeNotifications) do
+                if entry and entry.gui and entry.gui.Parent then
+                    currentOffset = currentOffset + (entry.height or 36) + gap
                 end
             end
-            finalOffsetY = finalOffsetY + (stackOffset * activeCount)
+            finalOffsetY = currentOffset
 
             local frame = Create("Frame", {
                 Name = "NotifFrame",
@@ -826,16 +844,16 @@ function Library:Notification(text, notifyType, timer)
             -- Use slightly faster animation with easing for smoother motion
             T(frame, 0.25, {Position = UDim2.new(finalScaleX, finalOffsetX, finalScaleY, finalOffsetY)}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
 
-            -- Track this notification
-            table.insert(self._activeNotifications, notifGui)
+            -- Track this notification (store gui, frame and height so stacking uses actual sizes)
+            table.insert(self._activeNotifications, { gui = notifGui, frame = frame, height = notifHeight })
             
             -- Auto dismiss after timer with smoother fade out
             task.spawn(function()
                 task.wait(math.max(0.1,timer))
                 pcall(function()
                     -- Remove from active notifications
-                    for i, notif in pairs(self._activeNotifications) do
-                        if notif == notifGui then
+                    for i, entry in pairs(self._activeNotifications) do
+                        if entry and entry.gui == notifGui then
                             table.remove(self._activeNotifications, i)
                             break
                         end
@@ -853,6 +871,88 @@ function Library:Notification(text, notifyType, timer)
                     task.spawn(function()
                         self:_updateNotificationPositions()
                     end)
+                end)
+            end)
+
+            return notifGui
+        elseif notifyType == 3 then
+            -- Top-middle notification (behaves like type 1 but centered at top)
+            local slideOffset = tonumber(self._notificationSlideOffset) or 15
+            local notifFont = Fonts.Medium
+            local notifTextSize = 14
+            local maxWidth = 600
+            local minWidth = 180
+            local padding = 24
+            local textSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(maxWidth - padding, math.huge))
+            local notifWidth = math.max(minWidth, math.min(textSize.X + padding, maxWidth))
+            local notifHeight = math.max(36, textSize.Y + 20)
+
+            local notifGui = Create("ScreenGui", {Name = "LibraryNotificationTop", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
+
+            -- Compute stacked Y offset based on existing top notifications
+            local gap = 5
+            local finalOffsetY = 10
+            for _, entry in ipairs(self._activeTopNotifications) do
+                if entry and entry.gui and entry.gui.Parent then
+                    finalOffsetY = finalOffsetY + (entry.height or 36) + gap
+                end
+            end
+
+            local frame = Create("Frame", {
+                Name = "NotifFrame",
+                Size = UDim2.fromOffset(math.floor(notifWidth), math.floor(notifHeight)),
+                AnchorPoint = Vector2.new(0.5, 0),
+                Position = UDim2.new(0.5, 0, 0, finalOffsetY - slideOffset),
+                BackgroundColor3 = Theme.Bg,
+                BorderSizePixel = 0,
+                ZIndex = 2000,
+                Parent = notifGui,
+                ClipsDescendants = true
+            })
+            Create("UIStroke", {Color = (Library._watermarkAccentColor or Theme.Accent), Thickness = 1, Transparency = 0.2, Parent = frame})
+            Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = frame})
+            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4, Parent = frame})
+            local inner = Create("Frame", {BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0.6, Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3,3), Parent = frame})
+            Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = inner})
+            local label = Create("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -18, 1, 0),
+                Position = UDim2.fromOffset(9,0),
+                Text = text,
+                Font = Fonts.Medium,
+                TextSize = notifTextSize,
+                TextColor3 = Library._watermarkTextColor or Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                TextWrapped = true,
+                TextTruncate = Enum.TextTruncate.None,
+                Parent = inner
+            })
+
+            -- Slide down animation into view
+            T(frame, 0.25, {Position = UDim2.new(0.5, 0, 0, finalOffsetY)}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
+
+            -- Track this top notification
+            table.insert(self._activeTopNotifications, { gui = notifGui, frame = frame, height = notifHeight })
+
+            -- Auto dismiss after timer
+            task.spawn(function()
+                task.wait(math.max(0.1, timer))
+                pcall(function()
+                    for i, entry in pairs(self._activeTopNotifications) do
+                        if entry and entry.gui == notifGui then
+                            table.remove(self._activeTopNotifications, i)
+                            break
+                        end
+                    end
+                    -- Fade out and slide up slightly
+                    T(frame, 0.2, {
+                        Position = UDim2.new(0.5, 0, 0, finalOffsetY - slideOffset),
+                        BackgroundTransparency = 1
+                    }, Enum.EasingStyle.Quad, Enum.EasingDirection.In):Play()
+                    task.wait(0.22)
+                    if notifGui and notifGui.Parent then notifGui:Destroy() end
+                    task.spawn(function() self:_updateTopNotificationPositions() end)
                 end)
             end)
 
