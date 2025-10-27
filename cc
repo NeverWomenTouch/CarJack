@@ -749,14 +749,19 @@ function Library:Notification(text, notifyType, timer)
             -- Make this configurable per-library via Library._notificationSlideOffset (default 15).
             local slideOffset = tonumber(self._notificationSlideOffset) or 15 -- Start just off screen
 
-            -- Calculate size based on text and watermark width so it lines up nicely
+            -- Calculate size based on text content
             local notifFont = Fonts.Medium
             local notifTextSize = 14
+            local maxWidth = 300 -- Maximum width before wrapping
+            local minWidth = (self._watermarkFrame and self._watermarkFrame.AbsoluteSize.X) or 160
+            
+            -- First try without wrapping to see if text fits in minimum width
             local textSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(math.huge, 30))
-            local watermarkWidth = (self._watermarkFrame and self._watermarkFrame.AbsoluteSize.X) or 160
-            -- Make notification width match watermark width for visual consistency
-            local notifWidth = watermarkWidth
-            local notifHeight = (self._watermarkFrame and self._watermarkFrame.AbsoluteSize.Y) or 30
+            
+            -- If text is too wide, calculate height with text wrapping
+            local notifWidth = math.max(minWidth, math.min(textSize.X + 20, maxWidth))
+            local wrappedTextSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(notifWidth - 30, math.huge))
+            local notifHeight = math.max(30, wrappedTextSize.Y + 10) -- Add padding
 
             local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
 
@@ -850,26 +855,26 @@ function Library:Notification(text, notifyType, timer)
                 end)
             end
             
-            -- Find the library menu container for proper centering
-            local libraryContainer = nil
+            -- Find the library window for proper centering
+            local libraryGui = nil
             for _, window in pairs(self._windows) do
-                if window._container and window._container.Parent then
-                    libraryContainer = window._container
+                if window._rootGui and window._rootGui.Parent then
+                    libraryGui = window._rootGui
                     break
                 end
             end
             
-            if not libraryContainer then return end -- Can't show modal without library container
+            if not libraryGui then return end -- Can't show modal without library GUI
 
-            -- Create darkened overlay to dim the background
+            -- Create darkened overlay to dim the background that covers the entire GUI
             local overlay = Create("Frame", {
                 Name = "ModalOverlay",
                 BackgroundColor3 = Color3.fromRGB(0, 0, 0),
                 BackgroundTransparency = 0.5,
                 Size = UDim2.fromScale(1, 1),
-                Position = UDim2.fromOffset(0, 0),
-                ZIndex = 9998,
-                Parent = libraryContainer
+                Position = UDim2.fromScale(0, 0),
+                ZIndex = 999999, -- Very high Z-index to be above all library elements
+                Parent = libraryGui
             })
             
             -- Create new modal notification frame
@@ -880,7 +885,7 @@ function Library:Notification(text, notifyType, timer)
                 Size = UDim2.fromOffset(320, 120),
                 Position = UDim2.fromScale(0.5, 0.5),
                 AnchorPoint = Vector2.new(0.5, 0.5),
-                ZIndex = 9999,
+                ZIndex = 1000000, -- Even higher Z-index than overlay
                 Parent = overlay
             })
             
