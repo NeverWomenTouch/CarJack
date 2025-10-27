@@ -1493,9 +1493,16 @@ function Library:CreateLibrary(opts)
                     if rawSlots then
                         for i=1,#rawSlots do
                             local rs = rawSlots[i]
-                            local okc, serColor = pcall(function() return serialize((rs and rs.color) or Theme.Accent) end)
-                            if not okc then serColor = serialize(Theme.Accent) end
-                            cp.slots[i] = { color = serColor, rainbow = rs and (rs.rainbow == true) or false, pulse = rs and (rs.pulse == true) or false, hueOffset = tonumber(rs and rs.hueOffset) or 0, pulseHueOffset = tonumber(rs and rs.pulseHueOffset) or 0 }
+                            local color = rs and rs.color
+                            if type(color) == "userdata" and color.r and color.g and color.b then
+                                -- Direct Color3 value
+                                cp.slots[i] = { color = serialize(color), rainbow = false, pulse = false, hueOffset = 0, pulseHueOffset = 0 }
+                            else
+                                -- Dynamic or themed color
+                                local okc, serColor = pcall(function() return serialize(color or Theme.Accent) end)
+                                if not okc then serColor = serialize(Theme.Accent) end
+                                cp.slots[i] = { color = serColor, rainbow = rs and (rs.rainbow == true) or false, pulse = rs and (rs.pulse == true) or false, hueOffset = tonumber(rs and rs.hueOffset) or 0, pulseHueOffset = tonumber(rs and rs.pulseHueOffset) or 0 }
+                            end
                         end
                     end
                     payload.controls[id] = cp
@@ -6210,8 +6217,13 @@ function Library:CreateLibrary(opts)
                                     local decColors = {}
                                     if deserialize then
                                         for i=1, #colors do
-                                            local okd, dc = pcall(function() return deserialize(colors[i]) end)
-                                            if okd then decColors[i] = dc end
+                                            local color = colors[i]
+                                            if type(color) == "string" then
+                                                local okd, dc = pcall(function() return deserialize(color) end)
+                                                if okd and dc then decColors[i] = dc end
+                                            elseif type(color) == "userdata" and color.r and color.g and color.b then
+                                                decColors[i] = color -- Direct Color3 value
+                                            end
                                         end
                                     end
                                     
