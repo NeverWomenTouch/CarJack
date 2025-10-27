@@ -706,8 +706,20 @@ function Library:Notification(text, notifyType, timer)
             pcall(function() self:SetWatermark(self._watermarkText) end)
         end
 
-        -- Determine parent for notification (use watermark's parent ScreenGui if available)
-        local parentGui = (self._watermark and self._watermark.Parent) or CoreGui
+        -- Determine parent for notification (prefer watermark's parent ScreenGui or the library GUI)
+        local parentGui = nil
+        if self._watermark and self._watermark.Parent then
+            parentGui = self._watermark.Parent
+        else
+            -- Try to find the library's ScreenGui (DisplayOrder == 999999) before falling back to CoreGui
+            for _, gui in pairs(CoreGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
+                    parentGui = gui
+                    break
+                end
+            end
+        end
+        if not parentGui then parentGui = CoreGui end
 
         if notifyType == 1 then
             -- Small slide-in notification (watermark style)
@@ -716,7 +728,7 @@ function Library:Notification(text, notifyType, timer)
                 Name = "NotifFrame",
                 Size = UDim2.fromOffset(320, 44),
                 AnchorPoint = Vector2.new(1, 0),
-                Position = UDim2.new(1, (self._watermarkPosition and self._watermarkPosition.XOffset) or -260 + 200, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46),
+                Position = UDim2.new(1, (((self._watermarkPosition and self._watermarkPosition.XOffset) or -260) + 60), 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46),
                 BackgroundColor3 = Theme.Bg,
                 BorderSizePixel = 0,
                 ZIndex = 2000,
@@ -731,14 +743,14 @@ function Library:Notification(text, notifyType, timer)
 
             -- Animate slide in from right
             local desiredX = (self._watermarkPosition and self._watermarkPosition.XOffset) or -260
-            frame.Position = UDim2.new(1, desiredX + 200, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46)
+            frame.Position = UDim2.new(1, desiredX + 60, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46)
             T(frame, 0.35, {Position = UDim2.new(1, desiredX, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46)}):Play()
 
             -- Auto dismiss after timer
             task.spawn(function()
                 task.wait(math.max(0.1,timer))
                 pcall(function()
-                    T(frame, 0.28, {Position = UDim2.new(1, desiredX + 200, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46), BackgroundTransparency = 1}):Play()
+                    T(frame, 0.28, {Position = UDim2.new(1, desiredX + 60, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46), BackgroundTransparency = 1}):Play()
                     task.wait(0.30)
                     if notifGui and notifGui.Parent then notifGui:Destroy() end
                 end)
