@@ -1278,10 +1278,16 @@ function Library:CreateLibrary(opts)
     local title = tostring(opts.Name or "Dendrite UI")
     local libraryName = tostring(opts.LibraryName or "Dendrite UI")
     local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static | type
-    
-    -- Config / SaveManager (Linoria-style behavior)
     local Config = {}
     do
+    local ConfigDebug = false
+    local function cfgWarn(...)
+        if ConfigDebug then warn(...) end
+    end
+    local function cfgErr(...)
+        -- Always warn for errors in the config system
+        warn(...)
+    end
     local Base = sanitize(libraryName)
     local DIR = tostring(opts.ConfigFolder or Library.ConfigFolder or Base)
 
@@ -1405,7 +1411,7 @@ function Library:CreateLibrary(opts)
             MEM_MODE = not (gw and gr)
             -- diagnostics: show detected capabilities and target folder
             pcall(function()
-                warn("[Config] ensure: MEM_MODE=", tostring(MEM_MODE), " gw=", tostring(gw~=nil), " gr=", tostring(gr~=nil), " gif=", tostring(gif~=nil), " gmf=", tostring(gmf~=nil), " glf=", tostring(glf~=nil), " DIR=", tostring(DIR), " configs=", tostring(configsFolder()))
+                cfgWarn("[Config] ensure: MEM_MODE=", tostring(MEM_MODE), " gw=", tostring(gw~=nil), " gr=", tostring(gr~=nil), " gif=", tostring(gif~=nil), " gmf=", tostring(gmf~=nil), " glf=", tostring(glf~=nil), " DIR=", tostring(DIR), " configs=", tostring(configsFolder()))
             end)
             if not MEM_MODE then
                 pcall(ensureFolders)
@@ -1442,7 +1448,6 @@ function Library:CreateLibrary(opts)
         function Config.Save(name, data)
             Config.Ensure()
             local s = sanitize(name or "")
-            warn("[Config] Save called for:", tostring(s), "MEM_MODE=", tostring(MEM_MODE))
             if s == "" then return false end
             -- New payload shape: metadata + controls (easier for users to edit manually)
             local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, controls = {} }
@@ -1454,7 +1459,7 @@ function Library:CreateLibrary(opts)
                     if c and c.Get then
                         local ok, val = pcall(function() return c:Get() end)
                         if not ok then
-                            warn("[Config] _getSnapshot: Get failed for id=", tostring(id), "err=", tostring(val))
+                            cfgErr("[Config] Get failed for id =", tostring(id), "err=", tostring(val))
                         else
                             -- special-case Colorpicker controls to capture modes
                             if type(c) == 'table' and c._slots then
@@ -1469,7 +1474,6 @@ function Library:CreateLibrary(opts)
                                     pulseHueOffsets[i] = slot and (slot.pulseHueOffset or 0) or 0
                                 end
                                 snapshot[id] = { __ctrl = "Colorpicker", colors = colors, rainbow = rainbowFlags, pulse = pulseFlags, hueOffsets = hueOffsets, pulseHueOffsets = pulseHueOffsets }
-                                warn("[Config] captured Colorpicker for saving:", tostring(id), "rainbow slots=", tostring(#rainbowFlags), "pulse slots=", tostring(#pulseFlags))
                             else
                                 snapshot[id] = val
                             end
@@ -1505,13 +1509,12 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     payload.controls[id] = cp
-                    warn("[Config] captured Colorpicker for saving:", tostring(id), "slots=", tostring(#(cp.slots or {})))
                 else
                     local ok, ser = pcall(function() return serialize(val) end)
                     if ok then
                         payload.controls[id] = ser
                     else
-                        warn("[Config] serialize failed for id=", tostring(id), "type=", typeof(val), "err=", tostring(ser))
+                        cfgErr("[Config] serialize failed for id=", tostring(id), "type=", typeof(val), "err=", tostring(ser))
                         local safeString = nil
                         pcall(function() safeString = tostring(val) end)
                         payload.controls[id] = safeString
@@ -1527,7 +1530,7 @@ function Library:CreateLibrary(opts)
             -- Diagnostics: attempt to encode JSON
             local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
             if not okj or type(json) ~= "string" then
-                warn("[Config] JSON encode failed for:", s, "okj:", tostring(okj), "jsonType:", type(json))
+                cfgErr("[Config] JSON encode failed for:", s, "okj:", tostring(okj), "jsonType:", type(json))
                 return false
             end
             -- Pretty-print JSON to be user-editable (lightweight formatter)
@@ -1573,16 +1576,14 @@ function Library:CreateLibrary(opts)
             local path = filePath(s)
             -- ensure folders exist when possible
             if gif and gmf then pcall(ensureFolders) end
-            warn("[Config] Save: attempting write to:", tostring(path))
             local okw, err = pcall(function() atomicWrite(path, json) end)
             if not okw then
-                warn("[Config] primary atomicWrite failed:", tostring(err))
+                cfgErr("[Config] primary atomicWrite failed:", tostring(err))
                 -- fallback to root-style filename when we can't create folders
                 local alt = sanitize(Base) .. "_" .. sanitize(s) .. ".json"
-                warn("[Config] Save: attempting fallback write to:", tostring(alt))
                 local altOk, altErr = pcall(function() atomicWrite(alt, json) end)
                 if not altOk then
-                    warn("[Config] fallback atomicWrite also failed:", tostring(altErr))
+                    cfgErr("[Config] fallback atomicWrite also failed:", tostring(altErr))
                     return false
                 end
                 -- record the alternative path in session index
@@ -1593,7 +1594,6 @@ function Library:CreateLibrary(opts)
             -- success
             sessionAdd(s)
             pcall(function() Config.RecordSave(s) end)
-            warn("[Config] Save successful:", s, "->", tostring(path))
             return true
         end
 
@@ -6155,25 +6155,22 @@ function Library:CreateLibrary(opts)
     Window.SaveConfig = function(name)
         local safe = sanitize(name or "")
         local low = safe:lower()
-        warn("[Window] SaveConfig called with:", tostring(name), "-> sanitized:", tostring(safe))
         if safe == "" or low == "__meta" or low == "__index" then return false end
         -- Call Config.Save without passing a prebuilt snapshot so Config.Save
         -- can build an enhanced snapshot itself (this captures Colorpicker modes like rainbow/pulse)
         local ok = false
         local okCall, res = pcall(function() return Config.Save(safe) end)
-        if okCall then ok = res else warn("[Window] Config.Save errored:", res) end
+        if okCall then ok = res else cfgErr("[Window] Config.Save errored:", res) end
         if ok then pcall(function() Config.RecordSave(safe) end) end
-        warn("[Window] SaveConfig result for", tostring(safe), "=", tostring(ok))
         return ok
     end
     Window.LoadConfig = function(name)
         local safe = sanitize(name or "")
         local low = safe:lower()
         if safe == "" or low == "__meta" or low == "__index" then return end
-        warn("[Window] LoadConfig called for:", tostring(safe))
         local okLoad, data = pcall(function() return Config.Load(safe) end)
-        if not okLoad then warn("[Window] Config.Load errored:", tostring(data)) return end
-        if type(data) ~= 'table' then warn("[Window] Config.Load returned non-table") return end
+        if not okLoad then cfgErr("[Window] Config.Load errored:", tostring(data)) return end
+        if type(data) ~= 'table' then cfgErr("[Window] Config.Load returned non-table") return end
         local applied = 0
         for id, value in pairs(data) do
             if type(id) == "string" and id:sub(1,2) == "__" then
@@ -6197,10 +6194,10 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 if not ctrl then
-                    warn("[Window] LoadConfig: no control found for id:", tostring(id))
+                    -- Silently skip controls that aren't found
                 else
                     if not ctrl.Set then
-                        warn("[Window] LoadConfig: control found but has no Set method:", tostring(targetId))
+                        -- Silently skip controls without Set method
                     else
                         -- If the saved value is a Colorpicker object, apply colors and modes explicitly
                         if type(value) == 'table' and (value.__ctrl == 'Colorpicker' or value.colors) then
@@ -6210,36 +6207,29 @@ function Library:CreateLibrary(opts)
                             -- 3) restore per-slot hue/pulse offsets
                             -- 4) attempt to enable effects via public/internal APIs
                             -- 5) if hooks still missing, recreate sync listeners and attach fallback hooks
-                            warn("[ConfigDebug] Entering Colorpicker load handler for", tostring(targetId))
                             local okOuter, outerErr = pcall(function()
-                                warn("[ConfigDebug] Loading Colorpicker for", tostring(targetId))
-                                -- dump incoming value for diagnostics
-                                pcall(function()
-                                    -- Build a JSON-safe copy (serialize Color3/Enum/UDim2 etc) so HttpService:JSONEncode doesn't emit null for userdata
-                                    local function makeSerializable(x)
-                                        local tx = typeof(x)
-                                        if tx == 'Color3' or tx == 'EnumItem' or tx == 'UDim2' or tx == 'Vector2' or tx == 'Instance' then
-                                            return serialize(x)
-                                        elseif type(x) == 'table' then
-                                            local out = {}
-                                            for kk, vv in pairs(x) do out[kk] = makeSerializable(vv) end
-                                            return out
-                                        else
-                                            return x
-                                        end
+                                -- Build a JSON-safe copy (serialize Color3/Enum/UDim2 etc) so HttpService:JSONEncode doesn't emit null for userdata
+                                local function makeSerializable(x)
+                                    local tx = typeof(x)
+                                    if tx == 'Color3' or tx == 'EnumItem' or tx == 'UDim2' or tx == 'Vector2' or tx == 'Instance' then
+                                        return serialize(x)
+                                    elseif type(x) == 'table' then
+                                        local out = {}
+                                        for kk, vv in pairs(x) do out[kk] = makeSerializable(vv) end
+                                        return out
+                                    else
+                                        return x
                                     end
-                                    local okv, sval = pcall(function() return HttpService:JSONEncode(makeSerializable(value)) end)
-                                    if okv then warn("[ConfigDebug] incoming value JSON:", sval) else warn("[ConfigDebug] JSON dump failed:", tostring(sval)) end
-                                end)
+                                end
+                                pcall(function() HttpService:JSONEncode(makeSerializable(value)) end)
                                 
                                 local function applyOnce()
                                     local colors = value.colors or {}
                                     local decColors = {}
                                     for i=1, #colors do
                                         local okd, dc = pcall(function() return deserialize(colors[i]) end)
-                                        if okd then decColors[i] = dc else decColors[i] = nil; warn("[ConfigDebug] deserialize failed for slot", i, tostring(dc)) end
+                                        if okd then decColors[i] = dc else decColors[i] = nil; cfgErr("[ConfigDebug] deserialize failed for slot", i, tostring(dc)) end
                                     end
-                                    warn("[ConfigDebug] decoded color slots:", tostring(#decColors))
 
                                     -- Apply colors silently first
                                     pcall(function() Library:_setValue(targetId, decColors, true) end)
@@ -6320,7 +6310,7 @@ function Library:CreateLibrary(opts)
                                                     if slot._syncId then syncRGBColor(c, slot._syncId) end
                                                     if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
                                                 end)
-                                                warn("[ConfigDebug] fallback rainbowHook attached for", tostring(targetId), "slot", i)
+                                                cfgWarn("[ConfigDebug] fallback rainbowHook attached for", tostring(targetId), "slot", i)
                                             end
                                             if type(value.pulse) == 'table' and value.pulse[i] == true and not slot.pulseHook and rainbowAdd then
                                                 slot.pulse = true
@@ -6336,19 +6326,15 @@ function Library:CreateLibrary(opts)
                                                     if slot._pulseSyncId then syncPulseColor(c, slot._pulseSyncId) end
                                                     if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
                                                 end)
-                                                warn("[ConfigDebug] fallback pulseHook attached for", tostring(targetId), "slot", i)
+                                                cfgWarn("[ConfigDebug] fallback pulseHook attached for", tostring(targetId), "slot", i)
                                             end
                                         end
                                     end
 
                                     -- diagnostic dump
                                     pcall(function()
-                                        warn("[ConfigDebug] Colorpicker state for", tostring(targetId))
-                                        if ctrl and ctrl._slots then
-                                            for i=1,#ctrl._slots do local slot = ctrl._slots[i]; warn(string.format("[ConfigDebug] slot %d: color=%s, rainbow=%s, rainbowHook=%s, _syncId=%s, pulse=%s, pulseHook=%s, _pulseSyncId=%s", i, tostring(slot and slot.color), tostring(slot and slot.rainbow), tostring(slot and slot.rainbowHook ~= nil), tostring(slot and slot._syncId), tostring(slot and slot.pulse), tostring(slot and slot.pulseHook ~= nil), tostring(slot and slot._pulseSyncId))) end
-                                        else warn("[ConfigDebug] ctrl._slots missing for", tostring(targetId)) end
-                                        warn("[ConfigDebug] global rainbow listeners:", tostring(#(Library._rainbowBus and Library._rainbowBus.listeners or {})), "globalRGBSync.active=", tostring(Library._globalRGBSync and Library._globalRGBSync.active))
-                                        warn("[ConfigDebug] global pulse listeners:", tostring(#(Library._globalPulseSync and Library._globalPulseSync.listeners or {})), "globalPulseSync.active=", tostring(Library._globalPulseSync and Library._globalPulseSync.active))
+                                        cfgWarn("[ConfigDebug] Colorpicker state for", tostring(targetId))
+                                        -- Debug logging removed to reduce output noise
                                     end)
 
                                     -- return whether any hooks attached as expected
@@ -6380,7 +6366,7 @@ function Library:CreateLibrary(opts)
                         else
                             local ok, err = pcall(function() Library:_setValue(targetId, value, true) end)
                             if not ok then
-                                warn("[Window] _setValue failed for id:", tostring(targetId), "err:", tostring(err))
+                                warn("[Window] failed for id:", tostring(targetId), "err:", tostring(err))
                             else
                                 applied = applied + 1
                             end
@@ -6389,7 +6375,6 @@ function Library:CreateLibrary(opts)
                 end
             end
         end
-        warn("[Window] LoadConfig applied values:", applied)
     end
     Window.ListConfigs = function() return Config.List() end
     Window.DeleteConfig = function(name)
@@ -6429,7 +6414,7 @@ function Library:CreateLibrary(opts)
             local raw = ""
             local okg, tmp = pcall(function() return (nameBox and nameBox.Get and nameBox:Get()) or "" end)
             if okg then raw = tmp end
-            warn("[ConfigUI] Create clicked, raw input:", tostring(raw))
+            cfgWarn("[ConfigUI] Create clicked, raw input:", tostring(raw))
             if type(raw) == "string" then
                 local l = raw:lower()
                 if l == "__meta" or l == "__index" then return end
@@ -6438,7 +6423,6 @@ function Library:CreateLibrary(opts)
             local safe = sanitize(raw)
             local low = safe:lower()
             if safe == "" or low == "__meta" or low == "__index" then return end
-            warn("[ConfigUI] Create -> saving as:", tostring(safe))
             local okSave, res = pcall(function() return Window.SaveConfig(safe) end)
             if okSave and res then
                 refreshList()
@@ -6453,14 +6437,12 @@ function Library:CreateLibrary(opts)
             local raw = nil
             pcall(function() raw = dd and dd.Get and dd:Get() end)
             if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
-            warn("[ConfigUI] Save clicked, raw selection:", tostring(raw))
             if type(raw) == "string" then
                 local l = raw:lower()
                 if l == "__meta" or l == "__index" then return end
             end
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
-            warn("[ConfigUI] Save -> saving as:", tostring(safe))
             local okSave, res = pcall(function() return Window.SaveConfig(safe) end)
             if okSave and res then
                 refreshList()
@@ -6469,14 +6451,13 @@ function Library:CreateLibrary(opts)
                     if nameBox and nameBox.Set then nameBox:Set(safe, true) end
                 end)
             else
-                if not okSave then warn("[ConfigUI] Save pcall error") end
+                if not okSave then cfgErr("[ConfigUI] Save failed") end
             end
         end })
         local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
             local raw = nil
             pcall(function() raw = dd and dd.Get and dd:Get() end)
             if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
-            warn("[ConfigUI] Load clicked, raw selection:", tostring(raw))
             if type(raw) == "string" then
                 local l = raw:lower()
                 if l == "__meta" or l == "__index" then return end
@@ -6492,7 +6473,6 @@ function Library:CreateLibrary(opts)
             local raw = nil
             pcall(function() raw = dd and dd.Get and dd:Get() end)
             if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
-            warn("[ConfigUI] Delete clicked, raw selection:", tostring(raw))
             if type(raw) == "string" then
                 local l = raw:lower()
                 if l == "__meta" or l == "__index" then return end
