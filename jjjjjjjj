@@ -1493,16 +1493,9 @@ function Library:CreateLibrary(opts)
                     if rawSlots then
                         for i=1,#rawSlots do
                             local rs = rawSlots[i]
-                            local color = rs and rs.color
-                            if type(color) == "userdata" and color.r and color.g and color.b then
-                                -- Direct Color3 value
-                                cp.slots[i] = { color = serialize(color), rainbow = false, pulse = false, hueOffset = 0, pulseHueOffset = 0 }
-                            else
-                                -- Dynamic or themed color
-                                local okc, serColor = pcall(function() return serialize(color or Theme.Accent) end)
-                                if not okc then serColor = serialize(Theme.Accent) end
-                                cp.slots[i] = { color = serColor, rainbow = rs and (rs.rainbow == true) or false, pulse = rs and (rs.pulse == true) or false, hueOffset = tonumber(rs and rs.hueOffset) or 0, pulseHueOffset = tonumber(rs and rs.pulseHueOffset) or 0 }
-                            end
+                            local okc, serColor = pcall(function() return serialize((rs and rs.color) or Theme.Accent) end)
+                            if not okc then serColor = serialize(Theme.Accent) end
+                            cp.slots[i] = { color = serColor, rainbow = rs and (rs.rainbow == true) or false, pulse = rs and (rs.pulse == true) or false, hueOffset = tonumber(rs and rs.hueOffset) or 0, pulseHueOffset = tonumber(rs and rs.pulseHueOffset) or 0 }
                         end
                     end
                     payload.controls[id] = cp
@@ -1511,7 +1504,7 @@ function Library:CreateLibrary(opts)
                     if ok then
                         payload.controls[id] = ser
                     else
-                        warn("[Config] serialize failed for id=", tostring(id), "type=", typeof(val), "err=", tostring(ser))
+                        -- serialization failed for this control; fall back to string representation silently
                         local safeString = nil
                         pcall(function() safeString = tostring(val) end)
                         payload.controls[id] = safeString
@@ -6143,9 +6136,9 @@ function Library:CreateLibrary(opts)
     
     -- Add Config functions to Window object
     Window.LibraryName = libraryName
-    -- Config helpers - only show actual errors
+    -- Config helpers - silence config warnings/errors (operate quietly)
     local function cfgWarn() end -- no-op for info/debug
-    local function cfgErr(...) warn(...) end -- keep error messages
+    local function cfgErr() end -- silence config errors too
     
     Window.SaveConfig = function(name)
         local safe = sanitize(name or "")
@@ -6213,21 +6206,37 @@ function Library:CreateLibrary(opts)
                             -- 5) if hooks still missing, recreate sync listeners and attach fallback hooks
                             local okOuter, outerErr = pcall(function()
                                 local function applyOnce()
-                                    local colors = value.colors or {}
-                                    local decColors = {}
-                                    if deserialize then
-                                        for i=1, #colors do
-                                            local color = colors[i]
-                                            if type(color) == "string" then
-                                                local okd, dc = pcall(function() return deserialize(color) end)
-                                                if okd and dc then decColors[i] = dc end
-                                            elseif type(color) == "userdata" and color.r and color.g and color.b then
-                                                decColors[i] = color -- Direct Color3 value
+                                    -- Build source color array: support both legacy `colors` and new `slots` shapes
+                                    local colors = {}
+                                    if type(value.slots) == 'table' then
+                                        for i=1, #value.slots do
+                                            local slotEntry = value.slots[i]
+                                            if slotEntry then
+                                                colors[i] = slotEntry.color
                                             end
                                         end
+                                    elseif type(value.colors) == 'table' then
+                                        colors = value.colors
                                     end
-                                    
-                                    -- Apply colors silently first
+
+                                    local decColors = {}
+                                    -- Robustly deserialize each entry; allow raw Color3 values through too
+                                    for i=1, #colors do
+                                        local raw = colors[i]
+                                        local okd, dc = false, nil
+                                        if type(raw) == 'table' or type(raw) == 'string' then
+                                            if deserialize then
+                                                okd, dc = pcall(function() return deserialize(raw) end)
+                                            end
+                                        elseif typeof and typeof(raw) == 'Color3' then
+                                            okd, dc = true, raw
+                                        end
+                                        if okd and dc ~= nil then
+                                            decColors[i] = dc
+                                        end
+                                    end
+
+                                    -- Apply colors silently first (only if _setValue exists)
                                     if Library and Library._setValue then
                                         pcall(function() Library:_setValue(targetId, decColors, true) end)
                                     end
