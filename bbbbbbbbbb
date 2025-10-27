@@ -850,7 +850,7 @@ function Library:Notification(text, notifyType, timer)
                 end)
             end
             
-            -- Get the library's main window for proper centering
+            -- Find the main library window for proper centering
             local libraryWindow = nil
             for _, window in pairs(self._windows) do
                 if window._main and window._main.Parent then
@@ -859,19 +859,136 @@ function Library:Notification(text, notifyType, timer)
                 end
             end
             
-            -- Create new modal centered on library window
-            local modalGui = Create("ScreenGui", {Name = "LibraryModal", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
-            local overlay = Create("Frame", {
-                Name = "Overlay", 
-                BackgroundTransparency = 0.35, 
-                BackgroundColor3 = Color3.fromRGB(0,0,0), 
-                Size = UDim2.fromScale(1,1), 
-                Position = UDim2.fromOffset(0,0), 
-                Parent = modalGui
+            if not libraryWindow then return end -- Can't show modal without library window
+            
+            -- Create new modal notification frame directly in the library window
+            local modalFrame = Create("Frame", {
+                Name = "ModalNotification",
+                BackgroundTransparency = 0.2,
+                BackgroundColor3 = Theme.Bg,
+                Size = UDim2.fromOffset(320, 120), -- Smaller, more compact size
+                Position = UDim2.fromScale(0.5, 0.5),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                ZIndex = 9999, -- Ensure it's above other library elements
+                Parent = libraryWindow
             })
             
+            -- Accent border effect
+            Create("UIStroke", {
+                Color = Theme.Accent,
+                Thickness = 1.5,
+                Transparency = 0.2,
+                Parent = modalFrame
+            })
+            
+            -- Sharp corners for a modern look
+            Create("UICorner", {
+                CornerRadius = UDim.new(0, 4),
+                Parent = modalFrame
+            })
+            
+            -- Inner panel with darker background
+            local innerPanel = Create("Frame", {
+                Name = "InnerPanel",
+                BackgroundColor3 = Theme.Panel,
+                BackgroundTransparency = 0.3,
+                Size = UDim2.new(1, -8, 1, -8),
+                Position = UDim2.fromOffset(4, 4),
+                Parent = modalFrame
+            })
+            Create("UICorner", {
+                CornerRadius = UDim.new(0, 3),
+                Parent = innerPanel
+            })
+            Create("UIStroke", {
+                Color = Theme.Stroke,
+                Thickness = 1,
+                Transparency = 0.5,
+                Parent = innerPanel
+            })
+            
+            -- Notification text with custom font and size
+            local textLabel = Create("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -24, 1, -50),
+                Position = UDim2.fromOffset(12, 12),
+                Text = text,
+                TextColor3 = Theme.Text,
+                TextSize = 14,
+                Font = Fonts.Medium,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                Parent = innerPanel
+            })
+            
+            -- Modern button design
+            local btn = Create("TextButton", {
+                Name = "OkButton",
+                Size = UDim2.fromOffset(80, 28),
+                Position = UDim2.new(1, -92, 1, -40),
+                BackgroundColor3 = Theme.Button,
+                Text = "OK",
+                TextColor3 = Theme.Text,
+                TextSize = 13,
+                Font = Fonts.Medium,
+                Parent = innerPanel
+            })
+            Create("UICorner", {
+                CornerRadius = UDim.new(0, 3),
+                Parent = btn
+            })
+            Create("UIStroke", {
+                Color = Theme.Stroke,
+                Thickness = 1,
+                Transparency = 0.5,
+                Parent = btn
+            })
+            
+            -- Button hover effect
+            btn.MouseEnter:Connect(function()
+                T(btn, 0.15, {BackgroundColor3 = Theme.Hover}):Play()
+            end)
+            btn.MouseLeave:Connect(function()
+                T(btn, 0.15, {BackgroundColor3 = Theme.Button}):Play()
+            end)
+            
+            -- Entry animation (scale in)
+            modalFrame.Size = UDim2.fromOffset(0, 0)
+            T(modalFrame, 0.3, {Size = UDim2.fromOffset(320, 120)}, Enum.EasingStyle.Back, Enum.EasingDirection.Out):Play()
+            
             -- Track this as the active modal
-            self._activeModalNotification = modalGui
+            self._activeModalNotification = modalFrame
+            
+            local closed = false
+            local function closeModal()
+                if closed then return end
+                closed = true
+                
+                -- Scale out animation
+                local t = T(modalFrame, 0.2, {
+                    Size = UDim2.fromOffset(0, 0),
+                    BackgroundTransparency = 1
+                }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+                
+                t.Completed:Connect(function()
+                    modalFrame:Destroy()
+                end)
+                
+                t:Play()
+            end
+            
+            btn.MouseButton1Click:Connect(closeModal)
+            
+            -- Auto close if timer > 0
+            if timer and timer > 0 then
+                task.spawn(function()
+                    task.wait(timer)
+                    pcall(closeModal)
+                end)
+            end
+            
+            return modalFrame
             local box = Create("Frame", {Name = "ModalBox", Size = UDim2.fromOffset(420, 140), Position = UDim2.new(0.5,0,0.5,0), AnchorPoint = Vector2.new(0.5,0.5), BackgroundColor3 = Theme.Bg, ZIndex = 3000, Parent = overlay})
             Create("UICorner", {CornerRadius = UDim.new(0,8), Parent = box})
             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = box})
