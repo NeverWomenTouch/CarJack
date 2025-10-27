@@ -6157,15 +6157,10 @@ function Library:CreateLibrary(opts)
         local low = safe:lower()
         warn("[Window] SaveConfig called with:", tostring(name), "-> sanitized:", tostring(safe))
         if safe == "" or low == "__meta" or low == "__index" then return false end
-        local snapshot = {}
-        local okSnap, snapRes = pcall(function() return Library:_getSnapshot() end)
-        if okSnap and type(snapRes) == "table" then
-            snapshot = snapRes
-        else
-            warn("[Window] _getSnapshot failed or returned non-table; using empty snapshot. err:", snapRes)
-        end
+        -- Call Config.Save without passing a prebuilt snapshot so Config.Save
+        -- can build an enhanced snapshot itself (this captures Colorpicker modes like rainbow/pulse)
         local ok = false
-        local okCall, res = pcall(function() return Config.Save(safe, snapshot) end)
+        local okCall, res = pcall(function() return Config.Save(safe) end)
         if okCall then ok = res else warn("[Window] Config.Save errored:", res) end
         if ok then pcall(function() Config.RecordSave(safe) end) end
         warn("[Window] SaveConfig result for", tostring(safe), "=", tostring(ok))
