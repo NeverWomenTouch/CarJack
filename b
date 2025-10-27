@@ -695,6 +695,97 @@ do
     end
 end
 
+function Library:Notification(text, notifyType, timer)
+        text = tostring(text or "")
+        notifyType = tonumber(notifyType) or 1
+        timer = tonumber(timer) or 4
+
+        -- Ensure watermark exists to anchor notification position
+        if not self._watermark or not self._watermark.Parent then
+            -- Use public setter which will create the watermark if missing
+            pcall(function() self:SetWatermark(self._watermarkText) end)
+        end
+
+        -- Determine parent for notification (use watermark's parent ScreenGui if available)
+        local parentGui = (self._watermark and self._watermark.Parent) or CoreGui
+
+        if notifyType == 1 then
+            -- Small slide-in notification (watermark style)
+            local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
+            local frame = Create("Frame", {
+                Name = "NotifFrame",
+                Size = UDim2.fromOffset(320, 44),
+                AnchorPoint = Vector2.new(1, 0),
+                Position = UDim2.new(1, (self._watermarkPosition and self._watermarkPosition.XOffset) or -260 + 200, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46),
+                BackgroundColor3 = Theme.Bg,
+                BorderSizePixel = 0,
+                ZIndex = 2000,
+                Parent = notifGui,
+                ClipsDescendants = true
+            })
+            Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = frame})
+            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4, Parent = frame})
+            local inner = Create("Frame", {BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0.6, Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3,3), Parent = frame})
+            Create("UICorner", {CornerRadius = UDim.new(0,5), Parent = inner})
+            local label = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -18, 1, 0), Position = UDim2.fromOffset(9,0), Text = text, Font = Fonts.Medium, TextSize = 14, TextColor3 = Library._watermarkTextColor or Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center, Parent = inner})
+
+            -- Animate slide in from right
+            local desiredX = (self._watermarkPosition and self._watermarkPosition.XOffset) or -260
+            frame.Position = UDim2.new(1, desiredX + 200, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46)
+            T(frame, 0.35, {Position = UDim2.new(1, desiredX, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46)}):Play()
+
+            -- Auto dismiss after timer
+            task.spawn(function()
+                task.wait(math.max(0.1,timer))
+                pcall(function()
+                    T(frame, 0.28, {Position = UDim2.new(1, desiredX + 200, 0, (self._watermarkPosition and (self._watermarkPosition.YOffset + 36)) or 46), BackgroundTransparency = 1}):Play()
+                    task.wait(0.30)
+                    if notifGui and notifGui.Parent then notifGui:Destroy() end
+                end)
+            end)
+
+            return notifGui
+        else
+            -- Center modal notification
+            local modalGui = Create("ScreenGui", {Name = "LibraryModal", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
+            local overlay = Create("Frame", {Name = "Overlay", BackgroundTransparency = 0.35, BackgroundColor3 = Color3.fromRGB(0,0,0), Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), Parent = modalGui})
+            local box = Create("Frame", {Name = "ModalBox", Size = UDim2.fromOffset(420, 140), Position = UDim2.new(0.5,0,0.5,0), AnchorPoint = Vector2.new(0.5,0.5), BackgroundColor3 = Theme.Bg, ZIndex = 3000, Parent = overlay})
+            Create("UICorner", {CornerRadius = UDim.new(0,8), Parent = box})
+            Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = box})
+            local title = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -28, 0, 60), Position = UDim2.fromOffset(14,12), Text = text, Font = Fonts.Medium, TextSize = 16, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Parent = box})
+            local btn = Create("TextButton", {Name = "OkBtn", Size = UDim2.fromOffset(96, 36), Position = UDim2.new(1, -110, 1, -48), AnchorPoint = Vector2.new(0,0), Text = "OK", Font = Fonts.Medium, TextSize = 14, BackgroundColor3 = Theme.Button, TextColor3 = Theme.Text, Parent = box})
+            Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = btn})
+
+            -- Entry animation
+            box.Size = UDim2.fromOffset(10,10)
+            box.Position = UDim2.new(0.5,0,0.5,0)
+            T(box, 0.28, {Size = UDim2.fromOffset(420, 140)}):Play()
+
+            local closed = false
+            local function closeModal()
+                if closed then return end
+                closed = true
+                pcall(function()
+                    T(box, 0.20, {Size = UDim2.fromOffset(10,10), BackgroundTransparency = 1}):Play()
+                    task.wait(0.22)
+                    if modalGui and modalGui.Parent then modalGui:Destroy() end
+                end)
+            end
+
+            btn.MouseButton1Click:Connect(function() closeModal() end)
+
+            -- Auto close if timer > 0
+            if timer and timer > 0 then
+                task.spawn(function()
+                    task.wait(timer)
+                    pcall(closeModal)
+                end)
+            end
+
+            return modalGui
+        end
+    end
+
 -- Keybind List System - Completely Rewritten
 do
     Library._keybindList = nil
