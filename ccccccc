@@ -743,7 +743,7 @@ function Library:Notification(text, notifyType, timer)
         end
         if not parentGui then parentGui = CoreGui end
 
-        if notifyType == 1 then
+            if notifyType == 1 then
             -- Small slide-in notification (watermark style)
             -- slideOffset controls how far the notification starts off-screen before sliding in.
             -- Make this configurable per-library via Library._notificationSlideOffset (default 15).
@@ -759,13 +759,11 @@ function Library:Notification(text, notifyType, timer)
             -- Calculate text bounds with wrapping
             local textSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(maxWidth - padding, math.huge))
             
-            -- Set notification size
+            -- Set notification size with improved height for better text centering
             local notifWidth = math.max(minWidth, math.min(textSize.X + padding, maxWidth))
-            local notifHeight = math.max(30, textSize.Y + 16) -- 8px padding top and bottom
+            local notifHeight = math.max(36, textSize.Y + 20) -- Increased padding for better centering
 
-            local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
-
-            -- Calculate Y position based on existing notifications
+            local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})            -- Calculate Y position based on existing notifications
             local finalScaleX, finalOffsetX, finalScaleY, finalOffsetY
             finalScaleX = 1
             finalOffsetX = -10 -- Small margin from right edge
@@ -1012,22 +1010,39 @@ function Library:Notification(text, notifyType, timer)
                 if closed then return end
                 closed = true
 
-                -- Scale out animation (shrink and fade)
-                local t = T(modalFrame, 0.2, {
-                    Size = UDim2.fromOffset(0, 0),
-                    BackgroundTransparency = 1
-                }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-
-                t.Completed:Connect(function()
-                    -- If we created a dedicated ScreenGui (modalGui), destroy it; otherwise destroy modalFrame
-                    if modalGui and modalGui.Parent then
-                        modalGui:Destroy()
-                    else
-                        if modalFrame and modalFrame.Parent then modalFrame:Destroy() end
+                -- Smooth fade out and scale animation
+                -- First fade out the content
+                local contentElements = {innerPanel, textLabel, btn}
+                for _, element in ipairs(contentElements) do
+                    if element then
+                        T(element, 0.2, {
+                            BackgroundTransparency = 1,
+                            TextTransparency = 1
+                        }):Play()
                     end
-                end)
+                end
 
-                t:Play()
+                -- Then animate the modal frame
+                task.delay(0.1, function()
+                    -- Scale and fade animation
+                    local t = T(modalFrame, 0.25, {
+                        Size = UDim2.fromOffset(modalFrame.AbsoluteSize.X * 0.8, modalFrame.AbsoluteSize.Y * 0.8),
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(modalFrame.Position.X.Scale, modalFrame.Position.X.Offset, 
+                                           modalFrame.Position.Y.Scale, modalFrame.Position.Y.Offset + 20)
+                    }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+                    -- Cleanup after animation
+                    t.Completed:Connect(function()
+                        if modalGui and modalGui.Parent then
+                            modalGui:Destroy()
+                        else
+                            if modalFrame and modalFrame.Parent then modalFrame:Destroy() end
+                        end
+                    end)
+
+                    t:Play()
+                end)
             end
 
             -- Close on button click and timer
