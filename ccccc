@@ -881,53 +881,41 @@ function Library:Notification(text, notifyType, timer)
                 mainFrame = nil
             end
 
-            -- Parent modal to CoreGui and set DisplayOrder above the library's ScreenGui so it appears on top
-            local screenDisplayOrder = 1000000
-            if mainFrame and mainFrame.Parent and mainFrame.Parent.DisplayOrder then
-                screenDisplayOrder = (mainFrame.Parent.DisplayOrder or 999999) + 1
-            end
-            local modalGui = Create("ScreenGui", {
-                Name = "LibraryModalGui",
-                DisplayOrder = screenDisplayOrder,
-                IgnoreGuiInset = true,
-                ResetOnSpawn = false,
-                Parent = CoreGui
-            })
-
-            -- Create darkened overlay sized to match the main window (or full-screen fallback)
-            local overlay
-            if mainFrame then
-                local mainFrameSize = mainFrame.AbsoluteSize
-                local mainFramePos = mainFrame.AbsolutePosition
-                overlay = Create("Frame", {
-                    Name = "ModalOverlay",
-                    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-                    BackgroundTransparency = 0.5,
-                    Size = UDim2.fromOffset(mainFrameSize.X, mainFrameSize.Y),
-                    Position = UDim2.fromOffset(mainFramePos.X, mainFramePos.Y),
-                    Parent = modalGui
+            -- Create modal attached to the library window so it moves with it; fallback to a ScreenGui if library root missing
+            local modalGui = nil
+            local modalFrame
+            if mainFrame and mainFrame.Parent then
+                -- Parent modal directly to the library root so it follows moves/resizing
+                modalFrame = Create("Frame", {
+                    Name = "ModalNotification",
+                    BackgroundTransparency = 0.2,
+                    BackgroundColor3 = Theme.Bg,
+                    Size = UDim2.fromOffset(320, 120),
+                    Position = UDim2.fromScale(0.5, 0.5),
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    ZIndex = 9999,
+                    Parent = mainFrame
                 })
             else
-                overlay = Create("Frame", {
-                    Name = "ModalOverlay",
-                    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-                    BackgroundTransparency = 0.5,
-                    Size = UDim2.fromScale(1, 1),
-                    Position = UDim2.fromOffset(0, 0),
+                -- fallback: create a ScreenGui so the modal still appears
+                local screenDisplayOrder = 1000000
+                modalGui = Create("ScreenGui", {
+                    Name = "LibraryModalGui",
+                    DisplayOrder = screenDisplayOrder,
+                    IgnoreGuiInset = true,
+                    ResetOnSpawn = false,
+                    Parent = CoreGui
+                })
+                modalFrame = Create("Frame", {
+                    Name = "ModalNotification",
+                    BackgroundTransparency = 0.2,
+                    BackgroundColor3 = Theme.Bg,
+                    Size = UDim2.fromOffset(320, 120),
+                    Position = UDim2.fromScale(0.5, 0.5),
+                    AnchorPoint = Vector2.new(0.5, 0.5),
                     Parent = modalGui
                 })
             end
-            
-            -- Create modal frame centered on the overlay
-            local modalFrame = Create("Frame", {
-                Name = "ModalNotification",
-                BackgroundTransparency = 0.2,
-                BackgroundColor3 = Theme.Bg,
-                Size = UDim2.fromOffset(320, 120),
-                Position = UDim2.fromScale(0.5, 0.5),
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Parent = overlay
-            })
             
             -- Accent border effect
             Create("UIStroke", {
@@ -1018,51 +1006,38 @@ function Library:Notification(text, notifyType, timer)
             modalFrame.Size = UDim2.fromOffset(0, 0)
             T(modalFrame, 0.3, {Size = UDim2.fromOffset(320, 120)}, Enum.EasingStyle.Back, Enum.EasingDirection.Out):Play()
             
-            -- Track this as the active modal (store the ScreenGui so cleanup removes everything)
-            -- Will be overwritten below to refer to the modalGui ScreenGui
-            self._activeModalNotification = modalFrame
-            
+            -- Track this as the active modal (store modalFrame or modalGui for cleanup)
             local closed = false
             local function closeModal()
                 if closed then return end
                 closed = true
-                
-                -- Scale out animation
+
+                -- Scale out animation (shrink and fade)
                 local t = T(modalFrame, 0.2, {
                     Size = UDim2.fromOffset(0, 0),
                     BackgroundTransparency = 1
                 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-                
+
                 t.Completed:Connect(function()
+                    -- If we created a dedicated ScreenGui (modalGui), destroy it; otherwise destroy modalFrame
                     if modalGui and modalGui.Parent then
-                        modalGui:Destroy() -- Clean up the entire modal GUI
+                        modalGui:Destroy()
+                    else
+                        if modalFrame and modalFrame.Parent then modalFrame:Destroy() end
                     end
                 end)
-                
+
                 t:Play()
             end
-            
-            -- Close on overlay click
-            overlay.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    closeModal()
-                end
-            end)
-            
-            -- Track this as the active modal
-            self._activeModalNotification = modalGui
-            
+
+            -- Only close on OK button click (per request). Do NOT close on overlay click or timer.
             btn.MouseButton1Click:Connect(closeModal)
-            
-            -- Auto close if timer > 0
-            if timer and timer > 0 then
-                task.spawn(function()
-                    task.wait(timer)
-                    pcall(closeModal)
-                end)
-            end
-            
-            return overlay -- Return the overlay which contains the modal
+
+            -- Track active modal reference for external cleanup
+            self._activeModalNotification = modalGui and modalGui or modalFrame
+
+            -- Return the modalFrame (or its parent GUI) so caller can keep a reference if needed
+            return self._activeModalNotification
         end
     end
 
