@@ -749,19 +749,19 @@ function Library:Notification(text, notifyType, timer)
             -- Make this configurable per-library via Library._notificationSlideOffset (default 15).
             local slideOffset = tonumber(self._notificationSlideOffset) or 15 -- Start just off screen
 
-            -- Calculate size based on text content
+            -- Calculate size based on text content with better wrapping
             local notifFont = Fonts.Medium
             local notifTextSize = 14
-            local maxWidth = 300 -- Maximum width before wrapping
+            local maxWidth = 400 -- Increased maximum width
             local minWidth = (self._watermarkFrame and self._watermarkFrame.AbsoluteSize.X) or 160
+            local padding = 24 -- Text padding (12px on each side)
             
-            -- First try without wrapping to see if text fits in minimum width
-            local textSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(math.huge, 30))
+            -- Calculate text bounds with wrapping
+            local textSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(maxWidth - padding, math.huge))
             
-            -- If text is too wide, calculate height with text wrapping
-            local notifWidth = math.max(minWidth, math.min(textSize.X + 20, maxWidth))
-            local wrappedTextSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(notifWidth - 30, math.huge))
-            local notifHeight = math.max(30, wrappedTextSize.Y + 10) -- Add padding
+            -- Set notification size
+            local notifWidth = math.max(minWidth, math.min(textSize.X + padding, maxWidth))
+            local notifHeight = math.max(30, textSize.Y + 16) -- 8px padding top and bottom
 
             local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
 
@@ -855,29 +855,44 @@ function Library:Notification(text, notifyType, timer)
                 end)
             end
             
-            -- Find the library window for proper centering
-            local libraryGui = nil
-            for _, window in pairs(self._windows) do
-                if window._rootGui and window._rootGui.Parent then
-                    libraryGui = window._rootGui
+            -- Find the library's main GUI and container
+            local window = nil
+            for _, w in pairs(self._windows) do
+                if w.main and w.main.Parent then
+                    window = w
                     break
                 end
             end
             
-            if not libraryGui then return end -- Can't show modal without library GUI
-
-            -- Create darkened overlay to dim the background that covers the entire GUI
+            if not window then return end -- Can't show modal without window
+            
+            -- Get the main window frame and its parent ScreenGui
+            local mainFrame = window.main
+            local parentGui = mainFrame.Parent
+            
+            -- Create a new overlay ScreenGui to ensure it's above everything
+            local modalGui = Create("ScreenGui", {
+                Name = "LibraryModalGui",
+                DisplayOrder = 999999,
+                IgnoreGuiInset = true,
+                ResetOnSpawn = false,
+                Parent = parentGui
+            })
+            
+            -- Create darkened overlay sized to match the main window
+            local mainFrameSize = mainFrame.AbsoluteSize
+            local mainFramePos = mainFrame.AbsolutePosition
+            
             local overlay = Create("Frame", {
                 Name = "ModalOverlay",
                 BackgroundColor3 = Color3.fromRGB(0, 0, 0),
                 BackgroundTransparency = 0.5,
-                Size = UDim2.fromScale(1, 1),
-                Position = UDim2.fromScale(0, 0),
-                ZIndex = 999999, -- Very high Z-index to be above all library elements
-                Parent = libraryGui
+                Size = UDim2.fromOffset(mainFrameSize.X, mainFrameSize.Y),
+                Position = UDim2.fromOffset(mainFramePos.X, mainFramePos.Y),
+                Parent = modalGui
             })
             
-            -- Create new modal notification frame
+            -- Create modal frame centered on the overlay
             local modalFrame = Create("Frame", {
                 Name = "ModalNotification",
                 BackgroundTransparency = 0.2,
@@ -885,7 +900,6 @@ function Library:Notification(text, notifyType, timer)
                 Size = UDim2.fromOffset(320, 120),
                 Position = UDim2.fromScale(0.5, 0.5),
                 AnchorPoint = Vector2.new(0.5, 0.5),
-                ZIndex = 1000000, -- Even higher Z-index than overlay
                 Parent = overlay
             })
             
@@ -993,8 +1007,8 @@ function Library:Notification(text, notifyType, timer)
                 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
                 
                 t.Completed:Connect(function()
-                    if overlay and overlay.Parent then
-                        overlay:Destroy() -- This will also destroy the modalFrame since it's a child
+                    if modalGui and modalGui.Parent then
+                        modalGui:Destroy() -- Clean up the entire modal GUI
                     end
                 end)
                 
@@ -1007,6 +1021,9 @@ function Library:Notification(text, notifyType, timer)
                     closeModal()
                 end
             end)
+            
+            -- Track this as the active modal
+            self._activeModalNotification = modalGui
             
             btn.MouseButton1Click:Connect(closeModal)
             
