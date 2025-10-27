@@ -850,27 +850,38 @@ function Library:Notification(text, notifyType, timer)
                 end)
             end
             
-            -- Find the main library window for proper centering
-            local libraryWindow = nil
+            -- Find the library menu container for proper centering
+            local libraryContainer = nil
             for _, window in pairs(self._windows) do
-                if window._main and window._main.Parent then
-                    libraryWindow = window._main
+                if window._container and window._container.Parent then
+                    libraryContainer = window._container
                     break
                 end
             end
             
-            if not libraryWindow then return end -- Can't show modal without library window
+            if not libraryContainer then return end -- Can't show modal without library container
+
+            -- Create darkened overlay to dim the background
+            local overlay = Create("Frame", {
+                Name = "ModalOverlay",
+                BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+                BackgroundTransparency = 0.5,
+                Size = UDim2.fromScale(1, 1),
+                Position = UDim2.fromOffset(0, 0),
+                ZIndex = 9998,
+                Parent = libraryContainer
+            })
             
-            -- Create new modal notification frame directly in the library window
+            -- Create new modal notification frame
             local modalFrame = Create("Frame", {
                 Name = "ModalNotification",
                 BackgroundTransparency = 0.2,
                 BackgroundColor3 = Theme.Bg,
-                Size = UDim2.fromOffset(320, 120), -- Smaller, more compact size
+                Size = UDim2.fromOffset(320, 120),
                 Position = UDim2.fromScale(0.5, 0.5),
                 AnchorPoint = Vector2.new(0.5, 0.5),
-                ZIndex = 9999, -- Ensure it's above other library elements
-                Parent = libraryWindow
+                ZIndex = 9999,
+                Parent = overlay
             })
             
             -- Accent border effect
@@ -977,11 +988,20 @@ function Library:Notification(text, notifyType, timer)
                 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
                 
                 t.Completed:Connect(function()
-                    modalFrame:Destroy()
+                    if overlay and overlay.Parent then
+                        overlay:Destroy() -- This will also destroy the modalFrame since it's a child
+                    end
                 end)
                 
                 t:Play()
             end
+            
+            -- Close on overlay click
+            overlay.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    closeModal()
+                end
+            end)
             
             btn.MouseButton1Click:Connect(closeModal)
             
@@ -993,7 +1013,7 @@ function Library:Notification(text, notifyType, timer)
                 end)
             end
             
-            return modalFrame
+            return overlay -- Return the overlay which contains the modal
         end
     end
 
