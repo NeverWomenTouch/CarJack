@@ -724,8 +724,8 @@ function Library:Notification(text, notifyType, timer)
         if notifyType == 1 then
             -- Small slide-in notification (watermark style)
             -- slideOffset controls how far the notification starts off-screen before sliding in.
-            -- Make this configurable per-library via Library._notificationSlideOffset (default 2).
-            local slideOffset = tonumber(self._notificationSlideOffset) or 2
+            -- Make this configurable per-library via Library._notificationSlideOffset (default 15).
+            local slideOffset = tonumber(self._notificationSlideOffset) or 15 -- Start just off screen
 
             -- Calculate size based on text and watermark width so it lines up nicely
             local notifFont = Fonts.Medium
@@ -740,14 +740,13 @@ function Library:Notification(text, notifyType, timer)
 
             -- If watermark frame exists, align exactly to its position; otherwise fall back to stored watermarkPosition values
             local finalScaleX, finalOffsetX, finalScaleY, finalOffsetY
+            -- Always position notification near right edge, with small margin
+            finalScaleX = 1
+            finalOffsetX = -10 -- Small margin from right edge
             if self._watermarkFrame and self._watermarkFrame.Parent then
-                finalScaleX = self._watermarkFrame.Position.X.Scale
-                finalOffsetX = self._watermarkFrame.Position.X.Offset
                 finalScaleY = self._watermarkFrame.Position.Y.Scale
                 finalOffsetY = self._watermarkFrame.Position.Y.Offset
             else
-                finalScaleX = (self._watermarkPosition and self._watermarkPosition.X) or 1
-                finalOffsetX = (self._watermarkPosition and self._watermarkPosition.XOffset) or -260
                 finalScaleY = (self._watermarkPosition and self._watermarkPosition.Y) or 0
                 finalOffsetY = (self._watermarkPosition and self._watermarkPosition.YOffset) or 10
             end
