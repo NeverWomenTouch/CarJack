@@ -724,8 +724,8 @@ function Library:Notification(text, notifyType, timer)
         if notifyType == 1 then
             -- Small slide-in notification (watermark style)
             -- slideOffset controls how far the notification starts off-screen before sliding in.
-            -- Make this configurable per-library via Library._notificationSlideOffset (default 8).
-            local slideOffset = tonumber(self._notificationSlideOffset) or 8
+            -- Make this configurable per-library via Library._notificationSlideOffset (default 4).
+            local slideOffset = tonumber(self._notificationSlideOffset) or 4
 
             -- Calculate size based on text and watermark width so it lines up nicely
             local notifFont = Fonts.Medium
@@ -736,19 +736,35 @@ function Library:Notification(text, notifyType, timer)
             local notifHeight = (self._watermarkFrame and self._watermarkFrame.AbsoluteSize.Y) or 30
 
             local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
-            local desiredX = (self._watermarkPosition and self._watermarkPosition.XOffset) or -260
-            local yOffset = (self._watermarkPosition and self._watermarkPosition.YOffset) or 10
+
+            -- If watermark frame exists, align exactly to its position; otherwise fall back to stored watermarkPosition values
+            local finalScaleX, finalOffsetX, finalScaleY, finalOffsetY
+            if self._watermarkFrame and self._watermarkFrame.Parent then
+                finalScaleX = self._watermarkFrame.Position.X.Scale
+                finalOffsetX = self._watermarkFrame.Position.X.Offset
+                finalScaleY = self._watermarkFrame.Position.Y.Scale
+                finalOffsetY = self._watermarkFrame.Position.Y.Offset
+            else
+                finalScaleX = (self._watermarkPosition and self._watermarkPosition.X) or 1
+                finalOffsetX = (self._watermarkPosition and self._watermarkPosition.XOffset) or -260
+                finalScaleY = (self._watermarkPosition and self._watermarkPosition.Y) or 0
+                finalOffsetY = (self._watermarkPosition and self._watermarkPosition.YOffset) or 10
+            end
+
             local frame = Create("Frame", {
                 Name = "NotifFrame",
                 Size = UDim2.fromOffset(math.floor(notifWidth), math.floor(notifHeight)),
                 AnchorPoint = Vector2.new(1, 0),
-                Position = UDim2.new(1, (desiredX + slideOffset), 0, yOffset),
+                -- Start slightly offset to the right of the final watermark X so it slides only a little
+                Position = UDim2.new(finalScaleX, (finalOffsetX + slideOffset), finalScaleY, finalOffsetY),
                 BackgroundColor3 = Theme.Bg,
                 BorderSizePixel = 0,
                 ZIndex = 2000,
                 Parent = notifGui,
                 ClipsDescendants = true
             })
+            -- Accent outline using library accent color for detail
+            Create("UIStroke", {Color = (Library._watermarkAccentColor or Theme.Accent), Thickness = 1, Transparency = 0.2, Parent = frame})
             Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = frame})
             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4, Parent = frame})
             local inner = Create("Frame", {BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0.6, Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3,3), Parent = frame})
