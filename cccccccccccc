@@ -4294,6 +4294,8 @@ function Library:CreateLibrary(opts)
                                 end
                                 table.insert(list, v)
                             end
+                            -- cap to two keys max
+                            if #list > 2 then list = { list[1], list[2] } end
                             self._value = list
                             -- build display text
                             local parts = {}
@@ -4351,6 +4353,11 @@ function Library:CreateLibrary(opts)
                             for _, v in ipairs(capture) do
                                 local keyStr = tostring(v)
                                 if not seen[keyStr] then seen[keyStr] = true; table.insert(out, v) end
+                            end
+                            -- cap combos to maximum two keys
+                            if #out > 2 then
+                                local tmp = { out[1], out[2] }
+                                out = tmp
                             end
                             if #out == 0 then
                                 stopVisual(); unbindSink(); return
@@ -4422,6 +4429,8 @@ function Library:CreateLibrary(opts)
                                             local s = tostring(v)
                                             if not seen[s] then seen[s] = true; table.insert(out, v) end
                                         end
+                                        -- cap to two keys max
+                                        if #out > 2 then out = { out[1], out[2] } end
                                         if #out == 0 then stopVisual(); unbindSink(); capture = {}; return end
                                         if #out == 1 then Keybind:Set(out[1]) else Keybind:Set(out) end
                                         stopVisual()
@@ -5999,18 +6008,33 @@ function Library:CreateLibrary(opts)
                                     if disconnectAll then disconnectAll() end
                                     if setupKeybindListener then setupKeybindListener() end
                                 else
-                                    -- Start capturing a short combo window
+                                    -- Start capturing a short combo window and listen for additional presses
                                     local capture = {input.KeyCode}
-                                    -- coalescing window started
+                                    local tempConn
+                                    tempConn = UserInputService.InputBegan:Connect(function(i, gp)
+                                        if gp then return end
+                                        if i.UserInputType == Enum.UserInputType.Keyboard then
+                                            if i.KeyCode ~= Enum.KeyCode.Unknown and i.KeyCode ~= Enum.KeyCode.Escape then
+                                                table.insert(capture, i.KeyCode)
+                                            end
+                                        elseif i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.MouseButton2 then
+                                            -- treat mouse button as a separate part as well
+                                            table.insert(capture, i.UserInputType)
+                                        end
+                                    end)
+
                                     task.delay(0.22, function()
+                                        if tempConn then pcall(function() tempConn:Disconnect() end); tempConn = nil end
                                         if isBinding then
-                                            -- dedupe
+                                            -- dedupe while preserving order
                                             local seen = {}
                                             local out = {}
                                             for _, v in ipairs(capture) do
                                                 local s = tostring(v)
                                                 if not seen[s] then seen[s] = true; table.insert(out, v) end
                                             end
+                                            -- cap to two keys max
+                                            if #out > 2 then out = { out[1], out[2] } end
                                             if #out == 1 then
                                                 currentKey = out[1]
                                                 currentInputType = nil
