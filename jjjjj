@@ -1438,7 +1438,6 @@ function Library:CreateLibrary(opts)
         function Config.Save(name, data)
             Config.Ensure()
             local s = sanitize(name or "")
-            warn("[Config] Save called for:", tostring(s), "MEM_MODE=", tostring(MEM_MODE))
             if s == "" then return false end
             -- New payload shape: metadata + controls (easier for users to edit manually)
             local payload = { metadata = { name = s, lastModified = os.time(), autoLoad = false }, controls = {} }
@@ -1450,7 +1449,7 @@ function Library:CreateLibrary(opts)
                     if c and c.Get then
                         local ok, val = pcall(function() return c:Get() end)
                         if not ok then
-                            warn("[Config] _getSnapshot: Get failed for id=", tostring(id), "err=", tostring(val))
+                            val = nil
                         else
                             -- special-case Colorpicker controls to capture modes
                             if type(c) == 'table' and c._slots then
@@ -1465,7 +1464,6 @@ function Library:CreateLibrary(opts)
                                     pulseHueOffsets[i] = slot and (slot.pulseHueOffset or 0) or 0
                                 end
                                 snapshot[id] = { __ctrl = "Colorpicker", colors = colors, rainbow = rainbowFlags, pulse = pulseFlags, hueOffsets = hueOffsets, pulseHueOffsets = pulseHueOffsets }
-                                warn("[Config] captured Colorpicker for saving:", tostring(id), "rainbow slots=", tostring(#rainbowFlags), "pulse slots=", tostring(#pulseFlags))
                             else
                                 snapshot[id] = val
                             end
@@ -1523,7 +1521,6 @@ function Library:CreateLibrary(opts)
             -- Attempt to encode JSON quietly
             local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
             if not okj or type(json) ~= "string" then
-                cfgErr("[Config] JSON encode failed:", s)
                 return false
             end
             -- Pretty-print JSON to be user-editable (lightweight formatter)
@@ -6148,10 +6145,21 @@ function Library:CreateLibrary(opts)
         local safe = sanitize(name or "")
         local low = safe:lower()
         if safe == "" or low == "__meta" or low == "__index" then return false end
+        -- Before saving, check if auto-load was enabled and preserve it
+        local wasAutoLoad = false
+        pcall(function() wasAutoLoad = Config.GetAutoLoad(safe) end)
         local ok = false
         local okCall, res = pcall(function() return Config.Save(safe) end)
-        if okCall then ok = res else cfgErr("[Config] Save failed:", res) end
-        if ok then pcall(function() Config.RecordSave(safe) end) end
+        if okCall and res then
+            ok = true
+            pcall(function() Config.RecordSave(safe) end)
+            -- Restore auto-load state if it was enabled
+            if wasAutoLoad then
+                pcall(function() Config.SetAutoLoad(safe, true) end)
+            end
+        else 
+            cfgErr("[Config] Save failed:", res)
+        end
         return ok
     end
     Window.LoadConfig = function(name)
@@ -6159,8 +6167,8 @@ function Library:CreateLibrary(opts)
         local low = safe:lower()
         if safe == "" or low == "__meta" or low == "__index" then return end
         local okLoad, data = pcall(function() return Config.Load(safe) end)
-        if not okLoad then cfgErr("[Config] Load failed:", tostring(data)) return end
-        if type(data) ~= 'table' then cfgErr("[Config] Invalid config data") return end
+        if not okLoad then return end
+        if type(data) ~= 'table' then return end
         local applied = 0
         for id, value in pairs(data) do
             if type(id) == "string" and id:sub(1,2) == "__" then
@@ -6184,10 +6192,10 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 if not ctrl then
-                    warn("[Window] LoadConfig: no control found for id:", tostring(id))
+                    -- Control not found
                 else
                     if not ctrl.Set then
-                        warn("[Window] LoadConfig: control found but has no Set method:", tostring(targetId))
+                        -- Control has no Set method
                     else
                         -- If the saved value is a Colorpicker object, apply colors and modes explicitly
                         if type(value) == 'table' and (value.__ctrl == 'Colorpicker' or value.colors) then
@@ -6197,18 +6205,15 @@ function Library:CreateLibrary(opts)
                             -- 3) restore per-slot hue/pulse offsets
                             -- 4) attempt to enable effects via public/internal APIs
                             -- 5) if hooks still missing, recreate sync listeners and attach fallback hooks
-                            warn("[ConfigDebug] Entering Colorpicker load handler for", tostring(targetId))
                             local okOuter, outerErr = pcall(function()
-                                warn("[ConfigDebug] Loading Colorpicker for", tostring(targetId))
-                                                            local function applyOnce()
+                                local function applyOnce()
                                     local colors = value.colors or {}
                                     local decColors = {}
                                     for i=1, #colors do
                                         local okd, dc = pcall(function() return deserialize(colors[i]) end)
                                         if okd then decColors[i] = dc else decColors[i] = nil; warn("[ConfigDebug] deserialize failed for slot", i, tostring(dc)) end
                                     end
-                                    warn("[ConfigDebug] decoded color slots:", tostring(#decColors))
-
+                                    
                                     -- Apply colors silently first
                                     pcall(function() Library:_setValue(targetId, decColors, true) end)
 
@@ -6288,7 +6293,6 @@ function Library:CreateLibrary(opts)
                                                     if slot._syncId then syncRGBColor(c, slot._syncId) end
                                                     if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
                                                 end)
-                                                warn("[ConfigDebug] fallback rainbowHook attached for", tostring(targetId), "slot", i)
                                             end
                                             if type(value.pulse) == 'table' and value.pulse[i] == true and not slot.pulseHook and rainbowAdd then
                                                 slot.pulse = true
@@ -6304,7 +6308,6 @@ function Library:CreateLibrary(opts)
                                                     if slot._pulseSyncId then syncPulseColor(c, slot._pulseSyncId) end
                                                     if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
                                                 end)
-                                                warn("[ConfigDebug] fallback pulseHook attached for", tostring(targetId), "slot", i)
                                             end
                                         end
                                     end
@@ -6423,12 +6426,20 @@ function Library:CreateLibrary(opts)
             end
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
+            -- Remember auto-load state before saving
+            local wasAutoLoad = false
+            pcall(function() wasAutoLoad = autoToggle and autoToggle.Get and autoToggle:Get() end)
             local okSave, res = pcall(function() return Window.SaveConfig(safe) end)
             if okSave and res then
                 refreshList()
                 task.defer(function()
                     pcall(function() dd:Set(safe, true) end)
                     if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+                    -- Restore auto-load state after saving
+                    if wasAutoLoad then
+                        pcall(function() Config.SetAutoLoad(safe, true) end)
+                        if autoToggle and autoToggle.Set then autoToggle:Set(true, true) end
+                    end
                 end)
             end
         end })
@@ -6508,7 +6519,10 @@ function Library:CreateLibrary(opts)
             end
         end
 
-    return { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle }
+    -- Store reference to config UI so we can update it from auto-load
+    local configUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle }
+    Window._lastConfigUI = configUI
+    return configUI
     end
     
     -- Auto-load most recent autoload-marked config for this place, if any
@@ -6518,7 +6532,15 @@ function Library:CreateLibrary(opts)
         local toLoad = nil
         pcall(function() toLoad = Config.MostRecentAutoLoad() end)
         if toLoad and type(toLoad) == "string" and #toLoad > 0 then
-            pcall(function() Window.LoadConfig(toLoad) end)
+            pcall(function() 
+                Window.LoadConfig(toLoad)
+                -- Ensure auto-load state is preserved after loading
+                Config.SetAutoLoad(toLoad, true)
+                -- Update UI to reflect auto-load state if config UI exists
+                if Window._lastConfigUI and Window._lastConfigUI.AutoToggle then
+                    Window._lastConfigUI.AutoToggle:Set(true, true)
+                end
+            end)
         end
     end)
 
