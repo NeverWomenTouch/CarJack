@@ -1499,7 +1499,6 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     payload.controls[id] = cp
-                    warn("[Config] captured Colorpicker for saving:", tostring(id), "slots=", tostring(#(cp.slots or {})))
                 else
                     local ok, ser = pcall(function() return serialize(val) end)
                     if ok then
@@ -6209,13 +6208,17 @@ function Library:CreateLibrary(opts)
                                 local function applyOnce()
                                     local colors = value.colors or {}
                                     local decColors = {}
-                                    for i=1, #colors do
-                                        local okd, dc = pcall(function() return deserialize(colors[i]) end)
-                                        if okd then decColors[i] = dc else decColors[i] = nil; warn("[ConfigDebug] deserialize failed for slot", i, tostring(dc)) end
+                                    if deserialize then
+                                        for i=1, #colors do
+                                            local okd, dc = pcall(function() return deserialize(colors[i]) end)
+                                            if okd then decColors[i] = dc end
+                                        end
                                     end
                                     
                                     -- Apply colors silently first
-                                    pcall(function() Library:_setValue(targetId, decColors, true) end)
+                                    if Library and Library._setValue then
+                                        pcall(function() Library:_setValue(targetId, decColors, true) end)
+                                    end
 
                                     -- Populate slot internals if present
                                     if ctrl and ctrl._slots and type(ctrl._slots) == 'table' then
@@ -6349,18 +6352,17 @@ function Library:CreateLibrary(opts)
                                 applied = applied + 1
                             end)
                         else
-                            local ok, err = pcall(function() Library:_setValue(targetId, value, true) end)
-                            if not ok then
-                                warn("[Window] _setValue failed for id:", tostring(targetId), "err:", tostring(err))
-                            else
-                                applied = applied + 1
+                            if Library and Library._setValue then
+                                local ok = pcall(function() Library:_setValue(targetId, value, true) end)
+                                if ok then
+                                    applied = applied + 1
+                                end
                             end
                         end
                     end
                 end
             end
         end
-        warn("[Window] LoadConfig applied values:", applied)
     end
     Window.ListConfigs = function() return Config.List() end
     Window.DeleteConfig = function(name)
