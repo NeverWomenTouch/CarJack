@@ -1030,8 +1030,16 @@ function Library:Notification(text, notifyType, timer)
                 t:Play()
             end
 
-            -- Only close on OK button click (per request). Do NOT close on overlay click or timer.
+            -- Close on button click and timer
             btn.MouseButton1Click:Connect(closeModal)
+            
+            -- Auto dismiss after timer with fade out
+            task.spawn(function()
+                task.wait(math.max(0.1, timer))
+                if not closed then
+                    closeModal()
+                end
+            end)
 
             -- Track active modal reference for external cleanup
             self._activeModalNotification = modalGui and modalGui or modalFrame
