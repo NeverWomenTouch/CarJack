@@ -1,5 +1,4 @@
---!nocheck
--- luacheck: globals cloneref isfile isfolder makefolder writefile readfile listfiles delfile Color3 Enum game UDim2 Vector2 Rect workspace
+
 local cloneref = cloneref or function(x) return x end
 local function SRV(name) return cloneref(game:GetService(name)) end
 local CoreGui = SRV("CoreGui")
@@ -22,22 +21,19 @@ local function Create(className, props, children)
     if children then for _, c in ipairs(children) do c.Parent = inst end end
     return inst
 end
--- Convert a string like "Keypad5", "KeypadFive", "Mouse1" to Enum.KeyCode/UserInputType
+
 local function ParseKeyFromString(name)
     if type(name) ~= "string" then return nil end
     local s = name
     local lower = s:lower()
-    -- Mouse buttons
-    if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return Enum.UserInputType.MouseButton1 end
+        if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return Enum.UserInputType.MouseButton1 end
     if lower == "mouse2" or lower == "mb2" or lower == "mousebutton2" then return Enum.UserInputType.MouseButton2 end
-    -- Common aliases for special/lock keys
     if lower == "backquote" or lower == "grave" or s == "`" or lower == "tilde" or s == "~" then return Enum.KeyCode.Backquote end
     if lower == "printscreen" or lower == "prtsc" or lower == "prtscr" or lower == "print" then return Enum.KeyCode.Print end
     if lower == "scrolllock" or lower == "scrlk" or lower == "scroll" then return Enum.KeyCode.ScrollLock end
     if lower == "pause" or lower == "break" or lower == "pausebreak" then return Enum.KeyCode.Pause end
     if lower == "numlock" or lower == "num" then return Enum.KeyCode.NumLock end
-    -- Punctuation/symbol keys
-    if lower == "minus" then return Enum.KeyCode.Minus end
+        if lower == "minus" then return Enum.KeyCode.Minus end
     if lower == "equals" or s == "=" then return Enum.KeyCode.Equals end
     if lower == "leftbracket" or lower == "lbracket" or s == "[" then return Enum.KeyCode.LeftBracket end
     if lower == "rightbracket" or lower == "rbracket" or s == "]" then return Enum.KeyCode.RightBracket end
@@ -47,10 +43,9 @@ local function ParseKeyFromString(name)
     if lower == "comma" or s == "," then return Enum.KeyCode.Comma end
     if lower == "period" then return Enum.KeyCode.Period end
     if lower == "slash" then return Enum.KeyCode.Slash end
-    -- Exact Enum name
+    
     if Enum.KeyCode[s] then return Enum.KeyCode[s] end
-    -- Keypad numbers as digits -> map to Enum names KeypadZero..KeypadNine
-    local d = s:match("^Keypad(%d)$")
+        local d = s:match("^Keypad(%d)$")
     if d then
         local digitToWord = { ["0"]="Zero", ["1"]="One", ["2"]="Two", ["3"]="Three", ["4"]="Four", ["5"]="Five", ["6"]="Six", ["7"]="Seven", ["8"]="Eight", ["9"]="Nine" }
         local word = digitToWord[d]
@@ -58,28 +53,24 @@ local function ParseKeyFromString(name)
             return Enum.KeyCode["Keypad" .. word]
         end
     end
-    -- Keypad spelled numbers (e.g., KeypadFive)
-    local cap = s:match("^Keypad(%a+)$")
+        local cap = s:match("^Keypad(%a+)$")
     if cap and Enum.KeyCode["Keypad" .. cap] then return Enum.KeyCode["Keypad" .. cap] end
-    -- Operators
     if s == "KeypadPlus" or s == "+" then return Enum.KeyCode.KeypadPlus end
     if s == "KeypadMinus" or s == "-" then return Enum.KeyCode.KeypadMinus end
     if s == "KeypadMultiply" or lower == "keypadmul" or s == "*" then return Enum.KeyCode.KeypadMultiply end
     if s == "KeypadDivide" or lower == "keypaddiv" or s == "/" then return Enum.KeyCode.KeypadDivide end
     if s == "KeypadPeriod" or lower == "keypaddot" or lower == "keypaddecimal" or s == "." then return Enum.KeyCode.KeypadPeriod end
     if s == "KeypadEnter" then return Enum.KeyCode.KeypadEnter end
-    -- Common names
+    
     if lower == "enter" then return Enum.KeyCode.Return end
     if lower == "esc" or lower == "escape" then return Enum.KeyCode.Escape end
     if lower == "space" or lower == "spacebar" then return Enum.KeyCode.Space end
-    -- Fallback: try raw
+    
     if Enum.KeyCode[s] then return Enum.KeyCode[s] end
     return nil
 end
 
--- Pretty-print key names consistently across the library (declare locally, bind to Library later)
 local function FormatKeyName(key)
-    -- Accepts EnumItem (KeyCode/UserInputType) or string
     if typeof(key) == "EnumItem" then
         local s = tostring(key):gsub("^Enum%.[^%.]+%.", "")
         local shortcuts = {
@@ -95,8 +86,7 @@ local function FormatKeyName(key)
             Up = "↑", Down = "↓", Left = "←", Right = "→",
             F1 = "F1", F2 = "F2", F3 = "F3", F4 = "F4", F5 = "F5", F6 = "F6", F7 = "F7", F8 = "F8", F9 = "F9", F10 = "F10", F11 = "F11", F12 = "F12"
         }
-        -- Additional lock and punctuation keys
-        shortcuts["Backquote"] = "`"
+                shortcuts["Backquote"] = "`"
         shortcuts["Print"] = "PrtSc"
         shortcuts["ScrollLock"] = "ScrLk"
         shortcuts["Pause"] = "Pause"
@@ -111,14 +101,12 @@ local function FormatKeyName(key)
         shortcuts["Comma"] = ","
         shortcuts["Period"] = "."
         shortcuts["Slash"] = "/"
-        -- Keypad digits: convert KeypadZero..KeypadNine -> Keypad0..Keypad9 for compact display
         local wordToDigit = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
         local cap = s:match("^Keypad(%a+)$")
         if cap and wordToDigit[cap] then
             return "Keypad" .. wordToDigit[cap]
         end
-        -- Operators / misc
-        shortcuts["KeypadEnter"] = "KeypadEnter"
+                shortcuts["KeypadEnter"] = "KeypadEnter"
         shortcuts["KeypadPlus"] = "Keypad+"
         shortcuts["KeypadMinus"] = "Keypad-"
         shortcuts["KeypadMultiply"] = "Keypad*"
@@ -126,19 +114,17 @@ local function FormatKeyName(key)
         shortcuts["KeypadPeriod"] = "Keypad."
         return shortcuts[s] or s
     elseif type(key) == "string" then
-        -- Normalize string names and aliases
+        
         local k = key
         local lower = k:lower()
-        -- Mouse
-        if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return "Mouse1" end
+                if lower == "mouse1" or lower == "mb1" or lower == "mousebutton1" then return "Mouse1" end
         if lower == "mouse2" or lower == "mb2" or lower == "mousebutton2" then return "Mouse2" end
-        -- Locks and special
         if lower == "backquote" or lower == "grave" or k == "`" or lower == "tilde" or k == "~" then return "`" end
         if lower == "printscreen" or lower == "prtsc" or lower == "prtscr" or lower == "print" then return "PrtSc" end
         if lower == "scrolllock" or lower == "scrlk" or lower == "scroll" then return "ScrLk" end
         if lower == "pause" or lower == "break" or lower == "pausebreak" then return "Pause" end
         if lower == "numlock" or lower == "num" then return "Num" end
-        -- Common keys
+        
         if lower == "backspace" then return "Bksp" end
         if lower == "tab" then return "Tab" end
         if lower == "return" or lower == "enter" then return "Enter" end
@@ -154,7 +140,7 @@ local function FormatKeyName(key)
         if lower == "down" then return "↓" end
         if lower == "left" then return "←" end
         if lower == "right" then return "→" end
-        -- Punctuation/symbol names
+        
         if lower == "minus" or k == "-" then return "-" end
         if lower == "equals" or k == "=" then return "=" end
         if lower == "leftbracket" or lower == "lbracket" or k == "[" then return "[" end
@@ -165,19 +151,19 @@ local function FormatKeyName(key)
         if lower == "comma" or k == "," then return "," end
         if lower == "period" or k == "." then return "." end
         if lower == "slash" or k == "/" then return "/" end
-        -- Keypad spelled digits to compact
+        
         local wordToDigit = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
         local cap = k:match("^Keypad(%a+)$")
         if cap and wordToDigit[cap] then return "Keypad" .. wordToDigit[cap] end
         if k:match("^Keypad%d$") then return k end
-        -- Operators
+        
         if k == "KeypadPlus" or k == "+" then return "Keypad+" end
         if k == "KeypadMinus" or k == "-" then return "Keypad-" end
         if k == "KeypadMultiply" or lower == "keypadmul" or k == "*" then return "Keypad*" end
         if k == "KeypadDivide" or lower == "keypaddiv" or k == "/" then return "Keypad/" end
         if k == "KeypadPeriod" or lower == "keypaddot" or lower == "keypaddecimal" or k == "." then return "Keypad." end
         if k == "KeypadEnter" then return "KeypadEnter" end
-        -- Modifier abbreviations
+        
         if lower == "leftshift" then return "LShift" end
         if lower == "rightshift" then return "RShift" end
         if lower == "leftcontrol" or lower == "lctrl" then return "LCtrl" end
@@ -191,7 +177,6 @@ local function FormatKeyName(key)
 end
 local function Round(num, inc) inc = inc or 1 return math.floor(num / inc + 0.5) * inc end
 local function Clamp(v, a, b) return (v < a and a) or (v > b and b) or v end
--- Fix math.clamp compatibility
 if not math.clamp then
     math.clamp = Clamp
 end
@@ -216,9 +201,7 @@ local Fonts = {
     Bold = Enum.Font.GothamBold,
 }
 local function T(i, t, p) return TweenService:Create(i, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), p) end
--- Global sanitize function for library naming and config paths
 local function sanitize(s) s = tostring(s or "Game"); s = s:gsub("[^%w%s%-_]", "_"); s = s:gsub("%s+", "_"); return s end
--- Config system will be created per library instance
 local function Signal()
     local h = {}
     return {
@@ -234,71 +217,58 @@ local function Signal()
     }
 end
 local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {} }
--- Bind previously declared helpers to Library now that it exists
 Library.FormatKeyName = FormatKeyName
 
--- Notification tracking system
 Library._activeNotifications = {}
 Library._activeTopNotifications = {}
 Library._activeModalNotification = nil
-
--- Watermark system
 do
     Library._watermark = nil
     Library._watermarkText = ""
     Library._watermarkVisible = true
-    Library._watermarkTextColor = Color3.fromRGB(255, 255, 255) -- Default white text
+    Library._watermarkTextColor = Color3.fromRGB(255, 255, 255) 
     Library._watermarkBackgroundColor = Theme.Bg
     Library._watermarkAccentColor = Theme.Accent
     Library._watermarkFont = Fonts.Medium
     Library._watermarkFontSize = 13
     Library._watermarkTransparency = 0
     
-    -- Watermark position persistence (can be saved/loaded with configs)
-    Library._watermarkPosition = Library._watermarkPosition or {
-        X = 1, -- Scale
-        XOffset = -260, -- Offset
-        Y = 0, -- Scale  
-        YOffset = 10 -- Offset
+        Library._watermarkPosition = Library._watermarkPosition or {
+        X = 1,
+        XOffset = -260,
+        Y = 0,
+        YOffset = 10
     }
     
-    -- Create optimized watermark GUI
-    local function createWatermark()
-        -- Clean up existing watermarks
+        local function createWatermark()
         if Library._watermark then
             pcall(function() Library._watermark:Destroy() end)
         end
         
-        -- Find library ScreenGui for proper parenting
-        local libraryGui = nil
+                local libraryGui = nil
         for _, gui in pairs(CoreGui:GetChildren()) do
             if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
                 libraryGui = gui
                 break
             end
         end
-        
-        -- Create watermark GUI parented to library
         local watermarkGui = Create("ScreenGui", {
             Name = "Watermark",
             ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
             IgnoreGuiInset = true,
             ResetOnSpawn = false,
             DisplayOrder = 999998,
-            Parent = libraryGui or CoreGui -- Parent to library GUI or fallback to CoreGui
+            Parent = libraryGui or CoreGui 
         })
         
-        -- Calculate proper frame size based on text
-        local textService = game:GetService("TextService")
+                local textService = game:GetService("TextService")
         local tempTextSize = textService:GetTextSize(
             Library._watermarkText or "Watermark", 
             Library._watermarkFontSize, 
             Library._watermarkFont, 
             Vector2.new(math.huge, 30)
         )
-        local frameWidth = math.max(tempTextSize.X + 20, 160) -- Ensure minimum width
-        
-        -- Watermark frame with proper sizing
+        local frameWidth = math.max(tempTextSize.X + 20, 160)
         local watermarkFrame = Create("TextButton", {
             Name = "WatermarkFrame",
             BackgroundColor3 = Theme.Bg,
@@ -317,10 +287,10 @@ do
             Parent = watermarkGui
         })
         
-        -- Rounded corners
+        
         Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = watermarkFrame})
         
-        -- Outer border (main outline)
+        
         local outerBorder = Create("UIStroke", {
             Color = Theme.Stroke,
             Thickness = 1.5,
@@ -328,7 +298,7 @@ do
             Parent = watermarkFrame
         })
         
-        -- Accent border (inner outline)
+        
         local accentBorder = Create("Frame", {
             BackgroundTransparency = 1,
             Size = UDim2.new(1, -2, 1, -2),
@@ -344,7 +314,7 @@ do
             Parent = accentBorder
         })
         
-        -- Inner frame for more detail
+        
         local innerFrame = Create("Frame", {
             BackgroundColor3 = Theme.Panel,
             BackgroundTransparency = 0.7,
@@ -361,7 +331,7 @@ do
             Parent = innerFrame
         })
         
-        -- Text label with proper layering
+        
         local watermarkLabel = Create("TextLabel", {
             BackgroundTransparency = 1,
             Size = UDim2.new(1, -12, 1, 0),
@@ -381,7 +351,7 @@ do
             TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         })
         
-        -- Proper auto-resize function that always fits text
+        
         local function updateSize()
             local textService = game:GetService("TextService")
             local textSize = textService:GetTextSize(
@@ -390,12 +360,12 @@ do
                 Library._watermarkFont, 
                 Vector2.new(math.huge, 30)
             )
-            local newWidth = math.max(textSize.X + 20, 160) -- Proper padding to ensure text fits
+            local newWidth = math.max(textSize.X + 20, 160) 
             
-            -- Update frame size immediately
+            
             watermarkFrame.Size = UDim2.fromOffset(newWidth, 30)
             
-            -- If watermark is positioned at top-right, adjust X offset to keep it anchored
+            
             if Library._watermarkPosition.X == 1 and Library._watermarkPosition.XOffset < 0 then
                 Library._watermarkPosition.XOffset = -(newWidth + 10)
                 watermarkFrame.Position = UDim2.new(
@@ -407,7 +377,7 @@ do
             end
         end
         
-        -- Function to save current position
+        
         local function savePosition()
             Library._watermarkPosition = {
                 X = watermarkFrame.Position.X.Scale,
@@ -417,7 +387,7 @@ do
             }
         end
         
-        -- Update functions
+        
         local function updateText(text)
             watermarkLabel.Text = text or ""
             updateSize()
@@ -433,20 +403,17 @@ do
             end
         end
         
-        -- Simple watermark dragging - fixed version
+        
         local dragging = false
         local dragStart = Vector2.new(0, 0)
         local frameStart = Vector2.new(0, 0)
         local dragOffset = Vector2.new(0, 0)
         
-        -- Helper to get mouse/touch position in GUI space (accounts for top inset)
-        local function getMouseGuiPos(input)
+                local function getMouseGuiPos(input)
             local pos
             if input and input.UserInputType == Enum.UserInputType.Touch then
-                -- Touch positions are already in GUI space; do not subtract inset
                 pos = Vector2.new(input.Position.X, input.Position.Y)
             else
-                -- Mouse location includes top inset; subtract it to align with AbsolutePosition
                 pos = UserInputService:GetMouseLocation()
                 local ok, inset = pcall(function()
                     return game:GetService("GuiService"):GetGuiInset()
@@ -462,12 +429,10 @@ do
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 
-                -- Get start position
-                dragStart = getMouseGuiPos(input)
+                                dragStart = getMouseGuiPos(input)
                 frameStart = Vector2.new(watermarkFrame.AbsolutePosition.X, watermarkFrame.AbsolutePosition.Y)
                 dragOffset = dragStart - frameStart
                 
-                -- Visual feedback
                 T(outerBorder, 0.1, {Color = Library._watermarkAccentColor, Thickness = 2}):Play()
                 if accentBorder:FindFirstChild("UIStroke") then
                     T(accentBorder.UIStroke, 0.1, {Transparency = 0.2}):Play()
@@ -485,8 +450,7 @@ do
                 return
             end
             
-            -- Calculate new position using grab offset and parent-relative coordinates
-            local parentAbs = Vector2.new(0, 0)
+                        local parentAbs = Vector2.new(0, 0)
             if watermarkFrame.Parent and watermarkFrame.Parent.AbsolutePosition then
                 parentAbs = Vector2.new(watermarkFrame.Parent.AbsolutePosition.X, watermarkFrame.Parent.AbsolutePosition.Y)
             end
@@ -495,7 +459,6 @@ do
             local newX = relX - dragOffset.X
             local newY = relY - dragOffset.Y
             
-            -- Bounds from parent size (fallback to viewport if missing)
             local containerW, containerH = 0, 0
             if watermarkFrame.Parent and watermarkFrame.Parent.AbsoluteSize then
                 containerW = watermarkFrame.Parent.AbsoluteSize.X
@@ -516,10 +479,10 @@ do
                 if dragging then
                     dragging = false
                     
-                    -- Save position
+                    
                     savePosition()
                     
-                    -- Reset visual feedback
+                    
                     T(outerBorder, 0.15, {Color = Theme.Stroke, Thickness = 1.5}):Play()
                     if accentBorder:FindFirstChild("UIStroke") then
                         T(accentBorder.UIStroke, 0.15, {Transparency = 0.4}):Play()
@@ -528,19 +491,16 @@ do
             end
         end)
         
-        -- Hover effects for PC (no glow)
-        if not (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) then
-            watermarkFrame.MouseEnter:Connect(function()
-                if not dragging then
-                    T(outerBorder, 0.15, {Transparency = 0.1}):Play()
-                    if accentBorder:FindFirstChild("UIStroke") then
-                        T(accentBorder.UIStroke, 0.15, {Transparency = 0.3}):Play()
+            if not (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) then
+                watermarkFrame.MouseEnter:Connect(function()
+                    if not dragging then
+                        T(outerBorder, 0.15, {Transparency = 0.1}):Play()
+                        if accentBorder:FindFirstChild("UIStroke") then
+                            T(accentBorder.UIStroke, 0.15, {Transparency = 0.3}):Play()
+                        end
+                        T(innerFrame, 0.15, {BackgroundTransparency = 0.5}):Play()
                     end
-                    T(innerFrame, 0.15, {BackgroundTransparency = 0.5}):Play()
-                end
-            end)
-            
-            watermarkFrame.MouseLeave:Connect(function()
+                end)            watermarkFrame.MouseLeave:Connect(function()
                 if not dragging then
                     T(outerBorder, 0.15, {Transparency = 0.2}):Play()
                     if accentBorder:FindFirstChild("UIStroke") then
@@ -551,8 +511,7 @@ do
             end)
         end
         
-        -- Store references
-        Library._watermark = watermarkGui
+                Library._watermark = watermarkGui
         Library._watermarkFrame = watermarkFrame
         Library._watermarkLabel = watermarkLabel
         Library._outerBorder = outerBorder
@@ -563,28 +522,23 @@ do
         Library._updateWatermarkTextColor = updateTextColor
         Library._updateWatermarkAccentColor = updateAccentColor
         
-        -- Initialize
         updateText(Library._watermarkText)
         updateTextColor(Library._watermarkTextColor)
         updateAccentColor(Library._watermarkAccentColor)
         updateSize()
         
-        -- Set initial visibility
         watermarkGui.Enabled = Library._watermarkVisible
         
         return watermarkGui
     end
     
-    -- Public functions
-    function Library:SetWatermark(text)
+        function Library:SetWatermark(text)
         self._watermarkText = tostring(text or "")
         
-        -- Create watermark if it doesn't exist
         if not self._watermark or not self._watermark.Parent then
             createWatermark()
         end
         
-        -- Update text
         if self._updateWatermarkText then
             self._updateWatermarkText(self._watermarkText)
         end
@@ -593,15 +547,13 @@ do
     function Library:SetWatermarkVisibility(visible)
         self._watermarkVisible = (visible == true)
         
-        -- Create watermark if it doesn't exist and should be visible
-        if self._watermarkVisible then
+                if self._watermarkVisible then
             if not self._watermark or not self._watermark.Parent then
                 createWatermark()
             else
                 self._watermark.Enabled = true
             end
         else
-            -- Hide existing watermark
             if self._watermark and self._watermark.Parent then
                 self._watermark.Enabled = false
             end
@@ -612,12 +564,10 @@ do
         return self._watermarkVisible
     end
     
-    -- Helper function to update notification positions
-    function Library:_updateNotificationPositions()
+        function Library:_updateNotificationPositions()
         local baseY = self._watermarkFrame and self._watermarkFrame.Position.Y.Offset or 10
         local gap = 5
 
-        -- Use cumulative heights so variable-height notifications stack correctly
         local currentY = baseY
         for i, entry in ipairs(self._activeNotifications) do
             if entry and entry.gui and entry.gui.Parent and entry.frame then
@@ -630,15 +580,13 @@ do
         end
     end
 
-    -- Update positions for top-middle notifications (type 3)
-    function Library:_updateTopNotificationPositions()
-        local baseY = 10 -- top margin
+        function Library:_updateTopNotificationPositions()
+        local baseY = 10
         local gap = 5
         local currentY = baseY
         for i, entry in ipairs(self._activeTopNotifications) do
             if entry and entry.gui and entry.gui.Parent and entry.frame then
                 local frame = entry.frame
-                -- center X at 0.5
                 T(frame, 0.2, {
                     Position = UDim2.new(0.5, 0, frame.Position.Y.Scale, currentY)
                 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
@@ -647,12 +595,12 @@ do
         end
     end
     
-    -- Get watermark position (for saving in configs)
+    
     function Library:GetWatermarkPosition()
         return self._watermarkPosition
     end
     
-    -- Set watermark position (for loading from configs)
+    
     function Library:SetWatermarkPosition(position)
         if position and type(position) == "table" then
             self._watermarkPosition = {
@@ -662,7 +610,7 @@ do
                 YOffset = position.YOffset or 10
             }
             
-            -- Update frame position if watermark exists
+            
             if self._watermarkFrame then
                 self._watermarkFrame.Position = UDim2.new(
                     self._watermarkPosition.X,
@@ -674,7 +622,7 @@ do
         end
     end
     
-    -- Advanced customization functions
+    
     function Library:SetWatermarkTextColor(color)
         self._watermarkTextColor = color or Color3.fromRGB(255, 255, 255)
         if self._updateWatermarkTextColor then
@@ -707,7 +655,7 @@ do
                 self._textShadow.Font = self._watermarkFont
                 self._textShadow.TextSize = self._watermarkFontSize
             end
-            -- Re-trigger size update
+            
             if self._updateWatermarkText then
                 self._updateWatermarkText(self._watermarkText)
             end
@@ -721,7 +669,7 @@ do
         end
     end
     
-    -- Get current watermark properties
+    
     function Library:GetWatermarkTextColor()
         return self._watermarkTextColor
     end
@@ -740,18 +688,18 @@ function Library:Notification(text, notifyType, timer)
         notifyType = tonumber(notifyType) or 1
         timer = tonumber(timer) or 4
 
-        -- Ensure watermark exists to anchor notification position
+        
         if not self._watermark or not self._watermark.Parent then
-            -- Use public setter which will create the watermark if missing
+            
             pcall(function() self:SetWatermark(self._watermarkText) end)
         end
 
-        -- Determine parent for notification (prefer watermark's parent ScreenGui or the library GUI)
+        
         local parentGui = nil
         if self._watermark and self._watermark.Parent then
             parentGui = self._watermark.Parent
         else
-            -- Try to find the library's ScreenGui (DisplayOrder == 999999) before falling back to CoreGui
+            
             for _, gui in pairs(CoreGui:GetChildren()) do
                 if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
                     parentGui = gui
@@ -762,31 +710,31 @@ function Library:Notification(text, notifyType, timer)
         if not parentGui then parentGui = CoreGui end
 
             if notifyType == 1 then
-            -- Small slide-in notification (watermark style)
-            -- slideOffset controls how far the notification starts off-screen before sliding in.
-            -- Make this configurable per-library via Library._notificationSlideOffset (default 15).
-            local slideOffset = tonumber(self._notificationSlideOffset) or 15 -- Start just off screen
+            
+            
+            
+            local slideOffset = tonumber(self._notificationSlideOffset) or 15 
 
-            -- Calculate size based on text content with better wrapping
+            
             local notifFont = Fonts.Medium
             local notifTextSize = 14
-            local maxWidth = 400 -- Increased maximum width
+            local maxWidth = 400 
             local minWidth = (self._watermarkFrame and self._watermarkFrame.AbsoluteSize.X) or 160
-            local padding = 24 -- Text padding (12px on each side)
+            local padding = 24 
             
-            -- Calculate text bounds with wrapping
+            
             local textSize = TextService:GetTextSize(text, notifTextSize, notifFont, Vector2.new(maxWidth - padding, math.huge))
             
-            -- Set notification size with improved height for better text centering
+            
             local notifWidth = math.max(minWidth, math.min(textSize.X + padding, maxWidth))
-            local notifHeight = math.max(36, textSize.Y + 20) -- Increased padding for better centering
+            local notifHeight = math.max(36, textSize.Y + 20) 
 
-            local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})            -- Calculate Y position based on existing notifications
+            local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})            
             local finalScaleX, finalOffsetX, finalScaleY, finalOffsetY
             finalScaleX = 1
-            finalOffsetX = -10 -- Small margin from right edge
+            finalOffsetX = -10 
             
-            -- Get base Y position from watermark
+            
             if self._watermarkFrame and self._watermarkFrame.Parent then
                 finalScaleY = self._watermarkFrame.Position.Y.Scale
                 finalOffsetY = self._watermarkFrame.Position.Y.Offset
@@ -795,7 +743,7 @@ function Library:Notification(text, notifyType, timer)
                 finalOffsetY = (self._watermarkPosition and self._watermarkPosition.YOffset) or 10
             end
             
-            -- Stack notifications vertically by summing existing notifications' heights + gap
+            
             local gap = 5
             local currentOffset = finalOffsetY
             for _, entry in ipairs(self._activeNotifications) do
@@ -809,7 +757,7 @@ function Library:Notification(text, notifyType, timer)
                 Name = "NotifFrame",
                 Size = UDim2.fromOffset(math.floor(notifWidth), math.floor(notifHeight)),
                 AnchorPoint = Vector2.new(1, 0),
-                -- Start slightly offset to the right of the final watermark X so it slides only a little
+                
                 Position = UDim2.new(finalScaleX, (finalOffsetX + slideOffset), finalScaleY, finalOffsetY),
                 BackgroundColor3 = Theme.Bg,
                 BorderSizePixel = 0,
@@ -817,7 +765,7 @@ function Library:Notification(text, notifyType, timer)
                 Parent = notifGui,
                 ClipsDescendants = true
             })
-            -- Accent outline using library accent color for detail
+            
             Create("UIStroke", {Color = (Library._watermarkAccentColor or Theme.Accent), Thickness = 1, Transparency = 0.2, Parent = frame})
             Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = frame})
             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.4, Parent = frame})
@@ -831,7 +779,7 @@ function Library:Notification(text, notifyType, timer)
                 Font = Fonts.Medium,
                 TextSize = notifTextSize,
                 TextColor3 = Library._watermarkTextColor or Theme.Text,
-                -- Center horizontally and vertically for better appearance
+                
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextYAlignment = Enum.TextYAlignment.Center,
                 TextWrapped = true,
@@ -839,19 +787,19 @@ function Library:Notification(text, notifyType, timer)
                 Parent = inner
             })
 
-            -- Animate slide in from right (small slide so it sits just inside the top-right area near watermark)
+            
             frame.Position = UDim2.new(finalScaleX, (finalOffsetX + slideOffset), finalScaleY, finalOffsetY)
-            -- Use slightly faster animation with easing for smoother motion
+            
             T(frame, 0.25, {Position = UDim2.new(finalScaleX, finalOffsetX, finalScaleY, finalOffsetY)}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
 
-            -- Track this notification (store gui, frame and height so stacking uses actual sizes)
+            
             table.insert(self._activeNotifications, { gui = notifGui, frame = frame, height = notifHeight })
             
-            -- Auto dismiss after timer with smoother fade out
+            
             task.spawn(function()
                 task.wait(math.max(0.1,timer))
                 pcall(function()
-                    -- Remove from active notifications
+                    
                     for i, entry in pairs(self._activeNotifications) do
                         if entry and entry.gui == notifGui then
                             table.remove(self._activeNotifications, i)
@@ -859,7 +807,7 @@ function Library:Notification(text, notifyType, timer)
                         end
                     end
                     
-                    -- Fade out and slide slightly right
+                    
                     T(frame, 0.2, {
                         Position = UDim2.new(finalScaleX, (finalOffsetX + slideOffset), finalScaleY, finalOffsetY),
                         BackgroundTransparency = 1
@@ -867,7 +815,7 @@ function Library:Notification(text, notifyType, timer)
                     task.wait(0.22)
                     if notifGui and notifGui.Parent then notifGui:Destroy() end
                     
-                    -- Slide up remaining notifications
+                    
                     task.spawn(function()
                         self:_updateNotificationPositions()
                     end)
@@ -876,7 +824,7 @@ function Library:Notification(text, notifyType, timer)
 
             return notifGui
         elseif notifyType == 3 then
-            -- Top-middle notification (behaves like type 1 but centered at top)
+            
             local slideOffset = tonumber(self._notificationSlideOffset) or 15
             local notifFont = Fonts.Medium
             local notifTextSize = 14
@@ -889,7 +837,7 @@ function Library:Notification(text, notifyType, timer)
 
             local notifGui = Create("ScreenGui", {Name = "LibraryNotificationTop", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
 
-            -- Compute stacked Y offset based on existing top notifications
+            
             local gap = 5
             local finalOffsetY = 10
             for _, entry in ipairs(self._activeTopNotifications) do
@@ -929,13 +877,13 @@ function Library:Notification(text, notifyType, timer)
                 Parent = inner
             })
 
-            -- Slide down animation into view
+            
             T(frame, 0.25, {Position = UDim2.new(0.5, 0, 0, finalOffsetY)}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
 
-            -- Track this top notification
+            
             table.insert(self._activeTopNotifications, { gui = notifGui, frame = frame, height = notifHeight })
 
-            -- Auto dismiss after timer
+            
             task.spawn(function()
                 task.wait(math.max(0.1, timer))
                 pcall(function()
@@ -945,7 +893,7 @@ function Library:Notification(text, notifyType, timer)
                             break
                         end
                     end
-                    -- Fade out and slide up slightly
+                    
                     T(frame, 0.2, {
                         Position = UDim2.new(0.5, 0, 0, finalOffsetY - slideOffset),
                         BackgroundTransparency = 1
@@ -958,7 +906,7 @@ function Library:Notification(text, notifyType, timer)
 
             return notifGui
         else
-            -- Clean up existing modal notification if it exists
+            
             if self._activeModalNotification then
                 pcall(function() 
                     if self._activeModalNotification.Parent then
@@ -967,24 +915,24 @@ function Library:Notification(text, notifyType, timer)
                 end)
             end
             
-            -- Use the library singleton root (the main window frame) to anchor the modal
+            
             local mainFrame = self._singletonRoot
             if not mainFrame or not mainFrame.Parent then
-                -- Fallback: try active window's root-like fields
+                
                 if self._activeWindow and self._activeWindow._globalSearchPopup and self._activeWindow._globalSearchPopup.Parent then
-                    mainFrame = self._activeWindow._globalSearchPopup.Parent.Parent -- best-effort, but prefer singleton
+                    mainFrame = self._activeWindow._globalSearchPopup.Parent.Parent 
                 end
             end
             if not mainFrame or not mainFrame.Parent then
-                -- Can't determine library root; fall back to CoreGui
+                
                 mainFrame = nil
             end
 
-            -- Create modal attached to the library window so it moves with it; fallback to a ScreenGui if library root missing
+            
             local modalGui = nil
             local modalFrame
             if mainFrame and mainFrame.Parent then
-                -- Parent modal directly to the library root so it follows moves/resizing
+                
                 modalFrame = Create("Frame", {
                     Name = "ModalNotification",
                     BackgroundTransparency = 0.2,
@@ -996,7 +944,7 @@ function Library:Notification(text, notifyType, timer)
                     Parent = mainFrame
                 })
             else
-                -- fallback: create a ScreenGui so the modal still appears
+                
                 local screenDisplayOrder = 1000000
                 modalGui = Create("ScreenGui", {
                     Name = "LibraryModalGui",
@@ -1016,7 +964,7 @@ function Library:Notification(text, notifyType, timer)
                 })
             end
             
-            -- Accent border effect
+            
             Create("UIStroke", {
                 Color = Theme.Accent,
                 Thickness = 1.5,
@@ -1024,13 +972,13 @@ function Library:Notification(text, notifyType, timer)
                 Parent = modalFrame
             })
             
-            -- Sharp corners for a modern look
+            
             Create("UICorner", {
                 CornerRadius = UDim.new(0, 4),
                 Parent = modalFrame
             })
             
-            -- Inner panel with darker background
+            
             local innerPanel = Create("Frame", {
                 Name = "InnerPanel",
                 BackgroundColor3 = Theme.Panel,
@@ -1052,7 +1000,7 @@ function Library:Notification(text, notifyType, timer)
                 Parent = innerPanel
             })
             
-            -- Notification text with custom font and size
+            
             local textLabel = Create("TextLabel", {
                 BackgroundTransparency = 1,
                 Size = UDim2.new(1, -24, 1, -50),
@@ -1067,7 +1015,7 @@ function Library:Notification(text, notifyType, timer)
                 Parent = innerPanel
             })
             
-            -- Modern button design
+            
             local btn = Create("TextButton", {
                 Name = "OkButton",
                 Size = UDim2.fromOffset(80, 28),
@@ -1092,7 +1040,7 @@ function Library:Notification(text, notifyType, timer)
                 Parent = btn
             })
             
-            -- Button hover effect
+            
             btn.MouseEnter:Connect(function()
                 T(btn, 0.15, {BackgroundColor3 = Theme.Hover}):Play()
             end)
@@ -1101,20 +1049,18 @@ function Library:Notification(text, notifyType, timer)
                 T(btn, 0.15, {BackgroundColor3 = Theme.Button}):Play()
             end)
             
-            -- Entry animation (scale in)
+            
             modalFrame.Size = UDim2.fromOffset(0, 0)
             T(modalFrame, 0.3, {Size = UDim2.fromOffset(320, 120)}, Enum.EasingStyle.Back, Enum.EasingDirection.Out):Play()
             
-            -- Track this as the active modal (store modalFrame or modalGui for cleanup)
+            
             local closed = false
 
-            -- Safe tween helper: only tween properties that exist on the instance
-            local function safeTween(inst, time, props, style, dir)
+                        local function safeTween(inst, time, props, style, dir)
                 if not inst or not props or type(props) ~= "table" then return end
                 local valid = {}
                 for k, v in pairs(props) do
                     local ok = pcall(function()
-                        -- attempt to read the property; if it errors, skip it
                         local _ = inst[k]
                     end)
                     if ok then valid[k] = v end
@@ -1131,15 +1077,15 @@ function Library:Notification(text, notifyType, timer)
                 if closed then return end
                 closed = true
 
-                -- Fade out content elements using only properties they support
+                
                 safeTween(textLabel, 0.18, {TextTransparency = 1})
                 safeTween(btn, 0.18, {TextTransparency = 1, BackgroundTransparency = 1})
                 safeTween(innerPanel, 0.18, {BackgroundTransparency = 1})
 
-                -- Then animate the modal frame with a subtle scale+slide+fade
+                
                 task.delay(0.12, function()
                     if not modalFrame or not modalFrame.Parent then
-                        -- fallback cleanup
+                        
                         if modalGui and modalGui.Parent then modalGui:Destroy() elseif modalFrame and modalFrame.Parent then modalFrame:Destroy() end
                         return
                     end
@@ -1167,10 +1113,10 @@ function Library:Notification(text, notifyType, timer)
                 end)
             end
 
-            -- Close on button click and timer
+            
             btn.MouseButton1Click:Connect(closeModal)
             
-            -- Auto dismiss after timer with fade out
+            
             task.spawn(function()
                 task.wait(math.max(0.1, timer))
                 if not closed then
@@ -1178,22 +1124,22 @@ function Library:Notification(text, notifyType, timer)
                 end
             end)
 
-            -- Track active modal reference for external cleanup
+            
             self._activeModalNotification = modalGui and modalGui or modalFrame
 
-            -- Return the modalFrame (or its parent GUI) so caller can keep a reference if needed
+            
             return self._activeModalNotification
         end
     end
 
--- Keybind List System - Completely Rewritten
+
 do
     Library._keybindList = nil
     Library._keybindListVisible = false
     Library._keybinds = {}
-    Library._keybindListTransparency = 0 -- 0 = opaque, 1 = fully transparent
+    Library._keybindListTransparency = 0 
     
-    -- Initialize keybind list system
+    
     function Library:InitializeKeybindList()
         self._keybinds = {}
         self._keybindList = nil
@@ -1202,7 +1148,7 @@ do
         self._keybindListTransparency = 0
     end
     
-    -- Create beautiful keybind entry
+    
     function Library:_createKeybindEntry(keybindData, layoutOrder)
         local entry = Create("Frame", {
             Name = "KeybindEntry",
@@ -1222,7 +1168,7 @@ do
             Parent = entry
         })
         
-        -- Keybind name (left side)
+        
         local nameLabel = Create("TextLabel", {
             Name = "NameLabel",
             Size = UDim2.new(0.4, -8, 1, 0),
@@ -1237,7 +1183,7 @@ do
             Parent = entry
         })
         
-        -- Key display (center)
+        
         local keyContainer = Create("Frame", {
             Name = "KeyContainer",
             Size = UDim2.new(0, 45, 0, 20),
@@ -1271,8 +1217,8 @@ do
             Parent = keyContainer
         })
         
-        -- Status indicator (right side)
-        -- Use unified 'active' flag for both Keybind and ToggleKeybind entries
+        
+        
         local isActive = keybindData.active and true or false
         
         local statusColor = isActive and Theme.Good or Theme.Bad
@@ -1301,14 +1247,14 @@ do
             Parent = statusContainer
         })
         
-        -- Note: Do not attach custom fields to Instances (Roblox userdata).
-        -- If metadata is needed later, store it in a separate Lua table keyed by 'entry'.
-        -- For now, no external references are required for updates.
+        
+        
+        
 
         return entry
     end
 
-    -- Apply transparency to existing keybind list UI
+    
     function Library:_applyKeybindListTransparency(alpha, tweenTime)
         self._keybindListTransparency = math.clamp(tonumber(alpha) or 0, 0, 1)
         local tt = tonumber(tweenTime) or 0.15
@@ -1316,13 +1262,13 @@ do
         local mainFrame = self._keybindList:FindFirstChild("MainFrame")
         if mainFrame then
             T(mainFrame, tt, {BackgroundTransparency = self._keybindListTransparency}):Play()
-            -- Title bar
+            
             local titleBar = mainFrame:FindFirstChild("TitleBar")
             if titleBar then
                 T(titleBar, tt, {BackgroundTransparency = self._keybindListTransparency}):Play()
             end
         end
-        -- Entries
+        
         if self._keybindScrollFrame then
             for _, child in ipairs(self._keybindScrollFrame:GetChildren()) do
                 if child:IsA("Frame") and child.Name == "KeybindEntry" then
@@ -1348,11 +1294,11 @@ do
         self:_applyKeybindListTransparency(0, tweenTime)
     end
     
-    -- Update keybind display
+    
     function Library:_updateKeybindDisplay()
         if not self._keybindScrollFrame then return end
         
-        -- Clear existing entries
+        
         for _, child in pairs(self._keybindScrollFrame:GetChildren()) do
             if child:IsA("Frame") and child.Name == "KeybindEntry" then
                 child:Destroy()
@@ -1363,16 +1309,16 @@ do
         
         local layoutOrder = 1
         
-        -- Process all tracked keybinds
+        
         for id, keybindData in pairs(self._keybinds) do
             local shouldShow = false
             
             if keybindData.type == "Keybind" then
-                -- AddKeybind: show if user added it to list
+                
                 shouldShow = keybindData.showInList
             elseif keybindData.type == "ToggleKeybind" then
-                -- AddToggleKeybind: show whenever its toggle is enabled, regardless of list toggle
-                -- (per requirement: appears only when toggle is enabled and shows when turned on)
+                
+                
                 if keybindData.keybindObject and keybindData.keybindObject.GetToggle then
                     local ok, toggled = pcall(function()
                         return keybindData.keybindObject:GetToggle()
@@ -1384,13 +1330,13 @@ do
             end
             
             if shouldShow then
-                -- Get current state from the keybind object
+                
                 if keybindData.keybindObject then
                     if keybindData.type == "Keybind" then
-                        -- Regular keybind: reflect mode-specific active state tracked on the object
+                        
                         keybindData.active = keybindData.keybindObject._isActive and true or false
                     elseif keybindData.type == "ToggleKeybind" then
-                        -- Toggle keybind: pull toggle + active + key name via Get()
+                        
                         local info = nil
                         local ok, res = pcall(function()
                             return keybindData.keybindObject:Get()
@@ -1401,7 +1347,7 @@ do
                             keybindData.active = info.Active and true or false
                             if info.KeyName then keybindData.key = info.KeyName end
                         else
-                            -- Fallbacks
+                            
                             local ok2, toggled = pcall(function()
                                 return keybindData.keybindObject:GetToggle()
                             end)
@@ -1410,14 +1356,14 @@ do
                         end
                     end
                 end
-                -- Create UI entry
+                
                 self:_createKeybindEntry(keybindData, layoutOrder)
                 layoutOrder = layoutOrder + 1
             end
         end
     end
     
-    -- New keybind list dragging system
+    
     function Library:_setupKeybindListDragging(frame, strokeElement)
         local isDragging = false
         local startPos = Vector2.new(0, 0)
@@ -1425,11 +1371,11 @@ do
         local dragOffset = Vector2.new(0, 0)
         local parentAbsAtStart = Vector2.new(0, 0)
         
-        -- Helper to get mouse/touch position in GUI space (accounts for top inset)
+        
         local function getMouseGuiPos(input)
             local pos
             if input and input.UserInputType == Enum.UserInputType.Touch then
-                -- Touch already uses GUI coordinate space in AbsolutePosition terms
+                
                 pos = Vector2.new(input.Position.X, input.Position.Y)
             else
                 pos = UserInputService:GetMouseLocation()
@@ -1447,19 +1393,19 @@ do
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isDragging = true
                 
-                -- Record starting positions
+                
                 startPos = getMouseGuiPos(input)
                 frameStartPos = Vector2.new(frame.AbsolutePosition.X, frame.AbsolutePosition.Y)
-                -- Capture the offset between the cursor and the frame's top-left so it stays under the mouse
+                
                 dragOffset = startPos - frameStartPos
-                -- Capture parent's absolute position at start for consistent relative calculations
+                
                 if frame.Parent and frame.Parent.AbsolutePosition then
                     parentAbsAtStart = Vector2.new(frame.Parent.AbsolutePosition.X, frame.Parent.AbsolutePosition.Y)
                 else
                     parentAbsAtStart = Vector2.new(0, 0)
                 end
                 
-                -- Visual feedback
+                
                 T(strokeElement, 0.15, {Color = Theme.Accent, Thickness = 2}):Play()
             end
         end)
@@ -1476,19 +1422,19 @@ do
                 return
             end
             
-            -- Calculate new position using parent-relative coordinates and the initial grab offset
+            
             local parentAbsNow = Vector2.new(0, 0)
             if frame.Parent and frame.Parent.AbsolutePosition then
                 parentAbsNow = Vector2.new(frame.Parent.AbsolutePosition.X, frame.Parent.AbsolutePosition.Y)
             end
-            -- Cursor position relative to parent
+            
             local relX = currentPos.X - parentAbsNow.X
             local relY = currentPos.Y - parentAbsNow.Y
-            -- New top-left by subtracting the grab offset
+            
             local newX = relX - dragOffset.X
             local newY = relY - dragOffset.Y
 
-            -- Bounds using parent's size for robustness
+            
             local containerW, containerH = 0, 0
             if frame.Parent and frame.Parent.AbsoluteSize then
                 containerW = frame.Parent.AbsoluteSize.X
@@ -1501,7 +1447,7 @@ do
             newX = math.clamp(newX, 0, math.max(0, containerW - frameSize.X))
             newY = math.clamp(newY, 0, math.max(0, containerH - frameSize.Y))
 
-            -- Apply new position
+            
             frame.Position = UDim2.fromOffset(newX, newY)
         end)
         
@@ -1515,13 +1461,13 @@ do
         end)
     end
     
-    -- Create the main keybind list GUI
+    
     function Library:_createKeybindList()
         if self._keybindList then
             pcall(function() self._keybindList:Destroy() end)
         end
         
-        -- Find the library's ScreenGui
+        
         local libraryGui = nil
         for _, gui in pairs(CoreGui:GetChildren()) do
             if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
@@ -1535,7 +1481,7 @@ do
             return
         end
         
-        -- Create keybind list ScreenGui
+        
         self._keybindList = Create("ScreenGui", {
             Name = "KeybindList",
             Parent = libraryGui,
@@ -1544,11 +1490,11 @@ do
             DisplayOrder = 999998
         })
         
-        -- Main frame
+        
         local mainFrame = Create("TextButton", {
             Name = "MainFrame",
             Size = UDim2.fromOffset(240, 300),
-            Position = UDim2.new(0, 16, 0.5, -150), -- middle-left (height 300 => offset -150)
+            Position = UDim2.new(0, 16, 0.5, -150), 
             BackgroundColor3 = Theme.Bg,
             AutoButtonColor = false,
             BorderSizePixel = 0,
@@ -1558,7 +1504,7 @@ do
         
         Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = mainFrame})
         
-        -- Outer border
+        
         local outerStroke = Create("UIStroke", {
             Color = Theme.Stroke,
             Thickness = 1,
@@ -1566,7 +1512,7 @@ do
             Parent = mainFrame
         })
         
-        -- Accent glow effect
+        
         local accentFrame = Create("Frame", {
             Size = UDim2.new(1, -2, 1, -2),
             Position = UDim2.fromOffset(1, 1),
@@ -1583,7 +1529,7 @@ do
             Parent = accentFrame
         })
         
-        -- Title bar
+        
         local titleBar = Create("Frame", {
             Name = "TitleBar",
             Size = UDim2.new(1, 0, 0, 36),
@@ -1600,7 +1546,7 @@ do
             Parent = titleBar
         })
         
-        -- Title text
+        
         Create("TextLabel", {
             Name = "TitleText",
             Size = UDim2.new(1, -16, 1, 0),
@@ -1614,7 +1560,7 @@ do
             Parent = titleBar
         })
         
-        -- Scrolling frame for entries
+        
         self._keybindScrollFrame = Create("ScrollingFrame", {
             Name = "ScrollingFrame",
             Size = UDim2.new(1, -12, 1, -48),
@@ -1629,44 +1575,41 @@ do
             Parent = mainFrame
         })
         
-        -- Layout for entries
+        
         Create("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
             Padding = UDim.new(0, 4),
             Parent = self._keybindScrollFrame
         })
         
-        -- Add padding to center entries within the frame
-        Create("UIPadding", {
-            PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 8),
-            PaddingTop = UDim.new(0, 4),
-            PaddingBottom = UDim.new(0, 4),
-            Parent = self._keybindScrollFrame
-        })
-        
-        -- Simple and reliable keybind list dragging
+            Create("UIPadding", {
+                PaddingLeft = UDim.new(0, 8),
+                PaddingRight = UDim.new(0, 8),
+                PaddingTop = UDim.new(0, 4),
+                PaddingBottom = UDim.new(0, 4),
+                Parent = self._keybindScrollFrame
+            })        
         self:_setupKeybindListDragging(mainFrame, outerStroke)
         
-    -- Initial update
+    
         self:_updateKeybindDisplay()
-    -- Apply current transparency to freshly created UI
+    
     self:_applyKeybindListTransparency(self._keybindListTransparency or 0, 0)
         
-        -- Real-time updates
+        
         task.spawn(function()
             while self._keybindList and self._keybindList.Parent do
                 task.wait(0.3)
                 if self._keybindListVisible then
                     self:_updateKeybindDisplay()
-                    -- re-apply transparency to any new entries
+                    
                     self:_applyKeybindListTransparency(self._keybindListTransparency, 0)
                 end
             end
         end)
     end
     
-    -- Keybind tracking functions
+    
     function Library:_addKeybind(name, key, type, data)
         local id = name .. "_" .. (key or "None") .. "_" .. type
         self._keybinds[id] = {
@@ -1703,7 +1646,7 @@ do
         end
     end
     
-    -- Public visibility functions
+    
     function Library:ShowKeybindList(visible)
         self._keybindListVisible = (visible == true)
         
@@ -1729,10 +1672,10 @@ do
     end
 end
 
--- RootGui will be created per library instance with custom name
+
 function Library:_registerControl(c)
     self._controls[c.id] = c
-    -- If the control id is a simple flag (no path separators), expose via Library.Flags
+    
     if type(c.id) == "string" and not string.find(c.id, "/", 1, true) then
         self.Flags[c.id] = c
     end
@@ -1740,8 +1683,6 @@ end
 function Library:_setValue(id, v, s)
     local c = self._controls[id]
     if not (c and c.Set) then return end
-    -- Many controls implement Set(value, silent) but some (Colorpicker) use Set(value, index, silent).
-    -- When caller passes a boolean 's' (silent flag), avoid passing it as the 'index' parameter.
     if type(s) == "boolean" then
         pcall(function() c:Set(v, nil, s) end)
     else
@@ -1749,42 +1690,41 @@ function Library:_setValue(id, v, s)
     end
 end
 function Library:_getSnapshot() local d = {} for id, c in pairs(self._controls) do if c.Get then d[id] = c:Get() end end return d end
--- Config functions will be added to Window instance in CreateLibrary
+
 
 function Library:CreateLibrary(opts)
-    -- destroy previous instance windows if any (singleton behavior)
+    
     if self._singletonRoot and self._singletonRoot.Parent then
         pcall(function()
             for _, child in ipairs(self._singletonRoot:GetChildren()) do child:Destroy() end
             self._singletonRoot:Destroy()
         end)
     end
-    -- reset search entries on new window
+    
     self._searchEntries = {}
-    -- reset public Flags mapping for the new UI instance
+    
     self.Flags = {}
-    -- Initialize keybind list system
+    
     self:InitializeKeybindList()
     opts = opts or {}
     local title = tostring(opts.Name or "Dendrite UI")
     local libraryName = tostring(opts.LibraryName or "Dendrite UI")
-    local titleMode = tostring(opts.TitleMode or "Static"):lower() -- static | type
+    local titleMode = tostring(opts.TitleMode or "Static"):lower() 
     
-    -- Config / SaveManager (Linoria-style behavior)
+    
     local Config = {}
     do
     local Base = sanitize(libraryName)
     local DIR = tostring(opts.ConfigFolder or Library.ConfigFolder or Base)
 
-        -- Detect available global FS APIs (prefer real globals)
-        local gw = (type(writefile) == "function") and writefile or nil
+                local gw = (type(writefile) == "function") and writefile or nil
         local gr = (type(readfile) == "function") and readfile or nil
         local gd = (type(delfile) == "function") and delfile or nil
         local gif = (type(isfolder) == "function") and isfolder or nil
         local gmf = (type(makefolder) == "function") and makefolder or nil
         local glf = (type(listfiles) == "function") and listfiles or nil
 
-        -- in-memory fallback
+        
         Library._memConfig = Library._memConfig or { files = {}, meta = {} }
         local function memEnsure()
             local key = DIR
@@ -1794,8 +1734,7 @@ function Library:CreateLibrary(opts)
         end
 
         local MEM_MODE = nil
-        -- session index (when we cannot list files on disk)
-        local SessionIndex = {}
+                local SessionIndex = {}
         local function sessionAdd(name) SessionIndex[name] = true end
         local function sessionRemove(name) SessionIndex[name] = nil end
         local function sessionList()
@@ -1816,7 +1755,7 @@ function Library:CreateLibrary(opts)
             if not gw or not gr then error("No filesystem write support") end
             local tmp = path .. ".tmp"
             local ok, err = pcall(function() gw(tmp, content) end)
-            if not ok then -- try direct
+            if not ok then 
                 pcall(function() gw(path, content) end)
                 return
             end
@@ -1829,7 +1768,7 @@ function Library:CreateLibrary(opts)
             if gd then pcall(gd, tmp) end
         end
 
-        -- serialize/deserialize helpers (kept small and compatible)
+        
         local function serialize(v)
             local t = typeof(v)
             if t == "Color3" then
@@ -1887,7 +1826,7 @@ function Library:CreateLibrary(opts)
             return out
         end
 
-    -- helper paths
+    
     local function configsFolder() return DIR .. "/Configs" end
     local function filePath(name) return configsFolder() .. "/" .. sanitize(name) .. ".json" end
 
@@ -1901,12 +1840,12 @@ function Library:CreateLibrary(opts)
             end
         end
 
-        -- RecordSave / ClearMeta: keep a simple index file of saves and timestamps
+        
         function Config.RecordSave(name)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return end
-            -- update session index (used when listfiles isn't available)
+            
             sessionAdd(s)
             if MEM_MODE then
                 local key = memEnsure()
@@ -1930,10 +1869,10 @@ function Library:CreateLibrary(opts)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return false end
-            -- Build controls first (we'll assemble payload with controls on top and metadata last
-            -- so files are easy to read and manually editable)
+            
+            
             local controlsTbl = {}
-            -- Build enhanced snapshot when data not supplied so we can capture control modes (colorpicker rainbow/pulse)
+            
             local snapshot = data
             if not snapshot then
                 snapshot = {}
@@ -1943,7 +1882,7 @@ function Library:CreateLibrary(opts)
                         if not ok then
                             val = nil
                         else
-                            -- special-case Colorpicker controls to capture modes
+                            
                             if type(c) == 'table' and c._slots then
                                 local colors = val
                                 if type(colors) ~= 'table' then colors = { colors } end
@@ -1963,12 +1902,12 @@ function Library:CreateLibrary(opts)
                     end
                 end
             end
-            -- Build a human-friendly representation per-control.
+            
             for id, val in pairs(snapshot or {}) do
-                -- Colorpicker: store per-slot structured objects for manual editing
+                
                 if type(val) == 'table' and (val.__ctrl == 'Colorpicker' or (Library._controls[id] and Library._controls[id]._slots)) then
                     local cp = { __ctrl = 'Colorpicker', slots = {} }
-                    -- Prefer explicit per-slot data if available in 'val', else read from control internals
+                    
                     local rawSlots = nil
                     if type(val.slots) == 'table' then
                         rawSlots = val.slots
@@ -1996,18 +1935,18 @@ function Library:CreateLibrary(opts)
                     if ok then
                         controlsTbl[id] = ser
                     else
-                        -- serialization failed for this control; fall back to string representation silently
+                        
                         local safeString = nil
                         pcall(function() safeString = tostring(val) end)
                         controlsTbl[id] = safeString
                     end
                 end
             end
-            -- Assemble final payload with controls first, metadata last for readability
+            
             local meta = { name = s, lastModified = os.time() }
             pcall(function() meta.autoLoad = Config.GetAutoLoad(s) end)
             pcall(function() meta.path = filePath(s) end)
-            -- Order control keys deterministically for nicer output (alphabetical)
+            
             local orderedControls = {}
             do
                 local keys = {}
@@ -2023,12 +1962,12 @@ function Library:CreateLibrary(opts)
                 Config.RecordSave(s)
                 return true
             end
-            -- Attempt to encode JSON quietly
+            
             local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
             if not okj or type(json) ~= "string" then
                 return false
             end
-            -- Pretty-print JSON to be user-editable (lightweight formatter)
+            
             local function prettyJSON(str)
                 local indent = 0
                 local inString = false
@@ -2071,7 +2010,7 @@ function Library:CreateLibrary(opts)
             if gif and gmf then pcall(ensureFolders) end
             local okw, err = pcall(function() atomicWrite(path, json) end)
             if not okw then
-                -- Try fallback path on primary failure
+                
                 local alt = sanitize(Base) .. "_" .. sanitize(s) .. ".json"
                 local altOk, altErr = pcall(function() atomicWrite(alt, json) end)
                 if not altOk then
@@ -2107,7 +2046,7 @@ function Library:CreateLibrary(opts)
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(dec) == "table" then
                     local out = {}
-                    -- New format: dec.controls (human-editable). Fall back to old dec.values for backwards compatibility.
+                    
                     if type(dec.controls) == "table" then
                         for k, v in pairs(dec.controls) do
                             if type(v) == 'table' and v.__ctrl == 'Colorpicker' and type(v.slots) == 'table' then
@@ -2155,7 +2094,7 @@ function Library:CreateLibrary(opts)
                 table.sort(out)
                 return out
             end
-            -- prefer listing actual files if available
+            
             if glf and gif and gif(configsFolder()) then
                 local ok, files = pcall(function() return glf(configsFolder()) end)
                 local out = {}
@@ -2169,7 +2108,7 @@ function Library:CreateLibrary(opts)
                 table.sort(out)
                 return out
             end
-            -- fallback to session index when we can't list folder contents
+            
             local out = {}
             for n in pairs(SessionIndex) do table.insert(out, n) end
             table.sort(out)
@@ -2265,45 +2204,39 @@ function Library:CreateLibrary(opts)
         end
     end
     
-    -- Create ScreenGui with custom name
+    
     local screenGuiName = sanitize(libraryName)
-    -- Remove any existing ScreenGui with this name
+    
     for _, child in ipairs(CoreGui:GetChildren()) do
         if child:IsA("ScreenGui") and child.Name == screenGuiName then
             pcall(function() child:Destroy() end)
         end
     end
     local RootGui = Create("ScreenGui", {Name = screenGuiName, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 999999, Parent = CoreGui})
-    -- Removed TitleTypeConfig: using fixed tuned timings
     local autoDevice = opts.AutoDeviceCheck == true
-    local forceShowMobileBtn = opts.ShowMobileButton == true -- new option: show mobile toggle even on PC
+    local forceShowMobileBtn = opts.ShowMobileButton == true
     local size = opts.Size or UDim2.fromOffset(600, 540)
     local closeCb = opts.CloseCallback
     local Window = { Name = title, _categories = {}, _selectedCategory = nil }
     local z = 100
     local rootStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
-    -- device adapt
-    local isMobile = (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) or (UserInputService.KeyboardEnabled == false)
+        local isMobile = (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) or (UserInputService.KeyboardEnabled == false)
     if isMobile and autoDevice then
         size = UDim2.fromOffset(math.clamp(size.X.Offset, 480, 560), math.clamp(size.Y.Offset, 360, 420))
     end
     local showMobileBtn = isMobile or forceShowMobileBtn
     local root = Create("Frame", {Name = "Window", Size = size, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z, Parent = RootGui}, {
         rootStroke,
-        -- added gentle rounding (was square); adjust 12 -> different look if needed
+        
         Create("UICorner", {CornerRadius = UDim.new(0,12)})
     })
     self._singletonRoot = root
-    -- Simplified header: clean bar + single accent line
-    -- header color lightened (was Theme.Bg) to match panel tone for preview
-    local header = Create("Frame", {Name = "Header", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ZIndex = z + 1, Parent = root}, {
+        local header = Create("Frame", {Name = "Header", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ZIndex = z + 1, Parent = root}, {
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25}),
-        -- mirror rounding so top edge matches window curvature (bottom stays visually seamless)
         Create("UICorner", {CornerRadius = UDim.new(0,12)})
     })
-    -- removed accent line per request
+    
     local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -160, 1, 0), Position = UDim2.fromOffset(12, 0), Text = title:upper(), TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
-    -- Title animation: only Static or looping Type
     if titleMode == "type" then
         task.spawn(function()
             local function animateText(display, text, delay)
@@ -2346,9 +2279,9 @@ function Library:CreateLibrary(opts)
     local closeBtn = makeHeaderBtn("X")
     local fsBtn = makeHeaderBtn("")
     local minBtn = makeHeaderBtn("–")
-    -- reposition cluster order: minimize, fullscreen, close (already appended; adjust layout order)
+    
     minBtn.LayoutOrder = 1 fsBtn.LayoutOrder = 2 closeBtn.LayoutOrder = 3
-    -- custom fullscreen icon (aggressive corners)
+    
     local fsIcon = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Parent = fsBtn})
     local function makeCorner(ax, ay)
         local c = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(7,7), AnchorPoint = Vector2.new(ax,ay), Position = UDim2.new(ax, ax==1 and -1 or 1, ay, ay==1 and -1 or 1), Parent = fsIcon})
@@ -2366,72 +2299,68 @@ function Library:CreateLibrary(opts)
     fsBtn.MouseLeave:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
     local minimized, prevSize, prevPos = false, root.Size, root.Position
     local fullscreen, fsPrevSize, fsPrevPos = false, nil, nil
-    local windowStateChanging = false -- Flag to prevent search interference during window state changes
+    local windowStateChanging = false 
     
-    -- Forward declarations for resize management
-    local allGrips = {} -- Store all resize grips for management
+    local allGrips = {}
     local resizing = false
-    local setResizeEnabled -- Forward declaration
+    local setResizeEnabled
     
-    -- Function to enable/disable resize functionality
     setResizeEnabled = function(enabled)
         for _, grip in pairs(allGrips) do
             grip.Active = enabled
             grip.Visible = enabled
         end
         if not enabled then
-            -- Force end any active resize
             resizing = false
-            -- Reset visual effects will be handled in the resize section
         end
     end
     
     minBtn.MouseButton1Click:Connect(function()
-        windowStateChanging = true -- Lock search system during state change
+        windowStateChanging = true 
         if fullscreen then
-            -- exit fullscreen first
+            
             T(root, 0.18, {Size = fsPrevSize, Position = fsPrevPos}):Play()
             fullscreen = false
-            setResizeEnabled(true) -- Re-enable resize grips when exiting fullscreen
+            setResizeEnabled(true) 
         end
         minimized = not minimized
         if minimized then
             prevSize = root.Size; prevPos = root.Position
-            setResizeEnabled(false) -- Disable resize grips when minimized
+            setResizeEnabled(false)
             for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = false end end
             T(root, 0.18, {Size = UDim2.new(prevSize.X.Scale, prevSize.X.Offset, 0, header.Size.Y.Offset)}):Play()
         else
             for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = true end end
             T(root, 0.18, {Size = prevSize, Position = prevPos}):Play()
-            setResizeEnabled(true) -- Re-enable resize grips when restored
+            setResizeEnabled(true) 
         end
-        -- Non-blocking unlock after animation completes
+        
         task.spawn(function()
             task.wait(0.25)
             windowStateChanging = false
         end)
     end)
     fsBtn.MouseButton1Click:Connect(function()
-        windowStateChanging = true -- Lock search system during state change
+        windowStateChanging = true 
         if minimized then
-            -- restore from minimized before fullscreen
+            
             minimized = false
             for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = true end end
             T(root, 0.12, {Size = prevSize, Position = prevPos}):Play()
         end
         if not fullscreen then
             fsPrevSize, fsPrevPos = root.Size, root.Position
-            setResizeEnabled(false) -- Disable resize grips in fullscreen
+            setResizeEnabled(false) 
             T(root, 0.22, {Size = UDim2.new(1, -20, 1, -20), Position = UDim2.fromScale(0.5, 0.5)}):Play()
             fullscreen = true
         else
             T(root, 0.22, {Size = fsPrevSize, Position = fsPrevPos}):Play()
             fullscreen = false
-            setResizeEnabled(true) -- Re-enable resize grips when exiting fullscreen
+            setResizeEnabled(true) 
         end
-        -- Non-blocking unlock after animation completes
+        
         task.spawn(function()
-            task.wait(0.3) -- Fullscreen takes longer
+            task.wait(0.3) 
             windowStateChanging = false
         end)
     end)
@@ -2439,7 +2368,7 @@ function Library:CreateLibrary(opts)
     local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 100, 1, 0), ScrollBarThickness = 0, ScrollBarImageColor3 = Color3.fromRGB(0,0,0), ScrollBarImageTransparency = 1, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
     local content = Create("Frame", {Name = "Content", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ClipsDescendants = true, Size = UDim2.new(1, -(100 + 6), 1, 0), Position = UDim2.new(0, 100 + 6, 0, 0), ZIndex = z, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
     do
-        -- Smooth, resilient dragging (supports mouse & touch) without stutter.
+        
     local dragging = false
     local dragStart
     local frameStart
@@ -2479,15 +2408,15 @@ function Library:CreateLibrary(opts)
         local resizingCount = 0
         local sizeLabel = Create("TextLabel", {BackgroundTransparency = 0.25, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(110, 20), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1, -8, 1, -8), Text = "", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, Visible = false, Parent = root}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0.4})})
         
-        -- Update the setResizeEnabled function to handle resize-specific cleanup
+        
         local originalSetResizeEnabled = setResizeEnabled
         setResizeEnabled = function(enabled)
             originalSetResizeEnabled(enabled)
             if not enabled then
-                -- Additional resize-specific cleanup
+                
                 resizingCount = 0
                 sizeLabel.Visible = false
-                -- Reset stroke to normal
+                
                 T(rootStroke, 0.15, {Thickness = 1, Transparency = 0.3}):Play()
             end
         end
@@ -2509,24 +2438,18 @@ function Library:CreateLibrary(opts)
             local gp = {tl = Vector2.new(0,0), tr = Vector2.new(1,0), bl = Vector2.new(0,1), br = Vector2.new(1,1)}
             local ap = gp[mode] or gp.br
             local grip = Create("Frame", {Name = "Grip_"..mode, BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(ap.X, ap.X==1 and 0 or 0, ap.Y, ap.Y==1 and 0 or 0), AnchorPoint = ap, ZIndex = z + 3, Parent = root})
-            table.insert(allGrips, grip) -- Store reference for management
+            table.insert(allGrips, grip) 
             if showVisual then
-                -- Clean resize grip with diagonal dot pattern
-                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-4,1,-4), ZIndex = z + 4, Parent = grip})
+                                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-4,1,-4), ZIndex = z + 4, Parent = grip})
                 
-                -- Create a proper diagonal grip pattern using small squares
                 local gripElements = {}
                 local dotSize = 2
                 local spacing = 4
                 
-                -- Create diagonal rows of dots pointing toward bottom-right corner
                 local dotPositions = {
-                    -- First diagonal line (1 dot) - closest to corner
                     {x = 12, y = 12},
-                    -- Second diagonal line (2 dots)  
                     {x = 8, y = 12},
                     {x = 12, y = 8},
-                    -- Third diagonal line (3 dots) - furthest from corner
                     {x = 4, y = 12},
                     {x = 8, y = 8}, 
                     {x = 12, y = 4}
@@ -2542,25 +2465,25 @@ function Library:CreateLibrary(opts)
                         ZIndex = z + 5 + i,
                         Parent = gripRoot
                     }, {
-                        Create("UICorner", {CornerRadius = UDim.new(0, 1)}) -- Slightly rounded
+                        Create("UICorner", {CornerRadius = UDim.new(0, 1)}) 
                     })
                     
                     gripElements[#gripElements + 1] = {dot = dot, originalPos = pos}
                 end
                 
-                -- Smooth hover effects
+                
                 local function hover(on)
                     for i, entry in ipairs(gripElements) do
                         local dot = entry.dot
                         
                         if on then
-                            -- Make dots more visible and slightly bigger
+                            
                             T(dot, 0.15, {
                                 BackgroundTransparency = 0.1,
                                 Size = UDim2.fromOffset(dotSize + 1, dotSize + 1)
                             }):Play()
                         else
-                            -- Return to normal
+                            
                             T(dot, 0.2, {
                                 BackgroundTransparency = 0.4,
                                 Size = UDim2.fromOffset(dotSize, dotSize)
@@ -2577,7 +2500,7 @@ function Library:CreateLibrary(opts)
             local minW, minH = 520, 380
             grip.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    if fullscreen then return end -- Prevent resizing in fullscreen mode
+                    if fullscreen then return end 
                     resizing = true
                     resizingCount = resizingCount + 1
                     if resizingCount == 1 then resizeStartEffect() end
@@ -2604,7 +2527,7 @@ function Library:CreateLibrary(opts)
                 if mode == "tl" then left = left + dx top = top + dy end
                 local newW = math.max(minW, right - left)
                 local newH = math.max(minH, bottom - top)
-                -- recompute left/top if min constraints clipped
+                
                 if mode == "bl" then left = right - newW end
                 if mode == "tr" then top = bottom - newH end
                 if mode == "tl" then left = right - newW top = bottom - newH end
@@ -2640,13 +2563,12 @@ function Library:CreateLibrary(opts)
         local btn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 38), ZIndex = z + 2, Parent = sidebar})
         local inner = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -2, 1, -2), Position = UDim2.fromOffset(1,1), Parent = btn})
         local iconImg
-        -- unified layout: reserve 18px slot at left; text always starts after it
         if icon then
             if type(icon) == "number" or tostring(icon):match("^%d+$") then icon = "rbxassetid://" .. tostring(icon) end
             iconImg = Create("ImageLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), Position = UDim2.fromOffset(4, 11), Image = icon, ImageColor3 = Theme.SubText, ZIndex = z + 3, Parent = inner})
         end
         local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -10, 1, 0), Position = UDim2.fromOffset( (icon and 24) or 24, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 3, Parent = inner})
-        -- Dynamically shrink category label text to fit sidebar
+        
         do
             local ts = game:GetService("TextService")
             local function fitCategoryLabel()
@@ -2669,7 +2591,7 @@ function Library:CreateLibrary(opts)
         btn.MouseLeave:Connect(function() if Window._selectedCategory ~= Category then T(lbl, 0.12, {TextColor3 = Theme.SubText}):Play() if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.SubText}):Play() end end end)
         local catContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Visible = false, Parent = content})
     local subBar = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -10, 0, 24), Position = UDim2.fromOffset(5, 5), ScrollBarThickness = 0, ScrollBarImageTransparency = 1, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = z + 1, Parent = catContainer}, {Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left})})
-    -- search popup + button (only create once for the entire window)
+    
     if not Window._globalSearchCreated then
         Window._globalSearchCreated = true
     Window._globalSearchPopup = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(210, 30), Position = UDim2.fromOffset(0,0), AnchorPoint = Vector2.new(0,0), ZIndex = z + 500, Parent = root}, {
@@ -2679,7 +2601,7 @@ function Library:CreateLibrary(opts)
         })
         Window._globalSearchBox = Create("TextBox", {BackgroundTransparency = 1, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 13, Size = UDim2.new(1,0,1,0), TextXAlignment = Enum.TextXAlignment.Left, Parent = Window._globalSearchPopup})
         
-        -- Global search state
+        
         Window._filteredPage = nil
         Window._activeHighlightStroke = nil
         Window._activeStrokeOrigColor = nil
@@ -2700,18 +2622,18 @@ function Library:CreateLibrary(opts)
         end
         
         function Window:ToggleSearch(show)
-            -- Prevent search from toggling during window state changes
+            
             if windowStateChanging then return end
             
             show = (show == nil) and (not self._globalSearchPopup.Visible) or show
             if show then
-                -- Prevent immediate reopen if we just closed from the same button
+                
                 if self._searchForceClosedUntil and os.clock() < (self._searchForceClosedUntil or 0) then
                     if self._currentSearchBtn and self._searchForceClosedSource and self._currentSearchBtn == self._searchForceClosedSource then
                         return
                     end
                 end
-                -- If already open with same owner, just reposition and return
+                
                 if self._globalSearchPopup.Visible and self._searchOwner and self._searchOwner == self._currentSearchBtn then
                     if self._currentSearchBtn and self._currentSearchBtn.Parent then
                         local btnAbs = self._currentSearchBtn.AbsolutePosition
@@ -2727,18 +2649,18 @@ function Library:CreateLibrary(opts)
                     return
                 end
                 self._globalSearchPopup.Visible = true
-        -- Remember which button owns this open instance
+        
         self._searchOwner = self._currentSearchBtn
-                -- Clear any stale force-close guard now that we opened intentionally
+                
                 self._searchForceClosedUntil = nil
                 self._searchForceClosedSource = nil
-                -- Position popup relative to current search button
+                
                 if Window._currentSearchBtn then
                     local btnAbs = Window._currentSearchBtn.AbsolutePosition
                     local rootAbs = root.AbsolutePosition
                     local btnSize = Window._currentSearchBtn.AbsoluteSize
                     local popupW = 210
-                    -- align popup's left edge with button's left edge
+                    
                     local px = btnAbs.X - rootAbs.X
                     local maxX = root.AbsoluteSize.X - popupW - 4
                     if px < 4 then px = 4 elseif px > maxX then px = maxX end
@@ -2746,7 +2668,7 @@ function Library:CreateLibrary(opts)
                     self._globalSearchPopup.Position = UDim2.fromOffset(px, py)
                 end
                 
-                -- Animation
+                
                 local stroke = self._globalSearchPopup:FindFirstChild("Stroke")
                 if stroke then stroke.Thickness = 2.2 stroke.Transparency = 0.75 end
                 self._globalSearchPopup.BackgroundTransparency = 1
@@ -2760,7 +2682,7 @@ function Library:CreateLibrary(opts)
                 self._globalSearchBox.Text = ""
                 self:RestoreColumns()
                 self._searchOwner = nil
-                -- Set a short guard to avoid accidental reopen from the same button within the same click frame
+                
                 self._searchForceClosedUntil = os.clock() + 0.25
                 self._searchForceClosedSource = self._currentSearchBtn or self._searchOwner
             end
@@ -2776,7 +2698,7 @@ function Library:CreateLibrary(opts)
             if match and match.page and match.groupFrame then
                 local wasSearchOpen = self._globalSearchPopup.Visible
                 
-                -- Switch to correct category if needed
+                
                 if self._selectedCategory ~= match.category then
                     match.category:Select()
                 end
@@ -2784,20 +2706,20 @@ function Library:CreateLibrary(opts)
                     match.page:Select()
                 end
                 
-                -- If search was open and we switched categories, keep it open and reposition
+                
                 if wasSearchOpen then
                     self._globalSearchPopup.Visible = true
-                    -- Ensure current button points to the matched category's search button
+                    
                     self._currentSearchBtn = match.category and match.category._searchBtn or self._currentSearchBtn
-                    -- Reposition popup relative to current category's search button aligned to right edge
+                    
                     if self._currentSearchBtn and self._currentSearchBtn.Parent then
-                        -- Update owner to the active category's button
+                        
                         self._searchOwner = self._currentSearchBtn
                         local btnAbs = self._currentSearchBtn.AbsolutePosition
                         local rootAbs = root.AbsolutePosition
                         local btnSize = self._currentSearchBtn.AbsoluteSize
                         local popupW = 210
-                        -- align popup's left edge with button's left edge
+                        
                         local px = btnAbs.X - rootAbs.X
                         local maxX = root.AbsoluteSize.X - popupW - 4
                         if px < 4 then px = 4 elseif px > maxX then px = maxX end
@@ -2806,7 +2728,7 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 
-                -- Hide other columns in that page
+                
                 local page = match.page
                 if page._columnsFrames then
                     self._filteredPage = page
@@ -2815,7 +2737,7 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 
-                -- Highlight the found element
+                
                 local stroke = nil
                 for _, child in ipairs(match.groupFrame:GetChildren()) do
                     if child:IsA("UIStroke") then stroke = child break end
@@ -2839,7 +2761,7 @@ function Library:CreateLibrary(opts)
             end
         end
         
-        -- Global search event handlers
+        
         local lastChange = 0
         Window._globalSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
             if not Window._globalSearchPopup.Visible then return end
@@ -2861,17 +2783,17 @@ function Library:CreateLibrary(opts)
         
         UserInputService.InputBegan:Connect(function(inp)
             if not Window._globalSearchPopup.Visible then return end
-            -- Prevent search from closing during window state changes
+            
             if windowStateChanging then return end
             if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                 local pos = UserInputService:GetMouseLocation()
 
-                -- Check if click is inside search popup
+                
                 local searchAbs = Window._globalSearchPopup.AbsolutePosition
                 local searchSz = Window._globalSearchPopup.AbsoluteSize
                 local insideSearch = pos.X >= searchAbs.X and pos.X <= searchAbs.X+searchSz.X and pos.Y >= searchAbs.Y and pos.Y <= searchAbs.Y+searchSz.Y
 
-                -- Check if click is inside ANY category's search button
+                
                 local insideAnyBtn = false
                 for _, cat in ipairs(Window._categories or {}) do
                     local b = cat._searchBtn
@@ -2885,7 +2807,7 @@ function Library:CreateLibrary(opts)
                     end
                 end
 
-                -- Close search if clicking anywhere except search popup or any search button
+                
                 if not insideSearch and not insideAnyBtn then
                     Window:ToggleSearch(false)
                 end
@@ -2893,7 +2815,7 @@ function Library:CreateLibrary(opts)
         end)
     end
     
-    -- Create search button for this category
+    
     local searchBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(32,22), Text = "🔍", Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.Text, ZIndex = z + 2, Parent = subBar}, {
         Create("UICorner", {CornerRadius = UDim.new(0,5)}),
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45})
@@ -2903,23 +2825,23 @@ function Library:CreateLibrary(opts)
     searchBtn.MouseEnter:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Hover}):Play() end)
     searchBtn.MouseLeave:Connect(function() T(searchBtn,0.12,{BackgroundColor3 = Theme.Button}):Play() end)
     searchBtn.MouseButton1Click:Connect(function()
-        -- Prevent search from opening during window state changes
+        
         if windowStateChanging then return end
         
         local isOpen = Window._globalSearchPopup and Window._globalSearchPopup.Visible
         local owner = Window._searchOwner
         if isOpen and owner == searchBtn then
-            -- Same button while open -> close
+            
             Window:ToggleSearch(false)
             return
         end
         if isOpen and owner ~= searchBtn then
-            -- Different button while open -> keep open and reposition
+            
             Window._currentSearchBtn = searchBtn
             Window:ToggleSearch(true)
             return
         end
-        -- Was closed -> open under this button
+        
         Window._currentSearchBtn = searchBtn
         Window:ToggleSearch(true)
     end)
@@ -2931,14 +2853,14 @@ function Library:CreateLibrary(opts)
                 if Window._selectedCategory._icon then T(Window._selectedCategory._icon, 0.12, {ImageColor3 = Theme.SubText}):Play() end
             end
             Window._selectedCategory = Category
-            -- update current search button so global search can reposition correctly
+            
             Window._currentSearchBtn = Category._searchBtn or Window._currentSearchBtn
             for _, f in ipairs(content:GetChildren()) do if f:IsA("Frame") then f.Visible = false end end
             catContainer.Visible = true
             T(lbl, 0.12, {TextColor3 = Theme.Text}):Play()
             if iconImg then T(iconImg, 0.12, {ImageColor3 = Theme.Text}):Play() end
             catInd.Visible = true
-            -- underline now expands full inner width (minus padding) for aggressive look
+            
             T(catInd, 0.2, {Size = UDim2.new(1, -8, 0, 2), Position = UDim2.new(0,4,1,0)}):Play()
             if not Category._selectedPage and #Category._pages > 0 then Category._pages[1]:Select() end
         end
@@ -2948,7 +2870,7 @@ function Library:CreateLibrary(opts)
             local pname = tostring(p.Name or "Page")
             local Page = { Name = pname, _blocks = {}, _columns = Clamp(tonumber(p.Columns) or 2, 1, 3) }
             local tb = TextService:GetTextSize(pname, 12, Fonts.Medium, Vector2.new(1000, 22))
-            -- Keep original size, but clamp max width reasonably and truncate to avoid spill
+            
             local maxWidth = math.min(tb.X + 16, 140)
             local subBtn = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = pname, TextColor3 = Theme.SubText, Font = Fonts.Medium, TextSize = 12, Size = UDim2.fromOffset(maxWidth, 22), TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 2, Parent = subBar})
             local subInd = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,4,1,0), Visible = false, ZIndex = z + 3, Parent = subBtn})
@@ -2980,7 +2902,7 @@ function Library:CreateLibrary(opts)
                 T(subInd, 0.2, {Size = UDim2.new(1, -8, 0, 2), Position = UDim2.new(0,4,1,0)}):Play()
             end
             subBtn.MouseButton1Click:Connect(function() Page:Select() end)
-            -- Back-compat alias: Category:AddPage now Category:AddSection
+            
             Category.AddPage = Category.AddSection
             function Page:AddPage(g)
                 g = g or {}
@@ -2996,14 +2918,14 @@ function Library:CreateLibrary(opts)
                 Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = gName, Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 2, Parent = gFrame})
                 local y = 22
                 if desc and #desc > 0 then
-                    -- Larger visible info badge with plain 'i' (reworked: anchor via scale so resizing window doesn't break alignment)
+                    
                     local infoBtn = Create("TextButton", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), Position = UDim2.new(1, -6, 0, 1), AnchorPoint = Vector2.new(1,0), Text = "i", TextColor3 = Theme.SubText, Font = Fonts.Bold, TextSize = 14, AutoButtonColor = false, ZIndex = z + 6, Parent = gFrame})
-                    -- hover circle (separate so base stays transparent) follows same anchored position
+                    
                     local hoverCircle = Create("Frame", {BackgroundColor3 = Color3.fromRGB(40,42,41), BackgroundTransparency = 1, Size = infoBtn.Size, Position = infoBtn.Position, AnchorPoint = Vector2.new(1,0), ZIndex = z + 5, Parent = gFrame})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = hoverCircle})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = infoBtn})
                     local iStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1.8, Transparency = 0, Parent = hoverCircle})
-                    -- hover: shift stroke color instead of hiding it
+                    
                     local function hover(on)
                         if on then
                             T(hoverCircle,0.16,{BackgroundTransparency = 0.15}):Play()
@@ -3018,8 +2940,8 @@ function Library:CreateLibrary(opts)
                     end
                     infoBtn.MouseEnter:Connect(function() hover(true) end)
                     infoBtn.MouseLeave:Connect(function() hover(false) end)
-                    -- no AbsoluteSize polling needed; anchored with scale to right edge
-                    -- measure text for better width
+                    
+                    
                     local meas = TextService:GetTextSize(desc, 12, Fonts.Regular, Vector2.new(320, math.huge))
                     local baseW = math.clamp(meas.X + 30, 140, 340)
                     local popup = Create("Frame", {BackgroundColor3 = Color3.fromRGB(28,30,29), BorderSizePixel = 0, Visible = false, Size = UDim2.new(0, baseW, 0, 0), ZIndex = z + 500, Parent = gFrame}, {
@@ -3031,9 +2953,9 @@ function Library:CreateLibrary(opts)
                     pText.AutomaticSize = Enum.AutomaticSize.Y
                     popup.AutomaticSize = Enum.AutomaticSize.Y
                     popup.ClipsDescendants = true
-                    -- arrow (triangle) using rotated square trick
-                    -- arrow removed for minimalist pill popup
-                    -- layout popup on show
+                    
+                    
+                    
                     local function positionPopup()
                         local relX = infoBtn.AbsolutePosition.X - gFrame.AbsolutePosition.X
                         local desired = relX - popup.AbsoluteSize.X/2 + infoBtn.AbsoluteSize.X/2
@@ -3066,7 +2988,7 @@ function Library:CreateLibrary(opts)
                     end
                     infoBtn.MouseEnter:Connect(show)
                     infoBtn.MouseLeave:Connect(function()
-                        -- hide only if cursor not over popup
+                        
                         local con; con = game:GetService("RunService").RenderStepped:Connect(function()
                             local pos = UserInputService:GetMouseLocation()
                             local abs = popup.AbsolutePosition
@@ -3083,11 +3005,11 @@ function Library:CreateLibrary(opts)
                     infoBtn.MouseButton1Click:Connect(function()
                         if showing then hide() else show() end
                     end)
-                    -- add a small vertical gap so controls aren't cramped under the info badge
+                    
                     y = y + 8
                 end
                 local function nextY(h) local o=y; y=y+h+6; return o end
-                -- search registration helper (captures Category/Page/Group)
+                
                 local function registerSearch(text, searchType)
                     if not text or text == "" then return end
                     Library._searchEntries[#Library._searchEntries+1] = {
@@ -3100,16 +3022,16 @@ function Library:CreateLibrary(opts)
                     }
                 end
                 
-                -- Register group name, category name, and page name for search
+                
                 registerSearch(gName, "group")
                 registerSearch(Category.Name, "category") 
                 registerSearch(Page.Name, "page")
-                -- Back-compat alias: Page:AddBlock now Page:AddPage
+                
                 Page.AddBlock = Page.AddPage
                 if desc and desc ~= "" then
                     registerSearch(desc, "description")
                 end
-                -- Toggle
+                
                 function Group:AddToggle(o)
                     o = o or {}
                     local label = tostring(o.Name or "Toggle")
@@ -3152,7 +3074,7 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Toggle
                 end
-                -- Button
+                
                 function Group:AddButton(o)
                     o = o or {}
                     local label = tostring(o.Name or "Button")
@@ -3179,7 +3101,7 @@ function Library:CreateLibrary(opts)
                     row.MouseLeave:Connect(function() hover(false) end)
                     row.MouseButton1Click:Connect(function()
                         if type(cb)=="function" then pcall(cb) end
-                        -- animate bar across then retract & hide
+                        
                         bar.BackgroundTransparency = 0.15
                         bar.Size = UDim2.new(0,0,0,2)
                         local tween1 = T(bar,0.18,{Size = UDim2.new(1,0,0,2)})
@@ -3198,7 +3120,7 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Button
                 end
-                -- Slider
+                
                 function Group:AddSlider(o)
                     o = o or {}
                     local label = tostring(o.Name or "Slider")
@@ -3210,19 +3132,19 @@ function Library:CreateLibrary(opts)
                     local cb = o.Callback
                     local precise = o.Precise == true
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    -- UI row (compressed height)
+                    
                     local rowHeight = 46
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowHeight), Position = UDim2.fromOffset(0,nextY(rowHeight)), Parent = gFrame})
-                    -- Label anchored top-left
+                    
                     local labelText = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -80, 0, 18), Position = UDim2.new(0,0,0,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    -- Value box floats to right of label
+                    
                     local valueBox = Create("TextBox", {BackgroundColor3 = Theme.Button, Text = tostring(default), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, Size = UDim2.new(0,64,0,18), Position = UDim2.new(1,-66,0,0), AnchorPoint = Vector2.new(0,0), ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Center, Parent = row})
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = valueBox})
                     local vbStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = valueBox})
-                    -- Bar spans almost entire width beneath
+                    
                     local bar = Create("Frame", {BackgroundColor3 = Color3.fromRGB(30,32,31), Size = UDim2.new(1,0,0,6), Position = UDim2.new(0,0,0,26), Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
                     local barStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.6, Parent = bar})
-                    -- drag pulse effect frame (overlay)
+                    
                     local dragPulse = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Parent = bar})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dragPulse})
                     dragPulse.ZIndex = bar.ZIndex + 1
@@ -3235,7 +3157,7 @@ function Library:CreateLibrary(opts)
                     })
                     gradient.Rotation = 0
                     gradient.Parent = fill
-                    -- animate gradient shift
+                    
                     task.spawn(function()
                         local t0 = tick()
                         while row.Parent do
@@ -3247,14 +3169,14 @@ function Library:CreateLibrary(opts)
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,0,0.5,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
                     local knobStroke = Create("UIStroke", {Color = Theme.Accent, Thickness = 2, Transparency = 0.2, Parent = knob})
                     local knobGlow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.9, Size = UDim2.fromOffset(28,28), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = knob})
-                    -- sheen effect
+                    
                     local sheen = Create("Frame", {BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 0.85, Size = UDim2.new(0,0,1,0), Parent = fill})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = sheen})
-                    -- tooltip
+                    
                     knobGlow.ZIndex = 9 knob.ZIndex = 9
-                    -- min/max subtle labels
-                    -- removed min/max labels per request
-                    -- Hover effects
+                    
+                    
+                    
                     local function hover(on)
                         if on then
                             T(bar,0.16,{BackgroundColor3 = Color3.fromRGB(36,40,38)}):Play()
@@ -3271,15 +3193,15 @@ function Library:CreateLibrary(opts)
                     bar.MouseEnter:Connect(function() hover(true) end)
                     bar.MouseLeave:Connect(function() hover(false) end)
                     knob.MouseEnter:Connect(function() hover(true) end)
-                    -- early declare interaction state so hover callbacks capture them
+                    
                     local dragging, fine, lastClick = false, false, 0
-                    -- sink game input while dragging to avoid A/D or other keys affecting gameplay/camera
+                    
                     local dragSinkAction = sanitize(libraryName) .. "SliderDrag_" .. id
                     local function bindDragSink()
                         local keys = Enum.KeyCode:GetEnumItems()
                         ContextActionService:BindAction(dragSinkAction, function(_, state, input)
                             if not dragging then return Enum.ContextActionResult.Pass end
-                            -- While dragging the slider, sink keyboard/gamepad inputs
+                            
                             return Enum.ContextActionResult.Sink
                         end, false, table.unpack(keys))
                     end
@@ -3306,7 +3228,7 @@ function Library:CreateLibrary(opts)
                         if not num or num ~= num or num == math.huge or num == -math.huge then
                             return
                         end
-                        -- Clamp and round appropriately
+                        
                         if precise then
                             if step and step > 0 then
                                 num = Round(num, step)
@@ -3322,9 +3244,9 @@ function Library:CreateLibrary(opts)
                         valueBox.Text = formatValue(num)
                         if not silent and type(cb)=="function" then pcall(cb,num) end
                     end
-                    -- dragging / fine control logic (state already declared above)
-                    -- ctrl-held fine adjustment flag is 'fine'
-                    -- double click reset support uses 'lastClick'
+                    
+                    
+                    
                     local function updateFromX(x)
                         local rel = (x - bar.AbsolutePosition.X)/math.max(1, bar.AbsoluteSize.X)
                         rel = math.clamp(rel,0,1)
@@ -3338,7 +3260,7 @@ function Library:CreateLibrary(opts)
                     local function beginDrag(input)
                         dragging = true
                         bindDragSink()
-                        -- start pulse
+                        
                         dragPulse.BackgroundTransparency = 0.9
                         dragPulse.Size = UDim2.new(1,0,1,0)
                         T(dragPulse,0.25,{BackgroundTransparency = 1}):Play()
@@ -3349,7 +3271,7 @@ function Library:CreateLibrary(opts)
                         if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
                             local now = tick()
                             if now - lastClick < 0.35 then
-                                -- double click -> reset to default
+                                
                                 Slider:Set(default)
                             else
                                 beginDrag(input)
@@ -3366,7 +3288,7 @@ function Library:CreateLibrary(opts)
                         if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
                             local x = (input.UserInputType==Enum.UserInputType.Touch) and input.Position.X or UserInputService:GetMouseLocation().X
                             if fine then
-                                -- apply smaller incremental move by biasing x slightly toward previous value position
+                                
                                 updateFromX(x)
                             else
                                 updateFromX(x)
@@ -3376,7 +3298,7 @@ function Library:CreateLibrary(opts)
                     UserInputService.InputEnded:Connect(function(input)
                         if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
                             if dragging then
-                                -- end pulse
+                                
                                 T(dragPulse,0.18,{BackgroundTransparency = 1}):Play()
                                 unbindDragSink()
                             end
@@ -3385,7 +3307,7 @@ function Library:CreateLibrary(opts)
                     end)
                     UserInputService.InputBegan:Connect(function(input)
                         if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then fine = true end
-                        if dragging then return end -- ignore arrow adjustments while dragging
+                        if dragging then return end 
                         if input.KeyCode == Enum.KeyCode.Left then
                             if fine then Slider:Set(Slider._value - (precise and (step*0.25) or step)) else Slider:Set(Slider._value - step) end
                         elseif input.KeyCode == Enum.KeyCode.Right then
@@ -3395,7 +3317,7 @@ function Library:CreateLibrary(opts)
                     UserInputService.InputEnded:Connect(function(input)
                         if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then fine = false end
                     end)
-                    -- valueBox editing
+                    
                     valueBox.Focused:Connect(function()
                         valueBox.TextColor3 = Theme.Text
                     end)
@@ -3410,19 +3332,19 @@ function Library:CreateLibrary(opts)
                     end)
                     valueBox:GetPropertyChangedSignal("Text"):Connect(function()
                         if precise then return end
-                        -- Limit to digits and optional leading minus
+                        
                         local t = valueBox.Text
-                        -- Remove non-digits
+                        
                         t = t:gsub("[^%d%-]", "")
-                        -- Keep only first minus sign at start
+                        
                         local neg = t:match("^%-") and "-" or ""
                         t = t:gsub("%-", "")
                         t = neg .. t
                         if t ~= valueBox.Text then valueBox.Text = t end
                     end)
-                    -- init
+                    
                     Slider:Set(default,true)
-                    -- continuous sheen sweep loop
+                    
                     task.spawn(function()
                         while row.Parent do
                             sheen.Size = UDim2.new(0,0,1,0)
@@ -3436,7 +3358,7 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Slider
                 end
-                -- NewSlider(text, low, high, precise, callback, defaultValue, flag)
+                
                 function Group:NewSlider(text, low, high, precise, callback, defaultValue, flag)
                     return Group:AddSlider({
                         Name = text,
@@ -3449,11 +3371,11 @@ function Library:CreateLibrary(opts)
                         Step = precise and ( (high - low) / 300 ) or 1,
                     })
                 end
-                -- Dropdown (new design v2)
+                
                 function Group:AddDropdown(...)
-                    -- Accept both table-based and positional API:
-                    -- AddDropdown({ Name=label, Options=options, Default=default, Multi=isMulti, Callback=cb, Flag=flag, Search=true/false, Placeholder=.. })
-                    -- AddDropdown(label, options, default, isMulti, cb, flag)
+                    
+                    
+                    
                     local argc = select("#", ...)
                     local _first = ...
                     local o
@@ -3469,29 +3391,29 @@ function Library:CreateLibrary(opts)
                     local default = o.Default
                     local cb = o.Callback
                     local isMulti = (o.Multi == true) or (o.IsMulti == true)
-                    -- Back-compat: allow either Filter or Search to toggle
+                    
                     local enableSearch = (o.Search ~= false) and (o.Filter ~= false)
                     local placeholder = tostring(o.Placeholder or "Choose...")
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
 
-                    -- Row + label
+                    
                     local rowH = 28
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
                     local labelWidth = 0.42
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(labelWidth,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
 
-                    -- Trigger: compact solid
+                    
                     local trigger = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Text = "", Size = UDim2.new(1-labelWidth,-4,1,0), Position = UDim2.new(labelWidth,4,0,0), Parent = row}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,5)}),
                         Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
                         Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,0)})
                     })
-                    -- Always start with placeholder; defaults are applied via Set() after options initialize
+                    
                     local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-18,1,0), Text = placeholder, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.SubText, Parent = trigger})
                     local caret = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,14), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-2,0.5,0), Text = "▼", Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.SubText, Parent = trigger})
                     caret.ZIndex = (trigger.ZIndex or 1) + 1
 
-                    -- Panel (root-parented), width follows trigger; horizontally clamped to root
+                    
                     local panel = Create("Frame", {BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), ZIndex = z + 350, Parent = root}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,6)}),
                         Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
@@ -3499,7 +3421,7 @@ function Library:CreateLibrary(opts)
                     local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
                     shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
 
-                    -- Internals
+                    
                     local innerPad = 6
                     local searchBox, listFrame, header
                     local itemHeight = 22
@@ -3509,10 +3431,10 @@ function Library:CreateLibrary(opts)
                     local conns = {}
                     local activeIndex = 1
                     local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti, _clickGate = false }
-                    -- forward declaration for helper used by context menu below (assigned later)
+                    
                     local getMouseGuiPosition
 
-                    -- Context menu state (for multi-select): right-click -> Select All / Unselect All
+                    
                     local ctxMenu, ctxOpen = nil, false
                     local ctxBlocker = nil
                     local ctxConns = {}
@@ -3537,14 +3459,14 @@ function Library:CreateLibrary(opts)
                     end
                     local function openCtxMenu(input)
                         if not Dropdown._multi then return end
-                        -- toggle if already open
+                        
                         if ctxOpen then closeCtxMenu(); return end
-                        -- Close any other dropdown context menu globally
+                        
                         if Library and Library._openDropdownCtx and Library._openDropdownCtx ~= closeCtxMenu then
                             pcall(Library._openDropdownCtx)
                         end
                         ctxOpen = true
-                        -- create a full-screen modal blocker to prevent hover/click on other UI and allow right-click-to-close
+                        
                         ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = 10999, Parent = RootGui})
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function()
                             closeCtxMenu()
@@ -3555,7 +3477,7 @@ function Library:CreateLibrary(opts)
                         table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function()
                             closeCtxMenu()
                         end))
-                        -- build menu (match library style: solid lib background, standard outline, simple items)
+                        
                         local textService = game:GetService("TextService")
                         local labelFont = Fonts.Medium
                         local labelSize = 12
@@ -3571,10 +3493,10 @@ function Library:CreateLibrary(opts)
                             Create("UICorner", {CornerRadius = UDim.new(0,6)}),
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.40})
                         })
-                        -- subtle outer shadow like other panels
+                        
                         local shadow2 = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.92, Size = UDim2.fromScale(1,1), ZIndex = (ctxMenu.ZIndex or 1) - 1, Parent = ctxMenu})
                         shadow2.ScaleType = Enum.ScaleType.Slice; shadow2.SliceCenter = Rect.new(20,20,280,280)
-                        -- content container
+                        
                         local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -(sidePad*2), 1, -(vPad*2)), Position = UDim2.fromOffset(sidePad, vPad), ZIndex = ctxMenu.ZIndex + 1, Parent = ctxMenu}, {
                             Create("UIListLayout", {Padding = UDim.new(0, gap), SortOrder = Enum.SortOrder.LayoutOrder})
                         })
@@ -3615,7 +3537,7 @@ function Library:CreateLibrary(opts)
                                 Dropdown:UnselectAll()
                             end)
                         end)
-                        -- position above the dropdown, aligned to right edge; flip below when needed
+                        
                         local tAbs = trigger.AbsolutePosition
                         local tSz = trigger.AbsoluteSize
                         local rootAbs = root.AbsolutePosition
@@ -3628,15 +3550,15 @@ function Library:CreateLibrary(opts)
                         if py < 4 then py = (tAbs.Y - rootAbs.Y) + tSz.Y + 6 end
                         if py + menuH > rootSz.Y - 4 then py = rootSz.Y - menuH - 4 end
                         ctxMenu.Position = UDim2.fromOffset(px, py)
-                        -- open animation
+                        
                         ctxMenu.Size = UDim2.fromOffset(menuW, 0)
                         local openTw = T(ctxMenu, 0.16, {Size = UDim2.fromOffset(menuW, finalH), BackgroundTransparency = 0})
                         openTw:Play()
-                        -- outside click / esc to close
+                        
                         table.insert(ctxConns, UserInputService.InputBegan:Connect(function(inp)
                             if not ctxOpen or not ctxMenu or not ctxMenu.Parent then return end
                             if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.MouseButton2 or inp.UserInputType == Enum.UserInputType.Touch then
-                                -- inline-adjusted mouse position (avoid dependency on helper creation order)
+                                
                                 local m
                                 if inp and (inp.UserInputType == Enum.UserInputType.Touch) then
                                     m = Vector2.new(inp.Position.X, inp.Position.Y)
@@ -3656,7 +3578,7 @@ function Library:CreateLibrary(opts)
                                 closeCtxMenu()
                             end
                         end))
-                        -- also close context menu if trigger becomes hidden or removed
+                        
                         table.insert(ctxConns, trigger:GetPropertyChangedSignal("Visible"):Connect(function()
                             if ctxOpen and trigger.Visible == false then closeCtxMenu() end
                         end))
@@ -3712,7 +3634,7 @@ function Library:CreateLibrary(opts)
                         local px = tAbs.X - rootAbs.X
                         px = clamp(px, 0, math.max(0, rootSz.X - width))
                         local openBelowY = (tAbs.Y - rootAbs.Y) + tSz.Y + 2
-                        -- Always open dropdown panels below the trigger (no flip), and clamp within root height
+                        
                         local py = openBelowY
                         if finalH then
                             py = math.clamp(py, 4, math.max(4, rootSz.Y - finalH - 4))
@@ -3728,7 +3650,7 @@ function Library:CreateLibrary(opts)
                         end
                         local y = innerPad
                         if enableSearch then
-                            -- external icon on the left of the search box
+                            
                             local searchY = y
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,24), Position = UDim2.fromOffset(innerPad, searchY), Text = "🔎", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = panel})
                             searchBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "Search...", PlaceholderColor3 = Theme.SubText, TextColor3 = Theme.Text, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, -(innerPad*2 + 16 + 6), 0, 24), Position = UDim2.fromOffset(innerPad + 16 + 6, searchY), Parent = panel}, {
@@ -3781,7 +3703,7 @@ function Library:CreateLibrary(opts)
                                 Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.45}),
                                 Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
                             })
-                            -- Radio marker (left): ring + inner dot
+                            
                             local radio = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(0,0.5), Position = UDim2.new(0,0,0.5,0), Parent = item})
                             local ring = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(16,16), Position = UDim2.fromOffset(0,0), Parent = radio})
                             Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = ring})
@@ -3812,14 +3734,14 @@ function Library:CreateLibrary(opts)
                                     Dropdown:Set(val)
                                 end
                             end
-                            -- Use overlay only for click handling to avoid duplicate Down/Click toggles
-                            -- Topmost invisible click-catcher to prevent visual children from blocking selection
+                            
+                            
                             local hit = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Parent = item})
                             hit.ZIndex = (item.ZIndex or 1) + 100
                             if hit.Activated then
                                 hit.Activated:Connect(selectUI)
                             else
-                                -- Fallback for environments without Activated
+                                
                                 hit.MouseButton1Click:Connect(selectUI)
                             end
                             local key = tostring(val)
@@ -3831,7 +3753,7 @@ function Library:CreateLibrary(opts)
                         listFrame.CanvasPosition = Vector2.new(0,0)
                     end
 
-                    -- Helper: mouse position adjusted for GUI inset (so we can do accurate bounds checks)
+                    
                     getMouseGuiPosition = function(input)
                         local pos
                         if input and (input.UserInputType == Enum.UserInputType.Touch) then
@@ -3839,7 +3761,7 @@ function Library:CreateLibrary(opts)
                         else
                             pos = UserInputService:GetMouseLocation()
                         end
-                        -- Subtract top GUI inset so coordinates match AbsolutePosition space
+                        
                         local ok, inset = pcall(function()
                             return game:GetService("GuiService"):GetGuiInset()
                         end)
@@ -3857,7 +3779,7 @@ function Library:CreateLibrary(opts)
                         if tStroke then T(tStroke,0.12,{Transparency = 0.35}):Play() end
                         T(caret,0.16,{TextColor3 = Theme.Text}):Play(); caret.Text = "▲"
 
-                        closeCtxMenu() -- hide context menu if open
+                        closeCtxMenu() 
                         buildPanel(); Dropdown._filtered = {}; renderItems();
                         panel.Visible = true; panel.ClipsDescendants = true
 
@@ -3908,14 +3830,14 @@ function Library:CreateLibrary(opts)
                             end
                         end))
 
-                        -- reposition while open if layout moves
+                        
                         table.insert(conns, trigger:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
                             if open then positionPanel(panel.AbsoluteSize.Y) end
                         end))
                         table.insert(conns, root:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                             if open then positionPanel(panel.AbsoluteSize.Y) end
                         end))
-                        -- auto-close when trigger hides or is removed (category/section change)
+                        
                         table.insert(conns, trigger:GetPropertyChangedSignal("Visible"):Connect(function()
                             if open and trigger.Visible == false then Dropdown:_closePanel() end
                         end))
@@ -3933,7 +3855,7 @@ function Library:CreateLibrary(opts)
                         T(caret,0.16,{TextColor3 = Theme.SubText}):Play(); caret.Text = "▼"
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, 0)})
                         tw:Play(); tw.Completed:Connect(function() panel.Visible = false; anim = false if type(Dropdown._onClose)=="function" then pcall(Dropdown._onClose) end end)
-                        -- Safety unlock in case tween completion is skipped by engine race
+                        
                         task.delay(0.35, function()
                             if panel and panel.Parent and panel.Visible and panel.AbsoluteSize.Y <= 1 then
                                 panel.Visible = false
@@ -3956,12 +3878,12 @@ function Library:CreateLibrary(opts)
                         end
                     end)
                     trigger.MouseButton1Click:Connect(function() if open then Dropdown:_closePanel() else openPanel() end end)
-                    -- Right-click context menu for multi-select
+                    
                     trigger.MouseButton2Click:Connect(function(input)
                         if Dropdown._multi then openCtxMenu(input) end
                     end)
 
-                    -- Public controls
+                    
                     function Dropdown:Open()
                         openPanel()
                     end
@@ -4005,11 +3927,11 @@ function Library:CreateLibrary(opts)
                                 end
                             end
                             updateSelection(); refreshLabelFromSelection()
-                            -- Don't auto-close for multi-select
+                            
                             if not silent and type(cb)=="function" then pcall(cb, self:Get()) end
                             return
                         end
-                        -- single-select behavior
+                        
                         if v == nil then
                             self._value = nil
                             refreshLabelFromSelection()
@@ -4027,7 +3949,7 @@ function Library:CreateLibrary(opts)
                         for _, val in ipairs(nl or {}) do table.insert(self._options, val) end
                         Dropdown._filtered = {}
                         if self._multi then
-                            -- prune selections that no longer exist
+                            
                             local valid = {}
                             for _, opt in ipairs(self._options) do valid[tostring(opt)] = true end
                             for key, _ in pairs(self._values) do if not valid[key] then self._values[key] = nil end end
@@ -4035,18 +3957,18 @@ function Library:CreateLibrary(opts)
                         if panel.Visible then buildPanel(); renderItems(); updateSelection() end
                         refreshLabelFromSelection()
                     end
-                    -- Public helpers for multi-select
+                    
                     function Dropdown:SelectAll(silent)
                         if not self._multi then return end
                         local newSet = {}
                         for _, opt in ipairs(self._options) do newSet[tostring(opt)] = true end
                         self._values = newSet
                         
-                        -- Force UI updates
+                        
                         pcall(updateSelection)
                         pcall(refreshLabelFromSelection)
                         
-                        -- If panel is visible, rebuild it to reflect changes
+                        
                         if panel and panel.Visible then
                             pcall(buildPanel)
                             pcall(renderItems)
@@ -4059,11 +3981,11 @@ function Library:CreateLibrary(opts)
                         if not self._multi then return end
                         self._values = {}
                         
-                        -- Force UI updates
+                        
                         pcall(updateSelection)
                         pcall(refreshLabelFromSelection)
                         
-                        -- If panel is visible, rebuild it to reflect changes
+                        
                         if panel and panel.Visible then
                             pcall(buildPanel)
                             pcall(renderItems)
@@ -4077,7 +3999,7 @@ function Library:CreateLibrary(opts)
                     function Dropdown:FocusSearch() if enableSearch and searchBox then pcall(function() searchBox:CaptureFocus() end) end end
 
                     Dropdown:SetOptions(options)
-                    -- Initialize default(s)
+                    
                     if default ~= nil then
                         if isMulti then
                             if type(default) == "table" then Dropdown:Set(default, true) else Dropdown:Set({default}, true) end
@@ -4091,7 +4013,7 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Dropdown
                 end
-                -- Textbox
+                
                 function Group:AddTextbox(o)
                     o = o or {}
                     local label = tostring(o.Name or "Text")
@@ -4100,7 +4022,7 @@ function Library:CreateLibrary(opts)
                     local cb = o.Callback
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,30), Position = UDim2.fromOffset(0,nextY(30)), Parent = gFrame})
-                    -- Align label/input split with dropdown (label 42%, input 58%), and match right margin (-4/+4)
+                    
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.42,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
                     local box = Create("TextBox", {BackgroundColor3 = Theme.Button, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), ClearTextOnFocus = false, PlaceholderText = placeholder, Text = default, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Parent = row}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,3)}),
@@ -4111,7 +4033,7 @@ function Library:CreateLibrary(opts)
                     local Textbox = { id = id, _value = default }
                     function Textbox:Get() return box and box.Text or self._value end
                     function Textbox:Set(v, silent) v = tostring(v or "") self._value = v box.Text = v if not silent and type(cb)=="function" then pcall(cb,v) end end
-                    -- One-time clear on first focus if it's still showing the default text
+                    
                     local _clearedOnce = false
                     box.Focused:Connect(function()
                         if not _clearedOnce and (box.Text == tostring(default or "")) then
@@ -4135,12 +4057,12 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Textbox
                 end
-                -- Paragraph (note text / read-only, flag updatable)
+                
                 function Group:AddParagraph(o)
                     o = o or {}
                     local label = tostring(o.Name or "Paragraph")
                     local text = tostring(o.Text or o.Value or "")
-                    local cb = o.Callback -- optional: fire when text changes via Set
+                    local cb = o.Callback 
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     local h = tonumber(o.Height) or 48
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,h), Position = UDim2.fromOffset(0,nextY(h)), Parent = gFrame})
@@ -4150,9 +4072,9 @@ function Library:CreateLibrary(opts)
                         Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,8), PaddingBottom = UDim.new(0,8)})
                     })
                     local txt = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), TextWrapped = true, Text = text, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Parent = box})
-                    -- Auto-resize helpers: compute required height and reflow following controls
+                    
                     local function measureNeededHeight(str)
-                        local availW = math.max(20, row.AbsoluteSize.X - 20) -- account for 10px left/right padding
+                        local availW = math.max(20, row.AbsoluteSize.X - 20) 
                         local sz = TextService:GetTextSize(tostring(str or ""), 13, Fonts.Regular, Vector2.new(availW, math.huge))
                         local innerPadY = 8 + 8
                         local need = math.max(h, sz.Y + innerPadY)
@@ -4165,7 +4087,7 @@ function Library:CreateLibrary(opts)
                         local baseY = row.Position.Y.Offset
                         local delta = newH - oldH
                         row.Size = UDim2.new(row.Size.X.Scale, row.Size.X.Offset, 0, newH)
-                        -- Shift subsequent siblings down/up by delta
+                        
                         for _, child in ipairs(gFrame:GetChildren()) do
                             if child ~= row and child:IsA("GuiObject") then
                                 local pos = child.Position
@@ -4174,11 +4096,11 @@ function Library:CreateLibrary(opts)
                                 end
                             end
                         end
-                        -- Update running y so future nextY placements are correct
+                        
                         y = y + delta
                     end
                     local function resizeNow()
-                        -- Defer if width is zero (not laid out yet)
+                        
                         if row.AbsoluteSize.X <= 0 then
                             task.defer(resizeNow)
                             return
@@ -4186,7 +4108,7 @@ function Library:CreateLibrary(opts)
                         local need = measureNeededHeight(txt.Text)
                         reflowToHeight(need)
                     end
-                    -- hover feedback like other controls
+                    
                     box.MouseEnter:Connect(function()
                         T(box,0.12,{BackgroundColor3 = Theme.Hover}):Play()
                         local s = box:FindFirstChild("Stroke"); if s then T(s,0.12,{Transparency = 0.25}):Play() end
@@ -4204,21 +4126,21 @@ function Library:CreateLibrary(opts)
                         resizeNow()
                         if not silent and type(cb) == "function" then pcall(cb, v) end
                     end
-                    -- react to width changes (window resize / column change)
+                    
                     row:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                         resizeNow()
                     end)
                     gFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                         resizeNow()
                     end)
-                    -- initial size pass (after mount)
+                    
                     task.defer(resizeNow)
                     Library:_registerControl(Paragraph)
                     table.insert(Group._controls, Paragraph)
                     registerSearch(label)
                     return Paragraph
                 end
-                -- Keybind
+                
                 function Group:AddKeybind(o)
                     o = o or {}
                     local label = tostring(o.Name or "Keybind")
@@ -4229,7 +4151,7 @@ function Library:CreateLibrary(opts)
                     local cb = o.Callback
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
                     
-                    -- Mouse button names for AddKeybind
+                    
                     local mouseButtonNames = {
                         [Enum.UserInputType.MouseButton1] = "Mouse1",
                         [Enum.UserInputType.MouseButton2] = "Mouse2"
@@ -4245,7 +4167,7 @@ function Library:CreateLibrary(opts)
                         initText = "Press a key..."
                     end
                     local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5,-4,1,0), Position = UDim2.new(0.5,4,0,0), Text = initText, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                    -- Focus line (like Textbox) shown during capture
+                    
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = box})
                     local stroke = box:FindFirstChild("Stroke")
                     local waiting = false
@@ -4253,7 +4175,7 @@ function Library:CreateLibrary(opts)
                     
 
                     local function startVisual()
-                        -- Show bottom accent line and slightly emphasize stroke; keep background unchanged
+                        
                         if focusBar then
                             focusBar.BackgroundTransparency = 0
                             focusBar.Size = UDim2.new(0,0,0,2)
@@ -4263,7 +4185,7 @@ function Library:CreateLibrary(opts)
                     end
 
                     local function stopVisual()
-                        -- Hide bottom accent line and reset stroke emphasis
+                        
                         if focusBar then
                             local tw1 = T(focusBar,0.18,{Size = UDim2.new(0,0,0,2)})
                             tw1:Play()
@@ -4277,15 +4199,15 @@ function Library:CreateLibrary(opts)
                     local Keybind = { id = id, _value = default }
                     function Keybind:Get() return self._value end
                     function Keybind:Set(keycode, silent)
-                        -- Allow string inputs by parsing to Enum
+                        
                         if type(keycode) == "string" then
                             local parsed = ParseKeyFromString(keycode)
                             keycode = parsed or keycode
                         end
 
-                        -- Support multi-key combos when provided as a table
+                        
                         if type(keycode) == "table" then
-                            -- normalize entries (parse strings)
+                            
                             local list = {}
                             for _, v in ipairs(keycode) do
                                 if type(v) == "string" then
@@ -4294,10 +4216,10 @@ function Library:CreateLibrary(opts)
                                 end
                                 table.insert(list, v)
                             end
-                            -- cap to two keys max
+                            
                             if #list > 2 then list = { list[1], list[2] } end
                             self._value = list
-                            -- build display text
+                            
                             local parts = {}
                             for _, v in ipairs(list) do
                                 table.insert(parts, Library.FormatKeyName(v))
@@ -4305,7 +4227,7 @@ function Library:CreateLibrary(opts)
                             box.Text = (#parts > 0) and table.concat(parts, " + ") or "None"
                         else
                             self._value = keycode
-                            -- Handle both KeyCode and UserInputType/string (mouse/buttons)
+                            
                             if keycode then
                                 box.Text = Library.FormatKeyName(keycode)
                             else
@@ -4315,12 +4237,12 @@ function Library:CreateLibrary(opts)
 
                         box.TextColor3 = self._value and Theme.Text or Theme.SubText
                         box.Font = Fonts.Regular
-                        -- Auto-resize based on text content
+                        
                         local textService = game:GetService("TextService")
                         local textSize = textService:GetTextSize(box.Text, 13, Fonts.Regular, Vector2.new(math.huge, 30))
                         box.Size = UDim2.new(0.5, math.max(-4, textSize.X + 8 - (box.Parent.AbsoluteSize.X * 0.5)), 1, 0)
                         
-                        -- Update keybind list tracking
+                        
                         if self._keybindId then
                             local keyName
                             if type(self._value) == "table" then
@@ -4347,14 +4269,14 @@ function Library:CreateLibrary(opts)
                         local captureVersion = 0
                         local function finalize()
                             waiting = false
-                            -- dedupe while preserving order
+                            
                             local seen = {}
                             local out = {}
                             for _, v in ipairs(capture) do
                                 local keyStr = tostring(v)
                                 if not seen[keyStr] then seen[keyStr] = true; table.insert(out, v) end
                             end
-                            -- cap combos to maximum two keys
+                            
                             if #out > 2 then
                                 local tmp = { out[1], out[2] }
                                 out = tmp
@@ -4378,7 +4300,7 @@ function Library:CreateLibrary(opts)
                                 table.insert(capture, input.KeyCode)
                                 captureVersion = captureVersion + 1
                                 local myVer = captureVersion
-                                -- allow a short window for combination presses
+                                
                                 task.delay(0.22, function()
                                     if myVer == captureVersion and waiting then finalize() end
                                 end)
@@ -4386,7 +4308,7 @@ function Library:CreateLibrary(opts)
                                 table.insert(capture, input.UserInputType)
                                 finalize()
                             elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-                                -- Allow MouseButton2 to be bound, but with slight delay to avoid context menu interference
+                                
                                 task.wait(0.1)
                                 if waiting then
                                     table.insert(capture, input.UserInputType)
@@ -4395,7 +4317,7 @@ function Library:CreateLibrary(opts)
                             end
                             return Enum.ContextActionResult.Sink
                         end
-                        -- sink all keyboard keys while capturing
+                        
                         local keys = Enum.KeyCode:GetEnumItems()
                         ContextActionService:BindAction(actionName, handler, false, table.unpack(keys))
                     end
@@ -4409,7 +4331,7 @@ function Library:CreateLibrary(opts)
                         bindSink()
                     end)
 
-                    -- Fallback: still listen to InputBegan (in case CAS is unavailable)
+                    
                     do
                         local capture = {}
                         local captureVersion = 0
@@ -4422,14 +4344,14 @@ function Library:CreateLibrary(opts)
                                 task.delay(0.22, function()
                                     if myVer == captureVersion and waiting then
                                         waiting = false
-                                        -- dedupe
+                                        
                                         local seen = {}
                                         local out = {}
                                         for _, v in ipairs(capture) do
                                             local s = tostring(v)
                                             if not seen[s] then seen[s] = true; table.insert(out, v) end
                                         end
-                                        -- cap to two keys max
+                                        
                                         if #out > 2 then out = { out[1], out[2] } end
                                         if #out == 0 then stopVisual(); unbindSink(); capture = {}; return end
                                         if #out == 1 then Keybind:Set(out[1]) else Keybind:Set(out) end
@@ -4452,7 +4374,7 @@ function Library:CreateLibrary(opts)
                                     unbindSink()
                                 end
                             elseif input.KeyCode == Enum.KeyCode.Escape then
-                                -- cancel capture with ESC
+                                
                                 waiting = false
                                 stopVisual()
                                 unbindSink()
@@ -4467,8 +4389,8 @@ function Library:CreateLibrary(opts)
                         end)
                     end
 
-                    -- Add context menu for mode selection (similar to AddKeybindToggle but simpler)
-                    local keybindMode = "Hold" -- Default mode for regular keybind
+                    
+                    local keybindMode = "Hold" 
                     local keybindCtxMenu, keybindCtxOpen
                     local keybindCtxBlocker = nil
                     local keybindCtxConns = {}
@@ -4486,7 +4408,7 @@ function Library:CreateLibrary(opts)
                         if Library._openKeybindCtxClose == closeKeybindCtx then Library._openKeybindCtxClose = nil end
                     end
                     box.MouseButton2Click:Connect(function()
-                        if waiting then return end  -- Don't open context menu if waiting for keybind
+                        if waiting then return end  
                         if Library._openKeybindCtxClose and Library._openKeybindCtxClose ~= closeKeybindCtx then pcall(Library._openKeybindCtxClose) end
                         closeKeybindCtx()
                         if keybindCtxMenu then pcall(function() keybindCtxMenu:Destroy() end); keybindCtxMenu=nil end
@@ -4505,7 +4427,7 @@ function Library:CreateLibrary(opts)
                             local sz = textService:GetTextSize(text or "", labelSize, labelFont, Vector2.new(1000, itemH))
                             return sz.X
                         end
-                        -- Include keybind list toggle text in width calculation
+                        
                         local keybindListText1 = measure("Add To List")
                         local keybindListText2 = measure("Remove From List")
                         local maxTextW = math.max(
@@ -4541,14 +4463,14 @@ function Library:CreateLibrary(opts)
                             btn.MouseLeave:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Bg}):Play() end)
                             btn.MouseButton1Click:Connect(function() 
                                 keybindMode = modeText
-                                -- Apply mode to Keybind object and update list state
+                                
                                 if Keybind and Keybind.SetMode then Keybind:SetMode(modeText, true) end
                                 closeKeybindCtx() 
                             end)
                             return btn
                         end
                         
-                        -- Add keybind list toggle option
+                        
                         local function createKeybindListToggle()
                             local isInList = Keybind._keybindId and Library._keybinds[Keybind._keybindId] and Library._keybinds[Keybind._keybindId].showInList
                             local toggleText = isInList and "Remove From List" or "Add To List"
@@ -4572,20 +4494,20 @@ function Library:CreateLibrary(opts)
                         
                         createKeybindListToggle()
                         
-                        -- Add separator line
+                        
                         local separator = Create("Frame", {BackgroundColor3 = Theme.Stroke, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 1), Parent = content})
                         
                         createModeItem("Hold", keybindMode == "Hold")
                         createModeItem("Toggle", keybindMode == "Toggle")
                         createModeItem("Always", keybindMode == "Always")
                         
-                        local menuH = (itemH * 4) + (gap * 4) + (vPad * 2) + 1 -- +1 for separator
+                        local menuH = (itemH * 4) + (gap * 4) + (vPad * 2) + 1 
                         keybindCtxMenu.Size = UDim2.fromOffset(menuW, menuH)
-                        -- Use colorpicker positioning logic
+                        
                         local btnAbs = box.AbsolutePosition
                         local btnSize = box.AbsoluteSize
                         local guiInset = game:GetService("GuiService"):GetGuiInset()
-                        -- Position menu directly above the button, aligned to left edge
+                        
                         local px = btnAbs.X
                         local py = btnAbs.Y - menuH - 6 + guiInset.Y
                         keybindCtxMenu.Position = UDim2.fromOffset(px, py)
@@ -4594,14 +4516,14 @@ function Library:CreateLibrary(opts)
                         keybindCtxOpen = true
                     end)
 
-                    -- Add to keybind list tracking system
+                    
                     local function getDefaultKeyName(keycode)
                         if keycode and keycode.Name then
                             return keycode.Name
                         elseif keycode and mouseButtonNames[keycode] then
                             return mouseButtonNames[keycode]
                         elseif type(keycode) == "string" then
-                            -- Normalize to display-friendly name
+                            
                             local parsed = ParseKeyFromString(keycode)
                             return (parsed and parsed.Name) or keycode
                         else
@@ -4611,13 +4533,13 @@ function Library:CreateLibrary(opts)
                     
                     local keybindId = Library:_addKeybind(label, getDefaultKeyName(default), "Keybind", {
                         active = false,
-                        showInList = true, -- Default: show in list; context starts as "Remove From List"
+                        showInList = true, 
                         keybindObject = Keybind
                     })
                     Keybind._keybindId = keybindId
                     Keybind._isActive = false
-                    Keybind._mode = keybindMode -- "Hold" | "Toggle" | "Always"
-                    Keybind._toggleState = false -- only used in Toggle mode
+                    Keybind._mode = keybindMode 
+                    Keybind._toggleState = false 
 
                     function Keybind:GetMode()
                         return self._mode
@@ -4626,13 +4548,13 @@ function Library:CreateLibrary(opts)
                     function Keybind:SetMode(newMode, silent)
                         if newMode ~= "Hold" and newMode ~= "Toggle" and newMode ~= "Always" then return end
                         self._mode = newMode
-                        -- Compute current active based on mode
+                        
                         local newActive
                         if newMode == "Always" then
                             newActive = true
                         elseif newMode == "Toggle" then
                             newActive = self._toggleState
-                        else -- Hold
+                        else 
                             newActive = false
                         end
                         self._isActive = newActive and true or false
@@ -4641,7 +4563,7 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     
-                    -- Track when keybind is active (supports multi-key combos)
+                    
                     local function comboMatchesOnBegin(value, input)
                         if not value then return false end
                         if typeof(value) == "EnumItem" then
@@ -4652,7 +4574,7 @@ function Library:CreateLibrary(opts)
                             end
                             return false
                         elseif type(value) == "table" then
-                            -- Only trigger when this input corresponds to one of the combo parts
+                            
                             local matchedPart = false
                             for _, part in ipairs(value) do
                                 if typeof(part) == "EnumItem" then
@@ -4661,7 +4583,7 @@ function Library:CreateLibrary(opts)
                                 end
                             end
                             if not matchedPart then return false end
-                            -- ensure all KeyCode parts are currently down
+                            
                             for _, part in ipairs(value) do
                                 if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode then
                                     if not UserInputService:IsKeyDown(part) then
@@ -4685,7 +4607,7 @@ function Library:CreateLibrary(opts)
                             elseif Keybind._mode == "Always" then
                                 Keybind._isActive = true
                                 Library:_updateKeybind(keybindId, {active = true})
-                            else -- Hold
+                            else 
                                 Keybind._isActive = true
                                 Library:_updateKeybind(keybindId, {active = true})
                             end
@@ -4719,7 +4641,7 @@ function Library:CreateLibrary(opts)
                                 Keybind._isActive = false
                                 Library:_updateKeybind(keybindId, {active = false})
                             else
-                                -- In Toggle / Always, do not change active on release
+                                
                             end
                         end
                     end)
@@ -4729,18 +4651,18 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return Keybind
                 end
-                -- Colorpicker - Clean Rewrite
+                
                 function Group:AddColorpicker(o)
                     o = o or {}
                     local label = tostring(o.Name or "Color")
                     local cb = o.Callback
                     local amount = math.max(1, tonumber(o.Amount) or 1)
-                    -- Opt-in global sync across different colorpickers; default off to keep slots independent
+                    
                     local doSync = (o.Sync == true) or (o.SyncGlobally == true)
-                    -- Always start with Rainbow off; per-slot toggle only
+                    
                     local startRainbow = false
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
-                    -- helpers
+                    
                     local function clamp01(x) if x < 0 then return 0 elseif x > 1 then return 1 else return x end end
                     local function toRGB255(c)
                         return math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5)
@@ -4759,16 +4681,16 @@ function Library:CreateLibrary(opts)
                         return nil
                     end
                     local function parseRGBText(t)
-                        -- accept formats like "255,255,255" or "255, 255, 255"
+                        
                         local r,g,b = t:match("%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*")
                         if r and g and b then return tonumber(r), tonumber(g), tonumber(b) end
                         return nil
                     end
 
-                    -- rainbow sync bus
+                    
                     Library._rainbowBus = Library._rainbowBus or { listeners = {}, conn = nil }
                     
-                    -- Global sync system for RGB and Pulse modes across ALL colorpickers
+                    
                     Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {} }
                     Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {} }
                     
@@ -4794,9 +4716,9 @@ function Library:CreateLibrary(opts)
                         local RS = game:GetService("RunService")
                         local t0 = tick()
                         Library._rainbowBus.conn = RS.RenderStepped:Connect(function()
-                            local t = (tick() - t0) * 0.08 -- speed
+                            local t = (tick() - t0) * 0.08 
                             local h = t % 1
-                            Library._rainbowBus.h = h -- expose current hue for offset calculations
+                            Library._rainbowBus.h = h 
                             for _, fn in ipairs(Library._rainbowBus.listeners) do
                                 pcall(fn, h)
                             end
@@ -4816,7 +4738,7 @@ function Library:CreateLibrary(opts)
                         end
                     end
 
-                    -- Resolve defaults per slot
+                    
                     local defaults = {}
                     local function colorFromAny(v)
                         if typeof(v) == "Color3" then return v end
@@ -4829,7 +4751,7 @@ function Library:CreateLibrary(opts)
                         end
                         return Theme.Accent
                     end
-                    -- accept Default or Value as initial colors
+                    
                     local init = (o.Default ~= nil) and o.Default or o.Value
                     if type(init) == "table" and amount > 1 then
                         for i=1, amount do defaults[i] = colorFromAny(init[i]) end
@@ -4838,7 +4760,7 @@ function Library:CreateLibrary(opts)
                         for i=1, amount do defaults[i] = c end
                     end
 
-                    -- build row
+                    
                     local rowH = 30
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.42,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
@@ -4847,7 +4769,7 @@ function Library:CreateLibrary(opts)
                     })
                     local layout = Create("UIListLayout", {Parent = holder, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,6), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
 
-                    -- state per slot
+                    
                     local slots = {}
                     for i=1, amount do
                         local btn = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(26,26), Text = "", Parent = holder}, {
@@ -4862,7 +4784,7 @@ function Library:CreateLibrary(opts)
                         slots[i] = { btn = btn, fill = fill, color = defaults[i], hsv = { Color3.toHSV(defaults[i]) }, rainbow = startRainbow, rainbowHook = nil, pulse = false, pulseHook = nil, hueOffset = 0, pulseHueOffset = 0, panel = nil, panelOpen = false }
                     end
 
-                    -- shared panel for all slots
+                    
                     local panel, open, anim = nil, false, false
                     local panelBlocker = nil
                     local activeIndex = 1
@@ -4871,7 +4793,7 @@ function Library:CreateLibrary(opts)
                         for i=#openConns,1,-1 do openConns[i]:Disconnect(); table.remove(openConns,i) end
                     end
 
-                    -- Clipboard helpers (exploit env)
+                    
                     local function copyText(s)
                         if typeof(setclipboard) == "function" then pcall(setclipboard, s) end
                         Library._clipboardColor = s
@@ -4881,7 +4803,7 @@ function Library:CreateLibrary(opts)
                         return Library._clipboardColor
                     end
 
-                    -- context menu (right click)
+                    
                     local ctxMenu, ctxOpen
                     local ctxBlocker = nil
                     local ctxConns = {}
@@ -4894,7 +4816,7 @@ function Library:CreateLibrary(opts)
                         ctxDisconnectAll()
                         if ctxBlocker and ctxBlocker.Parent then pcall(function() ctxBlocker:Destroy() end) end
                         ctxBlocker = nil
-                        -- Destroy immediately to avoid stuck animation when spamming clicks
+                        
                         pcall(function() if ctxMenu then ctxMenu:Destroy() end end)
                         ctxMenu = nil
                         if Library._openColorCtxClose == closeCtx then Library._openColorCtxClose = nil end
@@ -4903,13 +4825,13 @@ function Library:CreateLibrary(opts)
                         if Library._openColorCtxClose and Library._openColorCtxClose ~= closeCtx then pcall(Library._openColorCtxClose) end
                         closeCtx()
                         if ctxMenu then pcall(function() ctxMenu:Destroy() end); ctxMenu=nil end
-                        -- Create modal blocker to capture outside clicks and block underlying UI across the whole screen
+                        
                         local menuZBase = 12000
                         ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = menuZBase, Parent = RootGui})
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
-                        -- Match multi-dropdown menu visuals (padding, corner radius, outline, hover behavior)
+                        
                         local textService = game:GetService("TextService")
                         local labelFont = Fonts.Medium
                         local labelSize = 12
@@ -4944,7 +4866,7 @@ function Library:CreateLibrary(opts)
                             local slot = slots[activeIndex]
                             local c = slot.color
                             local r,g,b = toRGB255(c)
-                            -- Enhanced copy: include mode information with color
+                            
                             local modeInfo = ""
                             if slot.rainbow then modeInfo = "|RGB" end
                             if slot.pulse then modeInfo = "|PULSE" end
@@ -4953,7 +4875,7 @@ function Library:CreateLibrary(opts)
                         item("Paste Value", function()
                             local txt = pasteText()
                             if not txt then return end
-                            -- Check for mode information in pasted text
+                            
                             local colorPart, modePart = txt:match("^([^|]+)|(.+)$")
                             if not modePart then
                                 colorPart = txt
@@ -4971,9 +4893,9 @@ function Library:CreateLibrary(opts)
                                 slots[activeIndex].color = c
                                 slots[activeIndex].fill.BackgroundColor3 = c
                                 
-                                -- Restore mode if specified
+                                
                                 if modePart and modePart ~= "" then
-                                    -- Find the current colorpicker instance by ID
+                                    
                                     local currentColorpicker = nil
                                     for _, control in pairs(Library._controls) do
                                         if control.id == id and control._enableRainbow then
@@ -4991,7 +4913,7 @@ function Library:CreateLibrary(opts)
                                     end
                                 end
                                 
-                                -- Update visual elements if panel is open
+                                
                                 if open and panel and panel.Visible then
                                     updateSVBackground(h)
                                     if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
@@ -5003,30 +4925,30 @@ function Library:CreateLibrary(opts)
                                 if type(cb)=="function" then pcall(cb, c, activeIndex) end
                             end
                         end)
-                        -- position near btnFor using same logic as colorpicker panel but above
+                        
                         local finalH = vPad*2 + (itemH*2) + gap
                         local btnAbs = btnFor.AbsolutePosition
                         local btnSize = btnFor.AbsoluteSize
-                        -- Since RootGui has IgnoreGuiInset = true, we need to account for the top bar
+                        
                         local guiInset = game:GetService("GuiService"):GetGuiInset()
-                        -- Position menu directly above the button, aligned to left edge
+                        
                         local px = btnAbs.X
                         local py = btnAbs.Y - finalH - 6 + guiInset.Y
                         ctxMenu.Position = UDim2.fromOffset(px, py)
                         ctxMenu.Size = UDim2.fromOffset(menuW,0)
                         local tw = T(ctxMenu,0.14,{Size = UDim2.fromOffset(menuW, finalH), BackgroundTransparency = 0})
                         tw:Play(); ctxOpen = true
-                        -- No ESC handler; close via mouse/touch/blocker only
+                        
                         Library._openColorCtxClose = closeCtx
-                        -- Swallow clicks on menu content so they don't bubble to blocker
+                        
                         table.insert(ctxConns, ctxMenu.InputBegan:Connect(function() end))
                     end
 
-                    -- Build color panel (once)
+                    
                     local sv, svWhite, svBlack, svCursor
                     local hueSlider, hueGrab
                     local rgbBox, hexBox
-                    local rainbowToggle -- simple small toggle
+                    local rainbowToggle 
                     local function hsvToColor(hsv)
                         return Color3.fromHSV(clamp01(hsv[1] or 0), clamp01(hsv[2] or 0), clamp01(hsv[3] or 0))
                     end
@@ -5039,7 +4961,7 @@ function Library:CreateLibrary(opts)
                         local c = hsvToColor(hsv)
                         slot.color = c
                         slot.fill.BackgroundColor3 = c
-                        -- update inputs only if this slot is currently active in the panel
+                        
                         if open and activeIndex == index then
                             if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(c); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                             if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(c); hexBox.Text = rgbToHex(r,g,b) end
@@ -5050,8 +4972,8 @@ function Library:CreateLibrary(opts)
                         local slot = slots[index]
                         if not slot then return end
                         
-                        -- For manual control, don't interfere with effects - let them continue running
-                        -- This allows effects to work alongside manual adjustments
+                        
+                        
                         
                         local H,S,V = slot.hsv[1], slot.hsv[2], slot.hsv[3]
                         if h~=nil then H=h end; if s~=nil then S=s end; if v~=nil then V=v end
@@ -5061,7 +4983,7 @@ function Library:CreateLibrary(opts)
 
                     end
                     
-                    -- Separate function for drag operations that doesn't permanently disable effects
+                    
                     local function setHSVDrag(index, h,s,v)
                         local slot = slots[index]
                         if not slot then return end
@@ -5073,25 +4995,25 @@ function Library:CreateLibrary(opts)
                         applyColorFromHSV(index)
                     end
 
-                    -- helper: attach rainbow animation to a specific slot index, updating UI only if it's the active one
+                    
                     local function attachRainbow(i)
                         local slot = slots[i]
-                        -- Seed offset from current hue vs global rainbow hue
+                        
                         if Library._rainbowBus and Library._rainbowBus.h then
                             local currentH = slot.hsv[1] or 0
                             slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
                         end
                         return rainbowAdd(function(h)
-                            -- For RGB mode, ensure good saturation and value for visible colors
-                            local s = math.max(0.8, slot.hsv[2] or 1) -- Minimum 80% saturation
-                            local v = math.max(0.7, slot.hsv[3] or 1) -- Minimum 70% value
+                            
+                            local s = math.max(0.8, slot.hsv[2] or 1) 
+                            local v = math.max(0.7, slot.hsv[3] or 1) 
                             local hh = (h + (slot.hueOffset or 0)) % 1
                             slot.hsv = {hh, s, v}
                             local c = hsvToColor(slot.hsv)
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
                             
-                            -- Sync to other RGB colorpickers globally
+                            
                             if slot._syncId then
                                 syncRGBColor(c, slot._syncId)
                             end
@@ -5101,16 +5023,16 @@ function Library:CreateLibrary(opts)
                                 if hueSlider and hueGrab then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), hh * hueSlider.AbsoluteSize.Y) end
                                 applyColorFromHSV(i)
                             else
-                                -- update color silently when not active
+                                
                                 if type(cb) == "function" then pcall(cb, c, i) end
                             end
                         end)
                     end
 
-                    -- Shared UI references (will be set when panel is created)
+                    
                     local cbMark, pulseMark
                     
-                    -- Shared UI update functions (work with currently active panel)
+                    
                     local function updateSVBackground(h)
                         if sv then sv.BackgroundColor3 = Color3.fromHSV(h,1,1) end
                     end
@@ -5123,7 +5045,7 @@ function Library:CreateLibrary(opts)
                         if pulseMark then pulseMark.Visible = on and true or false end
                     end
                     
-                    -- Unified helpers for stable per-slot toggles
+                    
                     local function updateSlotUI(i)
                         local slot = slots[i]
                         if open and activeIndex == i then
@@ -5136,11 +5058,11 @@ function Library:CreateLibrary(opts)
                         slot.rainbow = false
                         slot._resumeRainbow = nil
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
-                        -- Properly cleanup global sync listeners
+                        
                         if slot._syncId then
                             Library._globalRGBSync.listeners[slot._syncId] = nil
                             slot._syncId = nil
-                            -- Check if there are any active RGB listeners left
+                            
                             local hasActiveRGB = false
                             for _, listener in pairs(Library._globalRGBSync.listeners) do 
                                 if listener then hasActiveRGB = true break end 
@@ -5148,7 +5070,7 @@ function Library:CreateLibrary(opts)
                             Library._globalRGBSync.active = hasActiveRGB
                         end
                         updateSlotUI(i)
-                        -- refresh UI cursors to match HSV when open
+                        
                         if open and activeIndex == i then
                             local h,s,v = table.unpack(slot.hsv)
                             updateSVBackground(h)
@@ -5158,11 +5080,11 @@ function Library:CreateLibrary(opts)
                     end
                     local function enableRainbow(i)
                         local slot = slots[i]
-                        -- turn off pulse for this slot
+                        
                         if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                         slot.pulse = false
                         slot._resumePulse = nil
-                        -- if pulse sync was active, remove listener for this slot
+                        
                         if slot._pulseSyncId then
                             Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
                             slot._pulseSyncId = nil
@@ -5172,13 +5094,13 @@ function Library:CreateLibrary(opts)
                             end
                             Library._globalPulseSync.active = hasActivePulse
                         end
-                        -- Always set up global sync for ALL colorpickers
+                        
                         Library._globalRGBSync.active = true
                         local syncId = tostring(id .. "_" .. i .. "_" .. math.random(1000000, 9999999))
                         slot._syncId = syncId
-                        -- Create proper sync listener
+                        
                         Library._globalRGBSync.listeners[syncId] = function(syncColor, sourceId)
-                            if not slot.rainbow or sourceId == syncId then return end -- Don't sync to self
+                            if not slot.rainbow or sourceId == syncId then return end 
                             local h,s,v = Color3.toHSV(syncColor)
                             slot.hsv = {h,s,v}
                             if Library._rainbowBus and Library._rainbowBus.h then
@@ -5196,19 +5118,19 @@ function Library:CreateLibrary(opts)
                             end
                         end
                         
-                        -- If there are existing RGB effects active, sync to them after a small delay
+                        
                         if Library._globalRGBSync.active then
                             task.spawn(function()
-                                task.wait(0.1) -- Small delay to let the enable process complete
+                                task.wait(0.1) 
                                 local foundRGBSync = false
                                 for existingId, existingListener in pairs(Library._globalRGBSync.listeners) do
                                     if existingId ~= syncId and existingListener and not foundRGBSync then
-                                        -- Find an existing RGB slot to sync from
+                                        
                                         for checkId, checkSlot in pairs(Library._controls) do
                                             if checkSlot._slots and not foundRGBSync then
                                                 for j, checkSlotData in ipairs(checkSlot._slots) do
                                                     if checkSlotData.rainbow and checkSlotData._syncId and checkSlotData._syncId ~= syncId then
-                                                        -- Sync to this existing RGB color
+                                                        
                                                         local syncColor = checkSlotData.color
                                                         if Library._globalRGBSync.listeners[syncId] then
                                                             Library._globalRGBSync.listeners[syncId](syncColor, checkSlotData._syncId)
@@ -5231,7 +5153,7 @@ function Library:CreateLibrary(opts)
                             syncRGBColor(c0, slot._syncId)
                         end
                         updateSlotUI(i)
-                        -- Force immediate UI refresh to ensure checkbox shows correctly
+                        
                         task.defer(function()
                             if open and activeIndex == i then
                                 setCheckbox(slot.rainbow or false)
@@ -5243,11 +5165,11 @@ function Library:CreateLibrary(opts)
                         slot.pulse = false
                         slot._resumePulse = nil
                         if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
-                        -- Properly cleanup global sync listeners
+                        
                         if slot._pulseSyncId then
                             Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
                             slot._pulseSyncId = nil
-                            -- Check if there are any active pulse listeners left
+                            
                             local hasActivePulse = false
                             for _, listener in pairs(Library._globalPulseSync.listeners) do 
                                 if listener then hasActivePulse = true break end 
@@ -5258,11 +5180,11 @@ function Library:CreateLibrary(opts)
                     end
                     local function enablePulse(i)
                         local slot = slots[i]
-                        -- turn off rainbow for this slot
+                        
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         slot.rainbow = false
                         slot._resumeRainbow = nil
-                        -- if RGB sync was active, remove listener for this slot
+                        
                         if slot._syncId then
                             Library._globalRGBSync.listeners[slot._syncId] = nil
                             slot._syncId = nil
@@ -5272,13 +5194,13 @@ function Library:CreateLibrary(opts)
                             end
                             Library._globalRGBSync.active = hasActiveRGB
                         end
-                        -- Always set up global sync for ALL colorpickers
+                        
                         Library._globalPulseSync.active = true
                         local syncId = tostring(id .. "_" .. i .. "_" .. math.random(1000000, 9999999))
                         slot._pulseSyncId = syncId
-                        -- Create proper pulse sync listener
+                        
                         Library._globalPulseSync.listeners[syncId] = function(syncColor, sourceId)
-                            if not slot.pulse or sourceId == syncId then return end -- Don't sync to self
+                            if not slot.pulse or sourceId == syncId then return end 
                             slot.color = syncColor
                             slot.fill.BackgroundColor3 = syncColor
                             if type(cb) == "function" then pcall(cb, syncColor, i) end
@@ -5288,19 +5210,19 @@ function Library:CreateLibrary(opts)
                             end
                         end
                         
-                        -- If there are existing Pulse effects active, sync to them after a small delay
+                        
                         if Library._globalPulseSync.active then
                             task.spawn(function()
-                                task.wait(0.1) -- Small delay to let the enable process complete
+                                task.wait(0.1) 
                                 local foundPulseSync = false
                                 for existingId, existingListener in pairs(Library._globalPulseSync.listeners) do
                                     if existingId ~= syncId and existingListener and not foundPulseSync then
-                                        -- Find an existing Pulse slot to sync from
+                                        
                                         for checkId, checkSlot in pairs(Library._controls) do
                                             if checkSlot._slots and not foundPulseSync then
                                                 for j, checkSlotData in ipairs(checkSlot._slots) do
                                                     if checkSlotData.pulse and checkSlotData._pulseSyncId and checkSlotData._pulseSyncId ~= syncId then
-                                                        -- Sync to this existing Pulse color
+                                                        
                                                         local syncColor = checkSlotData.color
                                                         if Library._globalPulseSync.listeners[syncId] then
                                                             Library._globalPulseSync.listeners[syncId](syncColor, checkSlotData._pulseSyncId)
@@ -5315,21 +5237,21 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
                         end
-                        -- seed pulse offset vs global hue
+                        
                         if Library._rainbowBus and Library._rainbowBus.h then
                             local currentH = slot.hsv[1] or 0
                             slot.pulseHueOffset = (currentH - Library._rainbowBus.h) % 1
                         else
-                            -- Initialize offset to 0 if rainbow bus not yet started
+                            
                             slot.pulseHueOffset = 0
                         end
                         if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                         slot.pulse = true
-                        -- Ensure rainbow animation starts and then add pulse hook
+                        
                         slot.pulseHook = rainbowAdd(function(h)
-                            -- For Pulse mode, ensure good saturation and base value for visible effects
-                            local s = math.max(0.8, slot.hsv[2] or 1) -- Minimum 80% saturation
-                            local baseV = math.max(0.7, slot.hsv[3] or 1) -- Minimum 70% base value
+                            
+                            local s = math.max(0.8, slot.hsv[2] or 1) 
+                            local baseV = math.max(0.7, slot.hsv[3] or 1) 
                             local hh = (h + (slot.pulseHueOffset or 0)) % 1
                             local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4))
                             local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
@@ -5348,7 +5270,7 @@ function Library:CreateLibrary(opts)
                             syncPulseColor(c0, slot._pulseSyncId)
                         end
                         updateSlotUI(i)
-                        -- Force immediate UI refresh to ensure checkbox shows correctly
+                        
                         task.defer(function()
                             if open and activeIndex == i then
                                 setPulseCheckbox(slot.pulse or false)
@@ -5361,9 +5283,9 @@ function Library:CreateLibrary(opts)
                         height = math.max(0, height or 220)
                         local btnAbs = targetBtn.AbsolutePosition
                         local btnSize = targetBtn.AbsoluteSize
-                        -- Since RootGui has IgnoreGuiInset = true, we need to account for the top bar
+                        
                         local guiInset = game:GetService("GuiService"):GetGuiInset()
-                        -- Position panel directly below the button, aligned to left edge
+                        
                         local px = btnAbs.X
                         local py = btnAbs.Y + btnSize.Y + 6 + guiInset.Y
                         return px, py
@@ -5371,16 +5293,16 @@ function Library:CreateLibrary(opts)
 
                     local function openPanel(btnFor, index)
                         if anim then return end
-                        -- toggle close if clicking the same swatch while open
+                        
                         if open and panel and activeIndex == index then
                             if Library._openColorPanelClose then pcall(Library._openColorPanelClose); Library._openColorPanelClose = nil end
                             return
                         end
                         if open and panel then
-                            -- retarget existing panel to new slot
+                            
                             activeIndex = index
-                            -- reposition near new button (prefer below the swatch)
-                            -- If switching to a different slot's panel, swap panels
+                            
+                            
                             local targetPanel = slots[index] and slots[index].panel
                             if targetPanel and targetPanel ~= panel then
                                 panel.Visible = false
@@ -5392,7 +5314,7 @@ function Library:CreateLibrary(opts)
                             if height <= 0 then height = 220 end
                             local px, py = resolveColorPanelPosition(btnFor, width, height)
                             panel.Position = UDim2.fromOffset(px, py)
-                            -- refresh UI to the selected slot
+                            
                             local slot = slots[index]
                             local h,s,v = table.unpack(slot.hsv)
                             updateSVBackground(h)
@@ -5400,16 +5322,16 @@ function Library:CreateLibrary(opts)
                             if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                             if rgbBox then local r,g,b = toRGB255(slot.color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                             if hexBox then local r,g,b = toRGB255(slot.color); hexBox.Text = rgbToHex(r,g,b) end
-                            -- Restore UI to show ONLY this slot's actual functional state
+                            
                             setCheckbox(slot.rainbow or false)
                             setPulseCheckbox(slot.pulse or false)
-                            -- If we switched to an existing target panel, we're done; otherwise, fall through to create it
+                            
                             if targetPanel then return end
                         end
                         local slot = slots[index]
                         slot.panelOpen = true; open = true; anim = true; activeIndex = index
                         if not slot.panel then
-                            -- Calculate initial position below the button
+                            
                             local btnAbs = btnFor.AbsolutePosition
                             local btnSize = btnFor.AbsoluteSize
                             local guiInset = game:GetService("GuiService"):GetGuiInset()
@@ -5418,48 +5340,48 @@ function Library:CreateLibrary(opts)
                             
                             slot.panel = Create("TextButton", {AutoButtonColor = false, Text = "", BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, Visible = false, Size = UDim2.fromOffset(0,0), Position = UDim2.fromOffset(initialX, initialY), ZIndex = 12000, Parent = RootGui}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)}),
-                                -- Main holder outline (panel)
+                                
                                 Create("UIStroke", {Name = "Stroke", ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
                             })
                         
-                        -- Create UI elements for this panel (only if panel is new)
-                        panel = slot.panel  -- Set for backward compatibility
+                        
+                        panel = slot.panel  
                         
                             local shadow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Bg, ImageTransparency = 0.85, Size = UDim2.fromScale(1,1), ZIndex = panel.ZIndex - 1, Parent = panel})
                             shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(20,20,280,280)
 
-                            -- content
+                            
                             local pad = 6
-                            -- Main inner container (the frame that holds SV, inputs, and hue/checkbox)
+                            
                             local container = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-pad*2,1,-pad*2), Position = UDim2.fromOffset(pad,pad), ZIndex = panel.ZIndex + 1, Parent = panel}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,4)})
                             })
                             local content = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), ZIndex = container.ZIndex + 1, Parent = container}, {
                                 Create("UIListLayout", {Padding = UDim.new(0,2), FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder})
                             })
-                            -- (Removed overlay border; using panel's own stroke so it outlines the true main holder)
-                            -- Left: SV square (S across X, V across Y), base hue set by slider; plus RGB/Hex inputs
+                            
+                            
                             local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             sv = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = sv})
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = sv})
-                            -- White overlay: left side white (S=0) to right transparent (S=1)
+                            
                             svWhite = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 1, Parent = sv})
                             local gWhite = Instance.new("UIGradient"); gWhite.Rotation = 0; gWhite.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)}); gWhite.Parent = svWhite
-                            -- Black overlay: top transparent (V=1) to bottom black (V=0)
+                            
                             svBlack = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(0,0,0), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 2, Parent = sv})
                             local gBlack = Instance.new("UIGradient"); gBlack.Rotation = 90; gBlack.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1), NumberSequenceKeypoint.new(1,0)}); gBlack.Parent = svBlack
-                            -- Cursor
+                            
                             svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), ZIndex = sv.ZIndex + 3, Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                             rgbBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "R, G, B", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
                             hexBox = Create("TextBox", {BackgroundColor3 = Theme.Button, ClearTextOnFocus = false, Text = "", PlaceholderText = "#FFFFFF", Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Size = UDim2.fromOffset(180, 22), Position = UDim2.fromOffset(0, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol}, {Create("UICorner", {CornerRadius = UDim.new(0,3)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}), Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})})
 
-                            -- Right: Hue slider + rainbow toggle
+                            
                             local HUE_W, HUE_H = 26, 150
                             local rightCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 210), ZIndex = content.ZIndex + 1, Parent = content})
-                            -- Make the hue slider background opaque white so the UIGradient is visible and vibrant
-                            -- Position slider perfectly centered between checkbox and text (fine-tuned alignment)
+                            
+                            
                             hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(-12, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
@@ -5474,21 +5396,21 @@ function Library:CreateLibrary(opts)
                             hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
                             hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
-                                -- RGB checkbox + label centered between RGB textbox end and frame boundary
+                                
                             local cbRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 22), Position = UDim2.fromOffset(190, 160), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             local cbBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = cbRow.ZIndex + 1, Parent = cbRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             cbMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = cbBox.ZIndex + 1, Parent = cbBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(24,22), Position = UDim2.fromOffset(16,0), Text = "RGB", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = cbRow.ZIndex + 1, Parent = cbRow})
                             
-                            -- Pulse RGB checkbox + label positioned at hex textbox Y level, same X as RGB checkbox
+                            
                             local pulseRow = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(50, 22), Position = UDim2.fromOffset(190, 186), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
                             local pulseBox = Create("Frame", {BackgroundColor3 = Theme.Button, Size = UDim2.fromOffset(12,12), Position = UDim2.fromOffset(0,5), ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow}, {Create("UICorner", {CornerRadius = UDim.new(0,2)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                             pulseMark = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(6,6), Visible = false, ZIndex = pulseBox.ZIndex + 1, Parent = pulseBox}, {Create("UICorner", {CornerRadius = UDim.new(0,2)})})
                             Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(34,22), Position = UDim2.fromOffset(16,0), Text = "Pulse", Font = Fonts.Regular, TextSize = 10, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = pulseRow.ZIndex + 1, Parent = pulseRow})
-                            -- Store the current panel reference
+                            
                             slot.panel = panel
 
-                            -- interactions: SV drag (S across X, V across Y)
+                            
                             local function getScreenPos()
                                 local inset = game:GetService("GuiService"):GetGuiInset()
                                 local m = UserInputService:GetMouseLocation()
@@ -5500,7 +5422,7 @@ function Library:CreateLibrary(opts)
                                 if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                                     svDragging = true
                                     svDragIndex = activeIndex
-                                    -- While dragging, update color live; if rainbow is on, update hueOffset so it continues from here
+                                    
                                     local slot = slots[svDragIndex]
                                     local p = getScreenPos()
                                     local rel = Vector2.new(p.X - sv.AbsolutePosition.X, p.Y - sv.AbsolutePosition.Y)
@@ -5508,7 +5430,7 @@ function Library:CreateLibrary(opts)
                                     local v = 1 - clamp01(rel.Y / math.max(1, sv.AbsoluteSize.Y))
                                     svCursor.Position = UDim2.fromOffset(math.clamp(rel.X,0,sv.AbsoluteSize.X), math.clamp(rel.Y,0,sv.AbsoluteSize.Y))
                                     setHSVDrag(svDragIndex, nil, s, v)
-                                    -- Adjust offsets if effects active
+                                    
                                     if slot and Library._rainbowBus and Library._rainbowBus.h then
                                         if slot.rainbow then
                                         local currentH = slot.hsv[1] or 0
@@ -5539,7 +5461,7 @@ function Library:CreateLibrary(opts)
                                     svDragging = false
                                     local dragIndex = svDragIndex or activeIndex
                                     local slot = slots[dragIndex]
-                                    -- Keep offsets synced to current manual position
+                                    
                                     if slot and Library._rainbowBus and Library._rainbowBus.h then
                                         local currentH = slot.hsv[1] or 0
                                         if slot.rainbow then slot.hueOffset = (currentH - Library._rainbowBus.h) % 1 end
@@ -5549,7 +5471,7 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
 
-                            -- hue drag
+                            
                             local hueDragging = false
                             local hueDragIndex = nil
                             local function handleHueDown(inp)
@@ -5563,7 +5485,7 @@ function Library:CreateLibrary(opts)
                                     local h = clamp01(relY / math.max(1, hueSlider.AbsoluteSize.Y))
                                     setHSVDrag(hueDragIndex, h, nil, nil)
                                     updateSVBackground(h)
-                                    -- If effects are on, update offsets live
+                                    
                                     if slot and Library._rainbowBus and Library._rainbowBus.h then
                                         if slot.rainbow then slot.hueOffset = (h - Library._rainbowBus.h) % 1 end
                                         if slot.pulse then slot.pulseHueOffset = (h - Library._rainbowBus.h) % 1 end
@@ -5589,7 +5511,7 @@ function Library:CreateLibrary(opts)
                                     local dragIndex = hueDragIndex or activeIndex
                                     local slot = slots[dragIndex]
                                     
-                                    -- Keep offsets synced
+                                    
                                     if slot and Library._rainbowBus and Library._rainbowBus.h then
                                         local currentH = slot.hsv[1] or 0
                                         if slot.rainbow then slot.hueOffset = (currentH - Library._rainbowBus.h) % 1 end
@@ -5599,7 +5521,7 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
 
-                            -- inputs
+                            
                             rgbBox.FocusLost:Connect(function()
                                 local slot = slots[activeIndex]
                                 local r,g,b = parseRGBText(rgbBox.Text or "")
@@ -5608,7 +5530,7 @@ function Library:CreateLibrary(opts)
                                     local c = Color3.fromRGB(r,g,b)
                                     local h,s,v = Color3.toHSV(c)
                                     setHSV(activeIndex, h,s,v)
-                                    -- Update visual UI elements
+                                    
                                     updateSVBackground(h)
                                     if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
                                     if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
@@ -5625,7 +5547,7 @@ function Library:CreateLibrary(opts)
                                     local c = Color3.fromRGB(r,g,b)
                                     local h,s,v = Color3.toHSV(c)
                                     setHSV(activeIndex, h,s,v)
-                                    -- Update visual UI elements
+                                    
                                     updateSVBackground(h)
                                     if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
                                     if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
@@ -5635,11 +5557,11 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
 
-                            -- rainbow checkbox logic
+                            
                             cbRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
                                 local s = slots[idx]
-                                -- Store current state to avoid reading it mid-transition
+                                
                                 local wasRainbow = s.rainbow
                                 
                                 if wasRainbow then
@@ -5649,11 +5571,11 @@ function Library:CreateLibrary(opts)
                                 end
                             end)
                             
-                            -- pulse RGB checkbox logic
+                            
                             pulseRow.MouseButton1Click:Connect(function()
                                 local idx = activeIndex
                                 local s = slots[idx]
-                                -- Store current state to avoid reading it mid-transition
+                                
                                 local wasPulse = s.pulse
                                 
                                 if wasPulse then
@@ -5664,12 +5586,12 @@ function Library:CreateLibrary(opts)
                             end)
                         end
 
-                        -- position panel near btnFor (prefer below)
+                        
                         panel.Visible = true; panel.ClipsDescendants = true
-                        -- Create a blocker to intercept outside clicks and block underlying UI
+                        
                         if panelBlocker and panelBlocker.Parent then pcall(function() panelBlocker:Destroy() end) end
                         panelBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (panel.ZIndex or 1) - 1, Parent = RootGui})
-                        -- Close any other open color panel globally
+                        
                         local function closePanel()
                             if not panel or not panel.Visible then return end
                             panel.Visible = false; open=false; anim=false; disconnectAll()
@@ -5683,8 +5605,8 @@ function Library:CreateLibrary(opts)
 
                         local width, height = 250, 220
 
-                        -- Since panel is parented to RootGui, use screen coordinates
-                        -- Position directly below the button
+                        
+                        
                         local function placePanel()
                             local currentWidth = panel.AbsoluteSize.X
                             local currentHeight = panel.AbsoluteSize.Y
@@ -5696,7 +5618,7 @@ function Library:CreateLibrary(opts)
                         placePanel()
                         panel.Size = UDim2.fromOffset(width, 0)
 
-                        -- set UI to current slot
+                        
                         local slotForUI = slots[index]
                         local h,s,v = table.unpack(slotForUI.hsv)
                         updateSVBackground(h)
@@ -5704,19 +5626,19 @@ function Library:CreateLibrary(opts)
                         if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                         if rgbBox then local r,g,b = toRGB255(slotForUI.color); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                         if hexBox then local r,g,b = toRGB255(slotForUI.color); hexBox.Text = rgbToHex(r,g,b) end
-                        -- Reflect slot state and resume effects if needed
+                        
                         setCheckbox(slotForUI.rainbow or false)
                         setPulseCheckbox(slotForUI.pulse or false)
-                        -- Effects should already be running if enabled, no need to resume here
-                        -- The enable/disable functions handle all effect management properly
+                        
+                        
 
-                        -- Swallow background clicks on the panel itself so blocker doesn't see them
-                        -- Clear previous ephemeral open connections (if panel reopened)
+                        
+                        
                         disconnectAll()
                         table.insert(openConns, panel.InputBegan:Connect(function() end))
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(width, height)})
                         tw:Play(); tw.Completed:Connect(function() anim=false end)
-                        -- Keep the panel aligned while sizes/positions change
+                        
                         table.insert(openConns, panel:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                             if panel.AbsoluteSize.X > 0 then width = panel.AbsoluteSize.X end
                             if panel.AbsoluteSize.Y > 0 then height = panel.AbsoluteSize.Y end
@@ -5728,8 +5650,8 @@ function Library:CreateLibrary(opts)
                         table.insert(openConns, root:GetPropertyChangedSignal("AbsoluteSize"):Connect(placePanel))
                         anim=false
                         local justOpened = true; task.defer(function() justOpened = false end)
-                        -- outside close / esc
-                        -- close when clicking on blocker
+                        
+                        
                         if panelBlocker then
                             table.insert(openConns, panelBlocker.MouseButton1Click:Connect(function() closePanel() end))
                             table.insert(openConns, panelBlocker.MouseButton2Click:Connect(function() closePanel() end))
@@ -5737,7 +5659,7 @@ function Library:CreateLibrary(opts)
                         end
                     end
 
-                    -- open/ctx events per slot
+                    
                     for i,slot in ipairs(slots) do
                         slot.btn.MouseButton1Click:Connect(function() openPanel(slot.btn, i) end)
                         slot.btn.MouseButton2Click:Connect(function()
@@ -5756,7 +5678,7 @@ function Library:CreateLibrary(opts)
                         end)
                     end
 
-                    -- public API
+                    
                     local Colorpicker = { 
                         id = id, 
                         _slots = slots,
@@ -5765,7 +5687,7 @@ function Library:CreateLibrary(opts)
                         _disableRainbow = disableRainbow,
                         _disablePulse = disablePulse
                     }
-                    -- expose current active slot index for this control
+                    
                     function Colorpicker:_getActiveIndex()
                         return activeIndex or 1
                     end
@@ -5813,11 +5735,11 @@ function Library:CreateLibrary(opts)
                         end
                     end
 
-                    -- apply defaults & optional rainbow
+                    
                     for i=1,#slots do
                         local h,s,v = Color3.toHSV(slots[i].color)
                         slots[i].hsv = {h,s,v}
-                        -- Rainbow default is always off
+                        
                     end
 
                     Library:_registerControl(Colorpicker)
@@ -5826,7 +5748,7 @@ function Library:CreateLibrary(opts)
                     return Colorpicker
                 end
 
-                -- Keybind Toggle
+                
                 function Group:AddKeybindToggle(o)
                     o = o or {}
                     local label = tostring(o.Name or "Keybind Toggle")
@@ -5835,11 +5757,11 @@ function Library:CreateLibrary(opts)
                     if typeof(defaultKey) ~= "EnumItem" and type(defaultKey) == "string" then
                         defaultKey = ParseKeyFromString(defaultKey) or defaultKey
                     end
-                    local mode = o.Mode or "Hold" -- "Toggle", "Hold", "Always"
-                    local defaultToggle = o.DefaultToggle or (mode == "Hold" or mode == "Always") -- Default ON for Hold and Always modes
+                    local mode = o.Mode or "Hold" 
+                    local defaultToggle = o.DefaultToggle or (mode == "Hold" or mode == "Always") 
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s"):format(Category.Name, Page.Name, Group.Name, label)
                     
-                    -- Key name lookup table (including mouse buttons)
+                    
                     local keyNames = {
                         [Enum.KeyCode.LeftShift] = "LShift", [Enum.KeyCode.RightShift] = "RShift",
                         [Enum.KeyCode.LeftControl] = "LCtrl", [Enum.KeyCode.RightControl] = "RCtrl", 
@@ -5858,7 +5780,7 @@ function Library:CreateLibrary(opts)
                         [Enum.KeyCode.F10] = "F10", [Enum.KeyCode.F11] = "F11", [Enum.KeyCode.F12] = "F12"
                     }
                     
-                    -- Mouse button names
+                    
                     local mouseButtonNames = {
                         [Enum.UserInputType.MouseButton1] = "Mouse1",
                         [Enum.UserInputType.MouseButton2] = "Mouse2"
@@ -5870,7 +5792,7 @@ function Library:CreateLibrary(opts)
                         end
                         if keyNames[keyCode] then return keyNames[keyCode] end
                         local name = tostring(keyCode):match("Enum%.KeyCode%.(.+)")
-                        -- Prettify keypad
+                        
                         if name and name:match("^Keypad%d$") then return name end
                         if name == "KeypadPlus" then return "Keypad+" end
                         if name == "KeypadMinus" then return "Keypad-" end
@@ -5880,31 +5802,31 @@ function Library:CreateLibrary(opts)
                         return name or "None"
                     end
                     
-                    -- State management
+                    
                     local currentKey = defaultKey
-                    local currentInputType = nil -- Track if it's a mouse button
+                    local currentInputType = nil 
                     local isToggled = defaultToggle
                     local isBinding = false
                     local isHolding = false
-                    local keybindToggleState = false -- Track active sub-state for Toggle mode (true when toggled via key)
+                    local keybindToggleState = false 
                     local connections = {}
                     
-                    -- Build row
+                    
                     local rowH = 30
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,rowH), Position = UDim2.fromOffset(0,nextY(rowH)), Parent = gFrame})
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.42,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
                     
-                    -- Right side container
+                    
                     local rightContainer = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), Parent = row})
                     local rightLayout = Create("UIListLayout", {Parent = rightContainer, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,8), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
                     
-                    -- Keybind button (positioned first, so it appears on the right) - styled like normal AddKeybind but same height as toggle
+                    
                     local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(60, 18), Text = Library.FormatKeyName(getKeyName(currentKey, currentInputType)), Font = Fonts.Regular, TextSize = 11, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
-                    -- Focus line for keybind capture (like normal AddKeybind)
+                    
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = keybindBtn})
                     local stroke = keybindBtn:FindFirstChild("Stroke")
                     
-                    -- Toggle switch (like AddToggle, positioned second so it appears on the left)
+                    
                     local toggleContainer = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 18), Parent = rightContainer})
                     local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromScale(1,1), Parent = toggleContainer})
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
@@ -5915,14 +5837,14 @@ function Library:CreateLibrary(opts)
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0,4,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
                     
-                    -- Mode display in keybind button (no separate button needed)
                     
-                    -- Hover effects
+                    
+                    
                     toggleContainer.MouseEnter:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play() end)
                     toggleContainer.MouseLeave:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(50,50,50)}):Play() end)
-                    -- Keybind button hover - no special effects, just like normal AddKeybind
                     
-                    -- Update visual state (using AddToggle style)
+                    
+                    
                     local function updateToggleVisual()
                         if isToggled then
                             T(accentFill,0.25,{BackgroundTransparency = 0}):Play()
@@ -5938,7 +5860,7 @@ function Library:CreateLibrary(opts)
                             keybindBtn.Text = "..."
                             keybindBtn.TextColor3 = Theme.Text
                             keybindBtn.Font = Fonts.Regular
-                            -- Show focus line like normal AddKeybind
+                            
                             if focusBar then
                                 focusBar.BackgroundTransparency = 0
                                 focusBar.Size = UDim2.new(0,0,0,2)
@@ -5946,7 +5868,7 @@ function Library:CreateLibrary(opts)
                             end
                             if stroke then T(stroke,0.15,{Transparency = 0.18}):Play() end
                         else
-                            -- Support currentKey as single EnumItem or table combo
+                            
                             if type(currentKey) == "table" then
                                 local parts = {}
                                 for _, v in ipairs(currentKey) do
@@ -5967,11 +5889,11 @@ function Library:CreateLibrary(opts)
                                 keybindBtn.TextColor3 = currentKey and Theme.Text or Theme.SubText
                             end
                             keybindBtn.Font = Fonts.Regular
-                            -- Auto-resize based on text content (match toggle height of 18px)
+                            
                             local textService = game:GetService("TextService")
                             local textSize = textService:GetTextSize(keybindBtn.Text, 11, Fonts.Regular, Vector2.new(math.huge, 18))
                             keybindBtn.Size = UDim2.fromOffset(math.max(40, textSize.X + 12), 18)
-                            -- Hide focus line
+                            
                             if focusBar then
                                 local tw1 = T(focusBar,0.18,{Size = UDim2.new(0,0,0,2)})
                                 tw1:Play()
@@ -5983,7 +5905,7 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     
-                    -- Keybind functionality
+                    
                     local function disconnectAll()
                         for _, conn in pairs(connections) do
                             if conn then pcall(function() conn:Disconnect() end) end
@@ -5997,18 +5919,18 @@ function Library:CreateLibrary(opts)
                         updateKeybindVisual()
                         disconnectAll()
                         
-                        -- Listen for key and mouse input (support combos)
+                        
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
                             if gameProcessed then return end
                             if input.UserInputType == Enum.UserInputType.Keyboard then
                                 if input.KeyCode == Enum.KeyCode.Escape then
-                                    -- Cancel binding with ESC
+                                    
                                     isBinding = false
                                     if updateKeybindVisual then updateKeybindVisual() end
                                     if disconnectAll then disconnectAll() end
                                     if setupKeybindListener then setupKeybindListener() end
                                 else
-                                    -- Start capturing a short combo window and listen for additional presses
+                                    
                                     local capture = {input.KeyCode}
                                     local tempConn
                                     tempConn = UserInputService.InputBegan:Connect(function(i, gp)
@@ -6018,7 +5940,7 @@ function Library:CreateLibrary(opts)
                                                 table.insert(capture, i.KeyCode)
                                             end
                                         elseif i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.MouseButton2 then
-                                            -- treat mouse button as a separate part as well
+                                            
                                             table.insert(capture, i.UserInputType)
                                         end
                                     end)
@@ -6026,14 +5948,14 @@ function Library:CreateLibrary(opts)
                                     task.delay(0.22, function()
                                         if tempConn then pcall(function() tempConn:Disconnect() end); tempConn = nil end
                                         if isBinding then
-                                            -- dedupe while preserving order
+                                            
                                             local seen = {}
                                             local out = {}
                                             for _, v in ipairs(capture) do
                                                 local s = tostring(v)
                                                 if not seen[s] then seen[s] = true; table.insert(out, v) end
                                             end
-                                            -- cap to two keys max
+                                            
                                             if #out > 2 then out = { out[1], out[2] } end
                                             if #out == 1 then
                                                 currentKey = out[1]
@@ -6050,7 +5972,7 @@ function Library:CreateLibrary(opts)
                                     end)
                                 end
                             elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
-                                -- Capture mouse buttons immediately without delay
+                                
                                 currentKey = nil
                                 currentInputType = input.UserInputType
                                 isBinding = false
@@ -6060,7 +5982,7 @@ function Library:CreateLibrary(opts)
                             end
                         end))
                         
-                        -- Additional safety handler for edge cases
+                        
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input)
                             if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Escape and isBinding then
                                 isBinding = false
@@ -6075,34 +5997,34 @@ function Library:CreateLibrary(opts)
                         disconnectAll()
                         
                         if mode == "Always" then
-                            -- Always mode - toggle is always ON, keybind always active
+                            
                             isToggled = true
                             updateToggleVisual()
-                            -- In Always mode, immediately trigger callback
+                            
                             if type(cb) == "function" then
                                 pcall(cb, true, currentKey or currentInputType)
                             end
                         end
                         
-                        -- Keybind listeners - only work when toggle is ON
+                        
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
                             if gameProcessed then return end
-                            if not isToggled then return end  -- Only work when toggle is ON
+                            if not isToggled then return end  
 
                             local matches = false
-                            -- support combos stored in currentKey (table)
+                            
                             if currentInputType then
                                 matches = input.UserInputType == currentInputType
                             else
                                 if type(currentKey) == "table" then
-                                    -- input must be one of the parts
+                                    
                                     local matchedPart = false
                                     for _, part in ipairs(currentKey) do
                                         if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode and input.KeyCode == part then matchedPart = true; break end
                                         if typeof(part) == "EnumItem" and part.EnumType == Enum.UserInputType and input.UserInputType == part then matchedPart = true; break end
                                     end
                                     if matchedPart then
-                                        -- ensure all KeyCode parts are currently down
+                                        
                                         local allDown = true
                                         for _, part in ipairs(currentKey) do
                                             if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode then
@@ -6121,9 +6043,9 @@ function Library:CreateLibrary(opts)
                             if not matches then return end
 
                             if mode == "Toggle" then
-                                -- In toggle mode, pressing keybind alternates state
+                                
                                 keybindToggleState = not keybindToggleState
-                                -- Update list 'active' to reflect Toggle sub-state
+                                
                                 if updateKeybindTracking ~= nil then
                                     updateKeybindTracking({ active = keybindToggleState, toggleEnabled = isToggled })
                                 end
@@ -6143,14 +6065,14 @@ function Library:CreateLibrary(opts)
                         
                         if mode == "Hold" then
                             table.insert(connections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
-                                if not isToggled then return end  -- Only work when toggle is ON
+                                if not isToggled then return end  
                                 local matches = false
                                 
                                 if currentInputType then
-                                    -- Mouse button
+                                    
                                     matches = input.UserInputType == currentInputType
                                 else
-                                    -- Keyboard key
+                                    
                                     matches = input.KeyCode == currentKey
                                 end
                                 
@@ -6166,23 +6088,23 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     
-                    -- Toggle button click - controls keybind activation
+                    
                     toggleContainer.MouseButton1Click:Connect(function()
-                        if mode == "Always" then return end -- Can't manually toggle in Always mode
+                        if mode == "Always" then return end 
                         isToggled = not isToggled
                         updateToggleVisual()
                         
-                        -- Update keybind list tracking
+                        
                         if updateKeybindTracking ~= nil then
                             updateKeybindTracking({
                                 toggleEnabled = isToggled,
                                 active = isToggled
                             })
                         end
-                        -- Toggle just enables/disables the keybind, doesn't trigger callback
+                        
                     end)
                     
-                    -- Context menu for mode selection
+                    
                     local ctxMenu, ctxOpen = nil, false
                     local ctxBlocker = nil
                     local ctxConns = {}
@@ -6219,7 +6141,7 @@ function Library:CreateLibrary(opts)
                             return sz.X
                         end
                         local maxTextW = math.max(measure("Hold"), measure("Toggle"), measure("Always"))
-                        local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 24), 100, 160) -- Extra space for indicators
+                        local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 24), 100, 160) 
                         
                         ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW,0), ZIndex = menuZBase + 1, ClipsDescendants = true, Parent = RootGui}, {
                             Create("UICorner", {CornerRadius = UDim.new(0,6)}),
@@ -6238,7 +6160,7 @@ function Library:CreateLibrary(opts)
                                 Create("UIPadding", {PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
                             })
                             local textLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Position = UDim2.fromOffset(0,0), Text = modeText, Font = labelFont, TextSize = labelSize, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.Text, Parent = btn})
-                            -- Selection indicator (animated underline)
+                            
                             local underline = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, isSelected and 1 or 0, 0, 1), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,-1), Parent = btn})
                             if isSelected then
                                 T(underline, 0.2, {Size = UDim2.new(0.8, 0, 0, 1)}):Play()
@@ -6248,17 +6170,17 @@ function Library:CreateLibrary(opts)
                             btn.MouseLeave:Connect(function() T(btn,0.10,{BackgroundColor3 = Theme.Bg}):Play() end)
                             btn.MouseButton1Click:Connect(function() 
                                 if mode ~= modeText then
-                                    mode = modeText  -- Set mode directly instead of calling SetMode
+                                    mode = modeText  
                                     setupKeybindListener()
                                     if mode == "Hold" then
                                         table.insert(connections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
-                                            if not isToggled then return end  -- Only work when toggle is ON
+                                            if not isToggled then return end  
                                             local matches = false
                                             if currentInputType then
                                                 matches = input.UserInputType == currentInputType
                                             else
                                                 if type(currentKey) == "table" then
-                                                    -- If any part of the combo was released, consider the hold ended
+                                                    
                                                     for _, part in ipairs(currentKey) do
                                                         if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode and input.KeyCode == part then matches = true; break end
                                                         if typeof(part) == "EnumItem" and part.EnumType == Enum.UserInputType and input.UserInputType == part then matches = true; break end
@@ -6285,7 +6207,7 @@ function Library:CreateLibrary(opts)
                         local btnAbs = keybindBtn.AbsolutePosition
                         local btnSize = keybindBtn.AbsoluteSize
                         local guiInset = game:GetService("GuiService"):GetGuiInset()
-                        -- Position menu directly above the button, aligned to left edge
+                        
                         local px = btnAbs.X
                         local py = btnAbs.Y - menuH - 6 + guiInset.Y
                         ctxMenu.Position = UDim2.fromOffset(px, py)
@@ -6294,10 +6216,10 @@ function Library:CreateLibrary(opts)
                         ctxOpen = true
                     end
 
-                    -- Button events
+                    
                     keybindBtn.MouseButton1Click:Connect(function()
                         if isBinding then
-                            -- If already binding, capture MouseButton1 as the keybind
+                            
                             currentKey = nil
                             currentInputType = Enum.UserInputType.MouseButton1
                             isBinding = false
@@ -6305,13 +6227,13 @@ function Library:CreateLibrary(opts)
                             if disconnectAll then disconnectAll() end
                             if setupKeybindListener then setupKeybindListener() end
                         else
-                            -- Start binding mode
+                            
                             startBinding()
                         end
                     end)
                     keybindBtn.MouseButton2Click:Connect(function()
                         if isBinding then
-                            -- If binding, capture MouseButton2 as the keybind
+                            
                             currentKey = nil
                             currentInputType = Enum.UserInputType.MouseButton2
                             isBinding = false
@@ -6319,23 +6241,23 @@ function Library:CreateLibrary(opts)
                             if disconnectAll then disconnectAll() end
                             if setupKeybindListener then setupKeybindListener() end
                         elseif not isBinding then  
-                            -- Only open context menu if not currently binding
+                            
                             openCtx()
                         end
                     end)
                     
-                    -- Public API
-                    local KeybindToggle = { id = id }
-                    local keybindId = nil -- Will be set after KeybindToggle is defined
                     
-                    -- Helper function to safely update keybind tracking
+                    local KeybindToggle = { id = id }
+                    local keybindId = nil 
+                    
+                    
                     local function updateKeybindTracking(updates)
                         if keybindId and Library._keybinds and Library._keybinds[keybindId] then
                             Library:_updateKeybind(keybindId, updates)
                         end
                     end
                     
-                    -- Initialize
+                    
                     setupKeybindListener()
                     updateToggleVisual()
                     updateKeybindVisual()
@@ -6373,13 +6295,13 @@ function Library:CreateLibrary(opts)
                         isToggled = state and true or false
                         updateToggleVisual()
                         
-                        -- Update keybind list tracking
+                        
                         if updateKeybindTracking ~= nil then
                             local newActive
                             if mode == "Always" then
                                 newActive = true
                             elseif mode == "Hold" then
-                                newActive = false -- until pressed
+                                newActive = false 
                             elseif mode == "Toggle" then
                                 newActive = keybindToggleState
                             end
@@ -6403,7 +6325,7 @@ function Library:CreateLibrary(opts)
                                 isToggled = true
                                 if updateToggleVisual then updateToggleVisual() end
                                 
-                                -- Update keybind list tracking for Always mode
+                                
                                 if updateKeybindTracking ~= nil then
                                     updateKeybindTracking({
                                         toggleEnabled = true,
@@ -6451,7 +6373,7 @@ function Library:CreateLibrary(opts)
                         if row and row.Parent then pcall(function() row:Destroy() end) end
                     end
                     
-                    -- Add to keybind list tracking system
+                    
                     local initialActive
                     if mode == "Always" then
                         initialActive = true
@@ -6463,12 +6385,12 @@ function Library:CreateLibrary(opts)
                     keybindId = Library:_addKeybind(label, getKeyName(currentKey, currentInputType), "ToggleKeybind", {
                         active = initialActive,
                         toggleEnabled = isToggled,
-                        showInList = true, -- Default added is fine; visibility is driven by toggle
+                        showInList = true, 
                         keybindObject = KeybindToggle
                     })
                     KeybindToggle._keybindId = keybindId
                     
-                    -- Register control
+                    
                     Library:_registerControl(KeybindToggle)
                     table.insert(Group._controls, KeybindToggle)
                     registerSearch(label)
@@ -6489,7 +6411,7 @@ function Library:CreateLibrary(opts)
         if not Window._selectedCategory then Category:Select() end
         return Category
     end
-    -- enhanced mobile toggle (gradient ring + hamburger->X + ripple + drag)
+    
     local _mobileToggleSync
     if showMobileBtn then
         local accent = Theme.Accent
@@ -6514,7 +6436,7 @@ function Library:CreateLibrary(opts)
         })
         Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = toggleFrame })
 
-        -- Soft shadow behind button
+        
         local shadow = Create("ImageLabel", {
             Name = "Shadow",
             BackgroundTransparency = 1,
@@ -6530,7 +6452,7 @@ function Library:CreateLibrary(opts)
             Parent = container
         })
 
-        -- Subtle internal gradient on the button for depth
+        
         local fillGrad = Create("UIGradient", {
             Rotation = 90,
             Color = ColorSequence.new({
@@ -6540,19 +6462,19 @@ function Library:CreateLibrary(opts)
             Parent = toggleFrame
         })
 
-        -- Button stroke
+        
         local stroke = Create("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = accent, Thickness = 1.5, Transparency = 0.5, Parent = toggleFrame })
 
-    -- Status dot (green/red) on the top-right of the button, with subtle outline and glow
+    
     local status = Create("Frame", { Name = "StatusIndicator", BackgroundColor3 = Color3.fromRGB(255,85,85), BorderSizePixel = 0, Position = UDim2.new(1, -10, 0, 7), Size = UDim2.new(0, 8, 0, 8), ZIndex = 6, Parent = toggleFrame })
         Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = status })
     local statusStroke = Create("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Bg, Thickness = 1, Transparency = 0, Parent = status })
     local statusGlow = Create("ImageLabel", { Name = "StatusGlow", Visible = false, BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -10, 0, 7), Size = UDim2.new(0, 18, 0, 18), Image = "rbxassetid://4996891970", ImageColor3 = Color3.fromRGB(255,85,85), ImageTransparency = 1, ScaleType = Enum.ScaleType.Slice, SliceCenter = Rect.new(20,20,280,280), ZIndex = 5, Parent = toggleFrame })
 
-        -- Press/click surface
+        
         local button = Create("TextButton", { Name = "ToggleButton", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Text = "", AutoButtonColor = false, ZIndex = 7, Parent = toggleFrame })
 
-        -- Hamburger icon
+        
         local icon = Create("Frame", { Name = "Icon", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 24, 0, 18), ZIndex = 7, Parent = toggleFrame })
         local function makeLine(name)
             local line = Create("Frame", { Name = name, BackgroundColor3 = Theme.Text, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.new(0, 22, 0, 2), Position = UDim2.new(0.5, 0, 0.5, 0), ZIndex = 7, Parent = icon })
@@ -6563,7 +6485,7 @@ function Library:CreateLibrary(opts)
         local lineMid = makeLine("Mid"); lineMid.Position = UDim2.new(0.5, 0, 0.5, 0)
         local lineBot = makeLine("Bot"); lineBot.Position = UDim2.new(0.5, 0, 1.0, 0)
 
-        -- Utilities
+        
         local function makeRipple()
             local r = Create("Frame", { BackgroundColor3 = accent, BackgroundTransparency = 0.3, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 0, 0, 0), ZIndex = 6, Parent = toggleFrame })
             Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = r })
@@ -6574,12 +6496,12 @@ function Library:CreateLibrary(opts)
 
         local function setIcon(open)
             if open then
-                -- Hamburger -> X
+                
                 T(lineTop, 0.18, { Rotation = 45, Position = UDim2.new(0.5, 0, 0.5, 0) }):Play()
                 T(lineBot, 0.18, { Rotation = -45, Position = UDim2.new(0.5, 0, 0.5, 0) }):Play()
                 T(lineMid, 0.12, { BackgroundTransparency = 1 }):Play()
             else
-                -- X -> Hamburger
+                
                 T(lineTop, 0.18, { Rotation = 0, Position = UDim2.new(0.5, 0, 0.0, 0) }):Play()
                 T(lineBot, 0.18, { Rotation = 0, Position = UDim2.new(0.5, 0, 1.0, 0) }):Play()
                 T(lineMid, 0.12, { BackgroundTransparency = 0 }):Play()
@@ -6593,10 +6515,10 @@ function Library:CreateLibrary(opts)
             status.BackgroundColor3 = open and good or bad
             statusGlow.ImageColor3 = open and good or bad
             if animated then
-                -- Background and stroke soften/harden
+                
                 T(toggleFrame, 0.20, { BackgroundColor3 = open and Theme.Panel or Theme.Bg }):Play()
                 T(stroke, 0.20, { Transparency = open and 0.25 or 0.5 }):Play()
-                -- Update gradient for a subtle light-from-top effect
+                
                 local seq = open and ColorSequence.new({
                     ColorSequenceKeypoint.new(0.00, Theme.Panel),
                     ColorSequenceKeypoint.new(1.00, Theme.Bg)
@@ -6619,14 +6541,14 @@ function Library:CreateLibrary(opts)
             setIcon(open)
         end
         applyState(false)
-        -- Sync function for library keybind
+        
         _mobileToggleSync = function(newVisible)
             open = newVisible
             if root then root.Visible = open end
             applyState(true)
         end
 
-        -- Hover feedback on desktop
+        
         button.MouseEnter:Connect(function()
             if UserInputService.KeyboardEnabled then
                 T(toggleFrame, 0.12, { Size = UDim2.new(0, 52, 0, 52), Position = UDim2.new(0, 9, 0, 9) }):Play()
@@ -6638,13 +6560,13 @@ function Library:CreateLibrary(opts)
             end
         end)
 
-        -- Input / dragging
+        
         local holding, dragging = false, false
         local pressPos, dragOffset, pressTime
         local DRAG_THRESHOLD = 6
 
         local function getMouseGuiPos(input)
-            -- Normalize to the same GUI coordinate space used by RootGui (IgnoreGuiInset = true)
+            
             local ok, inset = pcall(function()
                 return game:GetService("GuiService"):GetGuiInset()
             end)
@@ -6715,7 +6637,7 @@ function Library:CreateLibrary(opts)
             end
         end)
     end
-    -- global library toggle keybind (default RightShift), syncs with mobile toggle
+    
     do
         Library._libraryKeybind = Library._libraryKeybind or Enum.KeyCode.RightShift
         Library._rootFrame = root
@@ -6744,9 +6666,9 @@ function Library:CreateLibrary(opts)
     end
     
     Window.AddTab = Window.AddCategory
-    -- enhanced search with fuzzy matching and ranking
+    
     function Window:Search(term, suppressHighlight)
-        term = tostring(term or ""):lower():gsub("%s+", " "):gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
+        term = tostring(term or ""):lower():gsub("%s+", " "):gsub("^%s*(.-)%s*$", "%1") 
         if term == "" then return end
         
         local matches = {}
@@ -6757,20 +6679,20 @@ function Library:CreateLibrary(opts)
             local text = entry.textLower
             local score = 0
             
-            -- Exact matches (highest priority)
+            
             if text == term then
                 score = 1000
                 exactMatches[#exactMatches + 1] = {entry = entry, score = score}
-            -- Starts with term (high priority)  
+            
             elseif text:find("^" .. term:gsub("[%-%^%$%(%)%%%.%[%]%*%+%?]", "%%%1")) then
-                score = 800 + (100 - #text) -- shorter matches rank higher
+                score = 800 + (100 - #text) 
                 exactMatches[#exactMatches + 1] = {entry = entry, score = score}
-            -- Contains term (medium priority)
+            
             elseif text:find(term, 1, true) then
                 score = 600 + (100 - #text)
                 matches[#matches + 1] = {entry = entry, score = score}
             else
-                -- Fuzzy matching - check if all characters of term exist in order
+                
                 local termChars = {}
                 for i = 1, #term do termChars[i] = term:sub(i,i) end
                 
@@ -6786,14 +6708,14 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 
-                if matchedChars == #termChars and #termChars >= 3 then -- min 3 chars for fuzzy
+                if matchedChars == #termChars and #termChars >= 3 then 
                     score = 300 + matchedChars * 10
                     fuzzyMatches[#fuzzyMatches + 1] = {entry = entry, score = score}
                 end
             end
         end
         
-        -- Combine and sort all matches by score
+        
         local allMatches = {}
         for _, match in ipairs(exactMatches) do allMatches[#allMatches + 1] = match end
         for _, match in ipairs(matches) do allMatches[#allMatches + 1] = match end  
@@ -6803,10 +6725,10 @@ function Library:CreateLibrary(opts)
         
         local match = allMatches[1] and allMatches[1].entry
         if not match then return nil end
-        -- select category & page
+        
         if Window._selectedCategory ~= match.category then match.category:Select() end
         if match.category._selectedPage ~= match.page then match.page:Select() end
-        -- defer scroll/highlight until UI is visible
+        
         task.defer(function()
             if not match.groupFrame or not match.groupFrame.Parent then return end
             local col = match.groupFrame.Parent
@@ -6818,7 +6740,7 @@ function Library:CreateLibrary(opts)
                 col.CanvasPosition = Vector2.new(0, offset)
             end
             if not suppressHighlight then
-                -- single outline pulse on search call without suppression
+                
                 local stroke = nil
                 for _, child in ipairs(match.groupFrame:GetChildren()) do if child:IsA("UIStroke") then stroke = child break end end
                 if stroke then
@@ -6836,17 +6758,17 @@ function Library:CreateLibrary(opts)
         return match
     end
     
-    -- Add Config functions to Window object
+    
     Window.LibraryName = libraryName
-    -- Config helpers - silence config warnings/errors (operate quietly)
-    local function cfgWarn() end -- no-op for info/debug
-    local function cfgErr() end -- silence config errors too
+    
+    local function cfgWarn() end 
+    local function cfgErr() end 
     
     Window.SaveConfig = function(name)
         local safe = sanitize(name or "")
         local low = safe:lower()
         if safe == "" or low == "__meta" or low == "__index" then return false end
-        -- Before saving, check if auto-load was enabled and preserve it
+        
         local wasAutoLoad = false
         pcall(function() wasAutoLoad = Config.GetAutoLoad(safe) end)
         local ok = false
@@ -6854,7 +6776,7 @@ function Library:CreateLibrary(opts)
         if okCall and res then
             ok = true
             pcall(function() Config.RecordSave(safe) end)
-            -- Restore auto-load state if it was enabled
+            
             if wasAutoLoad then
                 pcall(function() Config.SetAutoLoad(safe, true) end)
             end
@@ -6873,16 +6795,16 @@ function Library:CreateLibrary(opts)
         local applied = 0
         for id, value in pairs(data) do
             if type(id) == "string" and id:sub(1,2) == "__" then
-                -- skip meta keys
+                
             else
                 local targetId = id
                 local ctrl = Library._controls[targetId]
                 if not ctrl and Library.Flags and Library.Flags[targetId] then
                     ctrl = Library.Flags[targetId]
-                    -- Flags map stores control objects; its id may differ
+                    
                     targetId = ctrl.id or targetId
                 end
-                -- try suffix match if still not found (handles pathed ids)
+                
                 if not ctrl then
                     for k, c in pairs(Library._controls) do
                         if type(k) == 'string' and k:match("/" .. id .. "$") then
@@ -6893,22 +6815,22 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 if not ctrl then
-                    -- Control not found
+                    
                 else
                     if not ctrl.Set then
-                        -- Control has no Set method
+                        
                     else
-                        -- If the saved value is a Colorpicker object, apply colors and modes explicitly
+                        
                         if type(value) == 'table' and (value.__ctrl == 'Colorpicker' or value.colors) then
-                            -- Robust Colorpicker load flow:
-                            -- 1) log diagnostic
-                            -- 2) decode colors and apply silently
-                            -- 3) restore per-slot hue/pulse offsets
-                            -- 4) attempt to enable effects via public/internal APIs
-                            -- 5) if hooks still missing, recreate sync listeners and attach fallback hooks
+                            
+                            
+                            
+                            
+                            
+                            
                             local okOuter, outerErr = pcall(function()
                                 local function applyOnce()
-                                    -- Build source color array: support both legacy `colors` and new `slots` shapes
+                                    
                                     local colors = {}
                                     if type(value.slots) == 'table' then
                                         for i=1, #value.slots do
@@ -6922,7 +6844,7 @@ function Library:CreateLibrary(opts)
                                     end
 
                                     local decColors = {}
-                                    -- Robustly deserialize each entry; allow raw Color3 values through too
+                                    
                                     for i=1, #colors do
                                         local raw = colors[i]
                                         local okd, dc = false, nil
@@ -6938,12 +6860,12 @@ function Library:CreateLibrary(opts)
                                         end
                                     end
 
-                                    -- Apply colors silently first (only if _setValue exists)
+                                    
                                     if Library and Library._setValue then
                                         pcall(function() Library:_setValue(targetId, decColors, true) end)
                                     end
 
-                                    -- Populate slot internals if present
+                                    
                                     if ctrl and ctrl._slots and type(ctrl._slots) == 'table' then
                                         for i=1, #ctrl._slots do
                                             local slot = ctrl._slots[i]
@@ -6959,7 +6881,7 @@ function Library:CreateLibrary(opts)
                                         end
                                     end
 
-                                    -- enable via control API and ensure sync ids
+                                    
                                     local function ensure_sync_ids(slot, mode)
                                         if not slot then return end
                                         if mode == 'rainbow' then
@@ -7001,7 +6923,7 @@ function Library:CreateLibrary(opts)
                                         end
                                     end
 
-                                    -- fallback hooks attach
+                                    
                                     if ctrl and ctrl._slots then
                                         for i=1,#ctrl._slots do
                                             local slot = ctrl._slots[i]
@@ -7038,7 +6960,7 @@ function Library:CreateLibrary(opts)
                                         end
                                     end
 
-                                    -- Quietly check state
+                                    
                                     local function checkState()
                                         if not (ctrl and ctrl._slots) then return false end
                                         for i=1,#ctrl._slots do
@@ -7048,7 +6970,7 @@ function Library:CreateLibrary(opts)
                                         return false
                                     end
 
-                                    -- return whether any hooks attached as expected
+                                    
                                     local hooked = false
                                     if ctrl and ctrl._slots then
                                         for i=1,#ctrl._slots do local s=ctrl._slots[i]; if (value.rainbow and value.rainbow[i] and s and s.rainbowHook) or (value.pulse and value.pulse[i] and s and s.pulseHook) then hooked = true; break end end
@@ -7056,12 +6978,12 @@ function Library:CreateLibrary(opts)
                                     return hooked
                                 end
 
-                                -- Try immediate apply and schedule retries if not fully hooked
+                                
                                 local ok1 = pcall(function() return applyOnce() end)
                                 local hookedNow = false
                                 if ok1 then hookedNow = applyOnce() end
                                 if not hookedNow then
-                                    -- retry after short delay (some controls initialize async)
+                                    
                                     task.spawn(function()
                                         task.wait(0.12)
                                         pcall(function()
@@ -7095,14 +7017,14 @@ function Library:CreateLibrary(opts)
         Config.Delete(safe)
         pcall(function() Config.ClearMeta(safe) end)
     end
-    -- Build a Configs UI inside a provided Group
+    
     Window.AddConfigSystem = function(self, group, opts)
         opts = opts or {}
         if not group or type(group) ~= "table" or not group.AddDropdown then return nil end
         local cfgLabel = tostring(opts.Label or "Configs")
         local namePlaceholder = tostring(opts.Placeholder or "MyConfig Name")
 
-        -- Row 1: Dropdown
+        
         local dd = group:AddDropdown({
             Name = cfgLabel,
             Options = Window.ListConfigs(),
@@ -7116,10 +7038,10 @@ function Library:CreateLibrary(opts)
             dd:SetOptions(list)
         end
 
-    -- Row 2: Name textbox
+    
     local nameBox = group:AddTextbox({ Name = "Config Name", Placeholder = namePlaceholder, Default = "" })
 
-        -- Row 3: Buttons (Create/Save/Load/Delete)
+        
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
             local raw = ""
             local okg, tmp = pcall(function() return (nameBox and nameBox.Get and nameBox:Get()) or "" end)
@@ -7151,7 +7073,7 @@ function Library:CreateLibrary(opts)
             end
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
-            -- Remember auto-load state before saving
+            
             local wasAutoLoad = false
             pcall(function() wasAutoLoad = autoToggle and autoToggle.Get and autoToggle:Get() end)
             local okSave, res = pcall(function() return Window.SaveConfig(safe) end)
@@ -7160,7 +7082,7 @@ function Library:CreateLibrary(opts)
                 task.defer(function()
                     pcall(function() dd:Set(safe, true) end)
                     if nameBox and nameBox.Set then nameBox:Set(safe, true) end
-                    -- Restore auto-load state after saving
+                    
                     if wasAutoLoad then
                         pcall(function() Config.SetAutoLoad(safe, true) end)
                         if autoToggle and autoToggle.Set then autoToggle:Set(true, true) end
@@ -7198,11 +7120,11 @@ function Library:CreateLibrary(opts)
             if nameBox and nameBox.Set then nameBox:Set("", true) end
         end })
 
-        -- Row 4: Refresh List (move above auto-load)
-        local autoToggle -- forward declare for callback below
+        
+        local autoToggle 
         local refreshBtn = group:AddButton({ Name = "Refresh List", Callback = function()
             refreshList()
-            -- Re-sync autoload state to current selection after refresh
+            
             local raw = dd:Get()
             local safe = raw and sanitize(raw) or nil
             local on = false
@@ -7210,7 +7132,7 @@ function Library:CreateLibrary(opts)
             if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
         end, Compact = true })
 
-        -- Row 5: Auto-load toggle for currently selected config
+        
         autoToggle = group:AddToggle({ Name = "Auto Load Config", Default = false, Callback = function(on)
             local raw = dd:Get()
             local safe = raw and sanitize(raw) or nil
@@ -7218,11 +7140,11 @@ function Library:CreateLibrary(opts)
             pcall(function() Config.SetAutoLoad(safe, on) end)
         end })
 
-        -- Keep autoload toggle in sync when selection changes
+        
         dd:OnOpen(function()
-            -- no-op, but ensures dd exists
+            
         end)
-        -- There isn't a direct OnChanged, so wrap Set and call original
+        
         local _ddSet = dd.Set
         function dd:Set(v, silent)
             _ddSet(self, v, silent)
@@ -7234,7 +7156,7 @@ function Library:CreateLibrary(opts)
             if nameBox and nameBox.Set then nameBox:Set(safe or "", true) end
         end
 
-        -- Initialize autoload state to current selection (if any)
+        
         do
             local cur = dd:Get()
             if cur and cur ~= "" then
@@ -7244,24 +7166,24 @@ function Library:CreateLibrary(opts)
             end
         end
 
-    -- Store reference to config UI so we can update it from auto-load
+    
     local configUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle }
     Window._lastConfigUI = configUI
     return configUI
     end
     
-    -- Auto-load most recent autoload-marked config for this place, if any
+    
     task.spawn(function()
-        -- slight delay to let controls register so _setValue calls propagate
+        
         task.wait(0.25)
         local toLoad = nil
         pcall(function() toLoad = Config.MostRecentAutoLoad() end)
         if toLoad and type(toLoad) == "string" and #toLoad > 0 then
             pcall(function() 
                 Window.LoadConfig(toLoad)
-                -- Ensure auto-load state is preserved after loading
+                
                 Config.SetAutoLoad(toLoad, true)
-                -- Update UI to reflect auto-load state if config UI exists
+                
                 if Window._lastConfigUI and Window._lastConfigUI.AutoToggle then
                     Window._lastConfigUI.AutoToggle:Set(true, true)
                 end
@@ -7269,15 +7191,15 @@ function Library:CreateLibrary(opts)
         end
     end)
 
-    -- Create keybind list immediately when library is created
+    
     task.spawn(function()
-        task.wait(1) -- Small delay to ensure everything is properly initialized
+        task.wait(1) 
         if Library._keybindListVisible then
             Library:_createKeybindList()
         end
     end)
     
-    -- expose this instance as the active window so Library-level helpers can forward
+    
     self._activeWindow = Window
     return Window
 end
@@ -7293,11 +7215,11 @@ function Library:SetFlag(name, value, silent)
     if c and c.Set then c:Set(value, silent) end
 end
 
--- Set or change the library-wide toggle keybind
--- Accepts:
---  - Enum.KeyCode (preferred)
---  - string name of key (e.g., "RightShift", "E")
---  - a control/flag object with a Value property (e.g., Library.Flags.MyKeybind.Value)
+
+
+
+
+
 function Library:LibraryKeybind(key)
     local resolve
     if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
@@ -7314,7 +7236,7 @@ function Library:LibraryKeybind(key)
     end
     resolve = resolve or Enum.KeyCode.RightShift
     self._libraryKeybind = resolve
-    -- Rebuild connection if needed
+    
     if self._libraryKeyConn then
         pcall(function() self._libraryKeyConn:Disconnect() end)
         self._libraryKeyConn = nil
@@ -7338,7 +7260,7 @@ function Library:LibraryKeybind(key)
     self._syncToggle = syncToggle
 end
 
--- Convenience proxy: allow Library:AddConfigSystem(group, opts)
+
 function Library:AddConfigSystem(group, opts)
     if self and self._activeWindow and self._activeWindow.AddConfigSystem then
         return self._activeWindow:AddConfigSystem(group, opts)
