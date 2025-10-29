@@ -6319,13 +6319,20 @@ function Library:CreateLibrary(opts)
                                 end)
                                 return btn
                             end
+                        -- compute menu height (4 items: list toggle + 3 mode items) and safe-guard numeric values
+                        local menuH = (itemH * 4) + (gap * 4) + (vPad * 2) + 1
                         ctxMenu.Size = UDim2.fromOffset(menuW, menuH)
-                        local btnAbs = keybindBtn.AbsolutePosition
-                        local btnSize = keybindBtn.AbsoluteSize
-                        local guiInset = SRV("GuiService"):GetGuiInset()
-                        
-                        local px = btnAbs.X
-                        local py = btnAbs.Y - menuH - 6 + guiInset.Y
+
+                        -- guard AbsolutePosition / AbsoluteSize in case the button isn't yet laid out
+                        local btnAbs = keybindBtn.AbsolutePosition or Vector2.new(0, 0)
+                        local btnSize = keybindBtn.AbsoluteSize or Vector2.new(0, 0)
+
+                        -- guard GuiInset (pcall in case service errors and fallback to zero inset)
+                        local ok, guiInset = pcall(function() return SRV("GuiService"):GetGuiInset() end)
+                        if not ok or typeof(guiInset) ~= "Vector2" then guiInset = Vector2.new(0, 0) end
+
+                        local px = (btnAbs.X or 0)
+                        local py = (btnAbs.Y or 0) - menuH - 6 + (guiInset.Y or 0)
                         ctxMenu.Position = UDim2.fromOffset(px, py)
                         
                         Library._openKeybindCtxClose = closeCtx
