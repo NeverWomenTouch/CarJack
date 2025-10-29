@@ -1,6 +1,6 @@
 
 local cloneref = cloneref or function(x) return x end
-local function SRV(name) return cloneref(game:GetService(name)) end
+function SRV(name) return cloneref(game:GetService(name)) end
 local CoreGui = SRV("CoreGui")
 local TweenService = SRV("TweenService")
 local TextService = SRV("TextService")
@@ -21,7 +21,6 @@ local function Create(className, props, children)
     if children then for _, c in ipairs(children) do c.Parent = inst end end
     return inst
 end
-
 local function ParseKeyFromString(name)
     if type(name) ~= "string" then return nil end
     local s = name
@@ -195,43 +194,47 @@ local Theme = {
     Bad = Color3.fromRGB(235, 80, 90),
     Scrollbar = Color3.fromRGB(50, 54, 52),
 }
-local Fonts = {
-    Regular = Enum.Font.Gotham,
-    Medium = Enum.Font.GothamMedium,
-    Bold = Enum.Font.GothamBold,
-}
-local function T(i, t, p) return TweenService:Create(i, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), p) end
-local function sanitize(s) s = tostring(s or "Game"); s = s:gsub("[^%w%s%-_]", "_"); s = s:gsub("%s+", "_"); return s end
-local function Signal()
-    local h = {}
-    return {
-        Connect = function(_, fn)
-            local c = {Connected = true}
-            h[#h+1] = {fn = fn, c = c}
-            function c:Disconnect() self.Connected = false end
-            return c
-        end,
-        Fire = function(_, ...)
-            for i=1,#h do local x=h[i]; if x.c.Connected then coroutine.wrap(x.fn)(...) end end
-        end
-    }
-end
-local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {} }
-Library.FormatKeyName = FormatKeyName
-
-Library._activeNotifications = {}
-Library._activeTopNotifications = {}
-Library._activeModalNotification = nil
-do
-    Library._watermark = nil
-    Library._watermarkText = ""
-    Library._watermarkVisible = true
-    Library._watermarkTextColor = Color3.fromRGB(255, 255, 255) 
-    Library._watermarkBackgroundColor = Theme.Bg
-    Library._watermarkAccentColor = Theme.Accent
-    Library._watermarkFont = Fonts.Medium
-    Library._watermarkFontSize = 13
-    Library._watermarkTransparency = 0
+        pcall(function()
+            local dec = nil
+            pcall(function() dec = Config.LoadFull(safe) end)
+            if type(dec) == "table" and type(dec.library) == "table" then
+                local lib = dec.library
+                pcall(function()
+                    if lib.window and lib.window.size then
+                        local s = deserialize(lib.window.size) or lib.window.size
+                        if s then root.Size = s end
+                    end
+                    if lib.window and lib.window.position then
+                        local p = deserialize(lib.window.position) or lib.window.position
+                        if p then root.Position = p end
+                    end
+                    if lib.keybindList then
+                        local kp = deserialize(lib.keybindList) or lib.keybindList
+                        if kp then
+                            Library._keybindListPosition = kp
+                            if Library._keybindList and Library._keybindList.Parent then
+                                local mf = Library._keybindList:FindFirstChild("MainFrame")
+                                if mf then mf.Position = kp end
+                            end
+                        end
+                    end
+                    if lib.watermark then
+                        local wp = deserialize(lib.watermark) or lib.watermark
+                        if wp then pcall(function() Library:SetWatermarkPosition(wp) end) end
+                    end
+                    if lib.mobileToggle then
+                        local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
+                        if mp then
+                            Library._mobileTogglePosition = mp
+                            pcall(function()
+                                local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                                if cont then cont.Position = mp end
+                            end)
+                        end
+                    end
+                end)
+            end
+        end)
     
         Library._watermarkPosition = Library._watermarkPosition or {
         X = 1,
@@ -261,7 +264,7 @@ do
             Parent = libraryGui or CoreGui 
         })
         
-                local textService = game:GetService("TextService")
+            local textService = SRV("TextService")
         local tempTextSize = textService:GetTextSize(
             Library._watermarkText or "Watermark", 
             Library._watermarkFontSize, 
@@ -353,7 +356,7 @@ do
         
         
         local function updateSize()
-            local textService = game:GetService("TextService")
+        local textService = SRV("TextService")
             local textSize = textService:GetTextSize(
                 watermarkLabel.Text, 
                 Library._watermarkFontSize, 
@@ -416,7 +419,7 @@ do
             else
                 pos = UserInputService:GetMouseLocation()
                 local ok, inset = pcall(function()
-                    return game:GetService("GuiService"):GetGuiInset()
+                    return SRV("GuiService"):GetGuiInset()
                 end)
                 if ok and typeof(inset) == "Vector2" then
                     pos = Vector2.new(pos.X, pos.Y - inset.Y)
@@ -1380,7 +1383,7 @@ do
             else
                 pos = UserInputService:GetMouseLocation()
                 local ok, inset = pcall(function()
-                    return game:GetService("GuiService"):GetGuiInset()
+                    return SRV("GuiService"):GetGuiInset()
                 end)
                 if ok and typeof(inset) == "Vector2" then
                     pos = Vector2.new(pos.X, pos.Y - inset.Y)
@@ -2118,6 +2121,21 @@ function Library:CreateLibrary(opts)
             end
             return {}
         end
+        function Config.LoadFull(name)
+            Config.Ensure()
+            local s = sanitize(name or "")
+            if s == "" then return nil end
+            if MEM_MODE then
+                local key = memEnsure()
+                return Library._memConfig.files[key][s]
+            end
+            local path = filePath(s)
+            local ok, raw = pcall(function() return gr(path) end)
+            if not ok or type(raw) ~= "string" or #raw == 0 then return nil end
+            local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+            if okj and type(dec) == "table" then return dec end
+            return nil
+        end
 
         function Config.List()
             Config.Ensure()
@@ -2408,7 +2426,7 @@ function Library:CreateLibrary(opts)
     local dragStart
     local frameStart
         local lastInput
-        local RS = game:GetService("RunService")
+    local RS = SRV("RunService")
         local function update()
             if not dragging or not lastInput then return end
             local curPos = (lastInput.UserInputType == Enum.UserInputType.Touch) and lastInput.Position or UserInputService:GetMouseLocation()
@@ -2611,7 +2629,7 @@ function Library:CreateLibrary(opts)
         local lbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -10, 1, 0), Position = UDim2.fromOffset( (icon and 24) or 24, 0), Text = name, Font = Fonts.Medium, TextSize = 14, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = z + 3, Parent = inner})
         
         do
-            local ts = game:GetService("TextService")
+            local ts = SRV("TextService")
             local function fitCategoryLabel()
                 local leftPad = (icon and 24) or 24
                 local avail = (inner.AbsoluteSize.X or 100) - leftPad - 10
@@ -3030,7 +3048,7 @@ function Library:CreateLibrary(opts)
                     infoBtn.MouseEnter:Connect(show)
                     infoBtn.MouseLeave:Connect(function()
                         
-                        local con; con = game:GetService("RunService").RenderStepped:Connect(function()
+                        local con; con = SRV("RunService").RenderStepped:Connect(function()
                             local pos = UserInputService:GetMouseLocation()
                             local abs = popup.AbsolutePosition
                             local sz = popup.AbsoluteSize
@@ -3518,7 +3536,7 @@ function Library:CreateLibrary(opts)
                             closeCtxMenu()
                         end))
                         
-                        local textService = game:GetService("TextService")
+                        local textService = SRV("TextService")
                         local labelFont = Fonts.Medium
                         local labelSize = 12
                         local sidePad, vPad, gap, itemH = 10, 6, 2, 24
@@ -3606,7 +3624,7 @@ function Library:CreateLibrary(opts)
                                     m = UserInputService:GetMouseLocation()
                                 end
                                 local ok, inset = pcall(function()
-                                    return game:GetService("GuiService"):GetGuiInset()
+                                    return SRV("GuiService"):GetGuiInset()
                                 end)
                                 if ok and typeof(inset) == "Vector2" then
                                     m = Vector2.new(m.X, m.Y - inset.Y)
@@ -3803,7 +3821,7 @@ function Library:CreateLibrary(opts)
                         end
                         
                         local ok, inset = pcall(function()
-                            return game:GetService("GuiService"):GetGuiInset()
+                            return SRV("GuiService"):GetGuiInset()
                         end)
                         if ok and typeof(inset) == "Vector2" then
                             return Vector2.new(pos.X, pos.Y - inset.Y)
@@ -4278,7 +4296,7 @@ function Library:CreateLibrary(opts)
                         box.TextColor3 = self._value and Theme.Text or Theme.SubText
                         box.Font = Fonts.Regular
                         
-                        local textService = game:GetService("TextService")
+                        local textService = SRV("TextService")
                         local textSize = textService:GetTextSize(box.Text, 13, Fonts.Regular, Vector2.new(math.huge, 30))
                         box.Size = UDim2.new(0.5, math.max(-4, textSize.X + 8 - (box.Parent.AbsoluteSize.X * 0.5)), 1, 0)
                         
@@ -4459,7 +4477,7 @@ function Library:CreateLibrary(opts)
                         table.insert(keybindCtxConns, keybindCtxBlocker.MouseButton2Click:Connect(function() closeKeybindCtx() end))
                         table.insert(keybindCtxConns, keybindCtxBlocker.TouchTap:Connect(function() closeKeybindCtx() end))
                         
-                        local textService = game:GetService("TextService")
+                        local textService = SRV("TextService")
                         local labelFont = Fonts.Medium
                         local labelSize = 11
                         local sidePad, vPad, gap, itemH = 10, 6, 2, 24
@@ -4546,7 +4564,7 @@ function Library:CreateLibrary(opts)
                         
                         local btnAbs = box.AbsolutePosition
                         local btnSize = box.AbsoluteSize
-                        local guiInset = game:GetService("GuiService"):GetGuiInset()
+                        local guiInset = SRV("GuiService"):GetGuiInset()
                         
                         local px = btnAbs.X
                         local py = btnAbs.Y - menuH - 6 + guiInset.Y
@@ -4753,7 +4771,7 @@ function Library:CreateLibrary(opts)
                     end
                     local function rainbowStart()
                         if Library._rainbowBus.conn then return end
-                        local RS = game:GetService("RunService")
+                        local RS = SRV("RunService")
                         local t0 = tick()
                         Library._rainbowBus.conn = RS.RenderStepped:Connect(function()
                             local t = (tick() - t0) * 0.08 
@@ -4872,7 +4890,7 @@ function Library:CreateLibrary(opts)
                         table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
                         
-                        local textService = game:GetService("TextService")
+                        local textService = SRV("TextService")
                         local labelFont = Fonts.Medium
                         local labelSize = 12
                         local sidePad, vPad, gap, itemH = 10, 6, 2, 24
@@ -4970,7 +4988,7 @@ function Library:CreateLibrary(opts)
                         local btnAbs = btnFor.AbsolutePosition
                         local btnSize = btnFor.AbsoluteSize
                         
-                        local guiInset = game:GetService("GuiService"):GetGuiInset()
+                        local guiInset = SRV("GuiService"):GetGuiInset()
                         
                         local px = btnAbs.X
                         local py = btnAbs.Y - finalH - 6 + guiInset.Y
@@ -5324,7 +5342,7 @@ function Library:CreateLibrary(opts)
                         local btnAbs = targetBtn.AbsolutePosition
                         local btnSize = targetBtn.AbsoluteSize
                         
-                        local guiInset = game:GetService("GuiService"):GetGuiInset()
+                        local guiInset = SRV("GuiService"):GetGuiInset()
                         
                         local px = btnAbs.X
                         local py = btnAbs.Y + btnSize.Y + 6 + guiInset.Y
@@ -5374,7 +5392,7 @@ function Library:CreateLibrary(opts)
                             
                             local btnAbs = btnFor.AbsolutePosition
                             local btnSize = btnFor.AbsoluteSize
-                            local guiInset = game:GetService("GuiService"):GetGuiInset()
+                            local guiInset = SRV("GuiService"):GetGuiInset()
                             local initialX = btnAbs.X
                             local initialY = btnAbs.Y + btnSize.Y + 6 + guiInset.Y
                             
@@ -5452,7 +5470,7 @@ function Library:CreateLibrary(opts)
 
                             
                             local function getScreenPos()
-                                local inset = game:GetService("GuiService"):GetGuiInset()
+                                local inset = SRV("GuiService"):GetGuiInset()
                                 local m = UserInputService:GetMouseLocation()
                                 return Vector2.new(m.X - inset.X, m.Y - inset.Y)
                             end
@@ -5930,7 +5948,7 @@ function Library:CreateLibrary(opts)
                             end
                             keybindBtn.Font = Fonts.Regular
                             
-                            local textService = game:GetService("TextService")
+                            local textService = SRV("TextService")
                             local textSize = textService:GetTextSize(keybindBtn.Text, 11, Fonts.Regular, Vector2.new(math.huge, 18))
                             keybindBtn.Size = UDim2.fromOffset(math.max(40, textSize.X + 12), 18)
                             
@@ -6172,7 +6190,7 @@ function Library:CreateLibrary(opts)
                         table.insert(ctxConns, ctxBlocker.MouseButton2Click:Connect(function() closeCtx() end))
                         table.insert(ctxConns, ctxBlocker.TouchTap:Connect(function() closeCtx() end))
                         
-                        local textService = game:GetService("TextService")
+                        local textService = SRV("TextService")
                         local labelFont = Fonts.Medium
                         local labelSize = 12
                         local sidePad, vPad, gap, itemH = 10, 6, 2, 24
@@ -6246,7 +6264,7 @@ function Library:CreateLibrary(opts)
                         ctxMenu.Size = UDim2.fromOffset(menuW, menuH)
                         local btnAbs = keybindBtn.AbsolutePosition
                         local btnSize = keybindBtn.AbsoluteSize
-                        local guiInset = game:GetService("GuiService"):GetGuiInset()
+                        local guiInset = SRV("GuiService"):GetGuiInset()
                         
                         local px = btnAbs.X
                         local py = btnAbs.Y - menuH - 6 + guiInset.Y
@@ -6614,7 +6632,7 @@ function Library:CreateLibrary(opts)
         local function getMouseGuiPos(input)
             
             local ok, inset = pcall(function()
-                return game:GetService("GuiService"):GetGuiInset()
+                return SRV("GuiService"):GetGuiInset()
             end)
             local pos
             if input and input.UserInputType == Enum.UserInputType.Touch then
