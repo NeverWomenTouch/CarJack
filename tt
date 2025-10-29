@@ -1456,6 +1456,16 @@ do
                 if isDragging then
                     isDragging = false
                     T(strokeElement, 0.2, {Color = Theme.Stroke, Thickness = 1}):Play()
+                    pcall(function()
+                        if Library then
+                            Library._keybindListPosition = {
+                                X = frame.Position.X.Scale,
+                                XOffset = frame.Position.X.Offset,
+                                Y = frame.Position.Y.Scale,
+                                YOffset = frame.Position.Y.Offset
+                            }
+                        end
+                    end)
                 end
             end
         end)
@@ -1589,7 +1599,13 @@ do
                 PaddingBottom = UDim.new(0, 4),
                 Parent = self._keybindScrollFrame
             })        
-        self:_setupKeybindListDragging(mainFrame, outerStroke)
+            pcall(function()
+                local kp = Library and Library._keybindListPosition
+                if kp and type(kp) == "table" then
+                    mainFrame.Position = UDim2.new(kp.X or 0, kp.XOffset or 0, kp.Y or 0, kp.YOffset or 0)
+                end
+            end)
+            self:_setupKeybindListDragging(mainFrame, outerStroke)
         
     
         self:_updateKeybindDisplay()
@@ -1954,7 +1970,26 @@ function Library:CreateLibrary(opts)
                 table.sort(keys)
                 for _, k in ipairs(keys) do orderedControls[k] = controlsTbl[k] end
             end
-            local payload = { controls = orderedControls, metadata = meta }
+            local libraryInfo = {}
+            pcall(function()
+                if root then
+                    pcall(function() libraryInfo.window = { size = serialize(root.Size), position = serialize(root.Position) } end)
+                else
+                    pcall(function() libraryInfo.window = { size = serialize(UDim2.new(0,0,0,0)), position = serialize(UDim2.new(0,0,0,0)) } end)
+                end
+                if Library and Library._keybindListPosition then
+                    local k = Library._keybindListPosition
+                    pcall(function() libraryInfo.keybindList = serialize(UDim2.new(k.X or 0, k.XOffset or 0, k.Y or 0, k.YOffset or 0)) end)
+                end
+                if Library and Library._watermarkPosition then
+                    pcall(function() libraryInfo.watermark = Library._watermarkPosition end)
+                end
+                if Library and Library._mobileTogglePosition then
+                    local m = Library._mobileTogglePosition
+                    pcall(function() libraryInfo.mobileToggle = serialize(UDim2.new(m.X or 0, m.XOffset or 0, m.Y or 0, m.YOffset or 0)) end)
+                end
+            end)
+            local payload = { controls = orderedControls, metadata = meta, library = libraryInfo }
 
             if MEM_MODE then
                 local key = memEnsure()
@@ -2544,6 +2579,12 @@ function Library:CreateLibrary(opts)
                         resizingCount = math.max(0, resizingCount - 1)
                         if resizingCount == 0 then
                             resizeEndEffect()
+                            pcall(function()
+                                if Library and root then
+                                    Library._librarySize = root.Size
+                                    Library._libraryPosition = root.Position
+                                end
+                            end)
                             task.delay(0.6, function() if resizingCount == 0 then sizeLabel.Visible = false end end)
                         end
                     end
@@ -3198,10 +3239,9 @@ function Library:CreateLibrary(opts)
                     
                     local dragSinkAction = sanitize(libraryName) .. "SliderDrag_" .. id
                     local function bindDragSink()
-                        local keys = Enum.KeyCode:GetEnumItems()
+                        local keys = { Enum.KeyCode.Left, Enum.KeyCode.Right, Enum.KeyCode.Up, Enum.KeyCode.Down, Enum.KeyCode.Home, Enum.KeyCode.End, Enum.KeyCode.Return, Enum.KeyCode.KeypadEnter, Enum.KeyCode.Escape }
                         ContextActionService:BindAction(dragSinkAction, function(_, state, input)
                             if not dragging then return Enum.ContextActionResult.Pass end
-                            
                             return Enum.ContextActionResult.Sink
                         end, false, table.unpack(keys))
                     end
@@ -6423,6 +6463,12 @@ function Library:CreateLibrary(opts)
             ZIndex = 1,
             Parent = RootGui
         })
+        pcall(function()
+            local mp = Library and Library._mobileTogglePosition
+            if mp and type(mp) == "table" then
+                container.Position = UDim2.new(mp.X or 0, mp.XOffset or 0, mp.Y or 0, mp.YOffset or 0)
+            end
+        end)
 
         local toggleFrame = Create("Frame", {
             Name = "MobileToggle",
@@ -6602,7 +6648,17 @@ function Library:CreateLibrary(opts)
                 applyState(true)
             end
             dragging = false
-            pressPos = nil; dragOffset = nil
+                pcall(function()
+                    if Library and container then
+                        Library._mobileTogglePosition = {
+                            X = container.Position.X.Scale,
+                            XOffset = container.Position.X.Offset,
+                            Y = container.Position.Y.Scale,
+                            YOffset = container.Position.Y.Offset
+                        }
+                    end
+                end)
+                pressPos = nil; dragOffset = nil
         end
 
         button.MouseButton1Down:Connect(function() beginPress() end)
@@ -7008,6 +7064,49 @@ function Library:CreateLibrary(opts)
                 end
             end
         end
+        pcall(function()
+            local okRaw, raw = pcall(function() return gr(filePath(safe)) end)
+            if okRaw and type(raw) == "string" and #raw > 0 then
+                local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                if okj and type(dec) == "table" and type(dec.library) == "table" then
+                    local lib = dec.library
+                    pcall(function()
+                        if lib.window and lib.window.size then
+                            local s = deserialize(lib.window.size) or lib.window.size
+                            if s then root.Size = s end
+                        end
+                        if lib.window and lib.window.position then
+                            local p = deserialize(lib.window.position) or lib.window.position
+                            if p then root.Position = p end
+                        end
+                        if lib.keybindList then
+                            local kp = deserialize(lib.keybindList) or lib.keybindList
+                            if kp then
+                                Library._keybindListPosition = kp
+                                if Library._keybindList and Library._keybindList.Parent then
+                                    local mf = Library._keybindList:FindFirstChild("MainFrame")
+                                    if mf then mf.Position = kp end
+                                end
+                            end
+                        end
+                        if lib.watermark then
+                            local wp = deserialize(lib.watermark) or lib.watermark
+                            if wp then pcall(function() Library:SetWatermarkPosition(wp) end) end
+                        end
+                        if lib.mobileToggle then
+                            local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
+                            if mp then
+                                Library._mobileTogglePosition = mp
+                                pcall(function()
+                                    local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                                    if cont then cont.Position = mp end
+                                end)
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
     end
     Window.ListConfigs = function() return Config.List() end
     Window.DeleteConfig = function(name)
