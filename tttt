@@ -194,47 +194,43 @@ local Theme = {
     Bad = Color3.fromRGB(235, 80, 90),
     Scrollbar = Color3.fromRGB(50, 54, 52),
 }
-        pcall(function()
-            local dec = nil
-            pcall(function() dec = Config.LoadFull(safe) end)
-            if type(dec) == "table" and type(dec.library) == "table" then
-                local lib = dec.library
-                pcall(function()
-                    if lib.window and lib.window.size then
-                        local s = deserialize(lib.window.size) or lib.window.size
-                        if s then root.Size = s end
-                    end
-                    if lib.window and lib.window.position then
-                        local p = deserialize(lib.window.position) or lib.window.position
-                        if p then root.Position = p end
-                    end
-                    if lib.keybindList then
-                        local kp = deserialize(lib.keybindList) or lib.keybindList
-                        if kp then
-                            Library._keybindListPosition = kp
-                            if Library._keybindList and Library._keybindList.Parent then
-                                local mf = Library._keybindList:FindFirstChild("MainFrame")
-                                if mf then mf.Position = kp end
-                            end
-                        end
-                    end
-                    if lib.watermark then
-                        local wp = deserialize(lib.watermark) or lib.watermark
-                        if wp then pcall(function() Library:SetWatermarkPosition(wp) end) end
-                    end
-                    if lib.mobileToggle then
-                        local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
-                        if mp then
-                            Library._mobileTogglePosition = mp
-                            pcall(function()
-                                local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
-                                if cont then cont.Position = mp end
-                            end)
-                        end
-                    end
-                end)
-            end
-        end)
+local Fonts = {
+    Regular = Enum.Font.Gotham,
+    Medium = Enum.Font.GothamMedium,
+    Bold = Enum.Font.GothamBold,
+}
+local function T(i, t, p) return TweenService:Create(i, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), p) end
+local function sanitize(s) s = tostring(s or "Game"); s = s:gsub("[^%w%s%-_]", "_"); s = s:gsub("%s+", "_"); return s end
+local function Signal()
+    local h = {}
+    return {
+        Connect = function(_, fn)
+            local c = {Connected = true}
+            h[#h+1] = {fn = fn, c = c}
+            function c:Disconnect() self.Connected = false end
+            return c
+        end,
+        Fire = function(_, ...)
+            for i=1,#h do local x=h[i]; if x.c.Connected then coroutine.wrap(x.fn)(...) end end
+        end
+    }
+end
+local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {} }
+Library.FormatKeyName = FormatKeyName
+
+Library._activeNotifications = {}
+Library._activeTopNotifications = {}
+Library._activeModalNotification = nil
+do
+    Library._watermark = nil
+    Library._watermarkText = ""
+    Library._watermarkVisible = true
+    Library._watermarkTextColor = Color3.fromRGB(255, 255, 255) 
+    Library._watermarkBackgroundColor = Theme.Bg
+    Library._watermarkAccentColor = Theme.Accent
+    Library._watermarkFont = Fonts.Medium
+    Library._watermarkFontSize = 13
+    Library._watermarkTransparency = 0
     
         Library._watermarkPosition = Library._watermarkPosition or {
         X = 1,
@@ -2120,21 +2116,6 @@ function Library:CreateLibrary(opts)
                 end
             end
             return {}
-        end
-        function Config.LoadFull(name)
-            Config.Ensure()
-            local s = sanitize(name or "")
-            if s == "" then return nil end
-            if MEM_MODE then
-                local key = memEnsure()
-                return Library._memConfig.files[key][s]
-            end
-            local path = filePath(s)
-            local ok, raw = pcall(function() return gr(path) end)
-            if not ok or type(raw) ~= "string" or #raw == 0 then return nil end
-            local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-            if okj and type(dec) == "table" then return dec end
-            return nil
         end
 
         function Config.List()
@@ -7089,35 +7070,66 @@ function Library:CreateLibrary(opts)
                 if okj and type(dec) == "table" and type(dec.library) == "table" then
                     local lib = dec.library
                     pcall(function()
+                        -- Window size/position (UDim2 expected)
                         if lib.window and lib.window.size then
                             local s = deserialize(lib.window.size) or lib.window.size
-                            if s then root.Size = s end
+                            if s then
+                                root.Size = s
+                                pcall(function() Library._librarySize = s end)
+                            end
                         end
                         if lib.window and lib.window.position then
                             local p = deserialize(lib.window.position) or lib.window.position
-                            if p then root.Position = p end
+                            if p then
+                                root.Position = p
+                                pcall(function() Library._libraryPosition = p end)
+                            end
                         end
+
+                        -- Keybind list: normalize to table {X, XOffset, Y, YOffset} so _createKeybindList can reuse it
                         if lib.keybindList then
                             local kp = deserialize(lib.keybindList) or lib.keybindList
                             if kp then
-                                Library._keybindListPosition = kp
+                                local kpTable = kp
+                                if typeof and typeof(kp) == "UDim2" then
+                                    kpTable = { X = kp.X.Scale, XOffset = kp.X.Offset, Y = kp.Y.Scale, YOffset = kp.Y.Offset }
+                                end
+                                Library._keybindListPosition = kpTable
                                 if Library._keybindList and Library._keybindList.Parent then
                                     local mf = Library._keybindList:FindFirstChild("MainFrame")
-                                    if mf then mf.Position = kp end
+                                    if mf then
+                                        mf.Position = UDim2.new(kpTable.X or 0, kpTable.XOffset or 0, kpTable.Y or 0, kpTable.YOffset or 0)
+                                    end
                                 end
                             end
                         end
+
+                        -- Watermark: normalize if needed and apply via setter
                         if lib.watermark then
                             local wp = deserialize(lib.watermark) or lib.watermark
-                            if wp then pcall(function() Library:SetWatermarkPosition(wp) end) end
+                            if wp then
+                                local wpTable = wp
+                                if typeof and typeof(wp) == "UDim2" then
+                                    wpTable = { X = wp.X.Scale, XOffset = wp.X.Offset, Y = wp.Y.Scale, YOffset = wp.Y.Offset }
+                                end
+                                pcall(function() Library:SetWatermarkPosition(wpTable) end)
+                            end
                         end
+
+                        -- Mobile toggle: normalize to table and set container position
                         if lib.mobileToggle then
                             local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
                             if mp then
-                                Library._mobileTogglePosition = mp
+                                local mpTable = mp
+                                if typeof and typeof(mp) == "UDim2" then
+                                    mpTable = { X = mp.X.Scale, XOffset = mp.X.Offset, Y = mp.Y.Scale, YOffset = mp.Y.Offset }
+                                end
+                                Library._mobileTogglePosition = mpTable
                                 pcall(function()
                                     local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
-                                    if cont then cont.Position = mp end
+                                    if cont then
+                                        cont.Position = UDim2.new(mpTable.X or 0, mpTable.XOffset or 0, mpTable.Y or 0, mpTable.YOffset or 0)
+                                    end
                                 end)
                             end
                         end
