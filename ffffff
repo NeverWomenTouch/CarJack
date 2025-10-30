@@ -1615,8 +1615,72 @@ do
                 if kp and type(kp) == "table" then
                     mainFrame.Position = UDim2.new(kp.X or 0, kp.XOffset or 0, kp.Y or 0, kp.YOffset or 0)
                 end
+                local ks = Library and Library._keybindListSize
+                if ks and typeof(ks) == "UDim2" then
+                    mainFrame.Size = ks
+                end
             end)
             self:_setupKeybindListDragging(mainFrame, outerStroke)
+
+            -- Add a resize grip to allow resizing the keybind list (bottom-right corner)
+            do
+                local grip = Create("Frame", {Name = "ResizeGrip", BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(1, 0, 1, 0), AnchorPoint = Vector2.new(1,1), ZIndex = mainFrame.ZIndex + 5, Parent = mainFrame})
+                local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-4,1,-4), ZIndex = grip.ZIndex + 1, Parent = grip})
+                local dotSize = 2
+                local dotPositions = {
+                    {x = 12, y = 12}, {x = 8, y = 12}, {x = 12, y = 8}, {x = 4, y = 12}, {x = 8, y = 8}, {x = 12, y = 4}
+                }
+                for i, pos in ipairs(dotPositions) do
+                    Create("Frame", {
+                        BackgroundColor3 = Theme.Accent,
+                        BackgroundTransparency = 0.4,
+                        BorderSizePixel = 0,
+                        Size = UDim2.fromOffset(dotSize, dotSize),
+                        Position = UDim2.fromOffset(pos.x, pos.y),
+                        ZIndex = gripRoot.ZIndex + i,
+                        Parent = gripRoot
+                    }, {Create("UICorner", {CornerRadius = UDim.new(0,1)})})
+                end
+
+                local resizing = false
+                local startMouse, startSize
+                local minW, minH = 240, 300 -- default minimum size is the initial size
+
+                grip.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        resizing = true
+                        local pos = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                        startMouse = Vector2.new(pos.X, pos.Y)
+                        startSize = mainFrame.AbsoluteSize
+                        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then resizing = false end end)
+                    end
+                end)
+
+                UserInputService.InputChanged:Connect(function(input)
+                    if not resizing then return end
+                    if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+                    local pos = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                    local dx = pos.X - startMouse.X
+                    local dy = pos.Y - startMouse.Y
+                    local newW = math.max(minW, math.floor(startSize.X + dx))
+                    local newH = math.max(minH, math.floor(startSize.Y + dy))
+                    mainFrame.Size = UDim2.fromOffset(newW, newH)
+                end)
+
+                grip.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        if resizing then
+                            resizing = false
+                            pcall(function()
+                                if Library and mainFrame then
+                                    Library._keybindListSize = mainFrame.Size
+                                    Library._keybindListPosition = mainFrame.Position
+                                end
+                            end)
+                        end
+                    end
+                end)
+            end
         
     
         self:_updateKeybindDisplay()
