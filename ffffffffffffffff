@@ -673,12 +673,14 @@ do
             
             
             if self._watermarkFrame then
-                self._watermarkFrame.Position = UDim2.new(
+                local newp = UDim2.new(
                     self._watermarkPosition.X,
                     self._watermarkPosition.XOffset,
                     self._watermarkPosition.Y,
                     self._watermarkPosition.YOffset
                 )
+                self._watermarkFrame.Position = newp
+                warn("[Library:SetWatermarkPosition] applied ->", tostring(newp))
             end
         end
     end
@@ -1677,10 +1679,12 @@ do
                 local kp = Library and Library._keybindListPosition
                 if kp and type(kp) == "table" then
                     mainFrame.Position = UDim2.new(kp.X or 0, kp.XOffset or 0, kp.Y or 0, kp.YOffset or 0)
+                    warn("[KeybindList._createKeybindList] applied initial Position ->", tostring(mainFrame.Position))
                 end
                 local ks = Library and Library._keybindListSize
                 if ks and typeof(ks) == "UDim2" then
                     mainFrame.Size = ks
+                    warn("[KeybindList._createKeybindList] applied initial Size ->", tostring(mainFrame.Size))
                 end
             end)
             self:_setupKeybindListDragging(mainFrame, outerStroke)
@@ -2239,14 +2243,18 @@ function Library:CreateLibrary(opts)
                             pcall(function()
                                 if Library and type(dec.library) == 'table' then
                                     local lib = dec.library
+                                    pcall(function()
+                                        local okenc, js = pcall(function() return HttpService:JSONEncode(lib) end)
+                                        warn("[Config.Load] found library block:", okenc and js or tostring(lib))
+                                    end)
                                     -- window
                                     if lib.window and lib.window.size then
                                         local s = deserialize(lib.window.size) or lib.window.size
-                                        if s then pcall(function() Library._librarySize = s end) end
+                                        if s then pcall(function() Library._librarySize = s end); warn("[Config.Load] cached Library._librarySize set ->", tostring(s)) end
                                     end
                                     if lib.window and lib.window.position then
                                         local p = deserialize(lib.window.position) or lib.window.position
-                                        if p then pcall(function() Library._libraryPosition = p end) end
+                                        if p then pcall(function() Library._libraryPosition = p end); warn("[Config.Load] cached Library._libraryPosition set ->", tostring(p)) end
                                     end
                                     -- keybind list: support new shape { size = <UDim2|ser>, position = {X,..} } and legacy UDim2/table
                                     if lib.keybindList then
@@ -2255,6 +2263,7 @@ function Library:CreateLibrary(opts)
                                             local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
                                             if ks and (typeof and typeof(ks) == 'UDim2' or type(ks) == 'table') then
                                                 pcall(function() Library._keybindListSize = ks end)
+                                                warn("[Config.Load] cached Library._keybindListSize set ->", tostring(ks))
                                             end
                                         end
                                         -- position
@@ -2266,6 +2275,7 @@ function Library:CreateLibrary(opts)
                                                 else
                                                     Library._keybindListPosition = kp
                                                 end
+                                                warn("[Config.Load] cached Library._keybindListPosition set ->", tostring(kp))
                                             end
                                         else
                                             -- legacy format: maybe lib.keybindList is a UDim2 or normalized table
