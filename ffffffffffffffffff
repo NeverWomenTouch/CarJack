@@ -1682,9 +1682,20 @@ do
                     warn("[KeybindList._createKeybindList] applied initial Position ->", tostring(mainFrame.Position))
                 end
                 local ks = Library and Library._keybindListSize
-                if ks and typeof(ks) == "UDim2" then
-                    mainFrame.Size = ks
-                    warn("[KeybindList._createKeybindList] applied initial Size ->", tostring(mainFrame.Size))
+                if ks then
+                    -- accept UDim2 or serialized/table form
+                    if typeof and typeof(ks) == "UDim2" then
+                        mainFrame.Size = ks
+                        warn("[KeybindList._createKeybindList] applied initial Size ->", tostring(mainFrame.Size))
+                    elseif type(ks) == 'table' then
+                        if ks.__t == 'ud2' and type(ks.x) == 'table' and type(ks.y) == 'table' then
+                            mainFrame.Size = UDim2.new(ks.x[1] or 0, ks.x[2] or 0, ks.y[1] or 0, ks.y[2] or 0)
+                            warn("[KeybindList._createKeybindList] applied initial Size (from serialized ud2) ->", tostring(mainFrame.Size))
+                        elseif ks.X and ks.Y then
+                            mainFrame.Size = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
+                            warn("[KeybindList._createKeybindList] applied initial Size (from table) ->", tostring(mainFrame.Size))
+                        end
+                    end
                 end
             end)
             self:_setupKeybindListDragging(mainFrame, outerStroke)
@@ -2517,6 +2528,23 @@ function Library:CreateLibrary(opts)
             Library._libraryPosition = root.Position
             warn("[Window/Create] cached Library._librarySize ->", tostring(root.Size))
             warn("[Window/Create] cached Library._libraryPosition ->", tostring(root.Position))
+        end
+    end)
+    -- If config already provided cached values, apply them now to the freshly created root
+    pcall(function()
+        if Library and Library._librarySize then
+            local ok, ls = pcall(function() return Library._librarySize end)
+            if ok and ls then
+                pcall(function() root.Size = (type(ls) == 'table' and (ls.__t == 'ud2' and UDim2.new(ls.x[1] or 0, ls.x[2] or 0, ls.y[1] or 0, ls.y[2] or 0) or (ls.X and UDim2.new(ls.X or 0, ls.XOffset or 0, ls.Y or 0, ls.YOffset or 0))) or ls) end)
+                warn("[Window/Create] applied cached Library._librarySize ->", tostring(root.Size))
+            end
+        end
+        if Library and Library._libraryPosition then
+            local ok2, lp = pcall(function() return Library._libraryPosition end)
+            if ok2 and lp then
+                pcall(function() root.Position = (type(lp) == 'table' and (lp.__t == 'ud2' and UDim2.new(lp.x[1] or 0, lp.x[2] or 0, lp.y[1] or 0, lp.y[2] or 0) or (lp.X and UDim2.new(lp.X or 0, lp.XOffset or 0, lp.Y or 0, lp.YOffset or 0))) or lp) end)
+                warn("[Window/Create] applied cached Library._libraryPosition ->", tostring(root.Position))
+            end
         end
     end)
     -- If a saved library position exists, apply it so recreated UI appears where user saved it
