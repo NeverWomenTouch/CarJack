@@ -2057,7 +2057,10 @@ function Library:CreateLibrary(opts)
                     local k = Library._keybindListPosition
                     pcall(function()
                         -- save normalized table so loader can apply consistently
-                        libraryInfo.keybindList = { X = k.X or 0, XOffset = k.XOffset or 0, Y = k.Y or 0, YOffset = k.YOffset or 0 }
+                        libraryInfo.keybindList = { position = { X = k.X or 0, XOffset = k.XOffset or 0, Y = k.Y or 0, YOffset = k.YOffset or 0 } }
+                        if Library._keybindListSize then
+                            pcall(function() libraryInfo.keybindList.size = serialize(Library._keybindListSize) end)
+                        end
                     end)
                 end
                 if Library and Library._watermarkPosition then
@@ -2176,14 +2179,34 @@ function Library:CreateLibrary(opts)
                                         local p = deserialize(lib.window.position) or lib.window.position
                                         if p then pcall(function() Library._libraryPosition = p end) end
                                     end
-                                    -- keybind list
+                                    -- keybind list: support new shape { size = <UDim2|ser>, position = {X,..} } and legacy UDim2/table
                                     if lib.keybindList then
-                                        local kp = deserialize(lib.keybindList) or lib.keybindList
-                                        if kp then
-                                            if typeof and typeof(kp) == 'UDim2' then
-                                                Library._keybindListPosition = { X = kp.X.Scale, XOffset = kp.X.Offset, Y = kp.Y.Scale, YOffset = kp.Y.Offset }
-                                            else
-                                                Library._keybindListPosition = kp
+                                        -- size
+                                        if type(lib.keybindList) == 'table' and lib.keybindList.size then
+                                            local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
+                                            if ks and (typeof and typeof(ks) == 'UDim2' or type(ks) == 'table') then
+                                                pcall(function() Library._keybindListSize = ks end)
+                                            end
+                                        end
+                                        -- position
+                                        if type(lib.keybindList) == 'table' and lib.keybindList.position then
+                                            local kp = deserialize(lib.keybindList.position) or lib.keybindList.position
+                                            if kp then
+                                                if typeof and typeof(kp) == 'UDim2' then
+                                                    Library._keybindListPosition = { X = kp.X.Scale, XOffset = kp.X.Offset, Y = kp.Y.Scale, YOffset = kp.Y.Offset }
+                                                else
+                                                    Library._keybindListPosition = kp
+                                                end
+                                            end
+                                        else
+                                            -- legacy format: maybe lib.keybindList is a UDim2 or normalized table
+                                            local kpLegacy = deserialize(lib.keybindList) or lib.keybindList
+                                            if kpLegacy then
+                                                if typeof and typeof(kpLegacy) == 'UDim2' then
+                                                    Library._keybindListPosition = { X = kpLegacy.X.Scale, XOffset = kpLegacy.X.Offset, Y = kpLegacy.Y.Scale, YOffset = kpLegacy.Y.Offset }
+                                                else
+                                                    Library._keybindListPosition = kpLegacy
+                                                end
                                             end
                                         end
                                     end
