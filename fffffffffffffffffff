@@ -2547,6 +2547,87 @@ function Library:CreateLibrary(opts)
             end
         end
     end)
+
+    -- monitor: ensure cached values are applied when elements become available (robust against load ordering)
+    do
+        task.spawn(function()
+            local applied = { root = false, keybind = false, watermark = false, mobile = false }
+            for i = 1, 200 do -- ~10s max
+                -- root
+                pcall(function()
+                    if not applied.root and root and Library and Library._librarySize then
+                        local ls = Library._librarySize
+                        local setv = nil
+                        if typeof and typeof(ls) == 'UDim2' then setv = ls end
+                        if type(ls) == 'table' then
+                            if ls.__t == 'ud2' and type(ls.x) == 'table' and type(ls.y) == 'table' then
+                                setv = UDim2.new(tonumber(ls.x[1]) or 0, tonumber(ls.x[2]) or 0, tonumber(ls.y[1]) or 0, tonumber(ls.y[2]) or 0)
+                            elseif ls.X and ls.Y then
+                                setv = UDim2.new(ls.X or 0, ls.XOffset or 0, ls.Y or 0, ls.YOffset or 0)
+                            end
+                        end
+                        if setv then root.Size = setv; warn("[Monitor] applied root.Size ->", tostring(setv)); applied.root = true end
+                    end
+                end)
+
+                -- keybind list
+                pcall(function()
+                    if not applied.keybind and Library and Library._keybindList and Library._keybindList.Parent and Library._keybindListSize then
+                        local ks = Library._keybindListSize
+                        local sets = nil
+                        if typeof and typeof(ks) == 'UDim2' then sets = ks end
+                        if type(ks) == 'table' then
+                            if ks.__t == 'ud2' and type(ks.x) == 'table' and type(ks.y) == 'table' then
+                                sets = UDim2.new(tonumber(ks.x[1]) or 0, tonumber(ks.x[2]) or 0, tonumber(ks.y[1]) or 0, tonumber(ks.y[2]) or 0)
+                            elseif ks.X and ks.Y then
+                                sets = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
+                            end
+                        end
+                        local kp = Library._keybindListPosition
+                        local setp = nil
+                        if type(kp) == 'table' then
+                            if kp.__t == 'ud2' and type(kp.x) == 'table' and type(kp.y) == 'table' then
+                                setp = UDim2.new(tonumber(kp.x[1]) or 0, tonumber(kp.x[2]) or 0, tonumber(kp.y[1]) or 0, tonumber(kp.y[2]) or 0)
+                            elseif kp.X and kp.Y then
+                                setp = UDim2.new(kp.X or 0, kp.XOffset or 0, kp.Y or 0, kp.YOffset or 0)
+                            end
+                        elseif typeof and typeof(kp) == 'UDim2' then setp = kp end
+                        local mf = Library._keybindList:FindFirstChild("MainFrame")
+                        if mf then
+                            if sets then mf.Size = sets; warn("[Monitor] applied KeybindList.Size ->", tostring(sets)) end
+                            if setp then mf.Position = setp; warn("[Monitor] applied KeybindList.Position ->", tostring(setp)) end
+                            if sets or setp then applied.keybind = true end
+                        end
+                    end
+                end)
+
+                -- watermark
+                pcall(function()
+                    if not applied.watermark and Library and Library._watermarkPosition and Library._watermark then
+                        Library:SetWatermarkPosition(Library._watermarkPosition)
+                        warn("[Monitor] applied Watermark ->", tostring(Library._watermarkPosition))
+                        applied.watermark = true
+                    end
+                end)
+
+                -- mobile toggle
+                pcall(function()
+                    if not applied.mobile and RootGui then
+                        local cont = RootGui:FindFirstChild("MobileToggleContainer")
+                        if cont and Library and Library._mobileTogglePosition then
+                            local m = Library._mobileTogglePosition
+                            pcall(function() cont.Position = UDim2.new(m.X or 0, m.XOffset or 0, m.Y or 0, m.YOffset or 0) end)
+                            warn("[Monitor] applied MobileToggle ->", tostring(m))
+                            applied.mobile = true
+                        end
+                    end
+                end)
+
+                if applied.root and applied.keybind and applied.watermark and applied.mobile then break end
+                task.wait(0.05)
+            end
+        end)
+    end
     -- If a saved library position exists, apply it so recreated UI appears where user saved it
     pcall(function()
         local lp = Library and Library._libraryPosition
@@ -3625,6 +3706,114 @@ function Library:CreateLibrary(opts)
                             else
                                 updateFromX(x)
                             end
+                        end
+                    end)
+
+                    -- Immediately attempt to apply cached library UI state to any live elements
+                    pcall(function()
+                        -- Apply root size/position if present
+                        if Library and Library._librarySize and root then
+                            local ok, ls = pcall(function() return Library._librarySize end)
+                            if ok and ls then
+                                local a = deserialize and pcall(function() return deserialize(ls) end) or nil
+                                local setv = nil
+                                if a and a ~= nil then setv = a end
+                                if not setv and type(ls) == 'table' then
+                                    if ls.__t == 'ud2' and type(ls.x) == 'table' and type(ls.y) == 'table' then
+                                        setv = UDim2.new(tonumber(ls.x[1]) or 0, tonumber(ls.x[2]) or 0, tonumber(ls.y[1]) or 0, tonumber(ls.y[2]) or 0)
+                                    elseif ls.X and ls.Y then
+                                        setv = UDim2.new(ls.X or 0, ls.XOffset or 0, ls.Y or 0, ls.YOffset or 0)
+                                    end
+                                end
+                                if setv then
+                                    pcall(function() root.Size = setv end)
+                                    warn("[Config.Load][ApplyNow] root.Size set ->", tostring(setv))
+                                end
+                            end
+                        end
+
+                        if Library and Library._libraryPosition and root then
+                            local ok, lp = pcall(function() return Library._libraryPosition end)
+                            if ok and lp then
+                                local a = deserialize and pcall(function() return deserialize(lp) end) or nil
+                                local setp = nil
+                                if a and a ~= nil then setp = a end
+                                if not setp and type(lp) == 'table' then
+                                    if lp.__t == 'ud2' and type(lp.x) == 'table' and type(lp.y) == 'table' then
+                                        setp = UDim2.new(tonumber(lp.x[1]) or 0, tonumber(lp.x[2]) or 0, tonumber(lp.y[1]) or 0, tonumber(lp.y[2]) or 0)
+                                    elseif lp.X and lp.Y then
+                                        setp = UDim2.new(lp.X or 0, lp.XOffset or 0, lp.Y or 0, lp.YOffset or 0)
+                                    end
+                                end
+                                if setp then
+                                    pcall(function() root.Position = setp end)
+                                    warn("[Config.Load][ApplyNow] root.Position set ->", tostring(setp))
+                                end
+                            end
+                        end
+
+                        -- KeybindList
+                        if Library and Library._keybindListPosition and Library._keybindList and Library._keybindList.Parent then
+                            local kp = Library._keybindListPosition
+                            local setp = nil
+                            if type(kp) == 'table' then
+                                if kp.__t == 'ud2' and type(kp.x) == 'table' and type(kp.y) == 'table' then
+                                    setp = UDim2.new(tonumber(kp.x[1]) or 0, tonumber(kp.x[2]) or 0, tonumber(kp.y[1]) or 0, tonumber(kp.y[2]) or 0)
+                                elseif kp.X and kp.Y then
+                                    setp = UDim2.new(kp.X or 0, kp.XOffset or 0, kp.Y or 0, kp.YOffset or 0)
+                                end
+                            elseif typeof and typeof(kp) == 'UDim2' then
+                                setp = kp
+                            end
+                            if setp then
+                                local mf = Library._keybindList:FindFirstChild("MainFrame")
+                                if mf then
+                                    pcall(function() mf.Position = setp end)
+                                    warn("[Config.Load][ApplyNow] KeybindList.Position set ->", tostring(setp))
+                                end
+                            end
+                        end
+
+                        if Library and Library._keybindListSize and Library._keybindList and Library._keybindList.Parent then
+                            local ks = Library._keybindListSize
+                            local sets = nil
+                            if typeof and typeof(ks) == 'UDim2' then sets = ks end
+                            if type(ks) == 'table' then
+                                if ks.__t == 'ud2' and type(ks.x) == 'table' and type(ks.y) == 'table' then
+                                    sets = UDim2.new(tonumber(ks.x[1]) or 0, tonumber(ks.x[2]) or 0, tonumber(ks.y[1]) or 0, tonumber(ks.y[2]) or 0)
+                                elseif ks.X and ks.Y then
+                                    sets = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
+                                end
+                            end
+                            if sets then
+                                local mf = Library._keybindList:FindFirstChild("MainFrame")
+                                if mf then
+                                    pcall(function() mf.Size = sets end)
+                                    warn("[Config.Load][ApplyNow] KeybindList.Size set ->", tostring(sets))
+                                end
+                            end
+                        end
+
+                        -- Watermark
+                        if Library and Library._watermarkPosition then
+                            pcall(function()
+                                Library:SetWatermarkPosition(Library._watermarkPosition)
+                                warn("[Config.Load][ApplyNow] Watermark applied ->", tostring(Library._watermarkPosition))
+                            end)
+                        end
+
+                        -- Mobile toggle
+                        if Library and Library._mobileTogglePosition then
+                            pcall(function()
+                                local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                                if cont then
+                                    local m = Library._mobileTogglePosition
+                                    if type(m) == 'table' then
+                                        pcall(function() cont.Position = UDim2.new(m.X or 0, m.XOffset or 0, m.Y or 0, m.YOffset or 0) end)
+                                        warn("[Config.Load][ApplyNow] MobileToggle applied ->", tostring(m))
+                                    end
+                                end
+                            end)
                         end
                     end)
                     UserInputService.InputEnded:Connect(function(input)
