@@ -1245,6 +1245,18 @@ do
             TextXAlignment = Enum.TextXAlignment.Center,
             Parent = statusContainer
         })
+
+        -- Auto-resize keyContainer to fit key text when needed (prevents overflow over the box)
+        pcall(function()
+            local textService = SRV("TextService")
+            local textSize = textService:GetTextSize(keyLabel.Text or "", 10, Fonts.Bold, Vector2.new(math.huge, 20))
+            local entryWidth = entry.AbsoluteSize and entry.AbsoluteSize.X or 240
+            -- Cap key box to at most half the entry width, at least 60 px
+            local maxAllowed = math.floor(entryWidth * 0.5)
+            local desired = math.ceil(textSize.X + 16)
+            local finalW = math.max(60, math.min(desired, math.max(60, maxAllowed)))
+            keyContainer.Size = UDim2.fromOffset(finalW, 20)
+        end)
         
         
         
@@ -4354,13 +4366,8 @@ function Library:CreateLibrary(opts)
                         box.TextColor3 = self._value and Theme.Text or Theme.SubText
                         box.Font = Fonts.Regular
                         
-                        local textService = SRV("TextService")
-                        local textSize = textService:GetTextSize(box.Text, 13, Fonts.Regular, Vector2.new(math.huge, 30))
-                        -- Auto-size the key display to fit its text, but cap it to half the parent width
-                        local parentHalf = math.floor((box.Parent and box.Parent.AbsoluteSize and box.Parent.AbsoluteSize.X or 240) * 0.5)
-                        local desired = math.ceil(textSize.X + 16)
-                        local width = math.max(60, math.min(desired, math.max(60, parentHalf - 8)))
-                        box.Size = UDim2.fromOffset(width, box.AbsoluteSize.Y or 30)
+                        -- Keep the original layout: the key box should occupy the right half of the row so it lines up with others
+                        box.Size = UDim2.new(0.5, -4, 1, 0)
                         
                         
                         if self._keybindId then
