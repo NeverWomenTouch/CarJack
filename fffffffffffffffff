@@ -2510,6 +2510,15 @@ function Library:CreateLibrary(opts)
         Create("UICorner", {CornerRadius = UDim.new(0,12)})
     })
     self._singletonRoot = root
+    -- cache initial root size/position so Config.Save can persist them even if save happens before resize
+    pcall(function()
+        if Library then
+            Library._librarySize = root.Size
+            Library._libraryPosition = root.Position
+            warn("[Window/Create] cached Library._librarySize ->", tostring(root.Size))
+            warn("[Window/Create] cached Library._libraryPosition ->", tostring(root.Position))
+        end
+    end)
     -- If a saved library position exists, apply it so recreated UI appears where user saved it
     pcall(function()
         local lp = Library and Library._libraryPosition
