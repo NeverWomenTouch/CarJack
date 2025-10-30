@@ -212,91 +212,7 @@ local function Signal()
         end,
         Fire = function(_, ...)
             for i=1,#h do local x=h[i]; if x.c.Connected then coroutine.wrap(x.fn)(...) end end
-    -- Ensure any cached Library._* positions/sizes are applied to live UI elements (handles timing when elements created later)
-    pcall(function()
-        task.spawn(function()
-            local function toUDim2(v)
-                if not v then return nil end
-                if typeof and typeof(v) == 'UDim2' then return v end
-                if type(v) == 'table' then
-                    -- serialized form from our serializer: { __t = 'ud2', x = {scale, offset}, y = {scale, offset} }
-                    if v.__t == 'ud2' and type(v.x) == 'table' and type(v.y) == 'table' then
-                        return UDim2.new(v.x[1] or 0, v.x[2] or 0, v.y[1] or 0, v.y[2] or 0)
-                    end
-                    -- legacy/table form: { X = scale, XOffset = offset, Y = scale, YOffset = offset }
-                    if v.X and v.Y then
-                        return UDim2.new(v.X or 0, v.XOffset or 0, v.Y or 0, v.YOffset or 0)
-                    end
-                end
-                return nil
-            end
-
-            local function applyOnce()
-                -- library window
-                pcall(function()
-                    local ls = Library and Library._librarySize
-                    local conv = toUDim2(ls)
-                    if conv and root then root.Size = conv end
-
-                    local lp = Library and Library._libraryPosition
-                    local convp = toUDim2(lp)
-                    if convp and root then root.Position = convp end
-                end)
-
-                -- keybind list
-                pcall(function()
-                    local ks = Library and Library._keybindListSize
-                    if ks and Library and Library._keybindList and Library._keybindList.Parent then
-                        local mf = Library._keybindList:FindFirstChild("MainFrame")
-                        if mf then
-                            local convk = toUDim2(ks)
-                            if convk then mf.Size = convk end
-                        end
-                    end
-                    local kp = Library and Library._keybindListPosition
-                    if kp and Library and Library._keybindList and Library._keybindList.Parent then
-                        local mf = Library._keybindList:FindFirstChild("MainFrame")
-                        if mf then
-                            local convkp = toUDim2(kp)
-                            if convkp then mf.Position = convkp end
-                        end
-                    end
-                end)
-
-                -- watermark
-                pcall(function()
-                    if Library and Library._watermarkPosition then
-                        local wp = Library._watermarkPosition
-                        if type(wp) == 'table' then
-                            pcall(function() Library:SetWatermarkPosition(wp) end)
-                        elseif typeof and typeof(wp) == 'UDim2' then
-                            local wpTable = { X = wp.X.Scale, XOffset = wp.X.Offset, Y = wp.Y.Scale, YOffset = wp.Y.Offset }
-                            pcall(function() Library:SetWatermarkPosition(wpTable) end)
-                        end
-                    end
-                end)
-
-                -- mobile toggle
-                pcall(function()
-                    if Library and Library._mobileTogglePosition then
-                        local mp = Library._mobileTogglePosition
-                        local mpTable = mp
-                        if typeof and typeof(mp) == 'UDim2' then mpTable = { X = mp.X.Scale, XOffset = mp.X.Offset, Y = mp.Y.Scale, YOffset = mp.Y.Offset } end
-                        Library._mobileTogglePosition = mpTable
-                        local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
-                        if cont and mpTable then
-                            pcall(function() cont.Position = UDim2.new(mpTable.X or 0, mpTable.XOffset or 0, mpTable.Y or 0, mpTable.YOffset or 0) end)
-                        end
-                    end
-                end)
-            end
-
-            for i = 1, 6 do
-                applyOnce()
-                task.wait(0.05)
-            end
-        end)
-    end)
+    -- (re-apply of cached UI state moved into Window.LoadConfig to run when config loads)
         end
     }
 end
@@ -7395,13 +7311,16 @@ function Library:CreateLibrary(opts)
             local okRaw, raw = pcall(function() return gr(filePath(safe)) end)
             if okRaw and type(raw) == "string" and #raw > 0 then
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                if okj and type(dec) == "table" and type(dec.library) == "table" then
+                    if okj and type(dec) == "table" and type(dec.library) == "table" then
                     local lib = dec.library
                     pcall(function()
+                        local okenc, libjson = pcall(function() return HttpService:JSONEncode(lib) end)
+                        print("[Window.LoadConfig] loaded library block:", okenc and libjson or tostring(lib))
                         -- Window size/position (UDim2 expected)
                         if lib.window and lib.window.size then
                             local s = deserialize(lib.window.size) or lib.window.size
                             if s then
+                                print("[Window.LoadConfig] applying window.size ->", tostring(s))
                                 root.Size = s
                                 pcall(function() Library._librarySize = s end)
                             end
@@ -7409,6 +7328,7 @@ function Library:CreateLibrary(opts)
                         if lib.window and lib.window.position then
                             local p = deserialize(lib.window.position) or lib.window.position
                             if p then
+                                print("[Window.LoadConfig] applying window.position ->", tostring(p))
                                 root.Position = p
                                 pcall(function() Library._libraryPosition = p end)
                             end
@@ -7426,8 +7346,11 @@ function Library:CreateLibrary(opts)
                                         if mf then
                                             if typeof and typeof(ks) == 'UDim2' then
                                                 mf.Size = ks
+                                                print("[Window.LoadConfig] applied KeybindList.size (UDim2):", tostring(ks))
                                             elseif type(ks) == 'table' and ks.X and ks.Y then
-                                                mf.Size = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
+                                                local setv = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
+                                                mf.Size = setv
+                                                print("[Window.LoadConfig] applied KeybindList.size (table):", tostring(setv))
                                             end
                                         end
                                     end
@@ -7447,7 +7370,9 @@ function Library:CreateLibrary(opts)
                                 if Library._keybindList and Library._keybindList.Parent then
                                     local mf = Library._keybindList:FindFirstChild("MainFrame")
                                     if mf then
-                                        mf.Position = UDim2.new(kpTable.X or 0, kpTable.XOffset or 0, kpTable.Y or 0, kpTable.YOffset or 0)
+                                        local setp = UDim2.new(kpTable.X or 0, kpTable.XOffset or 0, kpTable.Y or 0, kpTable.YOffset or 0)
+                                        mf.Position = setp
+                                        print("[Window.LoadConfig] applied KeybindList.position:", tostring(setp))
                                     end
                                 end
                             end
@@ -7482,6 +7407,75 @@ function Library:CreateLibrary(opts)
                                 end)
                             end
                         end
+
+                        -- Debug: re-apply cached UI state a few times in case elements are created after load
+                        local function toUDim2(v)
+                            if not v then return nil end
+                            if typeof and typeof(v) == 'UDim2' then return v end
+                            if type(v) == 'table' then
+                                if v.__t == 'ud2' and type(v.x) == 'table' and type(v.y) == 'table' then
+                                    return UDim2.new(tonumber(v.x[1]) or 0, tonumber(v.x[2]) or 0, tonumber(v.y[1]) or 0, tonumber(v.y[2]) or 0)
+                                end
+                                if v.X and v.Y then return UDim2.new(v.X or 0, v.XOffset or 0, v.Y or 0, v.YOffset or 0) end
+                            end
+                            return nil
+                        end
+
+                        local function reapplyOnce()
+                            pcall(function()
+                                local ls = Library and Library._librarySize
+                                local conv = toUDim2(ls)
+                                if conv and root then
+                                    root.Size = conv
+                                    print("[Window.LoadConfig][Reapply] root.Size ->", tostring(conv))
+                                end
+                                local lp = Library and Library._libraryPosition
+                                local convp = toUDim2(lp)
+                                if convp and root then
+                                    root.Position = convp
+                                    print("[Window.LoadConfig][Reapply] root.Position ->", tostring(convp))
+                                end
+                            end)
+
+                            pcall(function()
+                                local ks = Library and Library._keybindListSize
+                                local kp = Library and Library._keybindListPosition
+                                if (ks or kp) and Library and Library._keybindList and Library._keybindList.Parent then
+                                    local mf = Library._keybindList:FindFirstChild("MainFrame")
+                                    if mf then
+                                        local convk = toUDim2(ks)
+                                        if convk then mf.Size = convk; print("[Window.LoadConfig][Reapply] KeybindList.Size ->", tostring(convk)) end
+                                        local convkp = toUDim2(kp)
+                                        if convkp then mf.Position = convkp; print("[Window.LoadConfig][Reapply] KeybindList.Position ->", tostring(convkp)) end
+                                    else
+                                        print("[Window.LoadConfig][Reapply] KeybindList MainFrame not present yet")
+                                    end
+                                end
+                            end)
+
+                            pcall(function()
+                                if Library and Library._watermarkPosition then
+                                    local wp = Library._watermarkPosition
+                                    if type(wp) == 'table' then
+                                        pcall(function() Library:SetWatermarkPosition(wp) end)
+                                        print("[Window.LoadConfig][Reapply] Watermark ->", tostring(wp))
+                                    end
+                                end
+                            end)
+
+                            pcall(function()
+                                if Library and Library._mobileTogglePosition then
+                                    local mp2 = Library._mobileTogglePosition
+                                    local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                                    if cont and mp2 then
+                                        pcall(function() cont.Position = UDim2.new(mp2.X or 0, mp2.XOffset or 0, mp2.Y or 0, mp2.YOffset or 0) end)
+                                        print("[Window.LoadConfig][Reapply] MobileToggle ->", tostring(mp2))
+                                    end
+                                end
+                            end)
+                        end
+
+                        for i = 1, 6 do reapplyOnce(); task.wait(0.05) end
                     end)
                 end
             end
