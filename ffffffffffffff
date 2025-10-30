@@ -2194,11 +2194,18 @@ function Library:CreateLibrary(opts)
             end
             local libraryInfo = {}
             pcall(function()
+                -- Prefer live root values; fall back to cached Library._librarySize/_libraryPosition if root not present
+                local winSize, winPos = nil, nil
                 if root then
-                    pcall(function() libraryInfo.window = { size = serialize(root.Size), position = serialize(root.Position) } end)
+                    winSize = root.Size
+                    winPos = root.Position
                 else
-                    pcall(function() libraryInfo.window = { size = serialize(UDim2.new(0,0,0,0)), position = serialize(UDim2.new(0,0,0,0)) } end)
+                    if Library and Library._librarySize then winSize = Library._librarySize end
+                    if Library and Library._libraryPosition then winPos = Library._libraryPosition end
                 end
+                if not winSize then winSize = UDim2.new(0,0,0,0) end
+                if not winPos then winPos = UDim2.new(0,0,0,0) end
+                pcall(function() libraryInfo.window = { size = serialize(winSize), position = serialize(winPos) } end)
                 if Library and Library._keybindListPosition then
                     local k = Library._keybindListPosition
                     pcall(function()
