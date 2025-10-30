@@ -1402,6 +1402,7 @@ do
         
         frame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if frame._ignoreDrag then return end
                 isDragging = true
                 
                 
@@ -1649,10 +1650,12 @@ do
                 grip.InputBegan:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                         resizing = true
+                        -- prevent the main frame from starting a drag while we're resizing from the grip
+                        pcall(function() mainFrame._ignoreDrag = true end)
                         local pos = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
                         startMouse = Vector2.new(pos.X, pos.Y)
                         startSize = mainFrame.AbsoluteSize
-                        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then resizing = false end end)
+                        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then resizing = false; pcall(function() mainFrame._ignoreDrag = false end) end end)
                     end
                 end)
 
@@ -1671,6 +1674,7 @@ do
                     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                         if resizing then
                             resizing = false
+                            pcall(function() mainFrame._ignoreDrag = false end)
                             pcall(function()
                                 if Library and mainFrame then
                                     Library._keybindListSize = mainFrame.Size
