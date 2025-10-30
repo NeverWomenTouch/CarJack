@@ -6506,7 +6506,28 @@ function Library:CreateLibrary(opts)
                     elseif mode == "Toggle" then
                         initialActive = keybindToggleState
                     end
-                    keybindId = Library:_addKeybind(label, getKeyName(currentKey, currentInputType), "ToggleKeybind", {
+                    function buildDisplayKey(k, inputType)
+                        if type(k) == 'table' then
+                            local parts = {}
+                            for _, v in ipairs(k) do
+                                if typeof(v) == 'EnumItem' then
+                                    if v.EnumType == Enum.UserInputType then
+                                        table.insert(parts, mouseButtonNames[v] or tostring(v))
+                                    else
+                                        table.insert(parts, getKeyName(v, nil))
+                                    end
+                                else
+                                    table.insert(parts, tostring(v))
+                                end
+                            end
+                            return table.concat(parts, " + ")
+                        else
+                            return getKeyName(k, inputType)
+                        end
+                    end
+
+                    local displayKey = buildDisplayKey(currentKey, currentInputType)
+                    keybindId = Library:_addKeybind(label, displayKey, "ToggleKeybind", {
                         active = initialActive,
                         toggleEnabled = isToggled,
                         showInList = true, 
