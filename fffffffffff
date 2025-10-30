@@ -488,6 +488,67 @@ do
                     end
                 end
             end
+            -- Re-apply library-level UI state after a short delay to ensure any late-created elements (like MobileToggleContainer or KeybindList) exist.
+            task.spawn(function()
+                task.wait(0.08)
+                pcall(function()
+                    -- window
+                    if lib and lib.window and lib.window.size then
+                        local s = deserialize(lib.window.size) or lib.window.size
+                        if s and root then pcall(function() root.Size = s end) end
+                    end
+                    if lib and lib.window and lib.window.position then
+                        local p = deserialize(lib.window.position) or lib.window.position
+                        if p and root then pcall(function() root.Position = p end) end
+                    end
+                    -- keybind list size/position
+                    if lib and lib.keybindList then
+                        -- size
+                        if type(lib.keybindList) == 'table' and lib.keybindList.size then
+                            local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
+                            if ks and Library and Library._keybindList and Library._keybindList.Parent then
+                                local mf = Library._keybindList:FindFirstChild("MainFrame")
+                                if mf then
+                                    if typeof and typeof(ks) == 'UDim2' then mf.Size = ks end
+                                    if type(ks) == 'table' and ks.X and ks.Y then mf.Size = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0) end
+                                end
+                            end
+                        end
+                        -- position
+                        local posSrc = nil
+                        if type(lib.keybindList) == 'table' and lib.keybindList.position then posSrc = lib.keybindList.position else posSrc = lib.keybindList end
+                        local kp = deserialize(posSrc) or posSrc
+                        if kp and Library and Library._keybindList and Library._keybindList.Parent then
+                            local mf = Library._keybindList:FindFirstChild("MainFrame")
+                            local kpTable = kp
+                            if typeof and typeof(kp) == 'UDim2' then kpTable = { X = kp.X.Scale, XOffset = kp.X.Offset, Y = kp.Y.Scale, YOffset = kp.Y.Offset } end
+                            if mf and kpTable then mf.Position = UDim2.new(kpTable.X or 0, kpTable.XOffset or 0, kpTable.Y or 0, kpTable.YOffset or 0) end
+                        end
+                    end
+                    -- watermark
+                    if lib and lib.watermark then
+                        local wp = deserialize(lib.watermark) or lib.watermark
+                        if wp then
+                            local wpTable = wp
+                            if typeof and typeof(wp) == 'UDim2' then wpTable = { X = wp.X.Scale, XOffset = wp.X.Offset, Y = wp.Y.Scale, YOffset = wp.Y.Offset } end
+                            pcall(function() Library:SetWatermarkPosition(wpTable) end)
+                        end
+                    end
+                    -- mobile toggle
+                    if lib and lib.mobileToggle then
+                        local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
+                        if mp then
+                            local mpTable = mp
+                            if typeof and typeof(mp) == 'UDim2' then mpTable = { X = mp.X.Scale, XOffset = mp.X.Offset, Y = mp.Y.Scale, YOffset = mp.Y.Offset } end
+                            Library._mobileTogglePosition = mpTable
+                            pcall(function()
+                                local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                                if cont then cont.Position = UDim2.new(mpTable.X or 0, mpTable.XOffset or 0, mpTable.Y or 0, mpTable.YOffset or 0) end
+                            end)
+                        end
+                    end
+                end)
+            end)
         end)
         
             if not (UserInputService.TouchEnabled and not UserInputService.MouseEnabled) then
