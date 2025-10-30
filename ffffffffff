@@ -7261,9 +7261,30 @@ function Library:CreateLibrary(opts)
                             end
                         end
 
-                        -- Keybind list: normalize to table {X, XOffset, Y, YOffset} so _createKeybindList can reuse it
+                        -- Keybind list: support new shape { position = {..}, size = <ud2/table> } and legacy formats
                         if lib.keybindList then
-                            local kp = deserialize(lib.keybindList) or lib.keybindList
+                            -- Apply size if present in new shape
+                            if type(lib.keybindList) == 'table' and lib.keybindList.size then
+                                local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
+                                if ks then
+                                    pcall(function() Library._keybindListSize = ks end)
+                                    if Library._keybindList and Library._keybindList.Parent then
+                                        local mf = Library._keybindList:FindFirstChild("MainFrame")
+                                        if mf then
+                                            if typeof and typeof(ks) == 'UDim2' then
+                                                mf.Size = ks
+                                            elseif type(ks) == 'table' and ks.X and ks.Y then
+                                                mf.Size = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+
+                            -- Position may be nested or legacy; handle both
+                            local posSrc = nil
+                            if type(lib.keybindList) == 'table' and lib.keybindList.position then posSrc = lib.keybindList.position else posSrc = lib.keybindList end
+                            local kp = deserialize(posSrc) or posSrc
                             if kp then
                                 local kpTable = kp
                                 if typeof and typeof(kp) == "UDim2" then
