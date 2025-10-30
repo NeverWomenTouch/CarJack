@@ -212,6 +212,84 @@ local function Signal()
         end,
         Fire = function(_, ...)
             for i=1,#h do local x=h[i]; if x.c.Connected then coroutine.wrap(x.fn)(...) end end
+    -- Ensure any cached Library._* positions/sizes are applied to live UI elements (handles timing when elements created later)
+    pcall(function()
+        task.spawn(function()
+            local function applyOnce()
+                -- library window
+                pcall(function()
+                    local ls = Library and Library._librarySize
+                    if ls and root then
+                        if typeof and typeof(ls) == 'UDim2' then
+                            root.Size = ls
+                        elseif type(ls) == 'table' and ls.X and ls.Y then
+                            root.Size = UDim2.new(ls.X or 0, ls.XOffset or 0, ls.Y or 0, ls.YOffset or 0)
+                        end
+                    end
+                    local lp = Library and Library._libraryPosition
+                    if lp and root then
+                        if typeof and typeof(lp) == 'UDim2' then
+                            root.Position = lp
+                        elseif type(lp) == 'table' and lp.X then
+                            root.Position = UDim2.new(lp.X or 0, lp.XOffset or 0, lp.Y or 0, lp.YOffset or 0)
+                        end
+                    end
+                end)
+
+                -- keybind list
+                pcall(function()
+                    local ks = Library and Library._keybindListSize
+                    if ks and Library and Library._keybindList and Library._keybindList.Parent then
+                        local mf = Library._keybindList:FindFirstChild("MainFrame")
+                        if mf then
+                            if typeof and typeof(ks) == 'UDim2' then mf.Size = ks end
+                            if type(ks) == 'table' and ks.X and ks.Y then mf.Size = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0) end
+                        end
+                    end
+                    local kp = Library and Library._keybindListPosition
+                    if kp and Library and Library._keybindList and Library._keybindList.Parent then
+                        local mf = Library._keybindList:FindFirstChild("MainFrame")
+                        if mf then
+                            if typeof and typeof(kp) == 'UDim2' then mf.Position = kp end
+                            if type(kp) == 'table' and kp.X then mf.Position = UDim2.new(kp.X or 0, kp.XOffset or 0, kp.Y or 0, kp.YOffset or 0) end
+                        end
+                    end
+                end)
+
+                -- watermark
+                pcall(function()
+                    if Library and Library._watermarkPosition then
+                        local wp = Library._watermarkPosition
+                        if type(wp) == 'table' then
+                            pcall(function() Library:SetWatermarkPosition(wp) end)
+                        elseif typeof and typeof(wp) == 'UDim2' then
+                            local wpTable = { X = wp.X.Scale, XOffset = wp.X.Offset, Y = wp.Y.Scale, YOffset = wp.Y.Offset }
+                            pcall(function() Library:SetWatermarkPosition(wpTable) end)
+                        end
+                    end
+                end)
+
+                -- mobile toggle
+                pcall(function()
+                    if Library and Library._mobileTogglePosition then
+                        local mp = Library._mobileTogglePosition
+                        local mpTable = mp
+                        if typeof and typeof(mp) == 'UDim2' then mpTable = { X = mp.X.Scale, XOffset = mp.X.Offset, Y = mp.Y.Scale, YOffset = mp.Y.Offset } end
+                        Library._mobileTogglePosition = mpTable
+                        local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                        if cont and mpTable then
+                            pcall(function() cont.Position = UDim2.new(mpTable.X or 0, mpTable.XOffset or 0, mpTable.Y or 0, mpTable.YOffset or 0) end)
+                        end
+                    end
+                end)
+            end
+
+            for i = 1, 6 do
+                applyOnce()
+                task.wait(0.05)
+            end
+        end)
+    end)
         end
     }
 end
