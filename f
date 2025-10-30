@@ -6331,8 +6331,21 @@ function Library:CreateLibrary(opts)
                         local ok, guiInset = pcall(function() return SRV("GuiService"):GetGuiInset() end)
                         if not ok or typeof(guiInset) ~= "Vector2" then guiInset = Vector2.new(0, 0) end
 
-                        local px = (btnAbs.X or 0)
-                        local py = (btnAbs.Y or 0) - menuH - 6 + (guiInset.Y or 0)
+                        local px, py
+                        if (btnAbs.X == 0 and btnAbs.Y == 0) then
+                            -- AbsolutePosition unavailable yet; fall back to the current mouse location
+                            local ok2, mPos = pcall(function() return UserInputService:GetMouseLocation() end)
+                            if ok2 and typeof(mPos) == "Vector2" then
+                                px = mPos.X
+                                py = mPos.Y - menuH - 6 + (guiInset.Y or 0)
+                            else
+                                px = 0
+                                py = -menuH - 6 + (guiInset.Y or 0)
+                            end
+                        else
+                            px = (btnAbs.X or 0)
+                            py = (btnAbs.Y or 0) - menuH - 6 + (guiInset.Y or 0)
+                        end
                         ctxMenu.Position = UDim2.fromOffset(px, py)
                         
                         Library._openKeybindCtxClose = closeCtx
