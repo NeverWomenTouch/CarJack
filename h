@@ -2135,7 +2135,10 @@ function Library:CreateLibrary(opts)
                 end
                 if not winSize then winSize = UDim2.new(0,0,0,0) end
                 if not winPos then winPos = UDim2.new(0,0,0,0) end
-                pcall(function() libraryInfo.window = { size = serialize(winSize), position = serialize(winPos) } end)
+                -- Prefer cached library size/position if available, fallback to current root
+                local saveSize = (Library and Library._librarySize) or winSize
+                local savePos = (Library and Library._libraryPosition) or winPos
+                pcall(function() libraryInfo.window = { size = serialize(saveSize), position = serialize(savePos) } end)
                 if Library and Library._keybindListPosition then
                     local k = Library._keybindListPosition
                     pcall(function()
@@ -7287,7 +7290,7 @@ function Library:CreateLibrary(opts)
                             local s = deserialize(lib.window.size) or lib.window.size
                             if s then
                                 print("[Window.LoadConfig] applying window.size ->", tostring(s))
-                                root.Size = s
+                                pcall(function() root.Size = s end)
                                 pcall(function() Library._librarySize = s end)
                             end
                         end
@@ -7295,7 +7298,7 @@ function Library:CreateLibrary(opts)
                             local p = deserialize(lib.window.position) or lib.window.position
                             if p then
                                 print("[Window.LoadConfig] applying window.position ->", tostring(p))
-                                root.Position = p
+                                pcall(function() root.Position = p end)
                                 pcall(function() Library._libraryPosition = p end)
                             end
                         end
