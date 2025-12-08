@@ -2138,26 +2138,52 @@ function Library:CreateLibrary(opts)
                 -- Prefer cached library size/position if available, fallback to current root
                 local saveSize = (Library and Library._librarySize) or winSize
                 local savePos = (Library and Library._libraryPosition) or winPos
-                pcall(function() libraryInfo.window = { size = serialize(saveSize), position = serialize(savePos) } end)
-                if Library and Library._keybindListPosition then
-                    local k = Library._keybindListPosition
-                    pcall(function()
-                        -- save normalized table so loader can apply consistently
-                        libraryInfo.keybindList = { position = { X = k.X or 0, XOffset = k.XOffset or 0, Y = k.Y or 0, YOffset = k.YOffset or 0 } }
-                        if Library._keybindListSize then
-                            pcall(function() libraryInfo.keybindList.size = serialize(Library._keybindListSize) end)
-                        end
-                    end)
+                -- If UI instances exist, capture live values to avoid stale cache
+                pcall(function()
+                    if Library and Library._root then
+                        saveSize = Library._root.Size or saveSize
+                        savePos  = Library._root.Position or savePos
+                    end
+                    libraryInfo.window = { size = serialize(saveSize), position = serialize(savePos) }
+                end)
+                -- Capture KeybindList from live instance when available
+                do
+                    local mf = nil
+                    if Library and Library._keybindList then mf = Library._keybindList:FindFirstChild("MainFrame") end
+                    if mf then
+                        local kpos = mf.Position
+                        local ksiz = mf.Size
+                        pcall(function()
+                            libraryInfo.keybindList = libraryInfo.keybindList or {}
+                            libraryInfo.keybindList.position = { X = kpos.X.Scale or 0, XOffset = kpos.X.Offset or 0, Y = kpos.Y.Scale or 0, YOffset = kpos.Y.Offset or 0 }
+                            libraryInfo.keybindList.size = serialize(ksiz)
+                        end)
+                    elseif Library and Library._keybindListPosition then
+                        local k = Library._keybindListPosition
+                        pcall(function()
+                            libraryInfo.keybindList = { position = { X = k.X or 0, XOffset = k.XOffset or 0, Y = k.Y or 0, YOffset = k.YOffset or 0 } }
+                            if Library._keybindListSize then libraryInfo.keybindList.size = serialize(Library._keybindListSize) end
+                        end)
+                    end
                 end
                 if Library and Library._watermarkPosition then
                     pcall(function() libraryInfo.watermark = Library._watermarkPosition end)
                 end
-                if Library and Library._mobileTogglePosition then
-                    local m = Library._mobileTogglePosition
-                    pcall(function()
-                        -- save normalized table so loader can apply consistently
-                        libraryInfo.mobileToggle = { X = m.X or 0, XOffset = m.XOffset or 0, Y = m.Y or 0, YOffset = m.YOffset or 0 }
-                    end)
+                -- Capture Mobile Toggle from live instance when available
+                do
+                    local cont = nil
+                    if Library and Library._mobileToggleContainer then cont = Library._mobileToggleContainer end
+                    if cont then
+                        local mp = cont.Position
+                        pcall(function()
+                            libraryInfo.mobileToggle = { X = mp.X.Scale or 0, XOffset = mp.X.Offset or 0, Y = mp.Y.Scale or 0, YOffset = mp.Y.Offset or 0 }
+                        end)
+                    elseif Library and Library._mobileTogglePosition then
+                        local m = Library._mobileTogglePosition
+                        pcall(function()
+                            libraryInfo.mobileToggle = { X = m.X or 0, XOffset = m.XOffset or 0, Y = m.Y or 0, YOffset = m.YOffset or 0 }
+                        end)
+                    end
                 end
             end)
             local payload = { controls = orderedControls, metadata = meta, library = libraryInfo }
