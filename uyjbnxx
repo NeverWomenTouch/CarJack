@@ -7382,7 +7382,10 @@ function Library:CreateLibrary(opts)
                             local s = deserialize(lib.window.size) or lib.window.size
                             if s then
                                 print("[Window.LoadConfig] applying window.size ->", tostring(s))
-                                pcall(function() root.Size = s end)
+                                pcall(function()
+                                    local targetRoot = root or (Library and Library._rootFrame)
+                                    if targetRoot then targetRoot.Size = s end
+                                end)
                                 pcall(function() Library._librarySize = s end)
                             end
                         end
@@ -7390,7 +7393,10 @@ function Library:CreateLibrary(opts)
                             local p = deserialize(lib.window.position) or lib.window.position
                             if p then
                                 print("[Window.LoadConfig] applying window.position ->", tostring(p))
-                                pcall(function() root.Position = p end)
+                                pcall(function()
+                                    local targetRoot = root or (Library and Library._rootFrame)
+                                    if targetRoot then targetRoot.Position = p end
+                                end)
                                 pcall(function() Library._libraryPosition = p end)
                             end
                         end
@@ -7492,14 +7498,15 @@ function Library:CreateLibrary(opts)
                             pcall(function()
                                 local ls = Library and Library._librarySize
                                 local conv = toUDim2(ls)
-                                if conv and root then
-                                    root.Size = conv
+                                local targetRoot = root or (Library and Library._rootFrame)
+                                if conv and targetRoot then
+                                    targetRoot.Size = conv
                                     print("[Window.LoadConfig][Reapply] root.Size ->", tostring(conv))
                                 end
                                 local lp = Library and Library._libraryPosition
                                 local convp = toUDim2(lp)
-                                if convp and root then
-                                    root.Position = convp
+                                if convp and targetRoot then
+                                    targetRoot.Position = convp
                                     print("[Window.LoadConfig][Reapply] root.Position ->", tostring(convp))
                                 end
                             end)
@@ -7533,7 +7540,7 @@ function Library:CreateLibrary(opts)
                             pcall(function()
                                 if Library and Library._mobileTogglePosition then
                                     local mp2 = Library._mobileTogglePosition
-                                    local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                                    local cont = (Library and Library._mobileToggleContainer) or (RootGui and RootGui:FindFirstChild("MobileToggleContainer"))
                                     if cont and mp2 then
                                         pcall(function() cont.Position = UDim2.new(mp2.X or 0, mp2.XOffset or 0, mp2.Y or 0, mp2.YOffset or 0) end)
                                         print("[Window.LoadConfig][Reapply] MobileToggle ->", tostring(mp2))
@@ -7542,8 +7549,8 @@ function Library:CreateLibrary(opts)
                             end)
                         end
 
-                        -- Reapply a bit longer to catch late UI creation in various executors
-                        for i = 1, 20 do reapplyOnce(); task.wait(0.06) end
+                        -- Reapply longer to catch late UI creation in various executors
+                        for i = 1, 60 do reapplyOnce(); task.wait(0.05) end
                     end)
                 end
             end
@@ -7561,11 +7568,23 @@ function Library:CreateLibrary(opts)
                     -- Window size/position
                     if lib.window and lib.window.size then
                         local s = deserialize(lib.window.size) or lib.window.size
-                        if s and root then pcall(function() root.Size = s; Library._librarySize = s end) end
+                        if s then
+                            pcall(function()
+                                local targetRoot = root or (Library and Library._rootFrame)
+                                if targetRoot then targetRoot.Size = s end
+                                Library._librarySize = s
+                            end)
+                        end
                     end
                     if lib.window and lib.window.position then
                         local p = deserialize(lib.window.position) or lib.window.position
-                        if p and root then pcall(function() root.Position = p; Library._libraryPosition = p end) end
+                        if p then
+                            pcall(function()
+                                local targetRoot = root or (Library and Library._rootFrame)
+                                if targetRoot then targetRoot.Position = p end
+                                Library._libraryPosition = p
+                            end)
+                        end
                     end
                     -- Keybind list size/position
                     if lib.keybindList then
@@ -7626,10 +7645,11 @@ function Library:CreateLibrary(opts)
                     pcall(function()
                         local ls = Library and Library._librarySize
                         local conv = toUD2(ls)
-                        if conv and root then root.Size = conv end
+                        local targetRoot = root or (Library and Library._rootFrame)
+                        if conv and targetRoot then targetRoot.Size = conv end
                         local lp = Library and Library._libraryPosition
                         local convp = toUD2(lp)
-                        if convp and root then root.Position = convp end
+                        if convp and targetRoot then targetRoot.Position = convp end
                     end)
                     pcall(function()
                         local ks = Library and Library._keybindListSize
@@ -7647,12 +7667,12 @@ function Library:CreateLibrary(opts)
                     pcall(function()
                         if Library and Library._mobileTogglePosition then
                             local mp2 = Library._mobileTogglePosition
-                            local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                            local cont = (Library and Library._mobileToggleContainer) or (RootGui and RootGui:FindFirstChild("MobileToggleContainer"))
                             if cont and mp2 then cont.Position = UDim2.new(mp2.X or 0, mp2.XOffset or 0, mp2.Y or 0, mp2.YOffset or 0) end
                         end
                     end)
                 end
-                task.spawn(function() for i=1,20 do reapplyFromCache(); task.wait(0.06) end end)
+                task.spawn(function() for i=1,60 do reapplyFromCache(); task.wait(0.05) end end)
             end
         end
         -- notify that load completed (may have applied library-level fields)
