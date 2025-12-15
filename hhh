@@ -14,13 +14,13 @@ local _writefile = (writefile or function() end)
 local _readfile = (readfile or function() return "" end)
 local _listfiles = (listfiles or function() return {} end)
 local _delfile = (delfile or function() end)
-local function Create(className, props, children)
+function Create(className, props, children)
     local inst = Instance.new(className)
     if props then for k, v in pairs(props) do inst[k] = v end end
     if children then for _, c in ipairs(children) do c.Parent = inst end end
     return inst
 end
-local function ParseKeyFromString(name)
+function ParseKeyFromString(name)
     if type(name) ~= "string" then return nil end
     local s = name
     local lower = s:lower()
@@ -2140,9 +2140,9 @@ function Library:CreateLibrary(opts)
                 local savePos = (Library and Library._libraryPosition) or winPos
                 -- If UI instances exist, capture live values to avoid stale cache
                 pcall(function()
-                    if Library and Library._root then
-                        saveSize = Library._root.Size or saveSize
-                        savePos  = Library._root.Position or savePos
+                    if Library and Library._rootFrame then
+                        saveSize = Library._rootFrame.Size or saveSize
+                        savePos  = Library._rootFrame.Position or savePos
                     end
                     libraryInfo.window = { size = serialize(saveSize), position = serialize(savePos) }
                 end)
@@ -2173,6 +2173,7 @@ function Library:CreateLibrary(opts)
                 do
                     local cont = nil
                     if Library and Library._mobileToggleContainer then cont = Library._mobileToggleContainer end
+                    if not cont and RootGui then cont = RootGui:FindFirstChild("MobileToggleContainer") end
                     if cont then
                         local mp = cont.Position
                         pcall(function()
@@ -2183,6 +2184,19 @@ function Library:CreateLibrary(opts)
                         pcall(function()
                             libraryInfo.mobileToggle = { X = m.X or 0, XOffset = m.XOffset or 0, Y = m.Y or 0, YOffset = m.YOffset or 0 }
                         end)
+                    end
+                end
+
+                -- Capture Watermark live position when available
+                do
+                    local wf = Library and Library._watermarkFrame
+                    if wf then
+                        local wp = wf.Position
+                        pcall(function()
+                            libraryInfo.watermark = { X = wp.X.Scale or 0, XOffset = wp.X.Offset or 0, Y = wp.Y.Scale or 0, YOffset = wp.Y.Offset or 0 }
+                        end)
+                    elseif Library and Library._watermarkPosition then
+                        pcall(function() libraryInfo.watermark = Library._watermarkPosition end)
                     end
                 end
             end)
@@ -6700,6 +6714,7 @@ function Library:CreateLibrary(opts)
             ZIndex = 1,
             Parent = RootGui
         })
+        pcall(function() Library._mobileToggleContainer = container end)
         pcall(function()
             local mp = Library and Library._mobileTogglePosition
             if mp and type(mp) == "table" then
