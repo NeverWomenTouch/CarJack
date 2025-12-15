@@ -2293,9 +2293,38 @@ function Library:CreateLibrary(opts)
             if MEM_MODE then
                 local key = memEnsure()
                 local t = Library._memConfig.files[key][s]
-                if type(t) == "table" and type(t.values) == "table" then
+                if type(t) == "table" then
                     local out = {}
-                    for k, v in pairs(t.values) do out[k] = deserialize(v) end
+                    if type(t.controls) == "table" then
+                        for k, v in pairs(t.controls) do
+                            if type(v) == 'table' and v.__ctrl == 'Colorpicker' and type(v.slots) == 'table' then
+                                local cp = { __ctrl = 'Colorpicker', colors = {}, rainbow = {}, pulse = {}, hueOffsets = {}, pulseHueOffsets = {} }
+                                for i=1,#v.slots do
+                                    local slot = v.slots[i]
+                                    if type(slot) == 'table' then
+                                        cp.colors[i] = deserialize(slot.color)
+                                        cp.rainbow[i] = slot.rainbow == true
+                                        cp.pulse[i] = slot.pulse == true
+                                        cp.hueOffsets[i] = tonumber(slot.hueOffset) or 0
+                                        cp.pulseHueOffsets[i] = tonumber(slot.pulseHueOffset) or 0
+                                    else
+                                        cp.colors[i] = deserialize(slot)
+                                        cp.rainbow[i] = false
+                                        cp.pulse[i] = false
+                                        cp.hueOffsets[i] = 0
+                                        cp.pulseHueOffsets[i] = 0
+                                    end
+                                end
+                                out[k] = cp
+                            else
+                                out[k] = deserialize(v)
+                            end
+                        end
+                    elseif type(t.values) == "table" then
+                        for k, v in pairs(t.values) do out[k] = deserialize(v) end
+                    end
+                    out.__library = t.library
+                    sessionAdd(s)
                     return out
                 end
                 return {}
@@ -2306,8 +2335,7 @@ function Library:CreateLibrary(opts)
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(dec) == "table" then
                             local out = {}
-                            -- library-level fields intentionally not loaded/applied here (disabled per user request)
-                    
+                            
                     if type(dec.controls) == "table" then
                         for k, v in pairs(dec.controls) do
                             if type(v) == 'table' and v.__ctrl == 'Colorpicker' and type(v.slots) == 'table' then
@@ -2333,10 +2361,12 @@ function Library:CreateLibrary(opts)
                                 out[k] = deserialize(v)
                             end
                         end
+                        out.__library = dec.library or (type(dec.library) == 'table' and type(dec.library.layout) == 'table' and dec.library) or nil
                         sessionAdd(s)
                         return out
                     elseif type(dec.values) == "table" then
                         for k, v in pairs(dec.values) do out[k] = deserialize(v) end
+                        out.__library = dec.library or (type(dec.library) == 'table' and type(dec.library.layout) == 'table' and dec.library) or nil
                         sessionAdd(s)
                         return out
                     end
@@ -7518,6 +7548,113 @@ function Library:CreateLibrary(opts)
                 end
             end
         end)
+
+        -- Apply library layout if provided by Config.Load (works in MEM_MODE without filesystem)
+        do
+            local lib = type(data) == 'table' and (data.__library or data.__layout) or nil
+            if type(lib) == 'table' then
+                -- If a consolidated layout block exists, merge it in
+                if type(lib.layout) == 'table' then
+                    for k,v in pairs(lib.layout) do if lib[k] == nil then lib[k] = v end end
+                end
+                pcall(function()
+                    -- Window size/position
+                    if lib.window and lib.window.size then
+                        local s = deserialize(lib.window.size) or lib.window.size
+                        if s and root then pcall(function() root.Size = s; Library._librarySize = s end) end
+                    end
+                    if lib.window and lib.window.position then
+                        local p = deserialize(lib.window.position) or lib.window.position
+                        if p and root then pcall(function() root.Position = p; Library._libraryPosition = p end) end
+                    end
+                    -- Keybind list size/position
+                    if lib.keybindList then
+                        if type(lib.keybindList) == 'table' and lib.keybindList.size then
+                            local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
+                            if ks then pcall(function() Library._keybindListSize = ks end) end
+                        end
+                        local posSrc = nil
+                        if type(lib.keybindList) == 'table' and lib.keybindList.position then posSrc = lib.keybindList.position else posSrc = lib.keybindList end
+                        local kp = deserialize(posSrc) or posSrc
+                        if kp then
+                            local kpTable = kp
+                            if typeof and typeof(kp) == 'UDim2' then
+                                kpTable = { X = kp.X.Scale, XOffset = kp.X.Offset, Y = kp.Y.Scale, YOffset = kp.Y.Offset }
+                            elseif type(kp) == 'table' and kp.__t == 'ud2' and type(kp.x) == 'table' and type(kp.y) == 'table' then
+                                kpTable = { X = tonumber(kp.x[1]) or 0, XOffset = tonumber(kp.x[2]) or 0, Y = tonumber(kp.y[1]) or 0, YOffset = tonumber(kp.y[2]) or 0 }
+                            end
+                            Library._keybindListPosition = kpTable
+                        end
+                    end
+                    -- Watermark
+                    if lib.watermark then
+                        local wp = deserialize(lib.watermark) or lib.watermark
+                        if wp then
+                            local wpTable = wp
+                            if typeof and typeof(wp) == 'UDim2' then
+                                wpTable = { X = wp.X.Scale, XOffset = wp.X.Offset, Y = wp.Y.Scale, YOffset = wp.Y.Offset }
+                            end
+                            pcall(function() Library:SetWatermarkPosition(wpTable) end)
+                        end
+                    end
+                    -- Mobile toggle
+                    if lib.mobileToggle then
+                        local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
+                        if mp then
+                            local mpTable = mp
+                            if typeof and typeof(mp) == 'UDim2' then
+                                mpTable = { X = mp.X.Scale, XOffset = mp.X.Offset, Y = mp.Y.Scale, YOffset = mp.Y.Offset }
+                            end
+                            Library._mobileTogglePosition = mpTable
+                        end
+                    end
+                end)
+
+                -- Reapply from cached values repeatedly to catch late UI creation (MEM_MODE path)
+                local function toUD2(v)
+                    if not v then return nil end
+                    if typeof and typeof(v) == 'UDim2' then return v end
+                    if type(v) == 'table' then
+                        if v.__t == 'ud2' and type(v.x) == 'table' and type(v.y) == 'table' then
+                            return UDim2.new(tonumber(v.x[1]) or 0, tonumber(v.x[2]) or 0, tonumber(v.y[1]) or 0, tonumber(v.y[2]) or 0)
+                        end
+                        if v.X and v.Y then return UDim2.new(v.X or 0, v.XOffset or 0, v.Y or 0, v.YOffset or 0) end
+                    end
+                    return nil
+                end
+                local function reapplyFromCache()
+                    pcall(function()
+                        local ls = Library and Library._librarySize
+                        local conv = toUD2(ls)
+                        if conv and root then root.Size = conv end
+                        local lp = Library and Library._libraryPosition
+                        local convp = toUD2(lp)
+                        if convp and root then root.Position = convp end
+                    end)
+                    pcall(function()
+                        local ks = Library and Library._keybindListSize
+                        local kp = Library and Library._keybindListPosition
+                        if (ks or kp) and Library and Library._keybindList and Library._keybindList.Parent then
+                            local mf = Library._keybindList:FindFirstChild("MainFrame")
+                            if mf then
+                                local convk = toUD2(ks)
+                                if convk then mf.Size = convk end
+                                local convkp = toUD2(kp)
+                                if convkp then mf.Position = convkp end
+                            end
+                        end
+                    end)
+                    pcall(function()
+                        if Library and Library._mobileTogglePosition then
+                            local mp2 = Library._mobileTogglePosition
+                            local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                            if cont and mp2 then cont.Position = UDim2.new(mp2.X or 0, mp2.XOffset or 0, mp2.Y or 0, mp2.YOffset or 0) end
+                        end
+                    end)
+                end
+                task.spawn(function() for i=1,20 do reapplyFromCache(); task.wait(0.06) end end)
+            end
+        end
         -- notify that load completed (may have applied library-level fields)
     -- no notification for config load (user requested)
     end
