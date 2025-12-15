@@ -2199,6 +2199,20 @@ function Library:CreateLibrary(opts)
                         pcall(function() libraryInfo.watermark = Library._watermarkPosition end)
                     end
                 end
+
+                -- Also expose a stable "layout" block mirroring library fields (for future compatibility)
+                local function clone(v)
+                    if type(v) ~= 'table' then return v end
+                    local o = {}
+                    for k,val in pairs(v) do o[k] = clone(val) end
+                    return o
+                end
+                local layout = {}
+                layout.window = clone(libraryInfo.window)
+                layout.keybindList = clone(libraryInfo.keybindList)
+                layout.mobileToggle = clone(libraryInfo.mobileToggle)
+                layout.watermark = clone(libraryInfo.watermark)
+                libraryInfo.layout = layout
             end)
             local payload = { controls = orderedControls, metadata = meta, library = libraryInfo }
 
@@ -7326,6 +7340,10 @@ function Library:CreateLibrary(opts)
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                     if okj and type(dec) == "table" and type(dec.library) == "table" then
                     local lib = dec.library
+                    if type(lib) == 'table' and type(lib.layout) == 'table' then
+                        -- Prefer unified layout block if present
+                        for k,v in pairs(lib.layout) do if lib[k] == nil then lib[k] = v end end
+                    end
                     pcall(function()
                         local okenc, libjson = pcall(function() return HttpService:JSONEncode(lib) end)
                         print("[Window.LoadConfig] loaded library block:", okenc and libjson or tostring(lib))
@@ -7364,6 +7382,10 @@ function Library:CreateLibrary(opts)
                                                 local setv = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
                                                 mf.Size = setv
                                                 print("[Window.LoadConfig] applied KeybindList.size (table):", tostring(setv))
+                                            elseif type(ks) == 'table' and ks.__t == 'ud2' and type(ks.x) == 'table' and type(ks.y) == 'table' then
+                                                local setv = UDim2.new(tonumber(ks.x[1]) or 0, tonumber(ks.x[2]) or 0, tonumber(ks.y[1]) or 0, tonumber(ks.y[2]) or 0)
+                                                mf.Size = setv
+                                                print("[Window.LoadConfig] applied KeybindList.size (serialized ud2):", tostring(setv))
                                             end
                                         end
                                     end
@@ -7378,6 +7400,8 @@ function Library:CreateLibrary(opts)
                                 local kpTable = kp
                                 if typeof and typeof(kp) == "UDim2" then
                                     kpTable = { X = kp.X.Scale, XOffset = kp.X.Offset, Y = kp.Y.Scale, YOffset = kp.Y.Offset }
+                                elseif type(kp) == 'table' and kp.__t == 'ud2' and type(kp.x) == 'table' and type(kp.y) == 'table' then
+                                    kpTable = { X = tonumber(kp.x[1]) or 0, XOffset = tonumber(kp.x[2]) or 0, Y = tonumber(kp.y[1]) or 0, YOffset = tonumber(kp.y[2]) or 0 }
                                 end
                                 Library._keybindListPosition = kpTable
                                 if Library._keybindList and Library._keybindList.Parent then
