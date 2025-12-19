@@ -7390,6 +7390,12 @@ function Library:CreateLibrary(opts)
                         for k,v in pairs(lib.layout) do if lib[k] == nil then lib[k] = v end end
                     end
                     pcall(function()
+                        -- Track what this config *actually provided* so reapply can't overwrite
+                        -- with default centered cached values.
+                        local loadedWindowSize, loadedWindowPos = nil, nil
+                        local loadedKeybindSize, loadedKeybindPos = nil, nil
+                        local loadedWatermark, loadedMobile = nil, nil
+
                         local okenc, libjson = pcall(function() return HttpService:JSONEncode(lib) end)
                         print("[Window.LoadConfig] loaded library block:", okenc and libjson or tostring(lib))
                         -- Window size/position (UDim2 expected)
@@ -7397,16 +7403,24 @@ function Library:CreateLibrary(opts)
                             local s = deserialize(lib.window.size) or lib.window.size
                             if s then
                                 print("[Window.LoadConfig] applying window.size ->", tostring(s))
-                                pcall(function() root.Size = s end)
+                                pcall(function()
+                                    local targetRoot = root or (Library and Library._rootFrame)
+                                    if targetRoot then targetRoot.Size = s end
+                                end)
                                 pcall(function() Library._librarySize = s end)
+                                loadedWindowSize = s
                             end
                         end
                         if lib.window and lib.window.position then
                             local p = deserialize(lib.window.position) or lib.window.position
                             if p then
                                 print("[Window.LoadConfig] applying window.position ->", tostring(p))
-                                pcall(function() root.Position = p end)
+                                pcall(function()
+                                    local targetRoot = root or (Library and Library._rootFrame)
+                                    if targetRoot then targetRoot.Position = p end
+                                end)
                                 pcall(function() Library._libraryPosition = p end)
+                                loadedWindowPos = p
                             end
                         end
 
@@ -7417,6 +7431,7 @@ function Library:CreateLibrary(opts)
                                 local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
                                 if ks then
                                     pcall(function() Library._keybindListSize = ks end)
+                                    loadedKeybindSize = ks
                                     if Library._keybindList and Library._keybindList.Parent then
                                         local mf = Library._keybindList:FindFirstChild("MainFrame")
                                         if mf then
@@ -7449,6 +7464,7 @@ function Library:CreateLibrary(opts)
                                     kpTable = { X = tonumber(kp.x[1]) or 0, XOffset = tonumber(kp.x[2]) or 0, Y = tonumber(kp.y[1]) or 0, YOffset = tonumber(kp.y[2]) or 0 }
                                 end
                                 Library._keybindListPosition = kpTable
+                                loadedKeybindPos = kpTable
                                 if Library._keybindList and Library._keybindList.Parent then
                                     local mf = Library._keybindList:FindFirstChild("MainFrame")
                                     if mf then
@@ -7469,6 +7485,7 @@ function Library:CreateLibrary(opts)
                                     wpTable = { X = wp.X.Scale, XOffset = wp.X.Offset, Y = wp.Y.Scale, YOffset = wp.Y.Offset }
                                 end
                                 pcall(function() Library:SetWatermarkPosition(wpTable) end)
+                                loadedWatermark = wpTable
                             end
                         end
 
@@ -7482,11 +7499,12 @@ function Library:CreateLibrary(opts)
                                 end
                                 Library._mobileTogglePosition = mpTable
                                 pcall(function()
-                                    local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                                    local cont = (Library and Library._mobileToggleContainer) or (RootGui and RootGui:FindFirstChild("MobileToggleContainer"))
                                     if cont then
                                         cont.Position = UDim2.new(mpTable.X or 0, mpTable.XOffset or 0, mpTable.Y or 0, mpTable.YOffset or 0)
                                     end
                                 end)
+                                loadedMobile = mpTable
                             end
                         end
 
@@ -7505,23 +7523,22 @@ function Library:CreateLibrary(opts)
 
                         local function reapplyOnce()
                             pcall(function()
-                                local ls = Library and Library._librarySize
-                                local conv = toUDim2(ls)
-                                if conv and root then
-                                    root.Size = conv
+                                local targetRoot = root or (Library and Library._rootFrame)
+                                local conv = toUDim2(loadedWindowSize)
+                                if conv and targetRoot then
+                                    targetRoot.Size = conv
                                     print("[Window.LoadConfig][Reapply] root.Size ->", tostring(conv))
                                 end
-                                local lp = Library and Library._libraryPosition
-                                local convp = toUDim2(lp)
-                                if convp and root then
-                                    root.Position = convp
+                                local convp = toUDim2(loadedWindowPos)
+                                if convp and targetRoot then
+                                    targetRoot.Position = convp
                                     print("[Window.LoadConfig][Reapply] root.Position ->", tostring(convp))
                                 end
                             end)
 
                             pcall(function()
-                                local ks = Library and Library._keybindListSize
-                                local kp = Library and Library._keybindListPosition
+                                local ks = loadedKeybindSize
+                                local kp = loadedKeybindPos
                                 if (ks or kp) and Library and Library._keybindList and Library._keybindList.Parent then
                                     local mf = Library._keybindList:FindFirstChild("MainFrame")
                                     if mf then
@@ -7536,19 +7553,16 @@ function Library:CreateLibrary(opts)
                             end)
 
                             pcall(function()
-                                if Library and Library._watermarkPosition then
-                                    local wp = Library._watermarkPosition
-                                    if type(wp) == 'table' then
-                                        pcall(function() Library:SetWatermarkPosition(wp) end)
-                                        print("[Window.LoadConfig][Reapply] Watermark ->", tostring(wp))
-                                    end
+                                if loadedWatermark and type(loadedWatermark) == 'table' then
+                                    pcall(function() Library:SetWatermarkPosition(loadedWatermark) end)
+                                    print("[Window.LoadConfig][Reapply] Watermark ->", tostring(loadedWatermark))
                                 end
                             end)
 
                             pcall(function()
-                                if Library and Library._mobileTogglePosition then
-                                    local mp2 = Library._mobileTogglePosition
-                                    local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                                if loadedMobile then
+                                    local mp2 = loadedMobile
+                                    local cont = (Library and Library._mobileToggleContainer) or (RootGui and RootGui:FindFirstChild("MobileToggleContainer"))
                                     if cont and mp2 then
                                         pcall(function() cont.Position = UDim2.new(mp2.X or 0, mp2.XOffset or 0, mp2.Y or 0, mp2.YOffset or 0) end)
                                         print("[Window.LoadConfig][Reapply] MobileToggle ->", tostring(mp2))
@@ -7558,7 +7572,9 @@ function Library:CreateLibrary(opts)
                         end
 
                         -- Reapply a bit longer to catch late UI creation in various executors
-                        for i = 1, 20 do reapplyOnce(); task.wait(0.06) end
+                        if loadedWindowSize or loadedWindowPos or loadedKeybindSize or loadedKeybindPos or loadedWatermark or loadedMobile then
+                            for i = 1, 20 do reapplyOnce(); task.wait(0.06) end
+                        end
                     end)
                 end
             end
@@ -7568,6 +7584,10 @@ function Library:CreateLibrary(opts)
         do
             local lib = type(data) == 'table' and (data.__library or data.__layout) or nil
             if type(lib) == 'table' then
+                local loadedWindowSize, loadedWindowPos = nil, nil
+                local loadedKeybindSize, loadedKeybindPos = nil, nil
+                local loadedWatermark, loadedMobile = nil, nil
+
                 -- If a consolidated layout block exists, merge it in
                 if type(lib.layout) == 'table' then
                     for k,v in pairs(lib.layout) do if lib[k] == nil then lib[k] = v end end
@@ -7576,17 +7596,34 @@ function Library:CreateLibrary(opts)
                     -- Window size/position
                     if lib.window and lib.window.size then
                         local s = deserialize(lib.window.size) or lib.window.size
-                        if s and root then pcall(function() root.Size = s; Library._librarySize = s end) end
+                        if s then
+                            loadedWindowSize = s
+                            pcall(function()
+                                local targetRoot = root or (Library and Library._rootFrame)
+                                if targetRoot then targetRoot.Size = s end
+                                Library._librarySize = s
+                            end)
+                        end
                     end
                     if lib.window and lib.window.position then
                         local p = deserialize(lib.window.position) or lib.window.position
-                        if p and root then pcall(function() root.Position = p; Library._libraryPosition = p end) end
+                        if p then
+                            loadedWindowPos = p
+                            pcall(function()
+                                local targetRoot = root or (Library and Library._rootFrame)
+                                if targetRoot then targetRoot.Position = p end
+                                Library._libraryPosition = p
+                            end)
+                        end
                     end
                     -- Keybind list size/position
                     if lib.keybindList then
                         if type(lib.keybindList) == 'table' and lib.keybindList.size then
                             local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
-                            if ks then pcall(function() Library._keybindListSize = ks end) end
+                            if ks then
+                                loadedKeybindSize = ks
+                                pcall(function() Library._keybindListSize = ks end)
+                            end
                         end
                         local posSrc = nil
                         if type(lib.keybindList) == 'table' and lib.keybindList.position then posSrc = lib.keybindList.position else posSrc = lib.keybindList end
@@ -7599,6 +7636,7 @@ function Library:CreateLibrary(opts)
                                 kpTable = { X = tonumber(kp.x[1]) or 0, XOffset = tonumber(kp.x[2]) or 0, Y = tonumber(kp.y[1]) or 0, YOffset = tonumber(kp.y[2]) or 0 }
                             end
                             Library._keybindListPosition = kpTable
+                            loadedKeybindPos = kpTable
                         end
                     end
                     -- Watermark
@@ -7610,6 +7648,7 @@ function Library:CreateLibrary(opts)
                                 wpTable = { X = wp.X.Scale, XOffset = wp.X.Offset, Y = wp.Y.Scale, YOffset = wp.Y.Offset }
                             end
                             pcall(function() Library:SetWatermarkPosition(wpTable) end)
+                            loadedWatermark = wpTable
                         end
                     end
                     -- Mobile toggle
@@ -7621,6 +7660,7 @@ function Library:CreateLibrary(opts)
                                 mpTable = { X = mp.X.Scale, XOffset = mp.X.Offset, Y = mp.Y.Scale, YOffset = mp.Y.Offset }
                             end
                             Library._mobileTogglePosition = mpTable
+                            loadedMobile = mpTable
                         end
                     end
                 end)
@@ -7639,16 +7679,15 @@ function Library:CreateLibrary(opts)
                 end
                 local function reapplyFromCache()
                     pcall(function()
-                        local ls = Library and Library._librarySize
-                        local conv = toUD2(ls)
-                        if conv and root then root.Size = conv end
-                        local lp = Library and Library._libraryPosition
-                        local convp = toUD2(lp)
-                        if convp and root then root.Position = convp end
+                        local targetRoot = root or (Library and Library._rootFrame)
+                        local conv = toUD2(loadedWindowSize)
+                        if conv and targetRoot then targetRoot.Size = conv end
+                        local convp = toUD2(loadedWindowPos)
+                        if convp and targetRoot then targetRoot.Position = convp end
                     end)
                     pcall(function()
-                        local ks = Library and Library._keybindListSize
-                        local kp = Library and Library._keybindListPosition
+                        local ks = loadedKeybindSize
+                        local kp = loadedKeybindPos
                         if (ks or kp) and Library and Library._keybindList and Library._keybindList.Parent then
                             local mf = Library._keybindList:FindFirstChild("MainFrame")
                             if mf then
@@ -7660,14 +7699,21 @@ function Library:CreateLibrary(opts)
                         end
                     end)
                     pcall(function()
-                        if Library and Library._mobileTogglePosition then
-                            local mp2 = Library._mobileTogglePosition
-                            local cont = RootGui and RootGui:FindFirstChild("MobileToggleContainer")
+                        if loadedMobile then
+                            local mp2 = loadedMobile
+                            local cont = (Library and Library._mobileToggleContainer) or (RootGui and RootGui:FindFirstChild("MobileToggleContainer"))
                             if cont and mp2 then cont.Position = UDim2.new(mp2.X or 0, mp2.XOffset or 0, mp2.Y or 0, mp2.YOffset or 0) end
                         end
                     end)
+                    pcall(function()
+                        if loadedWatermark and type(loadedWatermark) == 'table' then
+                            pcall(function() Library:SetWatermarkPosition(loadedWatermark) end)
+                        end
+                    end)
                 end
-                task.spawn(function() for i=1,20 do reapplyFromCache(); task.wait(0.06) end end)
+                if loadedWindowSize or loadedWindowPos or loadedKeybindSize or loadedKeybindPos or loadedWatermark or loadedMobile then
+                    task.spawn(function() for i=1,20 do reapplyFromCache(); task.wait(0.06) end end)
+                end
             end
         end
         -- notify that load completed (may have applied library-level fields)
