@@ -211,7 +211,7 @@ local function Signal()
         end,
         Fire = function(_, ...)
             for i=1,#h do local x=h[i]; if x.c.Connected then coroutine.wrap(x.fn)(...) end end
-    -- (re-apply of cached UI state moved into Window.LoadConfig to run when config loads)
+    
         end
     }
 end
@@ -488,11 +488,11 @@ do
                     end
                 end
             end
-            -- Re-apply library-level UI state after a short delay to ensure any late-created elements (like MobileToggleContainer or KeybindList) exist.
+            
             task.spawn(function()
                 task.wait(0.08)
                 pcall(function()
-                    -- window
+                    
                     if lib and lib.window and lib.window.size then
                         local s = deserialize(lib.window.size) or lib.window.size
                         if s and root then pcall(function() root.Size = s end) end
@@ -501,9 +501,9 @@ do
                         local p = deserialize(lib.window.position) or lib.window.position
                         if p and root then pcall(function() root.Position = p end) end
                     end
-                    -- keybind list size/position
+                    
                     if lib and lib.keybindList then
-                        -- size
+                        
                         if type(lib.keybindList) == 'table' and lib.keybindList.size then
                             local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
                             if ks and Library and Library._keybindList and Library._keybindList.Parent then
@@ -514,7 +514,7 @@ do
                                 end
                             end
                         end
-                        -- position
+                        
                         local posSrc = nil
                         if type(lib.keybindList) == 'table' and lib.keybindList.position then posSrc = lib.keybindList.position else posSrc = lib.keybindList end
                         local kp = deserialize(posSrc) or posSrc
@@ -525,7 +525,7 @@ do
                             if mf and kpTable then mf.Position = UDim2.new(kpTable.X or 0, kpTable.XOffset or 0, kpTable.Y or 0, kpTable.YOffset or 0) end
                         end
                     end
-                    -- watermark
+                    
                     if lib and lib.watermark then
                         local wp = deserialize(lib.watermark) or lib.watermark
                         if wp then
@@ -534,7 +534,7 @@ do
                             pcall(function() Library:SetWatermarkPosition(wpTable) end)
                         end
                     end
-                    -- mobile toggle
+                    
                     if lib and lib.mobileToggle then
                         local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
                         if mp then
@@ -1309,12 +1309,12 @@ do
             Parent = statusContainer
         })
 
-        -- Auto-resize keyContainer to fit key text when needed (prevents overflow over the box)
+        
         pcall(function()
             local textService = SRV("TextService")
             local textSize = textService:GetTextSize(keyLabel.Text or "", 10, Fonts.Bold, Vector2.new(math.huge, 20))
             local entryWidth = entry.AbsoluteSize and entry.AbsoluteSize.X or 240
-            -- Cap key box to at most half the entry width, at least 60 px
+            
             local maxAllowed = math.floor(entryWidth * 0.5)
             local desired = math.ceil(textSize.X + 16)
             local finalW = math.max(60, math.min(desired, math.max(60, maxAllowed)))
@@ -1463,7 +1463,7 @@ do
             return pos
         end
         
-        -- Use the title bar (if present) as the drag handle so resizing doesn't conflict with dragging
+        
         local dragHandle = frame:FindFirstChild("TitleBar") or frame
         dragHandle.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1682,7 +1682,7 @@ do
                 end
                 local ks = Library and Library._keybindListSize
                 if ks then
-                    -- accept UDim2 or serialized/table form
+                    
                     if typeof and typeof(ks) == "UDim2" then
                         mainFrame.Size = ks
                         warn("[KeybindList._createKeybindList] applied initial Size ->", tostring(mainFrame.Size))
@@ -1699,7 +1699,7 @@ do
             end)
             self:_setupKeybindListDragging(mainFrame, outerStroke)
 
-            -- Add a resize grip to allow resizing the keybind list (bottom-right corner)
+            
             do
                 local grip = Create("Frame", {Name = "ResizeGrip", BackgroundTransparency = 1, Size = UDim2.fromOffset(26,26), Position = UDim2.new(1, 0, 1, 0), AnchorPoint = Vector2.new(1,1), ZIndex = mainFrame.ZIndex + 5, Parent = mainFrame})
                 local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,16), AnchorPoint = Vector2.new(1,1), Position = UDim2.new(1,-4,1,-4), ZIndex = grip.ZIndex + 1, Parent = grip})
@@ -1721,7 +1721,7 @@ do
 
                 local resizing = false
                 local startMouse, startSize
-                local minW, minH = 240, 300 -- default minimum size is the initial size
+                local minW, minH = 240, 300 
 
                 grip.InputBegan:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1994,8 +1994,8 @@ function Library:CreateLibrary(opts)
             return out
         end
 
-        -- Expose to the rest of the library.
-        -- Many later systems (including Window.LoadConfig) call `serialize`/`deserialize` as globals.
+        
+        
         pcall(function()
             rawset(_G, "serialize", serialize)
             rawset(_G, "deserialize", deserialize)
@@ -2133,7 +2133,7 @@ function Library:CreateLibrary(opts)
             end
             local libraryInfo = {}
             pcall(function()
-                -- Prefer live root values; fall back to cached Library._librarySize/_libraryPosition if root not present
+                
                 local winSize, winPos = nil, nil
                 if root then
                     winSize = root.Size
@@ -2144,10 +2144,10 @@ function Library:CreateLibrary(opts)
                 end
                 if not winSize then winSize = UDim2.new(0,0,0,0) end
                 if not winPos then winPos = UDim2.new(0,0,0,0) end
-                -- Prefer cached library size/position if available, fallback to current root
+                
                 local saveSize = (Library and Library._librarySize) or winSize
                 local savePos = (Library and Library._libraryPosition) or winPos
-                -- If UI instances exist, capture live values to avoid stale cache
+                
                 pcall(function()
                     if Library and Library._rootFrame then
                         saveSize = Library._rootFrame.Size or saveSize
@@ -2155,7 +2155,7 @@ function Library:CreateLibrary(opts)
                     end
                     libraryInfo.window = { size = serialize(saveSize), position = serialize(savePos) }
                 end)
-                -- Capture KeybindList from live instance when available
+                
                 do
                     local mf = nil
                     if Library and Library._keybindList then mf = Library._keybindList:FindFirstChild("MainFrame") end
@@ -2178,7 +2178,7 @@ function Library:CreateLibrary(opts)
                 if Library and Library._watermarkPosition then
                     pcall(function() libraryInfo.watermark = Library._watermarkPosition end)
                 end
-                -- Capture Mobile Toggle from live instance when available
+                
                 do
                     local cont = nil
                     if Library and Library._mobileToggleContainer then cont = Library._mobileToggleContainer end
@@ -2196,7 +2196,7 @@ function Library:CreateLibrary(opts)
                     end
                 end
 
-                -- Capture Watermark live position when available
+                
                 do
                     local wf = Library and Library._watermarkFrame
                     if wf then
@@ -2209,7 +2209,7 @@ function Library:CreateLibrary(opts)
                     end
                 end
 
-                -- Also expose a stable "layout" block mirroring library fields (for future compatibility)
+                
                 local function clone(v)
                     if type(v) ~= 'table' then return v end
                     local o = {}
@@ -2516,12 +2516,12 @@ function Library:CreateLibrary(opts)
     local autoDevice = opts.AutoDeviceCheck == true
     local forceShowMobileBtn = opts.ShowMobileButton == true
     local size = opts.Size or UDim2.fromOffset(600, 540)
-    -- If a saved library size exists (from a loaded config), use it so recreated UI matches saved size
+    
     pcall(function()
         local ls = Library and Library._librarySize
         if ls then
             if type(ls) == 'table' and ls.X and ls.Y then
-                -- table with fields
+                
                 size = UDim2.new(ls.X or 0, ls.XOffset or 0, ls.Y or 0, ls.YOffset or 0)
             else
                 size = ls
@@ -2543,7 +2543,7 @@ function Library:CreateLibrary(opts)
         Create("UICorner", {CornerRadius = UDim.new(0,12)})
     })
     self._singletonRoot = root
-    -- cache initial root size/position so Config.Save can persist them even if save happens before resize
+    
     pcall(function()
         if Library then
             Library._librarySize = root.Size
@@ -2552,7 +2552,7 @@ function Library:CreateLibrary(opts)
             warn("[Window/Create] cached Library._libraryPosition ->", tostring(root.Position))
         end
     end)
-    -- If config already provided cached values, apply them now to the freshly created root
+    
     pcall(function()
         if Library and Library._librarySize then
             local ok, ls = pcall(function() return Library._librarySize end)
@@ -2570,7 +2570,7 @@ function Library:CreateLibrary(opts)
         end
     end)
 
-    -- monitor and immediate application of cached UI state disabled per user request
+    
         local header = Create("Frame", {Name = "Header", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ZIndex = z + 1, Parent = root}, {
         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.25}),
         Create("UICorner", {CornerRadius = UDim.new(0,12)})
@@ -4591,7 +4591,7 @@ function Library:CreateLibrary(opts)
                         box.TextColor3 = self._value and Theme.Text or Theme.SubText
                         box.Font = Fonts.Regular
                         
-                        -- Keep the original layout: the key box should occupy the right half of the row so it lines up with others
+                        
                         box.Size = UDim2.new(0.5, -4, 1, 0)
                         
                         
@@ -4602,7 +4602,7 @@ function Library:CreateLibrary(opts)
                                 for _, v in ipairs(self._value) do
                                     table.insert(parts, (v and (v.Name or mouseButtonNames[v])) or tostring(v))
                                 end
-                                -- Use a human-friendly separator so the keybind list shows readable combos
+                                
                                 keyName = table.concat(parts, " + ")
                             else
                                 keyName = self._value and (self._value.Name or mouseButtonNames[self._value]) or (type(self._value)=="string" and self._value or "None")
@@ -6140,7 +6140,7 @@ function Library:CreateLibrary(opts)
                     }
                     
                     local function getKeyName(keyCode, inputType)
-                        -- Support multi-key combos passed as a table
+                        
                         if type(keyCode) == "table" then
                             local parts = {}
                             for _, part in ipairs(keyCode) do
@@ -6542,18 +6542,18 @@ function Library:CreateLibrary(opts)
                                     mode = modeText
                                     setupKeybindListener()
                                 end
-                                -- Close the context menu after selecting a mode
+                                
                                 closeCtx()
                             end)
                             return btn
                         end
 
-                        -- Create the three mode items
+                        
                         createModeItem("Hold", mode == "Hold")
                         createModeItem("Toggle", mode == "Toggle")
                         createModeItem("Always", mode == "Always")
 
-                        -- Calculate menu height for 3 items
+                        
                         local menuH = (itemH * 3) + (gap * 2) + (vPad * 2) + 1
                         ctxMenu.Size = UDim2.fromOffset(menuW, menuH)
                         local btnAbs = keybindBtn.AbsolutePosition
@@ -7131,7 +7131,7 @@ function Library:CreateLibrary(opts)
     local function cfgWarn() end 
     local function cfgErr() end 
     
-    -- Accept both dot-call and colon-call styles for convenience
+    
     Window.SaveConfig = function(a, b)
         local name = (type(a) == "string" and a) or (type(b) == "string" and b) or ""
         local safe = sanitize(name or "")
@@ -7149,7 +7149,7 @@ function Library:CreateLibrary(opts)
             if wasAutoLoad then
                 pcall(function() Config.SetAutoLoad(safe, true) end)
             end
-            -- no notification for config save (user requested)
+            
         else 
             cfgErr("[Config] Save failed:", res)
         end
@@ -7386,19 +7386,19 @@ function Library:CreateLibrary(opts)
                     if okj and type(dec) == "table" and type(dec.library) == "table" then
                     local lib = dec.library
                     if type(lib) == 'table' and type(lib.layout) == 'table' then
-                        -- Prefer unified layout block if present
+                        
                         for k,v in pairs(lib.layout) do if lib[k] == nil then lib[k] = v end end
                     end
                     pcall(function()
-                        -- Track what this config *actually provided* so reapply can't overwrite
-                        -- with default centered cached values.
+                        
+                        
                         local loadedWindowSize, loadedWindowPos = nil, nil
                         local loadedKeybindSize, loadedKeybindPos = nil, nil
                         local loadedWatermark, loadedMobile = nil, nil
 
                         local okenc, libjson = pcall(function() return HttpService:JSONEncode(lib) end)
                         print("[Window.LoadConfig] loaded library block:", okenc and libjson or tostring(lib))
-                        -- Window size/position (UDim2 expected)
+                        
                         if lib.window and lib.window.size then
                             local s = deserialize(lib.window.size) or lib.window.size
                             if s then
@@ -7424,9 +7424,9 @@ function Library:CreateLibrary(opts)
                             end
                         end
 
-                        -- Keybind list: support new shape { position = {..}, size = <ud2/table> } and legacy formats
+                        
                         if lib.keybindList then
-                            -- Apply size if present in new shape
+                            
                             if type(lib.keybindList) == 'table' and lib.keybindList.size then
                                 local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
                                 if ks then
@@ -7452,7 +7452,7 @@ function Library:CreateLibrary(opts)
                                 end
                             end
 
-                            -- Position may be nested or legacy; handle both
+                            
                             local posSrc = nil
                             if type(lib.keybindList) == 'table' and lib.keybindList.position then posSrc = lib.keybindList.position else posSrc = lib.keybindList end
                             local kp = deserialize(posSrc) or posSrc
@@ -7476,7 +7476,7 @@ function Library:CreateLibrary(opts)
                             end
                         end
 
-                        -- Watermark: normalize if needed and apply via setter
+                        
                         if lib.watermark then
                             local wp = deserialize(lib.watermark) or lib.watermark
                             if wp then
@@ -7489,7 +7489,7 @@ function Library:CreateLibrary(opts)
                             end
                         end
 
-                        -- Mobile toggle: normalize to table and set container position
+                        
                         if lib.mobileToggle then
                             local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
                             if mp then
@@ -7508,7 +7508,7 @@ function Library:CreateLibrary(opts)
                             end
                         end
 
-                        -- Debug: re-apply cached UI state a few times in case elements are created after load
+                        
                         local function toUDim2(v)
                             if not v then return nil end
                             if typeof and typeof(v) == 'UDim2' then return v end
@@ -7571,7 +7571,7 @@ function Library:CreateLibrary(opts)
                             end)
                         end
 
-                        -- Reapply a bit longer to catch late UI creation in various executors
+                        
                         if loadedWindowSize or loadedWindowPos or loadedKeybindSize or loadedKeybindPos or loadedWatermark or loadedMobile then
                             for i = 1, 20 do reapplyOnce(); task.wait(0.06) end
                         end
@@ -7580,7 +7580,7 @@ function Library:CreateLibrary(opts)
             end
         end)
 
-        -- Apply library layout if provided by Config.Load (works in MEM_MODE without filesystem)
+        
         do
             local lib = type(data) == 'table' and (data.__library or data.__layout) or nil
             if type(lib) == 'table' then
@@ -7588,12 +7588,12 @@ function Library:CreateLibrary(opts)
                 local loadedKeybindSize, loadedKeybindPos = nil, nil
                 local loadedWatermark, loadedMobile = nil, nil
 
-                -- If a consolidated layout block exists, merge it in
+                
                 if type(lib.layout) == 'table' then
                     for k,v in pairs(lib.layout) do if lib[k] == nil then lib[k] = v end end
                 end
                 pcall(function()
-                    -- Window size/position
+                    
                     if lib.window and lib.window.size then
                         local s = deserialize(lib.window.size) or lib.window.size
                         if s then
@@ -7616,7 +7616,7 @@ function Library:CreateLibrary(opts)
                             end)
                         end
                     end
-                    -- Keybind list size/position
+                    
                     if lib.keybindList then
                         if type(lib.keybindList) == 'table' and lib.keybindList.size then
                             local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
@@ -7639,7 +7639,7 @@ function Library:CreateLibrary(opts)
                             loadedKeybindPos = kpTable
                         end
                     end
-                    -- Watermark
+                    
                     if lib.watermark then
                         local wp = deserialize(lib.watermark) or lib.watermark
                         if wp then
@@ -7651,7 +7651,7 @@ function Library:CreateLibrary(opts)
                             loadedWatermark = wpTable
                         end
                     end
-                    -- Mobile toggle
+                    
                     if lib.mobileToggle then
                         local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
                         if mp then
@@ -7665,7 +7665,7 @@ function Library:CreateLibrary(opts)
                     end
                 end)
 
-                -- Reapply from cached values repeatedly to catch late UI creation (MEM_MODE path)
+                
                 local function toUD2(v)
                     if not v then return nil end
                     if typeof and typeof(v) == 'UDim2' then return v end
@@ -7716,8 +7716,8 @@ function Library:CreateLibrary(opts)
                 end
             end
         end
-        -- notify that load completed (may have applied library-level fields)
-    -- no notification for config load (user requested)
+        
+    
     end
     Window.ListConfigs = function() return Config.List() end
     Window.DeleteConfig = function(a, b)
