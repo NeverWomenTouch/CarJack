@@ -4917,7 +4917,16 @@ function Library:CreateLibrary(opts)
                     end
 
                     
-                    local keybindMode = "Hold" 
+                    local function normalizeKeybindMode(m)
+                        if type(m) ~= "string" then return nil end
+                        m = m:lower()
+                        if m == "hold" then return "Hold" end
+                        if m == "toggle" then return "Toggle" end
+                        if m == "always" then return "Always" end
+                        return nil
+                    end
+
+                    local keybindMode = normalizeKeybindMode(o.Mode or o.KeybindMode) or "Hold" 
                     local keybindCtxMenu, keybindCtxOpen
                     local keybindCtxBlocker = nil
                     local keybindCtxConns = {}
@@ -4939,6 +4948,10 @@ function Library:CreateLibrary(opts)
                         if Library._openKeybindCtxClose and Library._openKeybindCtxClose ~= closeKeybindCtx then pcall(Library._openKeybindCtxClose) end
                         closeKeybindCtx()
                         if keybindCtxMenu then pcall(function() keybindCtxMenu:Destroy() end); keybindCtxMenu=nil end
+
+                        if Keybind and Keybind._mode then
+                            keybindMode = Keybind._mode
+                        end
                         
                         local menuZBase = 12000
                         keybindCtxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = menuZBase, Parent = RootGui})
@@ -4991,7 +5004,7 @@ function Library:CreateLibrary(opts)
                             btn.MouseButton1Click:Connect(function() 
                                 keybindMode = modeText
                                 
-                                if Keybind and Keybind.SetMode then Keybind:SetMode(modeText, true) end
+                                if Keybind and Keybind.SetMode then Keybind:SetMode(modeText) end
                                 closeKeybindCtx() 
                             end)
                             return btn
@@ -5095,6 +5108,11 @@ function Library:CreateLibrary(opts)
                         if not silent and type(cb) == "function" then
                             pcall(cb, self._isActive, self._value, self)
                         end
+                    end
+
+                    Keybind:SetMode(Keybind._mode, true)
+                    if Keybind._mode == "Always" and type(cb) == "function" then
+                        pcall(cb, true, Keybind._value, Keybind)
                     end
                     
                     
