@@ -5068,6 +5068,10 @@ function Library:CreateLibrary(opts)
                     Keybind._mode = keybindMode 
                     Keybind._toggleState = false 
 
+                    function Keybind:IsDown()
+                        return self._isActive == true
+                    end
+
                     function Keybind:GetMode()
                         return self._mode
                     end
@@ -5089,7 +5093,7 @@ function Library:CreateLibrary(opts)
                             Library:_updateKeybind(self._keybindId, { active = self._isActive })
                         end
                         if not silent and type(cb) == "function" then
-                            pcall(cb, self._isActive, self._value)
+                            pcall(cb, self._isActive, self._value, self)
                         end
                     end
                     
@@ -5134,15 +5138,15 @@ function Library:CreateLibrary(opts)
                                 Keybind._toggleState = not (Keybind._toggleState == true)
                                 Keybind._isActive = Keybind._toggleState
                                 Library:_updateKeybind(keybindId, {active = Keybind._isActive})
-                                if type(cb) == "function" then pcall(cb, Keybind._isActive, Keybind._value) end
+                                if type(cb) == "function" then pcall(cb, Keybind._isActive, Keybind._value, Keybind) end
                             elseif Keybind._mode == "Always" then
                                 Keybind._isActive = true
                                 Library:_updateKeybind(keybindId, {active = true})
-                                if type(cb) == "function" then pcall(cb, true, Keybind._value) end
+                                if type(cb) == "function" then pcall(cb, true, Keybind._value, Keybind) end
                             else 
                                 Keybind._isActive = true
                                 Library:_updateKeybind(keybindId, {active = true})
-                                if type(cb) == "function" then pcall(cb, true, Keybind._value) end
+                                if type(cb) == "function" then pcall(cb, true, Keybind._value, Keybind) end
                             end
                         end
                     end)
@@ -5173,7 +5177,7 @@ function Library:CreateLibrary(opts)
                             if Keybind._mode == "Hold" then
                                 Keybind._isActive = false
                                 Library:_updateKeybind(keybindId, {active = false})
-                                if type(cb) == "function" then pcall(cb, false, Keybind._value) end
+                                if type(cb) == "function" then pcall(cb, false, Keybind._value, Keybind) end
                             else
                                 
                             end
