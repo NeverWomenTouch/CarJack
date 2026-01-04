@@ -340,23 +340,14 @@ function Library:TranslateTo(to)
         return ok and v == true
     end
     local function store(inst)
-        if not inst then return end
         originals[inst] = originals[inst] or {}
-
-        local isDynamic = false
         pcall(function()
-            if inst.GetAttribute then
-                isDynamic = inst:GetAttribute("DendriteDynamicSource") == true
-            end
-        end)
-
-        pcall(function()
-            if inst.Text ~= nil and (isDynamic or originals[inst].Text == nil) then
+            if inst and inst.Text ~= nil then
                 originals[inst].Text = inst.Text
             end
         end)
         pcall(function()
-            if inst.PlaceholderText ~= nil and (isDynamic or originals[inst].PlaceholderText == nil) then
+            if inst and inst.PlaceholderText ~= nil then
                 originals[inst].PlaceholderText = inst.PlaceholderText
             end
         end)
@@ -4184,7 +4175,7 @@ function Library:CreateLibrary(opts)
                     local anim = false
                     local conns = {}
                     local activeIndex = 1
-                    local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti, _clickGate = false, _valueLabel = valueLbl }
+                    local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti, _clickGate = false }
                     
                     local getMouseGuiPosition
 
@@ -8317,12 +8308,7 @@ function Library:CreateLibrary(opts)
             local code = languages[name] or "en"
             pcall(function() Library:TranslateTo(code) end)
         end })
-        pcall(function()
-            langDd:Set("English", true)
-            if langDd._valueLabel then
-                langDd._valueLabel:SetAttribute("DendriteDynamicSource", true)
-            end
-        end)
+        pcall(function() langDd:Set("English", true) end)
 
         autoToggle = group:AddToggle({ Name = "Auto Load Config", Default = false, Callback = function(on)
             local raw = dd:Get()
