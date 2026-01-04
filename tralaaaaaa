@@ -295,6 +295,8 @@ Library._translationOriginals = Library._translationOriginals or {}
 
 function Library:TranslateTo(to)
     if not to or to == "" then to = "en" end
+
+    self._translationLang = to
     local root = self._rootGui
     if not root then
         for _, g in pairs(CoreGui:GetChildren()) do
@@ -317,6 +319,57 @@ function Library:TranslateTo(to)
         originals[inst] = {}
         if pcall(function() return inst.Text end) then originals[inst].Text = inst.Text end
         if pcall(function() return inst.PlaceholderText end) then originals[inst].PlaceholderText = inst.PlaceholderText end
+    end
+
+    if not self._translationDescAddedConn then
+        self._translationDescAddedConn = self:_connect(root.DescendantAdded, function(inst)
+            if not inst then return end
+            if not (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox")) then return end
+            store(inst)
+            if isNoTranslate(inst) then
+                return
+            end
+
+            local lang = self._translationLang or "en"
+            if lang == "en" then
+                pcall(function()
+                    local o = originals[inst]
+                    if o and o.Text ~= nil then inst.Text = o.Text end
+                end)
+                pcall(function()
+                    local o = originals[inst]
+                    if o and o.PlaceholderText ~= nil then inst.PlaceholderText = o.PlaceholderText end
+                end)
+                return
+            end
+
+            pcall(function()
+                local o = originals[inst]
+                local origText = o and o.Text
+                if origText and origText ~= "" then
+                    local key = origText .. "|" .. lang
+                    local trans = cache[key]
+                    if not trans then
+                        trans = translate(origText, "en", lang)
+                        cache[key] = trans
+                    end
+                    inst.Text = trans
+                end
+            end)
+            pcall(function()
+                local o = originals[inst]
+                local origPlaceholder = o and o.PlaceholderText
+                if origPlaceholder and origPlaceholder ~= "" then
+                    local key = origPlaceholder .. "|" .. lang
+                    local trans = cache[key]
+                    if not trans then
+                        trans = translate(origPlaceholder, "en", lang)
+                        cache[key] = trans
+                    end
+                    inst.PlaceholderText = trans
+                end
+            end)
+        end)
     end
     local texts = {}
     local instMapText = {}
