@@ -331,6 +331,59 @@ function Library:TranslateTo(to)
     if not root then return end
     local cache = self._translationCache
     local originals = self._translationOriginals
+    self._translationPending = self._translationPending or { text = {}, placeholder = {} }
+    self._translationFlushScheduled = self._translationFlushScheduled or false
+    local function enqueue(kind, value, inst)
+        if not value or value == "" or not inst then return end
+        local bucket = (kind == "text") and self._translationPending.text or self._translationPending.placeholder
+        bucket[value] = bucket[value] or {}
+        table.insert(bucket[value], inst)
+    end
+    local function scheduleFlush()
+        if self._translationFlushScheduled then return end
+        self._translationFlushScheduled = true
+        task.defer(function()
+            local lang = self._translationLang or to or "en"
+            local pendingText = self._translationPending.text
+            local pendingPH = self._translationPending.placeholder
+            local uniq = {}
+            for k,_ in pairs(pendingText) do uniq[k] = true end
+            for k,_ in pairs(pendingPH) do uniq[k] = true end
+            local list = {}
+            for k,_ in pairs(uniq) do table.insert(list, k) end
+            if #list > 0 and lang ~= "en" then
+                local translated = batchTranslate(list, "en", lang)
+                for orig, trans in pairs(translated) do
+                    local key = orig.."|"..lang
+                    cache[key] = trans
+                end
+                for orig, insts in pairs(pendingText) do
+                    local key = orig.."|"..lang
+                    local trans = cache[key] or orig
+                    for _, inst in ipairs(insts) do
+                        pcall(function()
+                            inst:SetAttribute("DendriteTranslating", true)
+                            inst.Text = trans
+                            inst:SetAttribute("DendriteTranslating", false)
+                        end)
+                    end
+                end
+                for orig, insts in pairs(pendingPH) do
+                    local key = orig.."|"..lang
+                    local trans = cache[key] or orig
+                    for _, inst in ipairs(insts) do
+                        pcall(function()
+                            inst:SetAttribute("DendriteTranslating", true)
+                            inst.PlaceholderText = trans
+                            inst:SetAttribute("DendriteTranslating", false)
+                        end)
+                    end
+                end
+            end
+            self._translationPending = { text = {}, placeholder = {} }
+            self._translationFlushScheduled = false
+        end)
+    end
     local function isNoTranslate(inst)
         local ok, v = pcall(function()
             if inst and inst.GetAttribute then
@@ -350,32 +403,37 @@ function Library:TranslateTo(to)
         store(inst)
         if isNoTranslate(inst) then return end
         local lang = self._translationLang or to
-        local function translateText(value)
-            if not value or value == "" then return value end
-            if lang == "en" then return value end
-            local key = value .. "|" .. lang
-            local trans = cache[key]
-            if not trans then
-                trans = translate(value, "en", lang)
-                cache[key] = trans
-            end
-            return trans or value
-        end
-        local function safeSet(prop, val)
-            pcall(function()
-                inst:SetAttribute("DendriteTranslating", true)
-                inst[prop] = val
-                inst:SetAttribute("DendriteTranslating", false)
-            end)
-        end
-        -- Initial apply (always re-apply on language change)
+        local isInput = inst:IsA("TextBox")
+        -- Initial apply: use cache if present, else enqueue for batch
         pcall(function()
             local o = originals[inst]
-            if o and o.Text and o.Text ~= "" then safeSet("Text", translateText(o.Text)) end
+            if not isInput and o and o.Text and o.Text ~= "" then
+                local key = o.Text .. "|" .. (lang or "en")
+                local trans = cache[key]
+                if trans and lang ~= "en" then
+                    inst:SetAttribute("DendriteTranslating", true)
+                    inst.Text = trans
+                    inst:SetAttribute("DendriteTranslating", false)
+                elseif lang ~= "en" then
+                    enqueue("text", o.Text, inst)
+                    scheduleFlush()
+                end
+            end
         end)
         pcall(function()
             local o = originals[inst]
-            if o and o.PlaceholderText and o.PlaceholderText ~= "" then safeSet("PlaceholderText", translateText(o.PlaceholderText)) end
+            if o and o.PlaceholderText and o.PlaceholderText ~= "" then
+                local key = o.PlaceholderText .. "|" .. (lang or "en")
+                local trans = cache[key]
+                if trans and lang ~= "en" then
+                    inst:SetAttribute("DendriteTranslating", true)
+                    inst.PlaceholderText = trans
+                    inst:SetAttribute("DendriteTranslating", false)
+                elseif lang ~= "en" then
+                    enqueue("placeholder", o.PlaceholderText, inst)
+                    scheduleFlush()
+                end
+            end
         end)
         -- React to future changes (attach only once)
         local attached = false
@@ -384,27 +442,29 @@ function Library:TranslateTo(to)
         end)
         if not attached then
             pcall(function() inst:SetAttribute("DendriteTranslateAttached", true) end)
-            pcall(function()
-                self:_connect(inst:GetPropertyChangedSignal("Text"), function()
-                    if inst:GetAttribute("DendriteTranslating") then return end
-                    local newVal = inst.Text
-                    local o = originals[inst]
-                    if not o then originals[inst] = { Text = newVal } else o.Text = newVal end
-                    if not isNoTranslate(inst) then
-                        local out = translateText(newVal)
-                        safeSet("Text", out)
-                    end
+            if not isInput then
+                pcall(function()
+                    self:_connect(inst:GetPropertyChangedSignal("Text"), function()
+                        if inst:GetAttribute("DendriteTranslating") then return end
+                        local newVal = inst.Text
+                        local o = originals[inst]
+                        if not o then originals[inst] = { Text = newVal } else o.Text = newVal end
+                        if not isNoTranslate(inst) and (lang ~= "en") then
+                            enqueue("text", newVal, inst)
+                            scheduleFlush()
+                        end
+                    end)
                 end)
-            end)
+            end
             pcall(function()
                 self:_connect(inst:GetPropertyChangedSignal("PlaceholderText"), function()
                     if inst:GetAttribute("DendriteTranslating") then return end
                     local newVal = inst.PlaceholderText
                     local o = originals[inst]
                     if not o then originals[inst] = { PlaceholderText = newVal } else o.PlaceholderText = newVal end
-                    if not isNoTranslate(inst) then
-                        local out = translateText(newVal)
-                        safeSet("PlaceholderText", out)
+                    if not isNoTranslate(inst) and (lang ~= "en") then
+                        enqueue("placeholder", newVal, inst)
+                        scheduleFlush()
                     end
                 end)
             end)
@@ -424,7 +484,8 @@ function Library:TranslateTo(to)
             attach(inst)
             if not isNoTranslate(inst) then
                 local o = originals[inst]
-                local origText = o and o.Text
+                local isInput = inst:IsA("TextBox")
+                local origText = (not isInput) and o and o.Text or nil
                 if origText and origText ~= "" then
                     if not instMapText[origText] then instMapText[origText] = {} table.insert(texts, origText) end
                     table.insert(instMapText[origText], inst)
