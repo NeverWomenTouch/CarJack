@@ -358,9 +358,11 @@ function Library:TranslateTo(to)
         end
     end
     if not root then return end
-    local lang = to
     local cache = self._translationCache
     local originals = self._translationOriginals
+    local function getLang()
+        return self._translationLang or to or "en"
+    end
     local function safeSet(inst, prop, val)
         pcall(function()
             inst:SetAttribute("DendriteTranslating", true)
@@ -382,12 +384,20 @@ function Library:TranslateTo(to)
         if pcall(function() return inst.Text end) then originals[inst].Text = inst.Text end
         if pcall(function() return inst.PlaceholderText end) then originals[inst].PlaceholderText = inst.PlaceholderText end
     end
-    -- Minimal live translation for newly created UI (keeps dropdown items translated)
+    local function shouldTranslateText(s)
+        if type(s) ~= "string" then return false end
+        if s == "" or s:match("^%s*$") then return false end
+        -- Avoid translating icon/symbol-only strings (caret, dashes, etc.)
+        if not s:match("[%a]") then return false end
+        return true
+    end
+
     self._translationPending = self._translationPending or { text = {}, placeholder = {} }
     self._translationFlushScheduled = self._translationFlushScheduled or false
     local function enqueue(kind, value, inst)
+        local lang = getLang()
         if lang == "en" then return end
-        if not value or value == "" or not inst then return end
+        if not inst or not value or value == "" then return end
         local bucket = (kind == "text") and self._translationPending.text or self._translationPending.placeholder
         bucket[value] = bucket[value] or {}
         table.insert(bucket[value], inst)
@@ -396,6 +406,7 @@ function Library:TranslateTo(to)
         if self._translationFlushScheduled then return end
         self._translationFlushScheduled = true
         task.defer(function()
+            local lang = getLang()
             local pendingText = self._translationPending.text
             local pendingPH = self._translationPending.placeholder
             local uniq = {}
@@ -403,62 +414,95 @@ function Library:TranslateTo(to)
             for k,_ in pairs(pendingPH) do uniq[k] = true end
             local list = {}
             for k,_ in pairs(uniq) do table.insert(list, k) end
-            if #list > 0 and lang ~= "en" then
-                local translated = batchTranslate(list, "en", lang)
-                for orig, trans in pairs(translated) do
-                    local key = orig.."|"..lang
-                    cache[key] = trans
-                end
-                for orig, insts in pairs(pendingText) do
-                    local key = orig.."|"..lang
-                    local trans = cache[key] or orig
-                    for _, inst in ipairs(insts) do
-                        safeSet(inst, "Text", trans)
+            pcall(function()
+                if #list > 0 and lang ~= "en" then
+                    local ok, translated = pcall(function()
+                        return batchTranslate(list, "en", lang)
+                    end)
+                    if ok and type(translated) == "table" then
+                        for orig, trans in pairs(translated) do
+                            cache[orig.."|"..lang] = trans
+                        end
+                    end
+                    for orig, insts in pairs(pendingText) do
+                        local trans = cache[orig.."|"..lang] or orig
+                        for _, inst in ipairs(insts) do safeSet(inst, "Text", trans) end
+                    end
+                    for orig, insts in pairs(pendingPH) do
+                        local trans = cache[orig.."|"..lang] or orig
+                        for _, inst in ipairs(insts) do safeSet(inst, "PlaceholderText", trans) end
                     end
                 end
-                for orig, insts in pairs(pendingPH) do
-                    local key = orig.."|"..lang
-                    local trans = cache[key] or orig
-                    for _, inst in ipairs(insts) do
-                        safeSet(inst, "PlaceholderText", trans)
-                    end
-                end
-            end
+            end)
             self._translationPending = { text = {}, placeholder = {} }
             self._translationFlushScheduled = false
+        end)
+    end
+
+    local function hookInstance(inst)
+        if not inst then return end
+        if isNoTranslate(inst) then return end
+        if not (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox")) then return end
+        store(inst)
+
+        local okHooked, hooked = pcall(function()
+            return inst:GetAttribute("DendriteTranslateHooked") == true
+        end)
+        if okHooked and hooked then return end
+        pcall(function() inst:SetAttribute("DendriteTranslateHooked", true) end)
+
+        if inst:IsA("TextBox") then
+            -- Never translate user input while typing.
+            pcall(function()
+                inst:GetPropertyChangedSignal("PlaceholderText"):Connect(function()
+                    if inst:GetAttribute("DendriteTranslating") then return end
+                    if isNoTranslate(inst) then return end
+                    local lang = getLang()
+                    local newVal = inst.PlaceholderText
+                    originals[inst].PlaceholderText = newVal
+                    if lang ~= "en" and shouldTranslateText(newVal) then
+                        enqueue("placeholder", newVal, inst)
+                        scheduleFlush()
+                    end
+                end)
+            end)
+            return
+        end
+
+        -- TextLabel/TextButton
+        pcall(function()
+            inst:GetPropertyChangedSignal("Text"):Connect(function()
+                if inst:GetAttribute("DendriteTranslating") then return end
+                if isNoTranslate(inst) then return end
+                local lang = getLang()
+                local newVal = inst.Text
+                originals[inst].Text = newVal
+                if lang ~= "en" and shouldTranslateText(newVal) then
+                    enqueue("text", newVal, inst)
+                    scheduleFlush()
+                end
+            end)
         end)
     end
     if not self._translationDescAddedConn then
         self._translationDescAddedConn = self:_connect(root.DescendantAdded, function(inst)
             if not inst then return end
             if isNoTranslate(inst) then return end
-            if inst:IsA("TextLabel") then
-                store(inst)
-                local o = originals[inst]
-                local t = o and o.Text
-                if t and t ~= "" then
-                    local key = t.."|"..lang
-                    local trans = cache[key]
-                    if trans then
-                        safeSet(inst, "Text", trans)
-                    else
-                        enqueue("text", t, inst)
-                        scheduleFlush()
-                    end
+            hookInstance(inst)
+
+            local lang = getLang()
+            if lang == "en" then return end
+            if inst:IsA("TextLabel") or inst:IsA("TextButton") then
+                local t = originals[inst] and originals[inst].Text
+                if shouldTranslateText(t) then
+                    local trans = cache[t.."|"..lang]
+                    if trans then safeSet(inst, "Text", trans) else enqueue("text", t, inst); scheduleFlush() end
                 end
             elseif inst:IsA("TextBox") then
-                store(inst)
-                local o = originals[inst]
-                local ph = o and o.PlaceholderText
-                if ph and ph ~= "" then
-                    local key = ph.."|"..lang
-                    local trans = cache[key]
-                    if trans then
-                        safeSet(inst, "PlaceholderText", trans)
-                    else
-                        enqueue("placeholder", ph, inst)
-                        scheduleFlush()
-                    end
+                local ph = originals[inst] and originals[inst].PlaceholderText
+                if shouldTranslateText(ph) then
+                    local trans = cache[ph.."|"..lang]
+                    if trans then safeSet(inst, "PlaceholderText", trans) else enqueue("placeholder", ph, inst); scheduleFlush() end
                 end
             end
         end)
@@ -469,18 +513,19 @@ function Library:TranslateTo(to)
     for _, inst in ipairs(root:GetDescendants()) do
         if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
             store(inst)
+            hookInstance(inst)
             if not isNoTranslate(inst) then
                 local o = originals[inst]
                 -- Never translate live TextBox.Text (typing). Only placeholder.
                 if (inst:IsA("TextLabel") or inst:IsA("TextButton")) then
                     local origText = o and o.Text
-                    if origText and origText ~= "" then
+                    if shouldTranslateText(origText) then
                         if not instMapText[origText] then instMapText[origText] = {} table.insert(texts, origText) end
                         table.insert(instMapText[origText], inst)
                     end
                 end
                 local origPlaceholder = o and o.PlaceholderText
-                if origPlaceholder and origPlaceholder ~= "" then
+                if shouldTranslateText(origPlaceholder) then
                     if not instMapPlaceholder[origPlaceholder] then instMapPlaceholder[origPlaceholder] = {} table.insert(texts, origPlaceholder) end
                     table.insert(instMapPlaceholder[origPlaceholder], inst)
                 end
@@ -491,6 +536,7 @@ function Library:TranslateTo(to)
     for _, t in ipairs(texts) do uniq[t] = true end
     local list = {}
     for t,_ in pairs(uniq) do table.insert(list, t) end
+    local lang = getLang()
     if lang == "en" then
         -- Restore originals for non-excluded instances; do not touch TextBox.Text (user input)
         for inst, o in pairs(originals) do
@@ -507,7 +553,12 @@ function Library:TranslateTo(to)
     end
 
     if #list == 0 then return end
-    local translated = batchTranslate(list, "en", lang)
+    local ok, translated = pcall(function()
+        return batchTranslate(list, "en", lang)
+    end)
+    if not ok or type(translated) ~= "table" then
+        translated = {}
+    end
     for orig, trans in pairs(translated) do
         local key = orig.."|"..lang
         cache[key] = trans
@@ -4213,10 +4264,7 @@ function Library:CreateLibrary(opts)
                     })
                 end
                 
-                function Group:AddDropdown(...)
-                    
-                    
-                    
+                function Group:AddDropdown(...)            
                     local argc = select("#", ...)
                     local _first = ...
                     local o
