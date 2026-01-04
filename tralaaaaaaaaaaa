@@ -10,6 +10,10 @@ local httpService = HttpService
 local injectedHttp = http_request or request or syn.request
 
 local function translate(text, from, to)
+    if not text or text == "" then return text end
+    if not to or to == "" then to = from end
+    if not from or from == "" then from = "en" end
+    if tostring(from) == tostring(to) then return text end
     local encodedText = httpService:UrlEncode(text)
     local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s"):format(from, to, encodedText)
 
@@ -34,16 +38,29 @@ local function translate(text, from, to)
         return httpService:JSONDecode(body)
     end)
 
-    if not ok or not data or not data[1] or not data[1][1] or not data[1][1][1] then
+    if not ok or type(data) ~= "table" or type(data[1]) ~= "table" then
         return text
     end
-
-    return data[1][1][1]
+    local segs = data[1][1]
+    if type(segs) ~= "table" then return text end
+    local out = ""
+    for _, seg in ipairs(segs) do
+        local chunk = (type(seg) == "table" and seg[1]) or nil
+        if type(chunk) == "string" then out = out .. chunk end
+    end
+    if out == "" then return text end
+    return out
 end
 
 local function batchTranslate(texts, from, to)
     local results = {}
     if type(texts) ~= "table" or #texts == 0 then return results end
+    if not from or from == "" then from = "en" end
+    if not to or to == "" then to = from end
+    if tostring(from) == tostring(to) then
+        for _, t in ipairs(texts) do results[t] = t end
+        return results
+    end
     local maxBatch = 25
     local i = 1
     while i <= #texts do
@@ -53,7 +70,7 @@ local function batchTranslate(texts, from, to)
         end
         i = i + #batch
         local params = {}
-        for _, t in ipairs(batch) do table.insert(params, "&q=" .. httpService:UrlEncode(t)) end
+        for _, t in ipairs(batch) do table.insert(params, "&q=" .. httpService:UrlEncode(t or "")) end
         local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t%s"):format(from, to, table.concat(params, ""))
         local ok, response = pcall(function()
             return injectedHttp({ Url = url, Method = "GET", Headers = { ["User-Agent"] = "Mozilla/5.0" } })
@@ -63,15 +80,23 @@ local function batchTranslate(texts, from, to)
         else
             local body = response.Body or response.body
             local parsedOk, data = pcall(function() return httpService:JSONDecode(body) end)
-            if not parsedOk or not data or not data[1] then
+            if not parsedOk or type(data) ~= "table" or type(data[1]) ~= "table" then
                 for _, t in ipairs(batch) do results[t] = t end
             else
-                for idx = 1, #data[1] do
-                    local segs = data[1][idx]
+                local function joinSegments(container)
+                    if type(container) ~= "table" then return nil end
                     local out = ""
-                    for s = 1, #segs do out = out .. (segs[s][1] or "") end
+                    for _, seg in ipairs(container) do
+                        local chunk = (type(seg) == "table" and seg[1]) or nil
+                        if type(chunk) == "string" then out = out .. chunk end
+                    end
+                    return out
+                end
+                for idx = 1, #batch do
                     local original = batch[idx]
-                    results[original] = out or original
+                    local out = joinSegments(data[1][idx])
+                    if not out or out == "" then out = original end
+                    results[original] = out
                 end
             end
         end
