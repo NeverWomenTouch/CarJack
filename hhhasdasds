@@ -340,7 +340,8 @@ function Library:TranslateTo(to)
         return ok and v == true
     end
     local function store(inst)
-        originals[inst] = originals[inst] or {}
+        if originals[inst] then return end
+        originals[inst] = {}
         pcall(function()
             if inst and inst.Text ~= nil then
                 originals[inst].Text = inst.Text
@@ -3744,26 +3745,14 @@ function Library:CreateLibrary(opts)
                 
                 local function registerSearch(text, searchType)
                     if not text or text == "" then return end
-                    local entry = {
-                        textLower = string.lower(text),
-                        category = Category,
-                        page = Page,
+                    Library._searchEntries[#Library._searchEntries+1] = {
+                        textLower = string.lower(text), 
+                        category = Category, 
+                        page = Page, 
                         groupFrame = gFrame,
                         originalText = text,
                         searchType = searchType or "control"
                     }
-
-                    local lang = Library and Library._translationLang or "en"
-                    if lang and lang ~= "en" then
-                        local key = text .. "|" .. lang
-                        local cache = Library._translationCache or {}
-                        local translated = cache[key]
-                        if translated and translated ~= "" and translated ~= text then
-                            entry.translatedLower = string.lower(translated)
-                        end
-                    end
-
-                    Library._searchEntries[#Library._searchEntries+1] = entry
                 end
                 
                 
@@ -7474,34 +7463,10 @@ function Library:CreateLibrary(opts)
         
         for _, entry in ipairs(Library._searchEntries) do
             local text = entry.textLower
-            local tAlt = entry.translatedLower
             local score = 0
             
             
-            local function matchAgainst(s)
-                if not s or s == "" then return nil end
-                if s == term then
-                    return 1000
-                elseif s:find("^" .. term:gsub("[%-%^%$%(%)%%%.%[%]%*%+%?]", "%%%1")) then
-                    return 800 + (100 - #s)
-                elseif s:find(term, 1, true) then
-                    return 600 + (100 - #s)
-                end
-                return nil
-            end
-
-            local scoreMain = matchAgainst(text)
-            local scoreAlt = matchAgainst(tAlt)
-
-            if scoreMain or scoreAlt then
-                score = math.max(scoreMain or 0, scoreAlt or 0)
-                if score >= 800 then
-                    exactMatches[#exactMatches + 1] = {entry = entry, score = score}
-                else
-                    matches[#matches + 1] = {entry = entry, score = score}
-                end
-
-            else
+            if text == term then
                 score = 1000
                 exactMatches[#exactMatches + 1] = {entry = entry, score = score}
             
