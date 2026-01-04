@@ -6,6 +6,63 @@ local TextService = SRV("TextService")
 local UserInputService = SRV("UserInputService")
 local ContextActionService = SRV("ContextActionService")
 local HttpService = SRV("HttpService")
+local injectedHttp = http_request or request or (syn and syn.request) or (http and http.request)
+
+function translate(text, from, to)
+    local encodedText = HttpService:UrlEncode(tostring(text or ""))
+    local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s"):format(from or "auto", to or "en", encodedText)
+    local success, response = pcall(function()
+        return injectedHttp({ Url = url, Method = "GET", Headers = { ["User-Agent"] = "Mozilla/5.0" } })
+    end)
+    if not success or not response then return text end
+    local body = response.Body or response.body
+    if not body or type(body) ~= "string" then return text end
+    local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
+    if not ok or not data or not data[1] or not data[1][1] or not data[1][1][1] then return text end
+    return data[1][1][1]
+end
+
+Library._origTexts = Library._origTexts or setmetatable({}, {__mode = 'k'})
+local LANGUAGE_MAP = {
+    ["English (en)"] = "en", ["Spanish (es)"] = "es", ["French (fr)"] = "fr", ["German (de)"] = "de", ["Portuguese (pt)"] = "pt", ["Russian (ru)"] = "ru", ["Chinese Simplified (zh-CN)"] = "zh-CN", ["Chinese Traditional (zh-TW)"] = "zh-TW", ["Japanese (ja)"] = "ja", ["Korean (ko)"] = "ko", ["Italian (it)"] = "it", ["Dutch (nl)"] = "nl", ["Turkish (tr)"] = "tr", ["Arabic (ar)"] = "ar", ["Hindi (hi)"] = "hi", ["Bengali (bn)"] = "bn", ["Punjabi (pa)"] = "pa", ["Urdu (ur)"] = "ur", ["Vietnamese (vi)"] = "vi", ["Polish (pl)"] = "pl", ["Romanian (ro)"] = "ro", ["Greek (el)"] = "el", ["Czech (cs)"] = "cs", ["Swedish (sv)"] = "sv", ["Norwegian (no)"] = "no", ["Danish (da)"] = "da", ["Finnish (fi)"] = "fi", ["Hungarian (hu)"] = "hu", ["Thai (th)"] = "th", ["Indonesian (id)"] = "id", ["Malay (ms)"] = "ms", ["Filipino (tl)"] = "tl", ["Hebrew (he)"] = "he", ["Persian (fa)"] = "fa", ["Ukrainian (uk)"] = "uk", ["Catalan (ca)"] = "ca", ["Serbian (sr)"] = "sr", ["Croatian (hr)"] = "hr", ["Slovak (sk)"] = "sk", ["Lithuanian (lt)"] = "lt", ["Latvian (lv)"] = "lv", ["Estonian (et)"] = "et", ["Slovenian (sl)"] = "sl", ["Bulgarian (bg)"] = "bg", ["Albanian (sq)"] = "sq", ["Icelandic (is)"] = "is", ["Welsh (cy)"] = "cy", ["Irish (ga)"] = "ga", ["Swahili (sw)"] = "sw"
+}
+
+function Library:SetLanguage(code)
+    if not code or code == "en" or code == "English (en)" then
+        self._language = "en"
+        for inst, orig in pairs(self._origTexts) do
+            if inst and inst.Parent then
+                if orig.Text then pcall(function() inst.Text = orig.Text end) end
+                if orig.PlaceholderText then pcall(function() inst.PlaceholderText = orig.PlaceholderText end) end
+            end
+        end
+        return
+    end
+    self._language = code
+    for _, inst in ipairs((self._rootGui and self._rootGui:GetDescendants()) or {}) do
+        local okType = false
+        if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") or inst:IsA("TextInput") then okType = true end
+        if okType then
+            local orig = self._origTexts[inst]
+            if not orig then
+                orig = { Text = (inst.Text and tostring(inst.Text)) or "", PlaceholderText = (inst.PlaceholderText and tostring(inst.PlaceholderText)) or "" }
+                self._origTexts[inst] = orig
+            end
+            if orig.Text and orig.Text ~= "" then
+                task.spawn(function()
+                    local ok, res = pcall(function() return translate(orig.Text, "en", tostring(code)) end)
+                    if ok and res and inst and inst.Parent then pcall(function() inst.Text = res end) end
+                end)
+            end
+            if inst:IsA("TextBox") and orig.PlaceholderText and orig.PlaceholderText ~= "" then
+                task.spawn(function()
+                    local ok2, res2 = pcall(function() return translate(orig.PlaceholderText, "en", tostring(code)) end)
+                    if ok2 and res2 and inst and inst.Parent then pcall(function() inst.PlaceholderText = res2 end) end
+                end)
+            end
+        end
+    end
+end
 local MarketplaceService = SRV("MarketplaceService")
 local _isfile = (isfile or function() return false end)
 local _isfolder = (isfolder or function() return false end)
@@ -8054,6 +8111,19 @@ function Library:CreateLibrary(opts)
             pcall(function() on = Config.GetAutoLoad(safe) end)
             if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
         end, Compact = true })
+
+        local langOpts = {}
+        for k in pairs(LANGUAGE_MAP) do table.insert(langOpts, k) end
+        table.sort(langOpts)
+        local langDd = group:AddDropdown({ Name = "Library Language", Options = langOpts, Default = "English (en)", Multi = false, Search = true, Placeholder = "Library Language" })
+        local _langSet = langDd.Set
+        function langDd:Set(v, silent)
+            _langSet(self, v, silent)
+            local sel = self:Get()
+            local code = LANGUAGE_MAP[sel] or sel
+            pcall(function() Library:SetLanguage(code) end)
+        end
+        langDd:Set("English (en)", true)
 
         
         autoToggle = group:AddToggle({ Name = "Auto Load Config", Default = false, Callback = function(on)
