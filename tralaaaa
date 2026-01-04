@@ -1,4 +1,4 @@
-local cloneref = (type(cloneref) == "function" and cloneref) or function(x) return x end
+local cloneref = cloneref or function(x) return x end
 function SRV(name) return cloneref(game:GetService(name)) end
 local CoreGui = SRV("CoreGui")
 local TweenService = SRV("TweenService")
@@ -6,29 +6,40 @@ local TextService = SRV("TextService")
 local UserInputService = SRV("UserInputService")
 local ContextActionService = SRV("ContextActionService")
 local HttpService = SRV("HttpService")
-local injectedHttp = http_request or request or (syn and syn.request) or (http and http.request)
+local httpService = HttpService
+local injectedHttp = http_request or request or syn.request
 
-function translate(text, from, to)
-    if type(injectedHttp) ~= "function" then return text end
-    local okEncode, encodedText = pcall(function() return HttpService:UrlEncode(tostring(text or "")) end)
-    if not okEncode or not encodedText then encodedText = tostring(text or "") end
-    local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s"):format(from or "auto", to or "en", encodedText)
+local function translate(text, from, to)
+    local encodedText = httpService:UrlEncode(text)
+    local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s"):format(from, to, encodedText)
+
     local success, response = pcall(function()
-        return injectedHttp({ Url = url, Method = "GET", Headers = { ["User-Agent"] = "Mozilla/5.0" } })
+        return injectedHttp({
+            Url = url,
+            Method = "GET",
+            Headers = { ["User-Agent"] = "Mozilla/5.0" }
+        })
     end)
-    if not success or not response then return text end
+
+    if not success or not response or (response.StatusCode ~= 200 and response.StatusCode ~= 0) then
+        return text
+    end
+
     local body = response.Body or response.body
-    if not body or type(body) ~= "string" then return text end
-    local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
-    if not ok or not data or not data[1] or not data[1][1] or not data[1][1][1] then return text end
+    if not body or type(body) ~= "string" then
+        return text
+    end
+
+    local ok, data = pcall(function()
+        return httpService:JSONDecode(body)
+    end)
+
+    if not ok or not data or not data[1] or not data[1][1] or not data[1][1][1] then
+        return text
+    end
+
     return data[1][1][1]
 end
-
-local _origTexts = setmetatable({}, {__mode = 'k'})
-local LANGUAGE_MAP = {
-    ["English (en)"] = "en", ["Spanish (es)"] = "es", ["French (fr)"] = "fr", ["German (de)"] = "de", ["Portuguese (pt)"] = "pt", ["Russian (ru)"] = "ru", ["Chinese Simplified (zh-CN)"] = "zh-CN", ["Chinese Traditional (zh-TW)"] = "zh-TW", ["Japanese (ja)"] = "ja", ["Korean (ko)"] = "ko", ["Italian (it)"] = "it", ["Dutch (nl)"] = "nl", ["Turkish (tr)"] = "tr", ["Arabic (ar)"] = "ar", ["Hindi (hi)"] = "hi", ["Bengali (bn)"] = "bn", ["Punjabi (pa)"] = "pa", ["Urdu (ur)"] = "ur", ["Vietnamese (vi)"] = "vi", ["Polish (pl)"] = "pl", ["Romanian (ro)"] = "ro", ["Greek (el)"] = "el", ["Czech (cs)"] = "cs", ["Swedish (sv)"] = "sv", ["Norwegian (no)"] = "no", ["Danish (da)"] = "da", ["Finnish (fi)"] = "fi", ["Hungarian (hu)"] = "hu", ["Thai (th)"] = "th", ["Indonesian (id)"] = "id", ["Malay (ms)"] = "ms", ["Filipino (tl)"] = "tl", ["Hebrew (he)"] = "he", ["Persian (fa)"] = "fa", ["Ukrainian (uk)"] = "uk", ["Catalan (ca)"] = "ca", ["Serbian (sr)"] = "sr", ["Croatian (hr)"] = "hr", ["Slovak (sk)"] = "sk", ["Lithuanian (lt)"] = "lt", ["Latvian (lv)"] = "lv", ["Estonian (et)"] = "et", ["Slovenian (sl)"] = "sl", ["Bulgarian (bg)"] = "bg", ["Albanian (sq)"] = "sq", ["Icelandic (is)"] = "is", ["Welsh (cy)"] = "cy", ["Irish (ga)"] = "ga", ["Swahili (sw)"] = "sw"
-}
-
 local MarketplaceService = SRV("MarketplaceService")
 local _isfile = (isfile or function() return false end)
 local _isfolder = (isfolder or function() return false end)
@@ -240,39 +251,49 @@ local function Signal()
 end
 local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {} }
 Library.FormatKeyName = FormatKeyName
-Library._origTexts = Library._origTexts or _origTexts
-function Library:SetLanguage(code)
-    local origTable = self._origTexts or _origTexts
-    if not code or code == "en" or code == "English (en)" then
-        self._language = "en"
-        for inst, orig in pairs(origTable) do
-            if inst and inst.Parent then
-                if orig.Text then pcall(function() inst.Text = orig.Text end) end
-                if orig.PlaceholderText then pcall(function() inst.PlaceholderText = orig.PlaceholderText end) end
-            end
+
+Library._translationCache = Library._translationCache or {}
+Library._translationOriginals = Library._translationOriginals or {}
+
+function Library:TranslateTo(to)
+    if not to or to == "" then to = "en" end
+    local root = self._rootGui
+    if not root then
+        for _, g in pairs(CoreGui:GetChildren()) do
+            if g:IsA("ScreenGui") and g.Name == self._screenGuiName then root = g break end
         end
-        return
     end
-    self._language = code
-    for _, inst in ipairs((self._rootGui and self._rootGui:GetDescendants()) or {}) do
-        local okType = inst:IsA and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") or inst:IsA("TextInput"))
-        if okType then
-            local orig = origTable[inst]
-            if not orig then
-                orig = { Text = (inst.Text and tostring(inst.Text)) or "", PlaceholderText = (inst.PlaceholderText and tostring(inst.PlaceholderText)) or "" }
-                origTable[inst] = orig
+    if not root then return end
+    local cache = self._translationCache
+    local originals = self._translationOriginals
+    local function store(inst)
+        if originals[inst] then return end
+        originals[inst] = {}
+        if pcall(function() return inst.Text end) then originals[inst].Text = inst.Text end
+        if pcall(function() return inst.PlaceholderText end) then originals[inst].PlaceholderText = inst.PlaceholderText end
+    end
+    for _, inst in ipairs(root:GetDescendants()) do
+        if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+            store(inst)
+            local origText = originals[inst].Text
+            if origText and origText ~= "" then
+                local key = origText.."|"..to
+                local trans = cache[key]
+                if not trans then
+                    local ok, res = pcall(function() return translate(origText, "en", to) end)
+                    if ok and type(res) == "string" then trans = res cache[key] = trans end
+                end
+                if trans then pcall(function() inst.Text = trans end) end
             end
-            if orig.Text and orig.Text ~= "" then
-                task.spawn(function()
-                    local ok, res = pcall(function() return translate(orig.Text, "en", tostring(code)) end)
-                    if ok and res and inst and inst.Parent then pcall(function() inst.Text = res end) end
-                end)
-            end
-            if inst:IsA("TextBox") and orig.PlaceholderText and orig.PlaceholderText ~= "" then
-                task.spawn(function()
-                    local ok2, res2 = pcall(function() return translate(orig.PlaceholderText, "en", tostring(code)) end)
-                    if ok2 and res2 and inst and inst.Parent then pcall(function() inst.PlaceholderText = res2 end) end
-                end)
+            local origPlaceholder = originals[inst].PlaceholderText
+            if origPlaceholder and origPlaceholder ~= "" then
+                local key2 = origPlaceholder.."|"..to
+                local trans2 = cache[key2]
+                if not trans2 then
+                    local ok2, res2 = pcall(function() return translate(origPlaceholder, "en", to) end)
+                    if ok2 and type(res2) == "string" then trans2 = res2 cache[key2] = trans2 end
+                end
+                if trans2 then pcall(function() inst.PlaceholderText = trans2 end) end
             end
         end
     end
@@ -8115,20 +8136,19 @@ function Library:CreateLibrary(opts)
             if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
         end, Compact = true })
 
-        local langOpts = {}
-        for k in pairs(LANGUAGE_MAP) do table.insert(langOpts, k) end
-        table.sort(langOpts)
-        local langDd = group:AddDropdown({ Name = "Library Language", Options = langOpts, Default = "English (en)", Multi = false, Search = true, Placeholder = "Library Language" })
-        local _langSet = langDd.Set
-        function langDd:Set(v, silent)
-            _langSet(self, v, silent)
-            local sel = self:Get()
-            local code = LANGUAGE_MAP[sel] or sel
-            pcall(function() Library:SetLanguage(code) end)
-        end
-        langDd:Set("English (en)", true)
+        local languages = {
+            ["English"] = "en", ["Spanish"] = "es", ["French"] = "fr", ["German"] = "de", ["Portuguese"] = "pt", ["Russian"] = "ru", ["Chinese (Simplified)"] = "zh-CN", ["Chinese (Traditional)"] = "zh-TW", ["Japanese"] = "ja", ["Korean"] = "ko", ["Arabic"] = "ar", ["Hindi"] = "hi", ["Bengali"] = "bn", ["Urdu"] = "ur", ["Indonesian"] = "id", ["Malay"] = "ms", ["Turkish"] = "tr", ["Vietnamese"] = "vi", ["Italian"] = "it", ["Dutch"] = "nl", ["Greek"] = "el", ["Hebrew"] = "he", ["Polish"] = "pl", ["Czech"] = "cs", ["Slovak"] = "sk", ["Hungarian"] = "hu", ["Romanian"] = "ro", ["Swedish"] = "sv", ["Danish"] = "da", ["Norwegian"] = "no", ["Finnish"] = "fi", ["Thai"] = "th", ["Filipino"] = "tl", ["Persian"] = "fa", ["Swahili"] = "sw", ["Afrikaans"] = "af", ["Bulgarian"] = "bg", ["Croatian"] = "hr", ["Serbian"] = "sr", ["Lithuanian"] = "lt", ["Latvian"] = "lv", ["Estonian"] = "et", ["Slovenian"] = "sl", ["Ukrainian"] = "uk", ["Catalan"] = "ca", ["Basque"] = "eu", ["Galician"] = "gl", ["Icelandic"] = "is", ["Macedonian"] = "mk", ["Albanian"] = "sq", ["Armenian"] = "hy", ["Azerbaijani"] = "az", ["Belarusian"] = "be", ["Georgian"] = "ka"
+        }
+        local langNames = {}
+        for n,_ in pairs(languages) do table.insert(langNames, n) end
+        table.sort(langNames)
+        local langDd = group:AddDropdown({ Name = "Library Language", Options = langNames, Default = "English", Multi = false, Search = true, Placeholder = "English", Callback = function(v)
+            local name = v or "English"
+            local code = languages[name] or "en"
+            pcall(function() Library:TranslateTo(code) end)
+        end })
+        pcall(function() langDd:Set("English", true) end)
 
-        
         autoToggle = group:AddToggle({ Name = "Auto Load Config", Default = false, Callback = function(on)
             local raw = dd:Get()
             local safe = raw and sanitize(raw) or nil
