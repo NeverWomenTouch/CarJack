@@ -302,6 +302,31 @@ function Library:TranslateTo(to)
         for _, g in pairs(CoreGui:GetChildren()) do
             if g:IsA("ScreenGui") and g.Name == self._screenGuiName then root = g break end
         end
+        if not root then
+            if not self._translationWaitRootConn then
+                self._translationWaitRootConn = self:_connect(CoreGui.ChildAdded, function(g)
+                    if not g or not g:IsA("ScreenGui") then return end
+                    local ok = false
+                    if self._screenGuiName and g.Name == self._screenGuiName then
+                        ok = true
+                    else
+                        pcall(function()
+                            if g:FindFirstChild("Header", true) and g:FindFirstChild("Sidebar", true) then
+                                ok = true
+                            end
+                        end)
+                    end
+                    if ok then
+                        self._rootGui = g
+                        self:_connect(g.Destroying, function()
+                            self._rootGui = nil
+                        end)
+                        self:TranslateTo(self._translationLang or to)
+                    end
+                end)
+            end
+            return
+        end
     end
     if not root then return end
     local cache = self._translationCache
