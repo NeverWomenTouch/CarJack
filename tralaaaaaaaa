@@ -345,55 +345,68 @@ function Library:TranslateTo(to)
         if pcall(function() return inst.Text end) then originals[inst].Text = inst.Text end
         if pcall(function() return inst.PlaceholderText end) then originals[inst].PlaceholderText = inst.PlaceholderText end
     end
+    local function attach(inst)
+        if not (inst and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox"))) then return end
+        store(inst)
+        if isNoTranslate(inst) then return end
+        local lang = self._translationLang or to
+        local function translateText(value)
+            if not value or value == "" then return value end
+            if lang == "en" then return value end
+            local key = value .. "|" .. lang
+            local trans = cache[key]
+            if not trans then
+                trans = translate(value, "en", lang)
+                cache[key] = trans
+            end
+            return trans or value
+        end
+        local function safeSet(prop, val)
+            pcall(function()
+                inst:SetAttribute("DendriteTranslating", true)
+                inst[prop] = val
+                inst:SetAttribute("DendriteTranslating", false)
+            end)
+        end
+        -- Initial apply
+        pcall(function()
+            local o = originals[inst]
+            if o and o.Text and o.Text ~= "" then safeSet("Text", translateText(o.Text)) end
+        end)
+        pcall(function()
+            local o = originals[inst]
+            if o and o.PlaceholderText and o.PlaceholderText ~= "" then safeSet("PlaceholderText", translateText(o.PlaceholderText)) end
+        end)
+        -- React to future changes
+        pcall(function()
+            self:_connect(inst:GetPropertyChangedSignal("Text"), function()
+                if inst:GetAttribute("DendriteTranslating") then return end
+                local newVal = inst.Text
+                local o = originals[inst]
+                if not o then originals[inst] = { Text = newVal } else o.Text = newVal end
+                if not isNoTranslate(inst) then
+                    local out = translateText(newVal)
+                    safeSet("Text", out)
+                end
+            end)
+        end)
+        pcall(function()
+            self:_connect(inst:GetPropertyChangedSignal("PlaceholderText"), function()
+                if inst:GetAttribute("DendriteTranslating") then return end
+                local newVal = inst.PlaceholderText
+                local o = originals[inst]
+                if not o then originals[inst] = { PlaceholderText = newVal } else o.PlaceholderText = newVal end
+                if not isNoTranslate(inst) then
+                    local out = translateText(newVal)
+                    safeSet("PlaceholderText", out)
+                end
+            end)
+        end)
+    end
 
     if not self._translationDescAddedConn then
         self._translationDescAddedConn = self:_connect(root.DescendantAdded, function(inst)
-            if not inst then return end
-            if not (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox")) then return end
-            store(inst)
-            if isNoTranslate(inst) then
-                return
-            end
-
-            local lang = self._translationLang or "en"
-            if lang == "en" then
-                pcall(function()
-                    local o = originals[inst]
-                    if o and o.Text ~= nil then inst.Text = o.Text end
-                end)
-                pcall(function()
-                    local o = originals[inst]
-                    if o and o.PlaceholderText ~= nil then inst.PlaceholderText = o.PlaceholderText end
-                end)
-                return
-            end
-
-            pcall(function()
-                local o = originals[inst]
-                local origText = o and o.Text
-                if origText and origText ~= "" then
-                    local key = origText .. "|" .. lang
-                    local trans = cache[key]
-                    if not trans then
-                        trans = translate(origText, "en", lang)
-                        cache[key] = trans
-                    end
-                    inst.Text = trans
-                end
-            end)
-            pcall(function()
-                local o = originals[inst]
-                local origPlaceholder = o and o.PlaceholderText
-                if origPlaceholder and origPlaceholder ~= "" then
-                    local key = origPlaceholder .. "|" .. lang
-                    local trans = cache[key]
-                    if not trans then
-                        trans = translate(origPlaceholder, "en", lang)
-                        cache[key] = trans
-                    end
-                    inst.PlaceholderText = trans
-                end
-            end)
+            attach(inst)
         end)
     end
     local texts = {}
@@ -401,23 +414,15 @@ function Library:TranslateTo(to)
     local instMapPlaceholder = {}
     for _, inst in ipairs(root:GetDescendants()) do
         if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
-            store(inst)
-            if isNoTranslate(inst) then
-                pcall(function()
-                    local o = originals[inst]
-                    if o and o.Text ~= nil then inst.Text = o.Text end
-                end)
-                pcall(function()
-                    local o = originals[inst]
-                    if o and o.PlaceholderText ~= nil then inst.PlaceholderText = o.PlaceholderText end
-                end)
-            else
-                local origText = originals[inst].Text
+            attach(inst)
+            if not isNoTranslate(inst) then
+                local o = originals[inst]
+                local origText = o and o.Text
                 if origText and origText ~= "" then
                     if not instMapText[origText] then instMapText[origText] = {} table.insert(texts, origText) end
                     table.insert(instMapText[origText], inst)
                 end
-                local origPlaceholder = originals[inst].PlaceholderText
+                local origPlaceholder = o and o.PlaceholderText
                 if origPlaceholder and origPlaceholder ~= "" then
                     if not instMapPlaceholder[origPlaceholder] then instMapPlaceholder[origPlaceholder] = {} table.insert(texts, origPlaceholder) end
                     table.insert(instMapPlaceholder[origPlaceholder], inst)
