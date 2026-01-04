@@ -368,7 +368,7 @@ function Library:TranslateTo(to)
                 inst:SetAttribute("DendriteTranslating", false)
             end)
         end
-        -- Initial apply
+        -- Initial apply (always re-apply on language change)
         pcall(function()
             local o = originals[inst]
             if o and o.Text and o.Text ~= "" then safeSet("Text", translateText(o.Text)) end
@@ -377,31 +377,38 @@ function Library:TranslateTo(to)
             local o = originals[inst]
             if o and o.PlaceholderText and o.PlaceholderText ~= "" then safeSet("PlaceholderText", translateText(o.PlaceholderText)) end
         end)
-        -- React to future changes
+        -- React to future changes (attach only once)
+        local attached = false
         pcall(function()
-            self:_connect(inst:GetPropertyChangedSignal("Text"), function()
-                if inst:GetAttribute("DendriteTranslating") then return end
-                local newVal = inst.Text
-                local o = originals[inst]
-                if not o then originals[inst] = { Text = newVal } else o.Text = newVal end
-                if not isNoTranslate(inst) then
-                    local out = translateText(newVal)
-                    safeSet("Text", out)
-                end
-            end)
+            attached = inst:GetAttribute("DendriteTranslateAttached") == true
         end)
-        pcall(function()
-            self:_connect(inst:GetPropertyChangedSignal("PlaceholderText"), function()
-                if inst:GetAttribute("DendriteTranslating") then return end
-                local newVal = inst.PlaceholderText
-                local o = originals[inst]
-                if not o then originals[inst] = { PlaceholderText = newVal } else o.PlaceholderText = newVal end
-                if not isNoTranslate(inst) then
-                    local out = translateText(newVal)
-                    safeSet("PlaceholderText", out)
-                end
+        if not attached then
+            pcall(function() inst:SetAttribute("DendriteTranslateAttached", true) end)
+            pcall(function()
+                self:_connect(inst:GetPropertyChangedSignal("Text"), function()
+                    if inst:GetAttribute("DendriteTranslating") then return end
+                    local newVal = inst.Text
+                    local o = originals[inst]
+                    if not o then originals[inst] = { Text = newVal } else o.Text = newVal end
+                    if not isNoTranslate(inst) then
+                        local out = translateText(newVal)
+                        safeSet("Text", out)
+                    end
+                end)
             end)
-        end)
+            pcall(function()
+                self:_connect(inst:GetPropertyChangedSignal("PlaceholderText"), function()
+                    if inst:GetAttribute("DendriteTranslating") then return end
+                    local newVal = inst.PlaceholderText
+                    local o = originals[inst]
+                    if not o then originals[inst] = { PlaceholderText = newVal } else o.PlaceholderText = newVal end
+                    if not isNoTranslate(inst) then
+                        local out = translateText(newVal)
+                        safeSet("PlaceholderText", out)
+                    end
+                end)
+            end)
+        end
     end
 
     if not self._translationDescAddedConn then
@@ -704,6 +711,7 @@ do
             TextStrokeTransparency = 0.8,
             TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         })
+        pcall(function() watermarkLabel:SetAttribute("DendriteNoTranslate", true) end)
         
         
         local function updateSize()
@@ -1987,7 +1995,7 @@ do
         })
         
         
-        Create("TextLabel", {
+        local _kbTitle = Create("TextLabel", {
             Name = "TitleText",
             Size = UDim2.new(1, -16, 1, 0),
             Position = UDim2.fromOffset(16, 0),
@@ -1999,6 +2007,7 @@ do
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = titleBar
         })
+        pcall(function() _kbTitle:SetAttribute("DendriteNoTranslate", true) end)
         
         
         self._keybindScrollFrame = Create("ScrollingFrame", {
@@ -7238,6 +7247,7 @@ function Library:CreateLibrary(opts)
             ZIndex = 3,
             Parent = container
         })
+        pcall(function() toggleFrame:SetAttribute("DendriteNoTranslate", true) end)
         Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = toggleFrame })
 
         
@@ -7277,6 +7287,7 @@ function Library:CreateLibrary(opts)
 
         
         local button = Create("TextButton", { Name = "ToggleButton", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Text = "", AutoButtonColor = false, ZIndex = 7, Parent = toggleFrame })
+        pcall(function() button:SetAttribute("DendriteNoTranslate", true) end)
 
         
         local icon = Create("Frame", { Name = "Icon", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 24, 0, 18), ZIndex = 7, Parent = toggleFrame })
