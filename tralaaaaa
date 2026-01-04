@@ -40,6 +40,44 @@ local function translate(text, from, to)
 
     return data[1][1][1]
 end
+
+local function batchTranslate(texts, from, to)
+    local results = {}
+    if type(texts) ~= "table" or #texts == 0 then return results end
+    local maxBatch = 25
+    local i = 1
+    while i <= #texts do
+        local batch = {}
+        for j = 0, maxBatch-1 do
+            if texts[i+j] then table.insert(batch, texts[i+j]) else break end
+        end
+        i = i + #batch
+        local params = {}
+        for _, t in ipairs(batch) do table.insert(params, "&q=" .. httpService:UrlEncode(t)) end
+        local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t%s"):format(from, to, table.concat(params, ""))
+        local ok, response = pcall(function()
+            return injectedHttp({ Url = url, Method = "GET", Headers = { ["User-Agent"] = "Mozilla/5.0" } })
+        end)
+        if not ok or not response then
+            for _, t in ipairs(batch) do results[t] = t end
+        else
+            local body = response.Body or response.body
+            local parsedOk, data = pcall(function() return httpService:JSONDecode(body) end)
+            if not parsedOk or not data or not data[1] then
+                for _, t in ipairs(batch) do results[t] = t end
+            else
+                for idx = 1, #data[1] do
+                    local segs = data[1][idx]
+                    local out = ""
+                    for s = 1, #segs do out = out .. (segs[s][1] or "") end
+                    local original = batch[idx]
+                    results[original] = out or original
+                end
+            end
+        end
+    end
+    return results
+end
 local MarketplaceService = SRV("MarketplaceService")
 local _isfile = (isfile or function() return false end)
 local _isfolder = (isfolder or function() return false end)
@@ -266,35 +304,63 @@ function Library:TranslateTo(to)
     if not root then return end
     local cache = self._translationCache
     local originals = self._translationOriginals
+    local function isNoTranslate(inst)
+        local ok, v = pcall(function()
+            if inst and inst.GetAttribute then
+                return inst:GetAttribute("DendriteNoTranslate")
+            end
+        end)
+        return ok and v == true
+    end
     local function store(inst)
         if originals[inst] then return end
         originals[inst] = {}
         if pcall(function() return inst.Text end) then originals[inst].Text = inst.Text end
         if pcall(function() return inst.PlaceholderText end) then originals[inst].PlaceholderText = inst.PlaceholderText end
     end
+    local texts = {}
+    local instMapText = {}
+    local instMapPlaceholder = {}
     for _, inst in ipairs(root:GetDescendants()) do
         if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
             store(inst)
-            local origText = originals[inst].Text
-            if origText and origText ~= "" then
-                local key = origText.."|"..to
-                local trans = cache[key]
-                if not trans then
-                    local ok, res = pcall(function() return translate(origText, "en", to) end)
-                    if ok and type(res) == "string" then trans = res cache[key] = trans end
+            if isNoTranslate(inst) then
+                pcall(function()
+                    local o = originals[inst]
+                    if o and o.Text ~= nil then inst.Text = o.Text end
+                end)
+                pcall(function()
+                    local o = originals[inst]
+                    if o and o.PlaceholderText ~= nil then inst.PlaceholderText = o.PlaceholderText end
+                end)
+            else
+                local origText = originals[inst].Text
+                if origText and origText ~= "" then
+                    if not instMapText[origText] then instMapText[origText] = {} table.insert(texts, origText) end
+                    table.insert(instMapText[origText], inst)
                 end
-                if trans then pcall(function() inst.Text = trans end) end
-            end
-            local origPlaceholder = originals[inst].PlaceholderText
-            if origPlaceholder and origPlaceholder ~= "" then
-                local key2 = origPlaceholder.."|"..to
-                local trans2 = cache[key2]
-                if not trans2 then
-                    local ok2, res2 = pcall(function() return translate(origPlaceholder, "en", to) end)
-                    if ok2 and type(res2) == "string" then trans2 = res2 cache[key2] = trans2 end
+                local origPlaceholder = originals[inst].PlaceholderText
+                if origPlaceholder and origPlaceholder ~= "" then
+                    if not instMapPlaceholder[origPlaceholder] then instMapPlaceholder[origPlaceholder] = {} table.insert(texts, origPlaceholder) end
+                    table.insert(instMapPlaceholder[origPlaceholder], inst)
                 end
-                if trans2 then pcall(function() inst.PlaceholderText = trans2 end) end
             end
+        end
+    end
+    local uniq = {}
+    for _, t in ipairs(texts) do uniq[t] = true end
+    local list = {}
+    for t,_ in pairs(uniq) do table.insert(list, t) end
+    if #list == 0 then return end
+    local translated = batchTranslate(list, "en", to)
+    for orig, trans in pairs(translated) do
+        local key = orig.."|"..to
+        cache[key] = trans
+        if instMapText[orig] then
+            for _, inst in ipairs(instMapText[orig]) do pcall(function() inst.Text = trans end) end
+        end
+        if instMapPlaceholder[orig] then
+            for _, inst in ipairs(instMapPlaceholder[orig]) do pcall(function() inst.PlaceholderText = trans end) end
         end
     end
 end
@@ -2834,6 +2900,7 @@ function Library:CreateLibrary(opts)
     })
     
     local titleLabel = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -160, 1, 0), Position = UDim2.fromOffset(12, 0), Text = title:upper(), TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Font = Fonts.Bold, TextSize = 16, ZIndex = z + 2, Parent = header})
+    pcall(function() titleLabel:SetAttribute("DendriteNoTranslate", true) end)
     if titleMode == "type" then
         task.spawn(function()
             local function animateText(display, text, delay)
@@ -2876,6 +2943,9 @@ function Library:CreateLibrary(opts)
     local closeBtn = makeHeaderBtn("X")
     local fsBtn = makeHeaderBtn("")
     local minBtn = makeHeaderBtn("–")
+    pcall(function() closeBtn:SetAttribute("DendriteNoTranslate", true) end)
+    pcall(function() fsBtn:SetAttribute("DendriteNoTranslate", true) end)
+    pcall(function() minBtn:SetAttribute("DendriteNoTranslate", true) end)
     
     minBtn.LayoutOrder = 1 fsBtn.LayoutOrder = 2 closeBtn.LayoutOrder = 3
     
