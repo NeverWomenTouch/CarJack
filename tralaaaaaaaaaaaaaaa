@@ -342,71 +342,15 @@ function Library:TranslateTo(to)
     local function store(inst)
         if originals[inst] then return end
         originals[inst] = {}
-        if pcall(function() return inst.Text end) then originals[inst].Text = inst.Text end
-        if pcall(function() return inst.PlaceholderText end) then originals[inst].PlaceholderText = inst.PlaceholderText end
-    end
-    local function attach(inst)
-        if not (inst and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox"))) then return end
-        store(inst)
-        if isNoTranslate(inst) then return end
-        local lang = self._translationLang or to
-        local function translateText(value)
-            if not value or value == "" then return value end
-            if lang == "en" then return value end
-            local key = value .. "|" .. lang
-            local trans = cache[key]
-            if not trans then
-                trans = translate(value, "en", lang)
-                cache[key] = trans
+        pcall(function()
+            if inst and inst.Text ~= nil then
+                originals[inst].Text = inst.Text
             end
-            return trans or value
-        end
-        local function safeSet(prop, val)
-            pcall(function()
-                inst:SetAttribute("DendriteTranslating", true)
-                inst[prop] = val
-                inst:SetAttribute("DendriteTranslating", false)
-            end)
-        end
-        -- Initial apply
-        pcall(function()
-            local o = originals[inst]
-            if o and o.Text and o.Text ~= "" then safeSet("Text", translateText(o.Text)) end
         end)
         pcall(function()
-            local o = originals[inst]
-            if o and o.PlaceholderText and o.PlaceholderText ~= "" then safeSet("PlaceholderText", translateText(o.PlaceholderText)) end
-        end)
-        -- React to future changes
-        pcall(function()
-            self:_connect(inst:GetPropertyChangedSignal("Text"), function()
-                if inst:GetAttribute("DendriteTranslating") then return end
-                local newVal = inst.Text
-                local o = originals[inst]
-                if not o then originals[inst] = { Text = newVal } else o.Text = newVal end
-                if not isNoTranslate(inst) then
-                    local out = translateText(newVal)
-                    safeSet("Text", out)
-                end
-            end)
-        end)
-        pcall(function()
-            self:_connect(inst:GetPropertyChangedSignal("PlaceholderText"), function()
-                if inst:GetAttribute("DendriteTranslating") then return end
-                local newVal = inst.PlaceholderText
-                local o = originals[inst]
-                if not o then originals[inst] = { PlaceholderText = newVal } else o.PlaceholderText = newVal end
-                if not isNoTranslate(inst) then
-                    local out = translateText(newVal)
-                    safeSet("PlaceholderText", out)
-                end
-            end)
-        end)
-    end
-
-    if not self._translationDescAddedConn then
-        self._translationDescAddedConn = self:_connect(root.DescendantAdded, function(inst)
-            attach(inst)
+            if inst and inst.PlaceholderText ~= nil then
+                originals[inst].PlaceholderText = inst.PlaceholderText
+            end
         end)
     end
     local texts = {}
@@ -414,8 +358,17 @@ function Library:TranslateTo(to)
     local instMapPlaceholder = {}
     for _, inst in ipairs(root:GetDescendants()) do
         if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
-            attach(inst)
-            if not isNoTranslate(inst) then
+            store(inst)
+            if isNoTranslate(inst) then
+                pcall(function()
+                    local o = originals[inst]
+                    if o and o.Text ~= nil then inst.Text = o.Text end
+                end)
+                pcall(function()
+                    local o = originals[inst]
+                    if o and o.PlaceholderText ~= nil then inst.PlaceholderText = o.PlaceholderText end
+                end)
+            else
                 local o = originals[inst]
                 local origText = o and o.Text
                 if origText and origText ~= "" then
