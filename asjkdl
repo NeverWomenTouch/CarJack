@@ -388,15 +388,31 @@ function Library:TranslateTo(to)
     local list = {}
     for t,_ in pairs(uniq) do table.insert(list, t) end
     if #list == 0 then return end
-    local translated = batchTranslate(list, "en", to)
-    for orig, trans in pairs(translated) do
-        local key = orig.."|"..to
-        cache[key] = trans
+
+    for _, orig in ipairs(list) do
+        local key = orig .. "|" .. to
+        local trans = cache[key]
+        if not trans then
+            trans = translate(orig, "en", to)
+            if not trans or trans == "" then
+                trans = orig
+            end
+            cache[key] = trans
+        end
+
         if instMapText[orig] then
-            for _, inst in ipairs(instMapText[orig]) do pcall(function() inst.Text = trans end) end
+            for _, inst in ipairs(instMapText[orig]) do
+                pcall(function()
+                    inst.Text = trans
+                end)
+            end
         end
         if instMapPlaceholder[orig] then
-            for _, inst in ipairs(instMapPlaceholder[orig]) do pcall(function() inst.PlaceholderText = trans end) end
+            for _, inst in ipairs(instMapPlaceholder[orig]) do
+                pcall(function()
+                    inst.PlaceholderText = trans
+                end)
+            end
         end
     end
 end
