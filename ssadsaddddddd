@@ -3009,9 +3009,90 @@ function Library:CreateLibrary(opts)
     minBtn.MouseLeave:Connect(function() T(minBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
     fsBtn.MouseEnter:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end)
     fsBtn.MouseLeave:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
-    local minimized, prevSize, prevPos = false, root.Size, root.Position
-    local fullscreen, fsPrevSize, fsPrevPos = false, nil, nil
-    local windowStateChanging = false 
+    local minimized = false
+    local fullscreen = false
+    local windowStateChanging = false
+    local stateTween = nil
+    local normalSize, normalPos = root.Size, root.Position
+    local childVisibility = {}
+
+    local function cancelStateTween()
+        if stateTween then
+            pcall(function() stateTween:Cancel() end)
+            stateTween = nil
+        end
+    end
+    local function cacheAndHideChildren()
+        childVisibility = {}
+        for _, child in ipairs(root:GetChildren()) do
+            if child ~= header and child:IsA("GuiObject") then
+                childVisibility[child] = child.Visible
+                child.Visible = false
+            end
+        end
+    end
+    local function restoreChildrenVisibility()
+        for child, wasVisible in pairs(childVisibility) do
+            if child and child.Parent == root and child:IsA("GuiObject") then
+                child.Visible = (wasVisible == true)
+            end
+        end
+        childVisibility = {}
+    end
+
+    local function persistNormalWindowState()
+        pcall(function()
+            if Library and root then
+                Library._librarySize = normalSize
+                Library._libraryPosition = normalPos
+            end
+        end)
+    end
+
+    local function tweenRoot(props, duration)
+        cancelStateTween()
+        stateTween = T(root, duration or 0.18, props)
+        stateTween:Play()
+        return stateTween
+    end
+
+    local function setNormalState()
+        windowStateChanging = true
+        minimized = false
+        fullscreen = false
+        restoreChildrenVisibility()
+        setResizeEnabled(true)
+        local tw = tweenRoot({Size = normalSize, Position = normalPos}, 0.20)
+        tw.Completed:Connect(function()
+            windowStateChanging = false
+            persistNormalWindowState()
+        end)
+    end
+
+    local function setMinimizedState()
+        windowStateChanging = true
+        fullscreen = false
+        minimized = true
+        setResizeEnabled(false)
+        cacheAndHideChildren()
+        local target = UDim2.new(normalSize.X.Scale, normalSize.X.Offset, 0, header.Size.Y.Offset)
+        local tw = tweenRoot({Size = target, Position = normalPos}, 0.18)
+        tw.Completed:Connect(function()
+            windowStateChanging = false
+        end)
+    end
+
+    local function setFullscreenState()
+        windowStateChanging = true
+        minimized = false
+        fullscreen = true
+        restoreChildrenVisibility()
+        setResizeEnabled(false)
+        local tw = tweenRoot({Size = UDim2.new(1, -20, 1, -20), Position = UDim2.fromScale(0.5, 0.5)}, 0.22)
+        tw.Completed:Connect(function()
+            windowStateChanging = false
+        end)
+    end
     
     local allGrips = {}
     local resizing = false
@@ -3028,53 +3109,28 @@ function Library:CreateLibrary(opts)
     end
     
     minBtn.MouseButton1Click:Connect(function()
-        windowStateChanging = true 
-        if fullscreen then
-            
-            T(root, 0.18, {Size = fsPrevSize, Position = fsPrevPos}):Play()
-            fullscreen = false
-            setResizeEnabled(true) 
-        end
-        minimized = not minimized
-        if minimized then
-            prevSize = root.Size; prevPos = root.Position
-            setResizeEnabled(false)
-            for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = false end end
-            T(root, 0.18, {Size = UDim2.new(prevSize.X.Scale, prevSize.X.Offset, 0, header.Size.Y.Offset)}):Play()
-        else
-            for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = true end end
-            T(root, 0.18, {Size = prevSize, Position = prevPos}):Play()
-            setResizeEnabled(true) 
-        end
+        if windowStateChanging then return end
         
-        task.spawn(function()
-            task.wait(0.25)
-            windowStateChanging = false
-        end)
+        if not minimized and not fullscreen then
+            normalSize, normalPos = root.Size, root.Position
+        end
+        if minimized then
+            setNormalState()
+        else
+            setMinimizedState()
+        end
     end)
     fsBtn.MouseButton1Click:Connect(function()
-        windowStateChanging = true 
-        if minimized then
-            
-            minimized = false
-            for _, child in ipairs(root:GetChildren()) do if child ~= header and child:IsA("GuiObject") then child.Visible = true end end
-            T(root, 0.12, {Size = prevSize, Position = prevPos}):Play()
-        end
-        if not fullscreen then
-            fsPrevSize, fsPrevPos = root.Size, root.Position
-            setResizeEnabled(false) 
-            T(root, 0.22, {Size = UDim2.new(1, -20, 1, -20), Position = UDim2.fromScale(0.5, 0.5)}):Play()
-            fullscreen = true
-        else
-            T(root, 0.22, {Size = fsPrevSize, Position = fsPrevPos}):Play()
-            fullscreen = false
-            setResizeEnabled(true) 
-        end
+        if windowStateChanging then return end
         
-        task.spawn(function()
-            task.wait(0.3) 
-            windowStateChanging = false
-        end)
+        if not minimized and not fullscreen then
+            normalSize, normalPos = root.Size, root.Position
+        end
+        if fullscreen then
+            setNormalState()
+        else
+            setFullscreenState()
+        end
     end)
     local body = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, -12, 1, -(46 + 12)), Position = UDim2.fromOffset(6, 46 + 6), ZIndex = z, Parent = root})
     local sidebar = Create("ScrollingFrame", {Name = "Sidebar", BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Size = UDim2.new(0, 100, 1, 0), ScrollBarThickness = 0, ScrollBarImageColor3 = Color3.fromRGB(0,0,0), ScrollBarImageTransparency = 1, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = z + 1, Parent = body}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3}), Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})})
@@ -3086,7 +3142,7 @@ function Library:CreateLibrary(opts)
     local frameStart
         local lastInput
     local RS = SRV("RunService")
-        local function update()
+        function update()
             if not dragging or not lastInput then return end
             local curPos = (lastInput.UserInputType == Enum.UserInputType.Touch) and lastInput.Position or UserInputService:GetMouseLocation()
             local delta = curPos - dragStart
@@ -3094,6 +3150,7 @@ function Library:CreateLibrary(opts)
         end
         self:_connect(header.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if windowStateChanging or fullscreen or minimized then return end
                 dragging = true
                 lastInput = input
                 dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
@@ -3218,7 +3275,7 @@ function Library:CreateLibrary(opts)
             local minW, minH = 520, 380
             grip.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    if fullscreen then return end 
+                    if windowStateChanging or minimized or fullscreen then return end 
                     resizing = true
                     resizingCount = resizingCount + 1
                     if resizingCount == 1 then resizeStartEffect() end
@@ -3644,6 +3701,7 @@ function Library:CreateLibrary(opts)
                 if desc and #desc > 0 then
                     
                     local infoBtn = Create("TextButton", {BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), Position = UDim2.new(1, -6, 0, 1), AnchorPoint = Vector2.new(1,0), Text = "i", TextColor3 = Theme.SubText, Font = Fonts.Bold, TextSize = 14, AutoButtonColor = false, ZIndex = z + 6, Parent = gFrame})
+                    pcall(function() infoBtn:SetAttribute("DendriteNoTranslate", true) end)
                     
                     local hoverCircle = Create("Frame", {BackgroundColor3 = Color3.fromRGB(40,42,41), BackgroundTransparency = 1, Size = infoBtn.Size, Position = infoBtn.Position, AnchorPoint = Vector2.new(1,0), ZIndex = z + 5, Parent = gFrame})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = hoverCircle})
@@ -3674,6 +3732,7 @@ function Library:CreateLibrary(opts)
                         Create("UIPadding", {PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingTop = UDim.new(0,6), PaddingBottom = UDim.new(0,6)})
                     })
                     local pText = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,0), TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = desc, Font = Fonts.Regular, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 501, Parent = popup})
+                    pcall(function() pText:SetAttribute("DendriteNoTranslate", true) end)
                     pText.AutomaticSize = Enum.AutomaticSize.Y
                     popup.AutomaticSize = Enum.AutomaticSize.Y
                     popup.ClipsDescendants = true
