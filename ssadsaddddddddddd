@@ -64,20 +64,12 @@ function batchTranslate(texts, from, to)
             if not parsedOk or not data or not data[1] then
                 for _, t in ipairs(batch) do results[t] = t end
             else
-                local segList = data[1]
-                for idx = 1, #batch do
+                for idx = 1, #data[1] do
+                    local segs = data[1][idx]
+                    local out = ""
+                    for s = 1, #segs do out = out .. (segs[s][1] or "") end
                     local original = batch[idx]
-                    local translated = nil
-                    local seg = segList[idx]
-                    if type(seg) == "table" then
-                        translated = seg[1]
-                    elseif type(seg) == "string" then
-                        translated = seg
-                    end
-                    if type(translated) ~= "string" or translated == "" then
-                        translated = original
-                    end
-                    results[original] = translated
+                    results[original] = out or original
                 end
             end
         end
@@ -3064,48 +3056,42 @@ function Library:CreateLibrary(opts)
         return stateTween
     end
 
-    local function beginStateChange(duration, onDone)
-        windowStateChanging = true
-        local finished = false
-        local function finish()
-            if finished then return end
-            finished = true
-            windowStateChanging = false
-            if onDone then pcall(onDone) end
-        end
-        task.delay((duration or 0.2) + 0.08, finish)
-        return finish
-    end
-
     local function setNormalState()
-        local finish = beginStateChange(0.20, persistNormalWindowState)
+        windowStateChanging = true
         minimized = false
         fullscreen = false
         restoreChildrenVisibility()
         if setResizeEnabled then setResizeEnabled(true) end
         local tw = tweenRoot({Size = normalSize, Position = normalPos}, 0.20)
-        tw.Completed:Connect(finish)
+        tw.Completed:Connect(function()
+            windowStateChanging = false
+            persistNormalWindowState()
+        end)
     end
 
     local function setMinimizedState()
-        local finish = beginStateChange(0.18)
+        windowStateChanging = true
         fullscreen = false
         minimized = true
         if setResizeEnabled then setResizeEnabled(false) end
         cacheAndHideChildren()
         local target = UDim2.new(normalSize.X.Scale, normalSize.X.Offset, 0, header.Size.Y.Offset)
         local tw = tweenRoot({Size = target, Position = normalPos}, 0.18)
-        tw.Completed:Connect(finish)
+        tw.Completed:Connect(function()
+            windowStateChanging = false
+        end)
     end
 
     local function setFullscreenState()
-        local finish = beginStateChange(0.22)
+        windowStateChanging = true
         minimized = false
         fullscreen = true
         restoreChildrenVisibility()
         if setResizeEnabled then setResizeEnabled(false) end
         local tw = tweenRoot({Size = UDim2.new(1, -20, 1, -20), Position = UDim2.fromScale(0.5, 0.5)}, 0.22)
-        tw.Completed:Connect(finish)
+        tw.Completed:Connect(function()
+            windowStateChanging = false
+        end)
     end
     
     local allGrips = {}
@@ -3164,7 +3150,7 @@ function Library:CreateLibrary(opts)
         end
         self:_connect(header.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                if windowStateChanging or fullscreen then return end
+                if windowStateChanging or fullscreen or minimized then return end
                 dragging = true
                 lastInput = input
                 dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
@@ -3174,16 +3160,8 @@ function Library:CreateLibrary(opts)
                         dragging = false
                         pcall(function()
                             if Library and root then
-                                if minimized then
-                                    normalPos = root.Position
-                                    Library._libraryPosition = normalPos
-                                    Library._librarySize = normalSize
-                                else
-                                    normalPos = root.Position
-                                    normalSize = root.Size
-                                    Library._libraryPosition = normalPos
-                                    Library._librarySize = normalSize
-                                end
+                                Library._libraryPosition = root.Position
+                                Library._librarySize = root.Size
                             end
                         end)
                     end
