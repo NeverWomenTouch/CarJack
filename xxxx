@@ -64,7 +64,7 @@ function batchTranslate(texts, from, to)
             if not parsedOk or type(data) ~= "table" or type(data[1]) ~= "table" then
                 for _, t in ipairs(batch) do results[t] = t end
             else
-                for idx = 1, #batch do
+                        for idx = 1, #batch do
                     local original = batch[idx]
                     local segs = data[1][idx]
                     local out = ""
@@ -72,7 +72,7 @@ function batchTranslate(texts, from, to)
                         for s = 1, #segs do
                             local seg = segs[s]
                             local piece = (type(seg) == "table" and seg[1]) or ""
-                            out = out + (piece or "")
+                                    out = out .. (piece or "")
                         end
                     end
                     if out == "" then out = original end
@@ -4977,14 +4977,24 @@ function Library:CreateLibrary(opts)
                         
                         y = y + delta
                     end
+                    local _resizeQueued = false
+                    local _resizingActive = false
                     local function resizeNow()
-                        
+                        if _resizingActive then return end
                         if row.AbsoluteSize.X <= 0 then
-                            task.defer(resizeNow)
+                            if not _resizeQueued then
+                                _resizeQueued = true
+                                task.delay(0.05, function()
+                                    _resizeQueued = false
+                                    resizeNow()
+                                end)
+                            end
                             return
                         end
+                        _resizingActive = true
                         local need = measureNeededHeight(txt.Text)
                         reflowToHeight(need)
+                        _resizingActive = false
                     end
                     
                     box.MouseEnter:Connect(function()
