@@ -4192,8 +4192,9 @@ function Library:CreateLibrary(opts)
                             pcall(Library._openDropdownCtx)
                         end
                         ctxOpen = true
-                        
-                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (z + 359), Parent = RootGui})
+
+                        local menuZBase = 12000
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = menuZBase, Parent = RootGui})
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function()
                             closeCtxMenu()
                         end))
@@ -4215,7 +4216,7 @@ function Library:CreateLibrary(opts)
                         local maxTextW = math.max(measure("Select All"), measure("Unselect All"))
                         local menuW = math.clamp(math.floor(maxTextW + (sidePad*2) + 8), 140, 220)
                         local finalH = vPad*2 + (itemH*2) + gap
-                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW, 0), ZIndex = z + 360, ClipsDescendants = true, Parent = root}, {
+                        ctxMenu = Create("Frame", {BackgroundColor3 = Theme.Bg, BackgroundTransparency = 0, BorderSizePixel = 0, Size = UDim2.fromOffset(menuW, 0), ZIndex = menuZBase + 1, ClipsDescendants = true, Parent = RootGui}, {
                             Create("UICorner", {CornerRadius = UDim.new(0,6)}),
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.40})
                         })
@@ -4252,16 +4253,10 @@ function Library:CreateLibrary(opts)
                             return btn
                         end
                         makeItem("Select All", function() 
-                            closeCtxMenu()
-                            task.defer(function()
-                                Dropdown:SelectAll()
-                            end)
+                            task.defer(function() Dropdown:SelectAll() end)
                         end)
                         makeItem("Unselect All", function() 
-                            closeCtxMenu()
-                            task.defer(function()
-                                Dropdown:UnselectAll()
-                            end)
+                            task.defer(function() Dropdown:UnselectAll() end)
                         end)
                         
                         local tAbs = trigger.AbsolutePosition
@@ -4315,14 +4310,32 @@ function Library:CreateLibrary(opts)
                     end
 
                     local function refreshLabelFromSelection()
+                        local function maybeTranslateText(str)
+                            if noTranslateValue then return str end
+                            local lang = Library and Library._translationLang
+                            if not lang or lang == "" or lang == "en" then return str end
+                            local cache = Library._translationCache or {}
+                            Library._translationCache = cache
+                            local key = tostring(str) .. "|" .. tostring(lang)
+                            local trans = cache[key]
+                            if not trans then
+                                local ok, res = pcall(function()
+                                    return translate(tostring(str), "en", tostring(lang))
+                                end)
+                                trans = (ok and res) or tostring(str)
+                                if not trans or trans == "" then trans = tostring(str) end
+                                cache[key] = trans
+                            end
+                            return trans
+                        end
                         if Dropdown._multi then
                             local selectedTexts = {}
                             for _, opt in ipairs(Dropdown._options) do
-                                if Dropdown._values[tostring(opt)] then table.insert(selectedTexts, tostring(opt)) end
+                                if Dropdown._values[tostring(opt)] then table.insert(selectedTexts, maybeTranslateText(tostring(opt))) end
                             end
                             local count = #selectedTexts
                             if count == 0 then
-                                valueLbl.Text = placeholder; valueLbl.TextColor3 = Theme.SubText
+                                valueLbl.Text = maybeTranslateText(placeholder); valueLbl.TextColor3 = Theme.SubText
                             else
                                 if count <= 2 then
                                     valueLbl.Text = table.concat(selectedTexts, ", ")
@@ -4333,9 +4346,9 @@ function Library:CreateLibrary(opts)
                             end
                         else
                             if Dropdown._value == nil then
-                                valueLbl.Text = placeholder; valueLbl.TextColor3 = Theme.SubText
+                                valueLbl.Text = maybeTranslateText(placeholder); valueLbl.TextColor3 = Theme.SubText
                             else
-                                valueLbl.Text = tostring(Dropdown._value); valueLbl.TextColor3 = Theme.Text
+                                valueLbl.Text = maybeTranslateText(tostring(Dropdown._value)); valueLbl.TextColor3 = Theme.Text
                             end
                         end
                     end
@@ -4420,6 +4433,23 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     local function renderItems()
+                        local function maybeTranslateItem(str)
+                            local lang = Library and Library._translationLang
+                            if not lang or lang == "" or lang == "en" then return str end
+                            local cache = Library._translationCache or {}
+                            Library._translationCache = cache
+                            local key = tostring(str) .. "|" .. tostring(lang)
+                            local trans = cache[key]
+                            if not trans then
+                                local ok, res = pcall(function()
+                                    return translate(tostring(str), "en", tostring(lang))
+                                end)
+                                trans = (ok and res) or tostring(str)
+                                if not trans or trans == "" then trans = tostring(str) end
+                                cache[key] = trans
+                            end
+                            return trans
+                        end
                         for _, c in ipairs(listFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
                         Dropdown._itemMap = {}
                         local src = source()
@@ -4437,7 +4467,7 @@ function Library:CreateLibrary(opts)
                             local dot = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = ring})
                             Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dot})
                             dot.Visible = (Dropdown._multi and Dropdown._values[tostring(val)] == true) or (tostring(Dropdown._value) == tostring(val))
-                            local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(22,0), Text = tostring(val), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
+                            local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(22,0), Text = maybeTranslateItem(tostring(val)), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
                             item.MouseEnter:Connect(function()
                                 T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play()
                                 local stroke = item:FindFirstChild("Stroke")
@@ -4474,7 +4504,20 @@ function Library:CreateLibrary(opts)
                             Dropdown._itemMap[key] = {item = item, dot = dot}
                         end
                         if #src == 0 then
-                            local empty = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,itemHeight), Text = "No matches", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = listFrame, ZIndex = panel.ZIndex + 2})
+                            local emptyText = "No matches"
+                            local lang = Library and Library._translationLang
+                            if lang and lang ~= "" and lang ~= "en" then
+                                local cache = Library._translationCache or {}
+                                Library._translationCache = cache
+                                local k = emptyText .. "|" .. tostring(lang)
+                                if cache[k] then
+                                    emptyText = cache[k]
+                                else
+                                    local ok, res = pcall(function() return translate(emptyText, "en", tostring(lang)) end)
+                                    if ok and res and res ~= "" then cache[k] = res; emptyText = res end
+                                end
+                            end
+                            local empty = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,itemHeight), Text = emptyText, Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = listFrame, ZIndex = panel.ZIndex + 2})
                         end
                         listFrame.CanvasPosition = Vector2.new(0,0)
                     end
