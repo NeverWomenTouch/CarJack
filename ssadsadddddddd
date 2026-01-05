@@ -3061,7 +3061,7 @@ function Library:CreateLibrary(opts)
         minimized = false
         fullscreen = false
         restoreChildrenVisibility()
-        setResizeEnabled(true)
+        if setResizeEnabled then setResizeEnabled(true) end
         local tw = tweenRoot({Size = normalSize, Position = normalPos}, 0.20)
         tw.Completed:Connect(function()
             windowStateChanging = false
@@ -3073,7 +3073,7 @@ function Library:CreateLibrary(opts)
         windowStateChanging = true
         fullscreen = false
         minimized = true
-        setResizeEnabled(false)
+        if setResizeEnabled then setResizeEnabled(false) end
         cacheAndHideChildren()
         local target = UDim2.new(normalSize.X.Scale, normalSize.X.Offset, 0, header.Size.Y.Offset)
         local tw = tweenRoot({Size = target, Position = normalPos}, 0.18)
@@ -3087,7 +3087,7 @@ function Library:CreateLibrary(opts)
         minimized = false
         fullscreen = true
         restoreChildrenVisibility()
-        setResizeEnabled(false)
+        if setResizeEnabled then setResizeEnabled(false) end
         local tw = tweenRoot({Size = UDim2.new(1, -20, 1, -20), Position = UDim2.fromScale(0.5, 0.5)}, 0.22)
         tw.Completed:Connect(function()
             windowStateChanging = false
@@ -4377,15 +4377,20 @@ function Library:CreateLibrary(opts)
                             Library._translationCache = cache
                             local key = tostring(str) .. "|" .. tostring(lang)
                             local trans = cache[key]
-                            if not trans then
+                            if trans then return trans end
+
+                            task.spawn(function()
                                 local ok, res = pcall(function()
                                     return translate(tostring(str), "en", tostring(lang))
                                 end)
-                                trans = (ok and res) or tostring(str)
-                                if not trans or trans == "" then trans = tostring(str) end
-                                cache[key] = trans
-                            end
-                            return trans
+                                local out = (ok and res) or tostring(str)
+                                if not out or out == "" then out = tostring(str) end
+                                cache[key] = out
+                                task.defer(function()
+                                    pcall(refreshLabelFromSelection)
+                                end)
+                            end)
+                            return str
                         end
                         if Dropdown._multi then
                             local selectedTexts = {}
@@ -4492,23 +4497,13 @@ function Library:CreateLibrary(opts)
                         end
                     end
                     local function renderItems()
-                        local function maybeTranslateItem(str)
-                            local lang = Library and Library._translationLang
-                            if not lang or lang == "" or lang == "en" then return str end
-                            local cache = Library._translationCache or {}
-                            Library._translationCache = cache
-                            local key = tostring(str) .. "|" .. tostring(lang)
-                            local trans = cache[key]
-                            if not trans then
-                                local ok, res = pcall(function()
-                                    return translate(tostring(str), "en", tostring(lang))
-                                end)
-                                trans = (ok and res) or tostring(str)
-                                if not trans or trans == "" then trans = tostring(str) end
-                                cache[key] = trans
-                            end
-                            return trans
-                        end
+                        local lang = Library and Library._translationLang
+                        local doTranslate = (lang and lang ~= "" and lang ~= "en")
+                        local cache = Library._translationCache or {}
+                        Library._translationCache = cache
+                        local pending = {}
+                        local refs = {}
+
                         for _, c in ipairs(listFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
                         Dropdown._itemMap = {}
                         local src = source()
@@ -4526,7 +4521,24 @@ function Library:CreateLibrary(opts)
                             local dot = Create("Frame", {BackgroundColor3 = Theme.Accent, Size = UDim2.fromOffset(8,8), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = ring})
                             Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dot})
                             dot.Visible = (Dropdown._multi and Dropdown._values[tostring(val)] == true) or (tostring(Dropdown._value) == tostring(val))
-                            local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(22,0), Text = maybeTranslateItem(tostring(val)), Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
+                            local origText = tostring(val)
+                            local shownText = origText
+                            if doTranslate then
+                                local k = origText .. "|" .. tostring(lang)
+                                if cache[k] then
+                                    shownText = cache[k]
+                                else
+                                    table.insert(pending, origText)
+                                end
+                            end
+                            local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(22,0), Text = shownText, Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
+                            if doTranslate then
+                                local k = origText .. "|" .. tostring(lang)
+                                if not cache[k] then
+                                    refs[origText] = refs[origText] or {}
+                                    table.insert(refs[origText], text)
+                                end
+                            end
                             item.MouseEnter:Connect(function()
                                 T(item,0.12,{BackgroundColor3 = Theme.Hover}):Play()
                                 local stroke = item:FindFirstChild("Stroke")
@@ -4562,21 +4574,53 @@ function Library:CreateLibrary(opts)
                             local key = tostring(val)
                             Dropdown._itemMap[key] = {item = item, dot = dot}
                         end
+                        if doTranslate and #pending > 0 then
+                            task.spawn(function()
+                                local results = batchTranslate(pending, "en", tostring(lang))
+                                for orig, out in pairs(results or {}) do
+                                    local k = tostring(orig) .. "|" .. tostring(lang)
+                                    local v = out
+                                    if not v or v == "" then v = tostring(orig) end
+                                    cache[k] = v
+                                    local list = refs[orig]
+                                    if list then
+                                        for _, lbl in ipairs(list) do
+                                            if lbl and lbl.Parent then
+                                                pcall(function() lbl.Text = v end)
+                                            end
+                                        end
+                                    end
+                                end
+                                task.defer(function()
+                                    pcall(refreshLabelFromSelection)
+                                end)
+                            end)
+                        end
                         if #src == 0 then
                             local emptyText = "No matches"
-                            local lang = Library and Library._translationLang
-                            if lang and lang ~= "" and lang ~= "en" then
-                                local cache = Library._translationCache or {}
-                                Library._translationCache = cache
+                            local shownEmpty = emptyText
+                            if doTranslate then
                                 local k = emptyText .. "|" .. tostring(lang)
                                 if cache[k] then
-                                    emptyText = cache[k]
-                                else
-                                    local ok, res = pcall(function() return translate(emptyText, "en", tostring(lang)) end)
-                                    if ok and res and res ~= "" then cache[k] = res; emptyText = res end
+                                    shownEmpty = cache[k]
                                 end
                             end
-                            local empty = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,itemHeight), Text = emptyText, Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = listFrame, ZIndex = panel.ZIndex + 2})
+                            local empty = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,itemHeight), Text = shownEmpty, Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = listFrame, ZIndex = panel.ZIndex + 2})
+                            if doTranslate then
+                                local k = emptyText .. "|" .. tostring(lang)
+                                if not cache[k] then
+                                    task.spawn(function()
+                                        local results = batchTranslate({emptyText}, "en", tostring(lang))
+                                        local out = results and results[emptyText]
+                                        if out and out ~= "" then
+                                            cache[k] = out
+                                            if empty and empty.Parent then
+                                                pcall(function() empty.Text = out end)
+                                            end
+                                        end
+                                    end)
+                                end
+                            end
                         end
                         listFrame.CanvasPosition = Vector2.new(0,0)
                     end
