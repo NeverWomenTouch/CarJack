@@ -3064,42 +3064,48 @@ function Library:CreateLibrary(opts)
         return stateTween
     end
 
-    local function setNormalState()
+    local function beginStateChange(duration, onDone)
         windowStateChanging = true
+        local finished = false
+        local function finish()
+            if finished then return end
+            finished = true
+            windowStateChanging = false
+            if onDone then pcall(onDone) end
+        end
+        task.delay((duration or 0.2) + 0.08, finish)
+        return finish
+    end
+
+    local function setNormalState()
+        local finish = beginStateChange(0.20, persistNormalWindowState)
         minimized = false
         fullscreen = false
         restoreChildrenVisibility()
         if setResizeEnabled then setResizeEnabled(true) end
         local tw = tweenRoot({Size = normalSize, Position = normalPos}, 0.20)
-        tw.Completed:Connect(function()
-            windowStateChanging = false
-            persistNormalWindowState()
-        end)
+        tw.Completed:Connect(finish)
     end
 
     local function setMinimizedState()
-        windowStateChanging = true
+        local finish = beginStateChange(0.18)
         fullscreen = false
         minimized = true
         if setResizeEnabled then setResizeEnabled(false) end
         cacheAndHideChildren()
         local target = UDim2.new(normalSize.X.Scale, normalSize.X.Offset, 0, header.Size.Y.Offset)
         local tw = tweenRoot({Size = target, Position = normalPos}, 0.18)
-        tw.Completed:Connect(function()
-            windowStateChanging = false
-        end)
+        tw.Completed:Connect(finish)
     end
 
     local function setFullscreenState()
-        windowStateChanging = true
+        local finish = beginStateChange(0.22)
         minimized = false
         fullscreen = true
         restoreChildrenVisibility()
         if setResizeEnabled then setResizeEnabled(false) end
         local tw = tweenRoot({Size = UDim2.new(1, -20, 1, -20), Position = UDim2.fromScale(0.5, 0.5)}, 0.22)
-        tw.Completed:Connect(function()
-            windowStateChanging = false
-        end)
+        tw.Completed:Connect(finish)
     end
     
     local allGrips = {}
