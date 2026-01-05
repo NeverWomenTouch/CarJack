@@ -61,22 +61,22 @@ function batchTranslate(texts, from, to)
         else
             local body = response.Body or response.body
             local parsedOk, data = pcall(function() return httpService:JSONDecode(body) end)
-            if not parsedOk or not data or not data[1] then
+            if not parsedOk or type(data) ~= "table" or type(data[1]) ~= "table" then
                 for _, t in ipairs(batch) do results[t] = t end
             else
                 for idx = 1, #batch do
                     local original = batch[idx]
-                    local seg = data[1] and data[1][idx]
-                    local translated
-                    if type(seg) == "table" then
-                        translated = seg[1]
-                    elseif type(seg) == "string" then
-                        translated = seg
+                    local segs = data[1][idx]
+                    local out = ""
+                    if type(segs) == "table" then
+                        for s = 1, #segs do
+                            local seg = segs[s]
+                            local piece = (type(seg) == "table" and seg[1]) or ""
+                            out = out + (piece or "")
+                        end
                     end
-                    if type(translated) ~= "string" or translated == "" then
-                        translated = original
-                    end
-                    results[original] = translated
+                    if out == "" then out = original end
+                    results[original] = out
                 end
             end
         end
@@ -3157,7 +3157,7 @@ function Library:CreateLibrary(opts)
         end
         self:_connect(header.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                if windowStateChanging or fullscreen then return end
+            if windowStateChanging or fullscreen then return end
                 dragging = true
                 lastInput = input
                 dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
@@ -3168,14 +3168,7 @@ function Library:CreateLibrary(opts)
                         pcall(function()
                             if Library and root then
                                 Library._libraryPosition = root.Position
-                                if minimized then
-                                    normalPos = root.Position
-                                    Library._librarySize = normalSize
-                                else
-                                    normalPos = root.Position
-                                    normalSize = root.Size
-                                    Library._librarySize = root.Size
-                                end
+                                Library._librarySize = root.Size
                             end
                         end)
                     end
