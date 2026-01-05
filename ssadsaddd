@@ -8,8 +8,7 @@ local ContextActionService = SRV("ContextActionService")
 local HttpService = SRV("HttpService")
 local httpService = HttpService
 local injectedHttp = http_request or request or syn.request
-
-local function translate(text, from, to)
+function translate(text, from, to)
     local encodedText = httpService:UrlEncode(text)
     local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s"):format(from, to, encodedText)
 
@@ -40,8 +39,7 @@ local function translate(text, from, to)
 
     return data[1][1][1]
 end
-
-local function batchTranslate(texts, from, to)
+function batchTranslate(texts, from, to)
     local results = {}
     if type(texts) ~= "table" or #texts == 0 then return results end
     local maxBatch = 25
@@ -360,14 +358,7 @@ function Library:TranslateTo(to)
         if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
             store(inst)
             if isNoTranslate(inst) then
-                pcall(function()
-                    local o = originals[inst]
-                    if o and o.Text ~= nil then inst.Text = o.Text end
-                end)
-                pcall(function()
-                    local o = originals[inst]
-                    if o and o.PlaceholderText ~= nil then inst.PlaceholderText = o.PlaceholderText end
-                end)
+                
             else
                 local o = originals[inst]
                 local origText = o and o.Text
@@ -4107,9 +4098,6 @@ function Library:CreateLibrary(opts)
                 end
                 
                 function Group:AddDropdown(...)
-                    
-                    
-                    
                     local argc = select("#", ...)
                     local _first = ...
                     local o
@@ -4128,6 +4116,7 @@ function Library:CreateLibrary(opts)
                     
                     local enableSearch = (o.Search ~= false) and (o.Filter ~= false)
                     local placeholder = tostring(o.Placeholder or "Choose...")
+                    local noTranslateValue = (o.NoTranslateValue == true)
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
 
                     
@@ -4144,6 +4133,9 @@ function Library:CreateLibrary(opts)
                     })
                     
                     local valueLbl = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-18,1,0), Text = placeholder, Font = Fonts.Medium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Theme.SubText, Parent = trigger})
+                    if noTranslateValue then
+                        pcall(function() valueLbl:SetAttribute("DendriteNoTranslate", true) end)
+                    end
                     local caret = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16,14), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-2,0.5,0), Text = "▼", Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.SubText, Parent = trigger})
                     caret.ZIndex = (trigger.ZIndex or 1) + 1
 
@@ -4201,7 +4193,7 @@ function Library:CreateLibrary(opts)
                         end
                         ctxOpen = true
                         
-                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = 10999, Parent = RootGui})
+                        ctxBlocker = Create("TextButton", {AutoButtonColor = false, Modal = false, BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1,1), Position = UDim2.fromOffset(0,0), ZIndex = (z + 359), Parent = RootGui})
                         table.insert(ctxConns, ctxBlocker.MouseButton1Click:Connect(function()
                             closeCtxMenu()
                         end))
@@ -7461,59 +7453,42 @@ function Library:CreateLibrary(opts)
         local exactMatches = {}
         local fuzzyMatches = {}
         
-        local curLang = Library._translationLang or "en"
         for _, entry in ipairs(Library._searchEntries) do
-            local baseText = entry.textLower or ""
-            local texts = { baseText }
-            if curLang ~= "en" and entry.originalText and Library._translationCache then
-                local key = tostring(entry.originalText) .. "|" .. curLang
-                local trans = Library._translationCache[key]
-                if type(trans) == "string" and trans ~= "" then
-                    texts[#texts+1] = trans:lower()
-                end
-            end
+            local text = entry.textLower
+            local score = 0
             
-            local bestScore = 0
-            local bestClass = nil
-            for _, text in ipairs(texts) do
-                local score = 0
-                if text == term then
-                    score = 1000
-                    if score > bestScore then bestScore = score; bestClass = "exact" end
-                elseif text:find("^" .. term:gsub("[%-%^%$%(%)%%%.%[%]%*%+%?]", "%%%1")) then
-                    score = 800 + (100 - #text)
-                    if score > bestScore then bestScore = score; bestClass = "exact" end
-                elseif text:find(term, 1, true) then
-                    score = 600 + (100 - #text)
-                    if score > bestScore then bestScore = score; bestClass = "contains" end
-                else
-                    local termChars = {}
-                    for i = 1, #term do termChars[i] = term:sub(i,i) end
-                    local textPos = 1
-                    local matchedChars = 0
-                    for _, char in ipairs(termChars) do
-                        local found = text:find(char, textPos, true)
-                        if found then
-                            textPos = found + 1
-                            matchedChars = matchedChars + 1
-                        else
-                            break
-                        end
-                    end
-                    if matchedChars == #termChars and #termChars >= 3 then
-                        score = 300 + matchedChars * 10
-                        if score > bestScore then bestScore = score; bestClass = "fuzzy" end
+            
+            if text == term then
+                score = 1000
+                exactMatches[#exactMatches + 1] = {entry = entry, score = score}
+            
+            elseif text:find("^" .. term:gsub("[%-%^%$%(%)%%%.%[%]%*%+%?]", "%%%1")) then
+                score = 800 + (100 - #text) 
+                exactMatches[#exactMatches + 1] = {entry = entry, score = score}
+            
+            elseif text:find(term, 1, true) then
+                score = 600 + (100 - #text)
+                matches[#matches + 1] = {entry = entry, score = score}
+            else
+                
+                local termChars = {}
+                for i = 1, #term do termChars[i] = term:sub(i,i) end
+                
+                local textPos = 1
+                local matchedChars = 0
+                for _, char in ipairs(termChars) do
+                    local found = text:find(char, textPos, true)
+                    if found then
+                        textPos = found + 1
+                        matchedChars = matchedChars + 1
+                    else
+                        break
                     end
                 end
-            end
-            
-            if bestScore > 0 then
-                if bestClass == "exact" then
-                    exactMatches[#exactMatches + 1] = {entry = entry, score = bestScore}
-                elseif bestClass == "contains" then
-                    matches[#matches + 1] = {entry = entry, score = bestScore}
-                elseif bestClass == "fuzzy" then
-                    fuzzyMatches[#fuzzyMatches + 1] = {entry = entry, score = bestScore}
+                
+                if matchedChars == #termChars and #termChars >= 3 then 
+                    score = 300 + matchedChars * 10
+                    fuzzyMatches[#fuzzyMatches + 1] = {entry = entry, score = score}
                 end
             end
         end
@@ -8285,7 +8260,7 @@ function Library:CreateLibrary(opts)
         local langNames = {}
         for n,_ in pairs(languages) do table.insert(langNames, n) end
         table.sort(langNames)
-        local langDd = group:AddDropdown({ Name = "Library Language", Options = langNames, Default = "English", Multi = false, Search = true, Placeholder = "English", Callback = function(v)
+        local langDd = group:AddDropdown({ Name = "Library Language", Options = langNames, Default = "English", Multi = false, Search = true, Placeholder = "English", NoTranslateValue = true, Callback = function(v)
             local name = v or "English"
             local code = languages[name] or "en"
             pcall(function() Library:TranslateTo(code) end)
