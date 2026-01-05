@@ -64,12 +64,19 @@ function batchTranslate(texts, from, to)
             if not parsedOk or not data or not data[1] then
                 for _, t in ipairs(batch) do results[t] = t end
             else
-                for idx = 1, #data[1] do
-                    local segs = data[1][idx]
-                    local out = ""
-                    for s = 1, #segs do out = out .. (segs[s][1] or "") end
+                for idx = 1, #batch do
                     local original = batch[idx]
-                    results[original] = out or original
+                    local seg = data[1] and data[1][idx]
+                    local translated
+                    if type(seg) == "table" then
+                        translated = seg[1]
+                    elseif type(seg) == "string" then
+                        translated = seg
+                    end
+                    if type(translated) ~= "string" or translated == "" then
+                        translated = original
+                    end
+                    results[original] = translated
                 end
             end
         end
@@ -3150,7 +3157,7 @@ function Library:CreateLibrary(opts)
         end
         self:_connect(header.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                if windowStateChanging or fullscreen or minimized then return end
+                if windowStateChanging or fullscreen then return end
                 dragging = true
                 lastInput = input
                 dragStart = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
@@ -3161,7 +3168,14 @@ function Library:CreateLibrary(opts)
                         pcall(function()
                             if Library and root then
                                 Library._libraryPosition = root.Position
-                                Library._librarySize = root.Size
+                                if minimized then
+                                    normalPos = root.Position
+                                    Library._librarySize = normalSize
+                                else
+                                    normalPos = root.Position
+                                    normalSize = root.Size
+                                    Library._librarySize = root.Size
+                                end
                             end
                         end)
                     end
