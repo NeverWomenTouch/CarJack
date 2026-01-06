@@ -2010,7 +2010,7 @@ do
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             ScrollBarThickness = 6,
-            ScrollBarImageColor3 = Theme.Accent,
+            ScrollBarImageColor3 = Theme.Scrollbar,
             ScrollBarImageTransparency = 0.4,
             CanvasSize = UDim2.fromOffset(0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -3704,7 +3704,7 @@ function Library:CreateLibrary(opts)
             local pad = 4
                 local cw = 1 / Page._columns
                 for i=1, Page._columns do
-                local col = Create("ScrollingFrame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(cw, -(pad * (Page._columns + 1)) / Page._columns, 1, -2), Position = UDim2.new((i-1)*cw, pad * i - (pad / Page._columns), 0, 1), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Accent, ScrollBarImageTransparency = 0.2, BorderSizePixel = 0, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, Parent = pageFrame}, {Create("UIListLayout", {Padding = UDim.new(0, 3), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingLeft = UDim.new(0,2), PaddingRight = UDim.new(0,2), PaddingTop = UDim.new(0,2), PaddingBottom = UDim.new(0,3)})})
+                local col = Create("ScrollingFrame", {BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(cw, -(pad * (Page._columns + 1)) / Page._columns, 1, -2), Position = UDim2.new((i-1)*cw, pad * i - (pad / Page._columns), 0, 1), ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, ScrollBarImageTransparency = 0.2, BorderSizePixel = 0, CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, Parent = pageFrame}, {Create("UIListLayout", {Padding = UDim.new(0, 3), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder}), Create("UIPadding", {PaddingLeft = UDim.new(0,2), PaddingRight = UDim.new(0,2), PaddingTop = UDim.new(0,2), PaddingBottom = UDim.new(0,3)})})
                     cols[i] = col
                 end
             end
@@ -4502,7 +4502,7 @@ function Library:CreateLibrary(opts)
                             })
                             y = y + 24 + innerPad
                         end
-                        listFrame = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, y), Size = UDim2.new(1, -innerPad*2, 1, -y - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Accent, ZIndex = panel.ZIndex + 1, Parent = panel}, {
+                        listFrame = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, y), Size = UDim2.new(1, -innerPad*2, 1, -y - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, ZIndex = panel.ZIndex + 1, Parent = panel}, {
                             Create("UIListLayout", {Padding = UDim.new(0,4), SortOrder = Enum.SortOrder.LayoutOrder})
                         })
                     end
@@ -8823,10 +8823,23 @@ function Library:CreateLibrary(opts)
         pcall(function() if fb and fb.Set then fb:Set(Fonts.Bold.Name, true) end end)
 
         local themeKeys = {}
-        for k, v in pairs(Theme) do
-            if typeof(v) == "Color3" then table.insert(themeKeys, k) end
+        do
+            local want = {
+                Bg = true,
+                Panel = true,
+                Stroke = true,
+                Accent = true,
+                Text = true,
+                SubText = true,
+                Scrollbar = true,
+            }
+            for k, v in pairs(Theme) do
+                if want[k] and typeof(v) == "Color3" then
+                    table.insert(themeKeys, k)
+                end
+            end
+            table.sort(themeKeys)
         end
-        table.sort(themeKeys)
 
         local themeKeyNames = {
             Bg = "Background",
