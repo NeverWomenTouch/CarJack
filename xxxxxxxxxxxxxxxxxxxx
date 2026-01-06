@@ -2120,6 +2120,12 @@ do
         self:_updateKeybindDisplay()
     
     self:_applyKeybindListTransparency(self._keybindListTransparency or 0, 0)
+
+        pcall(function()
+            if self._bgImageEnabled == true and self._applyBackgroundImage then
+                self:_applyBackgroundImage()
+            end
+        end)
         
         
         task.spawn(function()
@@ -2178,8 +2184,18 @@ do
         if self._keybindListVisible then
             if not self._keybindList or not self._keybindList.Parent then
                 self:_createKeybindList()
+                pcall(function()
+                    if self._bgImageEnabled == true and self._applyBackgroundImage then
+                        self:_applyBackgroundImage()
+                    end
+                end)
             else
                 self._keybindList.Enabled = true
+                pcall(function()
+                    if self._bgImageEnabled == true and self._applyBackgroundImage then
+                        self:_applyBackgroundImage()
+                    end
+                end)
             end
         else
             if self._keybindList and self._keybindList.Parent then
@@ -9494,6 +9510,20 @@ function Library:_applyBackgroundImage()
     local id = tostring(self._bgImageId or "")
     local hasId = (id ~= "" and id ~= "0")
     local want = enabled and hasId
+    local panelColors = {}
+    pcall(function()
+        if Theme and typeof(Theme) == "table" then
+            if Theme.Bg then table.insert(panelColors, Theme.Bg) end
+            if Theme.Bg2 then table.insert(panelColors, Theme.Bg2) end
+            if Theme.Panel then table.insert(panelColors, Theme.Panel) end
+        end
+    end)
+    local function isPanelColor(c)
+        for _, v in ipairs(panelColors) do
+            if c == v then return true end
+        end
+        return false
+    end
     local function normAsset(s)
         s = tostring(s or "")
         if s:find("rbxassetid://", 1, true) then return s end
@@ -9521,6 +9551,9 @@ function Library:_applyBackgroundImage()
         if not obj:IsA("GuiObject") then return end
         if obj.Name == "DendriteBackgroundImage" then return end
         if obj:GetAttribute("DendriteNoThemeMap") == true then return end
+        if obj:GetAttribute("DendriteNoBgImage") == true then return end
+        local okColor, bgColor = pcall(function() return obj.BackgroundColor3 end)
+        if not okColor or not isPanelColor(bgColor) then return end
         if obj:GetAttribute("DendriteOrigBgT") == nil then
             pcall(function() obj:SetAttribute("DendriteOrigBgT", obj.BackgroundTransparency) end)
         end
@@ -9531,6 +9564,7 @@ function Library:_applyBackgroundImage()
         if not obj:IsA("GuiObject") then return end
         if obj.Name == "DendriteBackgroundImage" then return end
         if obj:GetAttribute("DendriteNoThemeMap") == true then return end
+        if obj:GetAttribute("DendriteNoBgImage") == true then return end
         local orig = obj:GetAttribute("DendriteOrigBgT")
         if orig ~= nil then
             pcall(function() obj.BackgroundTransparency = tonumber(orig) or 0 end)
@@ -9548,7 +9582,7 @@ function Library:_applyBackgroundImage()
             img.Position = UDim2.fromScale(0, 0)
             img.AnchorPoint = Vector2.new(0, 0)
             img.ScaleType = Enum.ScaleType.Crop
-            img.ZIndex = (parent.ZIndex or 1)
+            img.ZIndex = math.max(0, (parent.ZIndex or 1) - 1)
             img.Parent = parent
         end
         img.Image = asset
