@@ -8418,6 +8418,412 @@ function Library:CreateLibrary(opts)
         Config.Delete(safe)
         pcall(function() Config.ClearMeta(safe) end)
     end
+
+    local Themes = {}
+    local function themesFolder() return DIR .. "/Themes" end
+    local function themeFilePath(name) return themesFolder() .. "/" .. sanitize(name) .. ".json" end
+    function Themes.Ensure()
+        if MEM_MODE ~= nil then return end
+        MEM_MODE = not (gw and gr)
+        if not MEM_MODE then
+            pcall(function()
+                if gif and not gif(DIR) and gmf then gmf(DIR) end
+                if gif and not gif(themesFolder()) and gmf then gmf(themesFolder()) end
+            end)
+        else
+            memEnsure()
+            local key = memEnsure()
+            Library._memConfig.themes = Library._memConfig.themes or {}
+            Library._memConfig.themes[key] = Library._memConfig.themes[key] or {}
+        end
+    end
+    function Themes.List()
+        Themes.Ensure()
+        if MEM_MODE then
+            local key = memEnsure()
+            local out = {}
+            for n in pairs((Library._memConfig.themes and Library._memConfig.themes[key]) or {}) do table.insert(out, n) end
+            table.sort(out)
+            return out
+        end
+        if glf and gif and gif(themesFolder()) then
+            local ok, files = pcall(function() return glf(themesFolder()) end)
+            local out = {}
+            if ok and type(files) == "table" then
+                for _, f in ipairs(files) do
+                    local n = f:match("([^/\\]+)$") or f
+                    n = n:gsub("%.json$", "")
+                    if n ~= "" and not n:match("^__") then
+                        local include = true
+                        if gr then
+                            local okr, raw = pcall(function() return gr(f) end)
+                            if okr and type(raw) == "string" and #raw > 0 then
+                                local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                                if okj and type(dec) == "table" and type(dec.metadata) == "table" and dec.metadata.__deleted == true then
+                                    include = false
+                                end
+                            end
+                        end
+                        if include then table.insert(out, n) end
+                    end
+                end
+            end
+            table.sort(out)
+            return out
+        end
+        return {}
+    end
+    function Themes.Save(name, payload)
+        Themes.Ensure()
+        local s = sanitize(name or "")
+        if s == "" then return false end
+        local t = payload or {}
+        local themePayload = {}
+        local fontsPayload = {}
+        local ser = Library._serialize
+        if type(t.theme) == "table" then
+            for k, v in pairs(t.theme) do
+                if Theme[k] ~= nil then
+                    local ok, out = pcall(function() return ser(v) end)
+                    if ok then themePayload[k] = out end
+                end
+            end
+        else
+            for k, v in pairs(Theme) do
+                local ok, out = pcall(function() return ser(v) end)
+                if ok then themePayload[k] = out end
+            end
+        end
+        if type(t.fonts) == "table" then
+            for k, v in pairs(t.fonts) do
+                if Fonts[k] ~= nil then
+                    local ok, out = pcall(function() return ser(v) end)
+                    if ok then fontsPayload[k] = out end
+                end
+            end
+        else
+            for k, v in pairs(Fonts) do
+                local ok, out = pcall(function() return ser(v) end)
+                if ok then fontsPayload[k] = out end
+            end
+        end
+        local meta = { name = s, lastModified = os.time() }
+        pcall(function() meta.autoLoad = Themes.GetAutoLoad(s) end)
+        pcall(function() meta.path = themeFilePath(s) end)
+        local outObj = { theme = themePayload, fonts = fontsPayload, metadata = meta }
+        if MEM_MODE then
+            local key = memEnsure()
+            Library._memConfig.themes[key][s] = outObj
+            return true
+        end
+        local okj, json = pcall(function() return HttpService:JSONEncode(outObj) end)
+        if not okj or type(json) ~= "string" then return false end
+        local path = themeFilePath(s)
+        if gif and gmf then pcall(function() if not gif(themesFolder()) then gmf(themesFolder()) end end) end
+        local okw = pcall(function() atomicWrite(path, json) end)
+        return okw == true
+    end
+    function Themes.Load(name)
+        Themes.Ensure()
+        local s = sanitize(name or "")
+        if s == "" then return nil end
+        local dec
+        if MEM_MODE then
+            local key = memEnsure()
+            dec = (Library._memConfig.themes and Library._memConfig.themes[key] and Library._memConfig.themes[key][s])
+        else
+            local ok, raw = pcall(function() return gr(themeFilePath(s)) end)
+            if ok and type(raw) == "string" and #raw > 0 then
+                local okj, d = pcall(function() return HttpService:JSONDecode(raw) end)
+                if okj and type(d) == "table" then dec = d end
+            end
+        end
+        if type(dec) ~= "table" then return nil end
+        local deser = Library._deserialize
+        local themeOut = {}
+        local fontsOut = {}
+        if type(dec.theme) == "table" then
+            for k, v in pairs(dec.theme) do
+                themeOut[k] = deser(v)
+            end
+        end
+        if type(dec.fonts) == "table" then
+            for k, v in pairs(dec.fonts) do
+                fontsOut[k] = deser(v)
+            end
+        end
+        return { theme = themeOut, fonts = fontsOut, metadata = dec.metadata }
+    end
+    function Themes.Delete(name)
+        Themes.Ensure()
+        local s = sanitize(name or "")
+        if s == "" then return end
+        if MEM_MODE then
+            local key = memEnsure()
+            if Library._memConfig.themes and Library._memConfig.themes[key] then
+                Library._memConfig.themes[key][s] = nil
+            end
+            return
+        end
+        local path = themeFilePath(s)
+        if gd then
+            pcall(function() gd(path) end)
+            if path:find("/", 1, true) then pcall(function() gd((path:gsub("/", "\\"))) end) end
+        else
+            local payload = { metadata = { __deleted = true, name = s, lastModified = os.time() }, theme = {}, fonts = {} }
+            local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
+            if okj and type(json) == "string" then
+                pcall(function() gw(path, json) end)
+            else
+                pcall(function() gw(path, "{}") end)
+            end
+        end
+    end
+    function Themes.SetAutoLoad(name, on)
+        Themes.Ensure()
+        local s = sanitize(name or "")
+        if s == "" then return end
+        if MEM_MODE then
+            local key = memEnsure()
+            local t = (Library._memConfig.themes and Library._memConfig.themes[key] and Library._memConfig.themes[key][s]) or { metadata = {}, theme = {}, fonts = {} }
+            t.metadata = t.metadata or {}
+            t.metadata.autoLoad = (on == true) or nil
+            t.metadata.lastModified = os.time()
+            Library._memConfig.themes[key][s] = t
+            return
+        end
+        local path = themeFilePath(s)
+        local obj = {}
+        local ok, raw = pcall(function() return gr(path) end)
+        if ok and type(raw) == "string" and #raw > 0 then
+            pcall(function() obj = HttpService:JSONDecode(raw) or {} end)
+        end
+        obj.metadata = obj.metadata or {}
+        obj.metadata.autoLoad = (on == true) or nil
+        obj.metadata.lastModified = os.time()
+        local okj, json = pcall(function() return HttpService:JSONEncode(obj) end)
+        if okj then pcall(function() atomicWrite(path, json) end) end
+    end
+    function Themes.GetAutoLoad(name)
+        Themes.Ensure()
+        local s = sanitize(name or "")
+        if s == "" then return false end
+        if MEM_MODE then
+            local key = memEnsure()
+            local t = (Library._memConfig.themes and Library._memConfig.themes[key] and Library._memConfig.themes[key][s])
+            return type(t) == "table" and t.metadata and t.metadata.autoLoad == true
+        end
+        local ok, raw = pcall(function() return gr(themeFilePath(s)) end)
+        if ok and type(raw) == "string" and #raw > 0 then
+            local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+            if okj and type(dec) == "table" and type(dec.metadata) == "table" then return dec.metadata.autoLoad == true end
+        end
+        return false
+    end
+    function Themes.MostRecentAutoLoad()
+        Themes.Ensure()
+        if MEM_MODE then
+            local newest, best
+            local key = memEnsure()
+            for name, t in pairs((Library._memConfig.themes and Library._memConfig.themes[key]) or {}) do
+                if type(t) == "table" and t.metadata and t.metadata.autoLoad then
+                    local ts = tonumber(t.metadata.lastModified or 0) or 0
+                    if not newest or ts > newest then newest, best = ts, name end
+                end
+            end
+            return best
+        end
+        local list = Themes.List()
+        local newest, best
+        for _, name in ipairs(list) do
+            local ok, raw = pcall(function() return gr(themeFilePath(name)) end)
+            if ok and type(raw) == "string" and #raw > 0 then
+                local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                if okj and type(dec) == "table" and dec.metadata and dec.metadata.autoLoad then
+                    local ts = tonumber(dec.metadata.lastModified or 0) or 0
+                    if not newest or ts > newest then newest, best = ts, name end
+                end
+            end
+        end
+        return best
+    end
+
+    Window.ListThemes = function() return Themes.List() end
+    Window.SaveTheme = function(name)
+        local safe = sanitize(name or "")
+        if safe == "" then return false end
+        return Themes.Save(safe)
+    end
+    Window.LoadTheme = function(name)
+        local safe = sanitize(name or "")
+        if safe == "" then return nil end
+        local dec = Themes.Load(safe)
+        if dec and Library and Library.ApplyTheme then
+            pcall(function() Library:ApplyTheme(dec.theme, dec.fonts) end)
+        end
+        return dec
+    end
+    Window.DeleteTheme = function(a, b)
+        local name = (type(a) == "string" and a) or (type(b) == "string" and b) or ""
+        local safe = sanitize(name or "")
+        if safe == "" then return end
+        Themes.Delete(safe)
+        pcall(function() Themes.SetAutoLoad(safe, false) end)
+    end
+
+    Window.AddThemes = function(self, group, opts)
+        opts = opts or {}
+        if not group or type(group) ~= "table" or not group.AddDropdown then return nil end
+        local uiLabel = tostring(opts.Label or "Themes")
+        local namePlaceholder = tostring(opts.Placeholder or "MyThemes")
+
+        local dd = group:AddDropdown({
+            Name = uiLabel,
+            Options = Window.ListThemes(),
+            Default = nil,
+            Multi = false,
+            Search = true,
+            Placeholder = "Select a theme"
+        })
+        local function refreshList()
+            local list = Window.ListThemes() or {}
+            dd:SetOptions(list)
+        end
+        local nameBox = group:AddTextbox({ Name = "Theme Name", Placeholder = namePlaceholder, Default = "" })
+
+        local autoToggle
+        local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
+            local raw = ""
+            pcall(function() raw = (nameBox and nameBox.Get and nameBox:Get()) or "" end)
+            if not raw or raw == "" then return end
+            local safe = sanitize(raw)
+            if safe == "" then return end
+            local okSave = pcall(function() return Window.SaveTheme(safe) end)
+            if okSave then
+                refreshList()
+                task.defer(function()
+                    pcall(function() dd:Set(safe, true) end)
+                    if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+                end)
+            end
+        end })
+        local saveBtn = group:AddButton({ Name = "Save", Compact = true, Callback = function()
+            local raw
+            pcall(function() raw = dd and dd.Get and dd:Get() end)
+            if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
+            if not raw or raw == "" then return end
+            local safe = sanitize(raw)
+            local wasAutoLoad = false
+            pcall(function() wasAutoLoad = autoToggle and autoToggle.Get and autoToggle:Get() end)
+            local okSave = pcall(function() return Window.SaveTheme(safe) end)
+            if okSave then
+                refreshList()
+                task.defer(function()
+                    pcall(function() dd:Set(safe, true) end)
+                    if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+                    if wasAutoLoad then
+                        pcall(function() Themes.SetAutoLoad(safe, true) end)
+                        if autoToggle and autoToggle.Set then autoToggle:Set(true, true) end
+                    end
+                end)
+            end
+        end })
+        local loadBtn = group:AddButton({ Name = "Load", Compact = true, Callback = function()
+            local raw
+            pcall(function() raw = dd and dd.Get and dd:Get() end)
+            if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
+            if not raw or raw == "" then return end
+            local safe = sanitize(raw)
+            Window.LoadTheme(safe)
+            pcall(function() dd:Set(safe, true) end)
+            if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+        end })
+        local deleteBtn = group:AddButton({ Name = "Delete", Compact = true, Callback = function()
+            local raw
+            pcall(function() raw = dd and dd.Get and dd:Get() end)
+            if (not raw or raw == "") then pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end) end
+            if not raw or raw == "" then return end
+            local safe = sanitize(raw)
+            Window.DeleteTheme(safe)
+            refreshList()
+            pcall(function() dd:Set(nil, true) end)
+            if nameBox and nameBox.Set then nameBox:Set("", true) end
+        end })
+        local refreshBtn = group:AddButton({ Name = "Refresh List", Compact = true, Callback = function()
+            refreshList()
+            local raw = dd:Get()
+            local safe = raw and sanitize(raw) or nil
+            local on = false
+            pcall(function() on = Themes.GetAutoLoad(safe) end)
+            if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
+        end })
+        autoToggle = group:AddToggle({ Name = "Auto Load Theme", Default = false, Callback = function(on)
+            local raw = dd:Get()
+            local safe = raw and sanitize(raw) or nil
+            if not safe or safe == "" then return end
+            pcall(function() Themes.SetAutoLoad(safe, on) end)
+        end })
+
+        local _ddSet = dd.Set
+        function dd:Set(v, silent)
+            _ddSet(self, v, silent)
+            local raw = self:Get()
+            local safe = raw and sanitize(raw) or nil
+            local on = false
+            pcall(function() on = Themes.GetAutoLoad(safe) end)
+            if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
+            if nameBox and nameBox.Set then nameBox:Set(safe or "", true) end
+        end
+
+        local fontItems = Enum.Font:GetEnumItems()
+        local fontNames = {}
+        local fontByName = {}
+        for _, f in ipairs(fontItems) do
+            local n = f.Name
+            fontByName[n] = f
+            table.insert(fontNames, n)
+        end
+        table.sort(fontNames)
+
+        local function setFontKey(fontKey, fontEnum)
+            if not Fonts[fontKey] then return end
+            local t = {}; t[fontKey] = fontEnum
+            pcall(function() Library:ApplyTheme(nil, t) end)
+        end
+
+        local fr = group:AddDropdown({ Name = "Font Regular", Options = fontNames, Default = Fonts.Regular and Fonts.Regular.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Regular and Fonts.Regular.Name or "" , NoTranslateValue = true, Callback = function(v)
+            local f = fontByName[tostring(v or "")] ; if f then setFontKey("Regular", f) end
+        end })
+        local fm = group:AddDropdown({ Name = "Font Medium", Options = fontNames, Default = Fonts.Medium and Fonts.Medium.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Medium and Fonts.Medium.Name or "" , NoTranslateValue = true, Callback = function(v)
+            local f = fontByName[tostring(v or "")] ; if f then setFontKey("Medium", f) end
+        end })
+        local fb = group:AddDropdown({ Name = "Font Bold", Options = fontNames, Default = Fonts.Bold and Fonts.Bold.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Bold and Fonts.Bold.Name or "" , NoTranslateValue = true, Callback = function(v)
+            local f = fontByName[tostring(v or "")] ; if f then setFontKey("Bold", f) end
+        end })
+        pcall(function() if fr and fr.Set then fr:Set(Fonts.Regular.Name, true) end end)
+        pcall(function() if fm and fm.Set then fm:Set(Fonts.Medium.Name, true) end end)
+        pcall(function() if fb and fb.Set then fb:Set(Fonts.Bold.Name, true) end end)
+
+        local themeKeys = {}
+        for k, v in pairs(Theme) do
+            if typeof(v) == "Color3" then table.insert(themeKeys, k) end
+        end
+        table.sort(themeKeys)
+        for _, k in ipairs(themeKeys) do
+            group:AddColorpicker({
+                Name = k,
+                Default = Theme[k],
+                Callback = function(c)
+                    local t = {}; t[k] = c
+                    pcall(function() Library:ApplyTheme(t, nil) end)
+                end
+            })
+        end
+
+        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, FontRegular = fr, FontMedium = fm, FontBold = fb }
+        Window._lastThemeUI = themeUI
+        return themeUI
+    end
     
     Window.AddConfigSystem = function(self, group, opts)
         opts = opts or {}
@@ -8604,6 +9010,21 @@ function Library:CreateLibrary(opts)
         end
     end)
 
+    task.spawn(function()
+        task.wait(0.25)
+        local toLoad
+        pcall(function() toLoad = Themes.MostRecentAutoLoad() end)
+        if toLoad and type(toLoad) == "string" and #toLoad > 0 then
+            pcall(function()
+                Window.LoadTheme(toLoad)
+                Themes.SetAutoLoad(toLoad, true)
+                if Window._lastThemeUI and Window._lastThemeUI.AutoToggle then
+                    Window._lastThemeUI.AutoToggle:Set(true, true)
+                end
+            end)
+        end
+    end)
+
     
     task.spawn(function()
         task.wait(1) 
@@ -8620,6 +9041,67 @@ function Library:MakeWindow(o) return self:CreateLibrary(o) end
 function Library:NewWindow(o) return self:CreateLibrary(o) end
 function Library:SetTheme(t) for k, v in pairs(t or {}) do if Theme[k] ~= nil then Theme[k] = v end end end
 function Library:SetFonts(f) for k, v in pairs(f or {}) do if Fonts[k] ~= nil then Fonts[k] = v end end end
+function Library:_cloneTable(src)
+    local out = {}
+    for k, v in pairs(src or {}) do out[k] = v end
+    return out
+end
+function Library:ApplyTheme(themePatch, fontsPatch)
+    self._appliedTheme = self._appliedTheme or self:_cloneTable(Theme)
+    self._appliedFonts = self._appliedFonts or self:_cloneTable(Fonts)
+    local oldTheme = self._appliedTheme
+    local oldFonts = self._appliedFonts
+    local nextTheme = self:_cloneTable(Theme)
+    local nextFonts = self:_cloneTable(Fonts)
+    for k, v in pairs(themePatch or {}) do if nextTheme[k] ~= nil then nextTheme[k] = v end end
+    for k, v in pairs(fontsPatch or {}) do if nextFonts[k] ~= nil then nextFonts[k] = v end end
+    local colorMap = {}
+    for k, ov in pairs(oldTheme) do
+        local nv = nextTheme[k]
+        if typeof(ov) == "Color3" and typeof(nv) == "Color3" then
+            colorMap[ov] = nv
+        end
+    end
+    local fontMap = {}
+    for k, ov in pairs(oldFonts) do
+        local nv = nextFonts[k]
+        if typeof(ov) == "EnumItem" and typeof(nv) == "EnumItem" then
+            fontMap[ov] = nv
+        end
+    end
+    self:SetTheme(nextTheme)
+    self:SetFonts(nextFonts)
+    self._appliedTheme = self:_cloneTable(Theme)
+    self._appliedFonts = self:_cloneTable(Fonts)
+
+    local rootGui = self._rootGui
+    if not rootGui then return end
+    local function remap(inst, prop, map)
+        local ok, cur = pcall(function() return inst[prop] end)
+        if not ok then return end
+        local rep = map[cur]
+        if rep ~= nil then pcall(function() inst[prop] = rep end) end
+    end
+    for _, inst in ipairs(rootGui:GetDescendants()) do
+        if inst:IsA("GuiObject") then
+            remap(inst, "BackgroundColor3", colorMap)
+            remap(inst, "BorderColor3", colorMap)
+        end
+        if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+            remap(inst, "TextColor3", colorMap)
+            remap(inst, "Font", fontMap)
+        end
+        if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
+            remap(inst, "ImageColor3", colorMap)
+        end
+        if inst:IsA("UIStroke") then
+            remap(inst, "Color", colorMap)
+        end
+        if inst:IsA("ScrollingFrame") then
+            remap(inst, "ScrollBarImageColor3", colorMap)
+        end
+    end
+end
 function Library:GetFlag(name)
     return (self.Flags and self.Flags[name]) or self._controls[name]
 end
@@ -8677,6 +9159,13 @@ end
 function Library:AddConfigSystem(group, opts)
     if self and self._activeWindow and self._activeWindow.AddConfigSystem then
         return self._activeWindow:AddConfigSystem(group, opts)
+    end
+    return nil
+end
+
+function Library:AddThemes(group, opts)
+    if self and self._activeWindow and self._activeWindow.AddThemes then
+        return self._activeWindow:AddThemes(group, opts)
     end
     return nil
 end
