@@ -8517,10 +8517,47 @@ function Library:CreateLibrary(opts)
         local ser = Library._serialize
         local srcTheme = (type(t.theme) == "table") and t.theme or Theme
         local srcFonts = (type(t.fonts) == "table") and t.fonts or Fonts
+
+        -- If the Themes UI exists, capture rainbow/pulse state from its colorpickers
+        -- using the same format as ConfigSystem.
+        local pickerByKey = nil
+        pcall(function()
+            pickerByKey = (Window and Window._lastThemeUI and Window._lastThemeUI.ColorpickersByKey) or nil
+        end)
+        local function packThemeColorpicker(key)
+            if not pickerByKey or type(key) ~= "string" then return nil end
+            local cp = pickerByKey[key]
+            if type(cp) ~= "table" or type(cp._slots) ~= "table" or not cp._slots[1] then return nil end
+            local slot = cp._slots[1]
+            local okc, serColor = pcall(function()
+                return ser((slot and slot.color) or srcTheme[key] or Theme[key] or Theme.Accent)
+            end)
+            if not okc then
+                serColor = ser(Theme[key] or Theme.Accent)
+            end
+            return {
+                __ctrl = "Colorpicker",
+                slots = {
+                    {
+                        color = serColor,
+                        rainbow = (slot and slot.rainbow == true) or false,
+                        pulse = (slot and slot.pulse == true) or false,
+                        hueOffset = tonumber(slot and slot.hueOffset) or 0,
+                        pulseHueOffset = tonumber(slot and slot.pulseHueOffset) or 0,
+                    }
+                }
+            }
+        end
+
         for k, v in pairs(srcTheme) do
             if Theme[k] ~= nil then
-                local ok, out = pcall(function() return ser(v) end)
-                if ok then themePayload[k] = out end
+                local cpPacked = packThemeColorpicker(k)
+                if cpPacked then
+                    themePayload[k] = cpPacked
+                else
+                    local ok, out = pcall(function() return ser(v) end)
+                    if ok then themePayload[k] = out end
+                end
             end
         end
         for k, v in pairs(srcFonts) do
@@ -8567,14 +8604,40 @@ function Library:CreateLibrary(opts)
         if type(dec) ~= "table" then return nil end
         local deser = Library._deserialize
         local themeOut = {}
+        local themeColorpickers = {}
         local fontsOut = {}
         if type(dec.theme) == "table" then
-            for k, v in pairs(dec.theme) do themeOut[k] = deser(v) end
+            for k, v in pairs(dec.theme) do
+                if type(v) == "table" and v.__ctrl == "Colorpicker" and type(v.slots) == "table" then
+                    local cp = { __ctrl = "Colorpicker", colors = {}, rainbow = {}, pulse = {}, hueOffsets = {}, pulseHueOffsets = {} }
+                    for i = 1, #v.slots do
+                        local slot = v.slots[i]
+                        if type(slot) == "table" then
+                            cp.colors[i] = deser(slot.color)
+                            cp.rainbow[i] = slot.rainbow == true
+                            cp.pulse[i] = slot.pulse == true
+                            cp.hueOffsets[i] = tonumber(slot.hueOffset) or 0
+                            cp.pulseHueOffsets[i] = tonumber(slot.pulseHueOffset) or 0
+                        else
+                            cp.colors[i] = deser(slot)
+                            cp.rainbow[i] = false
+                            cp.pulse[i] = false
+                            cp.hueOffsets[i] = 0
+                            cp.pulseHueOffsets[i] = 0
+                        end
+                    end
+                    themeColorpickers[k] = cp
+                    themeOut[k] = cp.colors[1]
+                else
+                    themeOut[k] = deser(v)
+                end
+            end
         end
         if type(dec.fonts) == "table" then
             for k, v in pairs(dec.fonts) do fontsOut[k] = deser(v) end
         end
-        return { theme = themeOut, fonts = fontsOut, metadata = dec.metadata }
+        if next(themeColorpickers) == nil then themeColorpickers = nil end
+        return { theme = themeOut, fonts = fontsOut, themeColorpickers = themeColorpickers, metadata = dec.metadata }
     end
     function Themes.Delete(name)
         Themes.Ensure()
@@ -8678,6 +8741,44 @@ function Library:CreateLibrary(opts)
         local dec = Themes.Load(safe)
         if dec and Library and Library.ApplyTheme then
             pcall(function() Library:ApplyTheme(dec.theme, dec.fonts) end)
+
+            -- Restore theme colorpicker state (rainbow/pulse + offsets) if the Themes UI exists.
+            pcall(function()
+                local ui = Window and Window._lastThemeUI
+                local map = ui and ui.ColorpickersByKey
+                local cpState = dec and dec.themeColorpickers
+                if type(map) == "table" and type(cpState) == "table" then
+                    for key, state in pairs(cpState) do
+                        local ctrl = map[key]
+                        if type(ctrl) == "table" and ctrl.Set and type(ctrl._slots) == "table" and ctrl._slots[1] then
+                            local color = (type(state.colors) == "table" and state.colors[1]) or dec.theme[key]
+                            if color then pcall(function() ctrl:Set(color, 1, true) end) end
+                            local slot = ctrl._slots[1]
+                            if slot then
+                                slot.hueOffset = (type(state.hueOffsets) == "table" and tonumber(state.hueOffsets[1])) or slot.hueOffset or 0
+                                slot.pulseHueOffset = (type(state.pulseHueOffsets) == "table" and tonumber(state.pulseHueOffsets[1])) or slot.pulseHueOffset or 0
+                            end
+                            local wantR = type(state.rainbow) == "table" and state.rainbow[1] == true
+                            local wantP = type(state.pulse) == "table" and state.pulse[1] == true
+                            if wantR then
+                                pcall(function() if ctrl.SetPulse then ctrl:SetPulse(false, 1) end end)
+                                pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(true, 1) end end)
+                            elseif wantP then
+                                pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(false, 1) end end)
+                                pcall(function() if ctrl.SetPulse then ctrl:SetPulse(true, 1) end end)
+                            else
+                                pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(false, 1) end end)
+                                pcall(function() if ctrl.SetPulse then ctrl:SetPulse(false, 1) end end)
+                            end
+                            -- Ensure offsets survive enableRainbow/enablePulse recomputation
+                            if slot then
+                                slot.hueOffset = (type(state.hueOffsets) == "table" and tonumber(state.hueOffsets[1])) or slot.hueOffset or 0
+                                slot.pulseHueOffset = (type(state.pulseHueOffsets) == "table" and tonumber(state.pulseHueOffsets[1])) or slot.pulseHueOffset or 0
+                            end
+                        end
+                    end
+                end
+            end)
         end
         return dec
     end
@@ -8814,7 +8915,7 @@ function Library:CreateLibrary(opts)
         local function setFontKey(fontKey, fontEnum)
             if not Fonts[fontKey] then return end
             local t = {}; t[fontKey] = fontEnum
-            pcall(function() Library:ApplyTheme(nil, t) end)
+            pcall(function() Library:QueueApplyTheme(nil, t) end)
         end
 
         local fr = markThemeControl(group:AddDropdown({ Name = "Font Regular", Options = fontNames, Default = Fonts.Regular and Fonts.Regular.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Regular and Fonts.Regular.Name or "" , NoTranslateValue = true, Callback = function(v)
@@ -8878,19 +8979,24 @@ function Library:CreateLibrary(opts)
         end
 
         local themePickers = {}
+        local themePickersByKey = {}
         for _, k in ipairs(themeKeys) do
             local cp = markThemeControl(group:AddColorpicker({
                 Name = prettyThemeKey(k),
                 Default = Theme[k],
                 Callback = function(c)
                     local t = {}; t[k] = c
-                    pcall(function() Library:ApplyTheme(t, nil) end)
+                    pcall(function() Library:QueueApplyTheme(t, nil) end)
                 end
             }))
+            if type(cp) == "table" then
+                cp._themeKey = k
+            end
             themePickers[#themePickers+1] = cp
+            themePickersByKey[k] = cp
         end
 
-        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers }
+        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers, ColorpickersByKey = themePickersByKey }
         Window._lastThemeUI = themeUI
         return themeUI
     end
@@ -9060,6 +9166,45 @@ function Library:CreateLibrary(opts)
     Window._lastConfigUI = configUI
     return configUI
     end
+
+    -- Debounced theme application to avoid repainting the entire UI on every
+    -- intermediate colorpicker drag tick.
+    function Library:QueueApplyTheme(themePatch, fontsPatch, opts)
+        opts = opts or {}
+        local delay = opts.Delay
+        if delay == nil then delay = 0.06 end
+        if opts.Immediate then
+            return self:ApplyTheme(themePatch, fontsPatch)
+        end
+
+        if type(themePatch) == "table" then
+            self._queuedThemePatch = self._queuedThemePatch or {}
+            for k, v in pairs(themePatch) do
+                self._queuedThemePatch[k] = v
+            end
+        end
+        if type(fontsPatch) == "table" then
+            self._queuedFontsPatch = self._queuedFontsPatch or {}
+            for k, v in pairs(fontsPatch) do
+                self._queuedFontsPatch[k] = v
+            end
+        end
+
+        if self._applyThemeQueued then
+            return
+        end
+        self._applyThemeQueued = true
+        task.delay(delay, function()
+            self._applyThemeQueued = false
+            local tp = self._queuedThemePatch
+            local fp = self._queuedFontsPatch
+            self._queuedThemePatch = nil
+            self._queuedFontsPatch = nil
+            pcall(function()
+                self:ApplyTheme(tp, fp)
+            end)
+        end)
+    end
     
     
     task.spawn(function()
@@ -9218,19 +9363,33 @@ function Library:ApplyTheme(themePatch, fontsPatch)
         table.insert(roots, self._activeModalNotification)
     end
 
+    local skipCache = {}
     local function hasNoThemeMap(inst)
+        local cached = skipCache[inst]
+        if cached ~= nil then return cached end
         local cur = inst
         local i = 0
         while cur and i < 32 do
-            local ok, v = pcall(function() return cur:GetAttribute("DendriteNoThemeMap") end)
-            if ok and v == true then return true end
+            if cur.GetAttribute and cur:GetAttribute("DendriteNoThemeMap") == true then
+                skipCache[inst] = true
+                return true
+            end
             cur = cur.Parent
             i = i + 1
         end
+        skipCache[inst] = false
         return false
     end
 
-    for _, rootGui in ipairs(roots) do
+    local uniqueRoots, rootSeen = {}, {}
+    for _, rg in ipairs(roots) do
+        if rg and typeof(rg) == "Instance" and not rootSeen[rg] then
+            rootSeen[rg] = true
+            table.insert(uniqueRoots, rg)
+        end
+    end
+
+    for _, rootGui in ipairs(uniqueRoots) do
         if rootGui and typeof(rootGui) == "Instance" then
             for _, inst in ipairs(rootGui:GetDescendants()) do
                 if not hasNoThemeMap(inst) then
