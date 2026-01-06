@@ -666,6 +666,7 @@ do
             TextYAlignment = Enum.TextYAlignment.Center,
             TextScaled = false,
             TextWrapped = false,
+            TextTruncate = Enum.TextTruncate.AtEnd,
             ZIndex = watermarkFrame.ZIndex + 10,
             Parent = watermarkFrame,
             TextStrokeTransparency = 0.8,
@@ -675,11 +676,13 @@ do
         
         
         local function updateSize()
-        local textService = SRV("TextService")
+            local textService = SRV("TextService")
+            local useFont = watermarkLabel.Font or Library._watermarkFont
+            local useSize = watermarkLabel.TextSize or Library._watermarkFontSize
             local textSize = textService:GetTextSize(
-                watermarkLabel.Text, 
-                Library._watermarkFontSize, 
-                Library._watermarkFont, 
+                watermarkLabel.Text,
+                useSize,
+                useFont,
                 Vector2.new(math.huge, 30)
             )
             local newWidth = math.max(textSize.X + 20, 160) 
@@ -904,6 +907,7 @@ do
         Library._updateWatermarkText = updateText
         Library._updateWatermarkTextColor = updateTextColor
         Library._updateWatermarkAccentColor = updateAccentColor
+        Library._updateWatermarkSize = updateSize
         
         updateText(Library._watermarkText)
         updateTextColor(Library._watermarkTextColor)
@@ -2404,7 +2408,7 @@ function Library:CreateLibrary(opts)
             if not snapshot then
                 snapshot = {}
                 for id, c in pairs(Library._controls) do
-                    if c and c.Get then
+                    if c and c.Get and not (c._skipConfig == true or c._isThemeControl == true) then
                         local ok, val = pcall(function() return c:Get() end)
                         if not ok then
                             val = nil
@@ -2431,9 +2435,10 @@ function Library:CreateLibrary(opts)
             end
             
             for id, val in pairs(snapshot or {}) do
-                
-                if type(val) == 'table' and (val.__ctrl == 'Colorpicker' or (Library._controls[id] and Library._controls[id]._slots)) then
-                    local cp = { __ctrl = 'Colorpicker', slots = {} }
+                local skipTheme = (Library._controls[id] and (Library._controls[id]._skipConfig == true or Library._controls[id]._isThemeControl == true))
+                if not skipTheme then
+                    if type(val) == 'table' and (val.__ctrl == 'Colorpicker' or (Library._controls[id] and Library._controls[id]._slots)) then
+                        local cp = { __ctrl = 'Colorpicker', slots = {} }
                     
                     local rawSlots = nil
                     if type(val.slots) == 'table' then
@@ -2456,16 +2461,16 @@ function Library:CreateLibrary(opts)
                             cp.slots[i] = { color = serColor, rainbow = rs and (rs.rainbow == true) or false, pulse = rs and (rs.pulse == true) or false, hueOffset = tonumber(rs and rs.hueOffset) or 0, pulseHueOffset = tonumber(rs and rs.pulseHueOffset) or 0 }
                         end
                     end
-                    controlsTbl[id] = cp
-                else
-                    local ok, ser = pcall(function() return serialize(val) end)
-                    if ok then
-                        controlsTbl[id] = ser
+                        controlsTbl[id] = cp
                     else
-                        
-                        local safeString = nil
-                        pcall(function() safeString = tostring(val) end)
-                        controlsTbl[id] = safeString
+                        local ok, ser = pcall(function() return serialize(val) end)
+                        if ok then
+                            controlsTbl[id] = ser
+                        else
+                            local safeString = nil
+                            pcall(function() safeString = tostring(val) end)
+                            controlsTbl[id] = safeString
+                        end
                     end
                 end
             end
@@ -8682,19 +8687,27 @@ function Library:CreateLibrary(opts)
         local uiLabel = tostring(opts.Label or "Themes")
         local namePlaceholder = tostring(opts.Placeholder or "MyThemes")
 
-        local dd = group:AddDropdown({
+        local function markThemeControl(c)
+            if type(c) == "table" then
+                c._skipConfig = true
+                c._isThemeControl = true
+            end
+            return c
+        end
+
+        local dd = markThemeControl(group:AddDropdown({
             Name = uiLabel,
             Options = Window.ListThemes(),
             Default = nil,
             Multi = false,
             Search = true,
             Placeholder = "Select a theme"
-        })
+        }))
         local function refreshList()
             local list = Window.ListThemes() or {}
             dd:SetOptions(list)
         end
-        local nameBox = group:AddTextbox({ Name = "Theme Name", Placeholder = namePlaceholder, Default = "" })
+        local nameBox = markThemeControl(group:AddTextbox({ Name = "Theme Name", Placeholder = namePlaceholder, Default = "" }))
 
         local autoToggle
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
@@ -8762,12 +8775,12 @@ function Library:CreateLibrary(opts)
             pcall(function() on = Themes.GetAutoLoad(safe) end)
             if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
         end })
-        autoToggle = group:AddToggle({ Name = "Auto Load Theme", Default = false, Callback = function(on)
+        autoToggle = markThemeControl(group:AddToggle({ Name = "Auto Load Theme", Default = false, Callback = function(on)
             local raw = dd:Get()
             local safe = raw and sanitize(raw) or nil
             if not safe or safe == "" then return end
             pcall(function() Themes.SetAutoLoad(safe, on) end)
-        end })
+        end }))
 
         local _ddSet = dd.Set
         function dd:Set(v, silent)
@@ -8796,15 +8809,15 @@ function Library:CreateLibrary(opts)
             pcall(function() Library:ApplyTheme(nil, t) end)
         end
 
-        local fr = group:AddDropdown({ Name = "Font Regular", Options = fontNames, Default = Fonts.Regular and Fonts.Regular.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Regular and Fonts.Regular.Name or "" , NoTranslateValue = true, Callback = function(v)
+        local fr = markThemeControl(group:AddDropdown({ Name = "Font Regular", Options = fontNames, Default = Fonts.Regular and Fonts.Regular.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Regular and Fonts.Regular.Name or "" , NoTranslateValue = true, Callback = function(v)
             local f = fontByName[tostring(v or "")] ; if f then setFontKey("Regular", f) end
-        end })
-        local fm = group:AddDropdown({ Name = "Font Medium", Options = fontNames, Default = Fonts.Medium and Fonts.Medium.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Medium and Fonts.Medium.Name or "" , NoTranslateValue = true, Callback = function(v)
+        end }))
+        local fm = markThemeControl(group:AddDropdown({ Name = "Font Medium", Options = fontNames, Default = Fonts.Medium and Fonts.Medium.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Medium and Fonts.Medium.Name or "" , NoTranslateValue = true, Callback = function(v)
             local f = fontByName[tostring(v or "")] ; if f then setFontKey("Medium", f) end
-        end })
-        local fb = group:AddDropdown({ Name = "Font Bold", Options = fontNames, Default = Fonts.Bold and Fonts.Bold.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Bold and Fonts.Bold.Name or "" , NoTranslateValue = true, Callback = function(v)
+        end }))
+        local fb = markThemeControl(group:AddDropdown({ Name = "Font Bold", Options = fontNames, Default = Fonts.Bold and Fonts.Bold.Name or nil, Multi = false, Search = true, Placeholder = Fonts.Bold and Fonts.Bold.Name or "" , NoTranslateValue = true, Callback = function(v)
             local f = fontByName[tostring(v or "")] ; if f then setFontKey("Bold", f) end
-        end })
+        end }))
         pcall(function() if fr and fr.Set then fr:Set(Fonts.Regular.Name, true) end end)
         pcall(function() if fm and fm.Set then fm:Set(Fonts.Medium.Name, true) end end)
         pcall(function() if fb and fb.Set then fb:Set(Fonts.Bold.Name, true) end end)
@@ -8814,18 +8827,49 @@ function Library:CreateLibrary(opts)
             if typeof(v) == "Color3" then table.insert(themeKeys, k) end
         end
         table.sort(themeKeys)
+
+        local themeKeyNames = {
+            Bg = "Background",
+            Panel = "Panel",
+            Stroke = "Outline / Stroke",
+            Accent = "Accent",
+            Accent2 = "Accent 2",
+            Text = "Text",
+            SubText = "Sub Text",
+            Hover = "Hover",
+            Button = "Button",
+            Good = "Success",
+            Warn = "Warning",
+            Bad = "Error",
+            Scrollbar = "Scrollbar",
+        }
+        local function prettyThemeKey(k)
+            local n = themeKeyNames[k]
+            if n then return n end
+            local s = tostring(k or "")
+            s = s:gsub("_", " ")
+            s = s:gsub("(%l)(%u)", "%1 %2")
+            s = s:gsub("%s+", " ")
+            s = s:gsub("^%s+", "")
+            s = s:gsub("%s+$", "")
+            if s == "" then s = tostring(k) end
+            return s
+        end
+
+        local themePickers = {}
         for _, k in ipairs(themeKeys) do
-            group:AddColorpicker({
-                Name = k,
+            local cp = markThemeControl(group:AddColorpicker({
+                Name = prettyThemeKey(k),
                 Default = Theme[k],
                 Callback = function(c)
                     local t = {}; t[k] = c
                     pcall(function() Library:ApplyTheme(t, nil) end)
                 end
-            })
+            }))
+            themePickers[#themePickers+1] = cp
         end
 
-        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, FontRegular = fr, FontMedium = fm, FontBold = fb }
+        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers }
         Window._lastThemeUI = themeUI
         return themeUI
     end
@@ -9060,18 +9104,32 @@ function Library:ApplyTheme(themePatch, fontsPatch)
     local nextFonts = self:_cloneTable(Fonts)
     for k, v in pairs(themePatch or {}) do if nextTheme[k] ~= nil then nextTheme[k] = v end end
     for k, v in pairs(fontsPatch or {}) do if nextFonts[k] ~= nil then nextFonts[k] = v end end
+    local function colorKey(c)
+        if typeof(c) ~= "Color3" then return nil end
+        local r = math.clamp(math.floor(c.R * 255 + 0.5), 0, 255)
+        local g = math.clamp(math.floor(c.G * 255 + 0.5), 0, 255)
+        local b = math.clamp(math.floor(c.B * 255 + 0.5), 0, 255)
+        return tostring(r) .. "," .. tostring(g) .. "," .. tostring(b)
+    end
+    local function fontKey(f)
+        if typeof(f) ~= "EnumItem" then return nil end
+        return f.Name
+    end
+
     local colorMap = {}
     for k, ov in pairs(oldTheme) do
         local nv = nextTheme[k]
-        if typeof(ov) == "Color3" and typeof(nv) == "Color3" then
-            colorMap[ov] = nv
+        local okO = colorKey(ov)
+        if okO and typeof(nv) == "Color3" then
+            colorMap[okO] = nv
         end
     end
     local fontMap = {}
     for k, ov in pairs(oldFonts) do
         local nv = nextFonts[k]
-        if typeof(ov) == "EnumItem" and typeof(nv) == "EnumItem" then
-            fontMap[ov] = nv
+        local okF = fontKey(ov)
+        if okF and typeof(nv) == "EnumItem" then
+            fontMap[okF] = nv
         end
     end
     self:SetTheme(nextTheme)
@@ -9079,33 +9137,102 @@ function Library:ApplyTheme(themePatch, fontsPatch)
     self._appliedTheme = self:_cloneTable(Theme)
     self._appliedFonts = self:_cloneTable(Fonts)
 
-    local rootGui = self._rootGui
-    if not rootGui then return end
-    local function remap(inst, prop, map)
+    local function remapColor(inst, prop)
         local ok, cur = pcall(function() return inst[prop] end)
         if not ok then return end
-        local rep = map[cur]
+        local ck = colorKey(cur)
+        if not ck then return end
+        local rep = colorMap[ck]
         if rep ~= nil then pcall(function() inst[prop] = rep end) end
     end
-    for _, inst in ipairs(rootGui:GetDescendants()) do
-        if inst:IsA("GuiObject") then
-            remap(inst, "BackgroundColor3", colorMap)
-            remap(inst, "BorderColor3", colorMap)
+    local function remapFont(inst, prop)
+        local ok, cur = pcall(function() return inst[prop] end)
+        if not ok then return end
+        local fk = fontKey(cur)
+        if not fk then return end
+        local rep = fontMap[fk]
+        if rep ~= nil then pcall(function() inst[prop] = rep end) end
+    end
+    local function remapGradient(inst)
+        local ok, cur = pcall(function() return inst.Color end)
+        if not ok or typeof(cur) ~= "ColorSequence" then return end
+        local keypoints = cur.Keypoints
+        if type(keypoints) ~= "table" then return end
+        local changed = false
+        local out = {}
+        for i = 1, #keypoints do
+            local kp = keypoints[i]
+            local c = kp.Value
+            local ck = colorKey(c)
+            local nc = (ck and colorMap[ck]) or nil
+            if nc and typeof(nc) == "Color3" and nc ~= c then
+                changed = true
+                out[i] = ColorSequenceKeypoint.new(kp.Time, nc)
+            else
+                out[i] = ColorSequenceKeypoint.new(kp.Time, c)
+            end
         end
-        if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
-            remap(inst, "TextColor3", colorMap)
-            remap(inst, "Font", fontMap)
-        end
-        if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
-            remap(inst, "ImageColor3", colorMap)
-        end
-        if inst:IsA("UIStroke") then
-            remap(inst, "Color", colorMap)
-        end
-        if inst:IsA("ScrollingFrame") then
-            remap(inst, "ScrollBarImageColor3", colorMap)
+        if changed then
+            pcall(function() inst.Color = ColorSequence.new(out) end)
         end
     end
+
+    local roots = {}
+    if self._rootGui then table.insert(roots, self._rootGui) end
+    if self._watermark then table.insert(roots, self._watermark) end
+    if self._keybindList then table.insert(roots, self._keybindList) end
+    local an = self._activeNotifications or Library._activeNotifications
+    if type(an) == "table" then
+        for _, entry in ipairs(an) do
+            if entry and entry.gui then table.insert(roots, entry.gui) end
+        end
+    end
+    local atn = self._activeTopNotifications or Library._activeTopNotifications
+    if type(atn) == "table" then
+        for _, entry in ipairs(atn) do
+            if entry and entry.gui then table.insert(roots, entry.gui) end
+        end
+    end
+    if self._activeModalNotification and typeof(self._activeModalNotification) == "Instance" then
+        table.insert(roots, self._activeModalNotification)
+    end
+
+    for _, rootGui in ipairs(roots) do
+        if rootGui and typeof(rootGui) == "Instance" then
+            for _, inst in ipairs(rootGui:GetDescendants()) do
+                if inst:IsA("GuiObject") then
+                    remapColor(inst, "BackgroundColor3")
+                    remapColor(inst, "BorderColor3")
+                end
+                if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+                    remapColor(inst, "TextColor3")
+                    remapColor(inst, "TextStrokeColor3")
+                    if inst:IsA("TextBox") then
+                        remapColor(inst, "PlaceholderColor3")
+                    end
+                    remapFont(inst, "Font")
+                end
+                if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
+                    remapColor(inst, "ImageColor3")
+                end
+                if inst:IsA("UIStroke") then
+                    remapColor(inst, "Color")
+                end
+                if inst:IsA("ScrollingFrame") then
+                    remapColor(inst, "ScrollBarImageColor3")
+                end
+                if inst:IsA("UIGradient") then
+                    remapGradient(inst)
+                end
+            end
+        end
+    end
+
+    pcall(function()
+        if self._updateWatermarkSize then
+            self._updateWatermarkSize()
+        end
+    end)
 end
 function Library:GetFlag(name)
     return (self.Flags and self.Flags[name]) or self._controls[name]
@@ -9114,11 +9241,6 @@ function Library:SetFlag(name, value, silent)
     local c = (self.Flags and self.Flags[name]) or self._controls[name]
     if c and c.Set then c:Set(value, silent) end
 end
-
-
-
-
-
 
 function Library:LibraryKeybind(key)
     local resolve
