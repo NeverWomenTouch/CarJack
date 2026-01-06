@@ -1709,23 +1709,42 @@ do
         self._keybindListTransparency = math.clamp(tonumber(alpha) or 0, 0, 1)
         local tt = tonumber(tweenTime) or 0.15
         if not self._keybindList then return end
+
+        local bgId = tostring(self._bgImageId or "")
+        local bgWant = (self._bgImageEnabled == true) and (bgId ~= "" and bgId ~= "0")
+        local bgAlpha = bgWant and 1 or self._keybindListTransparency
+
         local mainFrame = self._keybindList:FindFirstChild("MainFrame")
         if mainFrame then
-            T(mainFrame, tt, {BackgroundTransparency = self._keybindListTransparency}):Play()
+            T(mainFrame, tt, {BackgroundTransparency = bgAlpha}):Play()
+
+            if bgWant then
+                local img = mainFrame:FindFirstChild("DendriteBackgroundImage")
+                if img and img:IsA("ImageLabel") then
+                    pcall(function()
+                        img:SetAttribute("DendriteBgImgT", self._keybindListTransparency)
+                        img.ImageTransparency = self._keybindListTransparency
+                    end)
+                end
+            end
             
             local titleBar = mainFrame:FindFirstChild("TitleBar")
             if titleBar then
-                T(titleBar, tt, {BackgroundTransparency = self._keybindListTransparency}):Play()
+                T(titleBar, tt, {BackgroundTransparency = bgAlpha}):Play()
             end
         end
         
         if self._keybindScrollFrame then
             for _, child in ipairs(self._keybindScrollFrame:GetChildren()) do
                 if child:IsA("Frame") and child.Name == "KeybindEntry" then
-                    T(child, tt, {BackgroundTransparency = self._keybindListTransparency}):Play()
+                    T(child, tt, {BackgroundTransparency = bgAlpha}):Play()
                     local keyContainer = child:FindFirstChild("KeyContainer")
                     if keyContainer then
-                        T(keyContainer, tt, {BackgroundTransparency = math.clamp(self._keybindListTransparency * 0.8, 0, 1)}):Play()
+                        if bgWant then
+                            T(keyContainer, tt, {BackgroundTransparency = 1}):Play()
+                        else
+                            T(keyContainer, tt, {BackgroundTransparency = math.clamp(self._keybindListTransparency * 0.8, 0, 1)}):Play()
+                        end
                     end
                 end
             end
@@ -9702,6 +9721,7 @@ function Library:_applyBackgroundImage()
     end
     local function ensureImage(parent)
         local img = parent:FindFirstChild("DendriteBackgroundImage")
+        local created = false
         if not img or not img:IsA("ImageLabel") then
             if img and img.Parent then pcall(function() img:Destroy() end) end
             img = Instance.new("ImageLabel")
@@ -9714,9 +9734,37 @@ function Library:_applyBackgroundImage()
             img.ScaleType = Enum.ScaleType.Crop
             img.ZIndex = math.max(0, (parent.ZIndex or 1) - 1)
             img.Parent = parent
+            created = true
         end
+
+        pcall(function()
+            local wantRadius = nil
+            for _, ch in ipairs(parent:GetChildren()) do
+                if ch and ch:IsA("UICorner") then
+                    wantRadius = ch.CornerRadius
+                    break
+                end
+            end
+            if wantRadius ~= nil then
+                local c = img:FindFirstChild("DendriteBackgroundCorner")
+                if not c or not c:IsA("UICorner") then
+                    if c and c.Parent then pcall(function() c:Destroy() end) end
+                    c = Instance.new("UICorner")
+                    c.Name = "DendriteBackgroundCorner"
+                    c.Parent = img
+                end
+                c.CornerRadius = wantRadius
+            end
+        end)
+
         img.Image = asset
-        img.ImageTransparency = 0
+        if created then
+            img.ImageTransparency = 0
+        end
+        local tAttr = img:GetAttribute("DendriteBgImgT")
+        if tAttr ~= nil then
+            pcall(function() img.ImageTransparency = math.clamp(tonumber(tAttr) or img.ImageTransparency, 0, 1) end)
+        end
         img.Visible = true
         pcall(function() img:SetAttribute("DendriteNoThemeMap", true) end)
         return img
