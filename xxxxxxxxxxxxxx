@@ -8420,34 +8420,55 @@ function Library:CreateLibrary(opts)
     end
 
     local Themes = {}
-    local function themesFolder() return DIR .. "/Themes" end
-    local function themeFilePath(name) return themesFolder() .. "/" .. sanitize(name) .. ".json" end
+    local ThemeBase = sanitize(libraryName)
+    local THEME_DIR = tostring(opts.ThemeFolder or opts.ConfigFolder or Library.ThemeFolder or Library.ConfigFolder or ThemeBase)
+    local gwT = (type(writefile) == "function") and writefile or nil
+    local grT = (type(readfile) == "function") and readfile or nil
+    local gdT = (type(delfile) == "function") and delfile or nil
+    local gifT = (type(isfolder) == "function") and isfolder or nil
+    local gmfT = (type(makefolder) == "function") and makefolder or nil
+    local glfT = (type(listfiles) == "function") and listfiles or nil
+    local THEME_MEM_MODE = nil
+
+    Library._memThemes = Library._memThemes or {}
+    local function memThemeKey() return THEME_DIR end
+    local function themesFolder()
+        return THEME_DIR .. "/Themes"
+    end
+    local function themeFilePath(name)
+        return themesFolder() .. "/" .. sanitize(name) .. ".json"
+    end
+    local function ensureThemeFolders()
+        if not gmfT then return end
+        if gifT and not gifT(THEME_DIR) then pcall(function() gmfT(THEME_DIR) end) end
+        if gifT and not gifT(themesFolder()) then pcall(function() gmfT(themesFolder()) end) end
+        if not gifT then
+            pcall(function() gmfT(THEME_DIR) end)
+            pcall(function() gmfT(themesFolder()) end)
+        end
+    end
     function Themes.Ensure()
-        if MEM_MODE ~= nil then return end
-        MEM_MODE = not (gw and gr)
-        if not MEM_MODE then
-            pcall(function()
-                if gif and not gif(DIR) and gmf then gmf(DIR) end
-                if gif and not gif(themesFolder()) and gmf then gmf(themesFolder()) end
-            end)
+        if THEME_MEM_MODE == nil then
+            THEME_MEM_MODE = not (gwT and grT)
+        end
+        if not THEME_MEM_MODE then
+            ensureThemeFolders()
         else
-            memEnsure()
-            local key = memEnsure()
-            Library._memConfig.themes = Library._memConfig.themes or {}
-            Library._memConfig.themes[key] = Library._memConfig.themes[key] or {}
+            local key = memThemeKey()
+            Library._memThemes[key] = Library._memThemes[key] or {}
         end
     end
     function Themes.List()
         Themes.Ensure()
-        if MEM_MODE then
-            local key = memEnsure()
+        if THEME_MEM_MODE then
+            local key = memThemeKey()
             local out = {}
-            for n in pairs((Library._memConfig.themes and Library._memConfig.themes[key]) or {}) do table.insert(out, n) end
+            for n in pairs(Library._memThemes[key] or {}) do table.insert(out, n) end
             table.sort(out)
             return out
         end
-        if glf and gif and gif(themesFolder()) then
-            local ok, files = pcall(function() return glf(themesFolder()) end)
+        if glfT and gifT and gifT(themesFolder()) then
+            local ok, files = pcall(function() return glfT(themesFolder()) end)
             local out = {}
             if ok and type(files) == "table" then
                 for _, f in ipairs(files) do
@@ -8455,8 +8476,8 @@ function Library:CreateLibrary(opts)
                     n = n:gsub("%.json$", "")
                     if n ~= "" and not n:match("^__") then
                         local include = true
-                        if gr then
-                            local okr, raw = pcall(function() return gr(f) end)
+                        if grT then
+                            local okr, raw = pcall(function() return grT(f) end)
                             if okr and type(raw) == "string" and #raw > 0 then
                                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                                 if okj and type(dec) == "table" and type(dec.metadata) == "table" and dec.metadata.__deleted == true then
@@ -8481,28 +8502,16 @@ function Library:CreateLibrary(opts)
         local themePayload = {}
         local fontsPayload = {}
         local ser = Library._serialize
-        if type(t.theme) == "table" then
-            for k, v in pairs(t.theme) do
-                if Theme[k] ~= nil then
-                    local ok, out = pcall(function() return ser(v) end)
-                    if ok then themePayload[k] = out end
-                end
-            end
-        else
-            for k, v in pairs(Theme) do
+        local srcTheme = (type(t.theme) == "table") and t.theme or Theme
+        local srcFonts = (type(t.fonts) == "table") and t.fonts or Fonts
+        for k, v in pairs(srcTheme) do
+            if Theme[k] ~= nil then
                 local ok, out = pcall(function() return ser(v) end)
                 if ok then themePayload[k] = out end
             end
         end
-        if type(t.fonts) == "table" then
-            for k, v in pairs(t.fonts) do
-                if Fonts[k] ~= nil then
-                    local ok, out = pcall(function() return ser(v) end)
-                    if ok then fontsPayload[k] = out end
-                end
-            end
-        else
-            for k, v in pairs(Fonts) do
+        for k, v in pairs(srcFonts) do
+            if Fonts[k] ~= nil then
                 local ok, out = pcall(function() return ser(v) end)
                 if ok then fontsPayload[k] = out end
             end
@@ -8511,16 +8520,19 @@ function Library:CreateLibrary(opts)
         pcall(function() meta.autoLoad = Themes.GetAutoLoad(s) end)
         pcall(function() meta.path = themeFilePath(s) end)
         local outObj = { theme = themePayload, fonts = fontsPayload, metadata = meta }
-        if MEM_MODE then
-            local key = memEnsure()
-            Library._memConfig.themes[key][s] = outObj
+
+        if THEME_MEM_MODE then
+            local key = memThemeKey()
+            Library._memThemes[key] = Library._memThemes[key] or {}
+            Library._memThemes[key][s] = outObj
             return true
         end
+
         local okj, json = pcall(function() return HttpService:JSONEncode(outObj) end)
         if not okj or type(json) ~= "string" then return false end
+        ensureThemeFolders()
         local path = themeFilePath(s)
-        if gif and gmf then pcall(function() if not gif(themesFolder()) then gmf(themesFolder()) end end) end
-        local okw = pcall(function() atomicWrite(path, json) end)
+        local okw = pcall(function() gwT(path, json) end)
         return okw == true
     end
     function Themes.Load(name)
@@ -8528,11 +8540,12 @@ function Library:CreateLibrary(opts)
         local s = sanitize(name or "")
         if s == "" then return nil end
         local dec
-        if MEM_MODE then
-            local key = memEnsure()
-            dec = (Library._memConfig.themes and Library._memConfig.themes[key] and Library._memConfig.themes[key][s])
+        if THEME_MEM_MODE then
+            local key = memThemeKey()
+            dec = (Library._memThemes[key] and Library._memThemes[key][s])
         else
-            local ok, raw = pcall(function() return gr(themeFilePath(s)) end)
+            if not grT then return nil end
+            local ok, raw = pcall(function() return grT(themeFilePath(s)) end)
             if ok and type(raw) == "string" and #raw > 0 then
                 local okj, d = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(d) == "table" then dec = d end
@@ -8543,14 +8556,10 @@ function Library:CreateLibrary(opts)
         local themeOut = {}
         local fontsOut = {}
         if type(dec.theme) == "table" then
-            for k, v in pairs(dec.theme) do
-                themeOut[k] = deser(v)
-            end
+            for k, v in pairs(dec.theme) do themeOut[k] = deser(v) end
         end
         if type(dec.fonts) == "table" then
-            for k, v in pairs(dec.fonts) do
-                fontsOut[k] = deser(v)
-            end
+            for k, v in pairs(dec.fonts) do fontsOut[k] = deser(v) end
         end
         return { theme = themeOut, fonts = fontsOut, metadata = dec.metadata }
     end
@@ -8558,43 +8567,39 @@ function Library:CreateLibrary(opts)
         Themes.Ensure()
         local s = sanitize(name or "")
         if s == "" then return end
-        if MEM_MODE then
-            local key = memEnsure()
-            if Library._memConfig.themes and Library._memConfig.themes[key] then
-                Library._memConfig.themes[key][s] = nil
-            end
+        if THEME_MEM_MODE then
+            local key = memThemeKey()
+            if Library._memThemes[key] then Library._memThemes[key][s] = nil end
             return
         end
         local path = themeFilePath(s)
-        if gd then
-            pcall(function() gd(path) end)
-            if path:find("/", 1, true) then pcall(function() gd((path:gsub("/", "\\"))) end) end
-        else
+        if gdT then
+            pcall(function() gdT(path) end)
+            if path:find("/", 1, true) then pcall(function() gdT((path:gsub("/", "\\"))) end) end
+        elseif gwT then
             local payload = { metadata = { __deleted = true, name = s, lastModified = os.time() }, theme = {}, fonts = {} }
             local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
-            if okj and type(json) == "string" then
-                pcall(function() gw(path, json) end)
-            else
-                pcall(function() gw(path, "{}") end)
-            end
+            if okj and type(json) == "string" then pcall(function() gwT(path, json) end) end
         end
     end
     function Themes.SetAutoLoad(name, on)
         Themes.Ensure()
         local s = sanitize(name or "")
         if s == "" then return end
-        if MEM_MODE then
-            local key = memEnsure()
-            local t = (Library._memConfig.themes and Library._memConfig.themes[key] and Library._memConfig.themes[key][s]) or { metadata = {}, theme = {}, fonts = {} }
+        if THEME_MEM_MODE then
+            local key = memThemeKey()
+            Library._memThemes[key] = Library._memThemes[key] or {}
+            local t = Library._memThemes[key][s] or { metadata = {}, theme = {}, fonts = {} }
             t.metadata = t.metadata or {}
             t.metadata.autoLoad = (on == true) or nil
             t.metadata.lastModified = os.time()
-            Library._memConfig.themes[key][s] = t
+            Library._memThemes[key][s] = t
             return
         end
+        if not (grT and gwT) then return end
         local path = themeFilePath(s)
         local obj = {}
-        local ok, raw = pcall(function() return gr(path) end)
+        local ok, raw = pcall(function() return grT(path) end)
         if ok and type(raw) == "string" and #raw > 0 then
             pcall(function() obj = HttpService:JSONDecode(raw) or {} end)
         end
@@ -8602,18 +8607,19 @@ function Library:CreateLibrary(opts)
         obj.metadata.autoLoad = (on == true) or nil
         obj.metadata.lastModified = os.time()
         local okj, json = pcall(function() return HttpService:JSONEncode(obj) end)
-        if okj then pcall(function() atomicWrite(path, json) end) end
+        if okj then pcall(function() gwT(path, json) end) end
     end
     function Themes.GetAutoLoad(name)
         Themes.Ensure()
         local s = sanitize(name or "")
         if s == "" then return false end
-        if MEM_MODE then
-            local key = memEnsure()
-            local t = (Library._memConfig.themes and Library._memConfig.themes[key] and Library._memConfig.themes[key][s])
+        if THEME_MEM_MODE then
+            local key = memThemeKey()
+            local t = Library._memThemes[key] and Library._memThemes[key][s]
             return type(t) == "table" and t.metadata and t.metadata.autoLoad == true
         end
-        local ok, raw = pcall(function() return gr(themeFilePath(s)) end)
+        if not grT then return false end
+        local ok, raw = pcall(function() return grT(themeFilePath(s)) end)
         if ok and type(raw) == "string" and #raw > 0 then
             local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
             if okj and type(dec) == "table" and type(dec.metadata) == "table" then return dec.metadata.autoLoad == true end
@@ -8622,10 +8628,10 @@ function Library:CreateLibrary(opts)
     end
     function Themes.MostRecentAutoLoad()
         Themes.Ensure()
-        if MEM_MODE then
-            local newest, best
-            local key = memEnsure()
-            for name, t in pairs((Library._memConfig.themes and Library._memConfig.themes[key]) or {}) do
+        local newest, best
+        if THEME_MEM_MODE then
+            local key = memThemeKey()
+            for name, t in pairs(Library._memThemes[key] or {}) do
                 if type(t) == "table" and t.metadata and t.metadata.autoLoad then
                     local ts = tonumber(t.metadata.lastModified or 0) or 0
                     if not newest or ts > newest then newest, best = ts, name end
@@ -8634,9 +8640,8 @@ function Library:CreateLibrary(opts)
             return best
         end
         local list = Themes.List()
-        local newest, best
         for _, name in ipairs(list) do
-            local ok, raw = pcall(function() return gr(themeFilePath(name)) end)
+            local ok, raw = pcall(function() return grT(themeFilePath(name)) end)
             if ok and type(raw) == "string" and #raw > 0 then
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(dec) == "table" and dec.metadata and dec.metadata.autoLoad then
