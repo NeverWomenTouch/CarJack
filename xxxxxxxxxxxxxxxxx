@@ -6302,6 +6302,7 @@ function Library:CreateLibrary(opts)
                                 
                                 Create("UIStroke", {Name = "Stroke", ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})
                             })
+							pcall(function() slot.panel:SetAttribute("DendriteNoThemeMap", true) end)
                         
                         
                         panel = slot.panel  
@@ -6322,14 +6323,19 @@ function Library:CreateLibrary(opts)
                             
                             local leftCol = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(210, 210), ZIndex = content.ZIndex + 1, Parent = content})
                             sv = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromHSV(0,1,1), Size = UDim2.fromOffset(180, 150), ZIndex = leftCol.ZIndex + 1, Parent = leftCol})
+							pcall(function() sv:SetAttribute("DendriteNoThemeMap", true) end)
                             Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = sv})
                             Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3, Parent = sv})
                             
                             svWhite = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 1, Parent = sv})
+							pcall(function() svWhite:SetAttribute("DendriteNoThemeMap", true) end)
                             local gWhite = Instance.new("UIGradient"); gWhite.Rotation = 0; gWhite.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)}); gWhite.Parent = svWhite
+							pcall(function() gWhite:SetAttribute("DendriteNoThemeMap", true) end)
                             
                             svBlack = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(0,0,0), Size = UDim2.fromScale(1,1), ZIndex = sv.ZIndex + 2, Parent = sv})
+							pcall(function() svBlack:SetAttribute("DendriteNoThemeMap", true) end)
                             local gBlack = Instance.new("UIGradient"); gBlack.Rotation = 90; gBlack.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1), NumberSequenceKeypoint.new(1,0)}); gBlack.Parent = svBlack
+							pcall(function() gBlack:SetAttribute("DendriteNoThemeMap", true) end)
                             
                             svCursor = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(10,10), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(0,0), ZIndex = sv.ZIndex + 3, Parent = sv}, {Create("UICorner", {CornerRadius = UDim.new(1,0)}), Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
@@ -6342,6 +6348,7 @@ function Library:CreateLibrary(opts)
                             
                             
                             hueSlider = Create("Frame", {Active = true, BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Size = UDim2.fromOffset(HUE_W, HUE_H), Position = UDim2.fromOffset(-12, 0), ZIndex = rightCol.ZIndex + 1, Parent = rightCol}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+							pcall(function() hueSlider:SetAttribute("DendriteNoThemeMap", true) end)
                             local hueGrad = Instance.new("UIGradient")
                             hueGrad.Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0/6,1,1)),
@@ -6353,6 +6360,7 @@ function Library:CreateLibrary(opts)
                                 ColorSequenceKeypoint.new(1.00, Color3.fromHSV(1,1,1)),
                             })
                             hueGrad.Rotation = 90; hueGrad.Parent = hueSlider
+							pcall(function() hueGrad:SetAttribute("DendriteNoThemeMap", true) end)
                             hueGrab = Create("Frame", {Active = true, BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(HUE_W, 4), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromOffset(math.floor(HUE_W/2), 0), ZIndex = hueSlider.ZIndex + 1, Parent = hueSlider}, {Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0})})
 
                                 
@@ -9210,32 +9218,46 @@ function Library:ApplyTheme(themePatch, fontsPatch)
         table.insert(roots, self._activeModalNotification)
     end
 
+    local function hasNoThemeMap(inst)
+        local cur = inst
+        local i = 0
+        while cur and i < 32 do
+            local ok, v = pcall(function() return cur:GetAttribute("DendriteNoThemeMap") end)
+            if ok and v == true then return true end
+            cur = cur.Parent
+            i = i + 1
+        end
+        return false
+    end
+
     for _, rootGui in ipairs(roots) do
         if rootGui and typeof(rootGui) == "Instance" then
             for _, inst in ipairs(rootGui:GetDescendants()) do
-                if inst:IsA("GuiObject") then
-                    remapColor(inst, "BackgroundColor3")
-                    remapColor(inst, "BorderColor3")
-                end
-                if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
-                    remapColor(inst, "TextColor3")
-                    remapColor(inst, "TextStrokeColor3")
-                    if inst:IsA("TextBox") then
-                        remapColor(inst, "PlaceholderColor3")
+                if not hasNoThemeMap(inst) then
+                    if inst:IsA("GuiObject") then
+                        remapColor(inst, "BackgroundColor3")
+                        remapColor(inst, "BorderColor3")
                     end
-                    remapFont(inst, "Font")
-                end
-                if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
-                    remapColor(inst, "ImageColor3")
-                end
-                if inst:IsA("UIStroke") then
-                    remapColor(inst, "Color")
-                end
-                if inst:IsA("ScrollingFrame") then
-                    remapColor(inst, "ScrollBarImageColor3")
-                end
-                if inst:IsA("UIGradient") then
-                    remapGradient(inst)
+                    if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+                        remapColor(inst, "TextColor3")
+                        remapColor(inst, "TextStrokeColor3")
+                        if inst:IsA("TextBox") then
+                            remapColor(inst, "PlaceholderColor3")
+                        end
+                        remapFont(inst, "Font")
+                    end
+                    if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
+                        remapColor(inst, "ImageColor3")
+                    end
+                    if inst:IsA("UIStroke") then
+                        remapColor(inst, "Color")
+                    end
+                    if inst:IsA("ScrollingFrame") then
+                        remapColor(inst, "ScrollBarImageColor3")
+                    end
+                    if inst:IsA("UIGradient") then
+                        remapGradient(inst)
+                    end
                 end
             end
         end
