@@ -1073,6 +1073,21 @@ function Library:Notification(text, notifyType, timer)
         notifyType = tonumber(notifyType) or 1
         timer = tonumber(timer) or 4
 
+        self._notificationDedupe = self._notificationDedupe or {}
+        do
+            local now = os.clock()
+            local keyText = (#text > 240) and (text:sub(1, 240) .. "…") or text
+            local dedupeKey = tostring(notifyType) .. "|" .. tostring(timer) .. "|" .. keyText
+            local last = self._notificationDedupe[dedupeKey]
+            if last and (now - (last.t or 0)) < 0.15 then
+                if last.gui and last.gui.Parent then
+                    return last.gui
+                end
+                return nil
+            end
+            self._notificationDedupe[dedupeKey] = { t = now }
+        end
+
         
         if not self._watermark or not self._watermark.Parent then
             
@@ -1114,7 +1129,14 @@ function Library:Notification(text, notifyType, timer)
             local notifWidth = math.max(minWidth, math.min(textSize.X + padding, maxWidth))
             local notifHeight = math.max(36, textSize.Y + 20) 
 
-            local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})            
+            local notifGui = Create("ScreenGui", {Name = "LibraryNotification", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
+            do
+                local keyText = (#text > 240) and (text:sub(1, 240) .. "…") or text
+                local dedupeKey = tostring(notifyType) .. "|" .. tostring(timer) .. "|" .. keyText
+                if self._notificationDedupe and self._notificationDedupe[dedupeKey] then
+                    self._notificationDedupe[dedupeKey].gui = notifGui
+                end
+            end
             local finalScaleX, finalOffsetX, finalScaleY, finalOffsetY
             finalScaleX = 1
             finalOffsetX = -10 
@@ -1221,6 +1243,13 @@ function Library:Notification(text, notifyType, timer)
             local notifHeight = math.max(36, textSize.Y + 20)
 
             local notifGui = Create("ScreenGui", {Name = "LibraryNotificationTop", ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false, Parent = parentGui})
+            do
+                local keyText = (#text > 240) and (text:sub(1, 240) .. "…") or text
+                local dedupeKey = tostring(notifyType) .. "|" .. tostring(timer) .. "|" .. keyText
+                if self._notificationDedupe and self._notificationDedupe[dedupeKey] then
+                    self._notificationDedupe[dedupeKey].gui = notifGui
+                end
+            end
 
             
             local gap = 5
