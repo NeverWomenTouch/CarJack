@@ -3873,7 +3873,7 @@ function Library:CreateLibrary(opts)
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0,4,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
-                    local Toggle = { id = id, _value = default, _signal = Signal() }
+                    local Toggle = { id = id, _value = default, _signal = Signal(), _row = row }
                     function Toggle:Get() return self._value end
                     function Toggle:Set(v, silent)
                         v = (v == true)
@@ -4942,7 +4942,7 @@ function Library:CreateLibrary(opts)
                         Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})
                     })
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = box})
-                    local Textbox = { id = id, _value = default }
+                    local Textbox = { id = id, _value = default, _row = row }
                     function Textbox:Get() return box and box.Text or self._value end
                     function Textbox:Set(v, silent) v = tostring(v or "") self._value = v box.Text = v if not silent and type(cb)=="function" then pcall(cb,v) end end
                     
@@ -7481,6 +7481,7 @@ function Library:CreateLibrary(opts)
             ZIndex = 3,
             Parent = container
         })
+		pcall(function() Library._mobileToggleFrame = toggleFrame end)
         pcall(function() toggleFrame:SetAttribute("DendriteNoTranslate", true) end)
         Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = toggleFrame })
 
@@ -8569,7 +8570,12 @@ function Library:CreateLibrary(opts)
         local meta = { name = s, lastModified = os.time() }
         pcall(function() meta.autoLoad = Themes.GetAutoLoad(s) end)
         pcall(function() meta.path = themeFilePath(s) end)
-        local outObj = { theme = themePayload, fonts = fontsPayload, metadata = meta }
+        local bg = {}
+        pcall(function()
+            bg.enabled = (Library and Library._bgImageEnabled == true) or false
+            bg.id = tostring((Library and Library._bgImageId) or "")
+        end)
+        local outObj = { theme = themePayload, fonts = fontsPayload, backgroundImage = bg, metadata = meta }
 
         if THEME_MEM_MODE then
             local key = memThemeKey()
@@ -8637,7 +8643,11 @@ function Library:CreateLibrary(opts)
             for k, v in pairs(dec.fonts) do fontsOut[k] = deser(v) end
         end
         if next(themeColorpickers) == nil then themeColorpickers = nil end
-        return { theme = themeOut, fonts = fontsOut, themeColorpickers = themeColorpickers, metadata = dec.metadata }
+        local bg = nil
+        if type(dec.backgroundImage) == "table" then
+            bg = { enabled = dec.backgroundImage.enabled == true, id = tostring(dec.backgroundImage.id or "") }
+        end
+        return { theme = themeOut, fonts = fontsOut, themeColorpickers = themeColorpickers, backgroundImage = bg, metadata = dec.metadata }
     end
     function Themes.Delete(name)
         Themes.Ensure()
@@ -8741,6 +8751,12 @@ function Library:CreateLibrary(opts)
         local dec = Themes.Load(safe)
         if dec and Library and Library.ApplyTheme then
             pcall(function() Library:ApplyTheme(dec.theme, dec.fonts) end)
+            pcall(function()
+                local bg = dec.backgroundImage
+                if bg and Library.SetBackgroundImage then
+                    Library:SetBackgroundImage(bg.enabled == true, tostring(bg.id or ""))
+                end
+            end)
 
             -- Restore theme colorpicker state (rainbow/pulse + offsets) if the Themes UI exists.
             pcall(function()
@@ -8779,6 +8795,16 @@ function Library:CreateLibrary(opts)
                     end
                 end
             end)
+            pcall(function()
+                local ui = Window and Window._lastThemeUI
+                if not ui then return end
+                local bg = dec and dec.backgroundImage
+                local on = bg and bg.enabled == true or false
+                local id = bg and tostring(bg.id or "") or ""
+                if ui.ImageBgToggle and ui.ImageBgToggle.Set then ui.ImageBgToggle:Set(on, true) end
+                if ui.ImageBgId and ui.ImageBgId.Set then ui.ImageBgId:Set(id, true) end
+                if ui.ImageBgId and ui.ImageBgId._row then ui.ImageBgId._row.Visible = on and true or false end
+            end)
         end
         return dec
     end
@@ -8786,8 +8812,10 @@ function Library:CreateLibrary(opts)
         local name = (type(a) == "string" and a) or (type(b) == "string" and b) or ""
         local safe = sanitize(name or "")
         if safe == "" then return end
-        Themes.Delete(safe)
-        pcall(function() Themes.SetAutoLoad(safe, false) end)
+		-- IMPORTANT: SetAutoLoad() writes the file. If we delete first (delfile),
+		-- calling SetAutoLoad(false) will recreate an empty theme file.
+		pcall(function() Themes.SetAutoLoad(safe, false) end)
+		Themes.Delete(safe)
     end
 
     Window.AddThemes = function(self, group, opts)
@@ -8825,8 +8853,8 @@ function Library:CreateLibrary(opts)
             if not raw or raw == "" then return end
             local safe = sanitize(raw)
             if safe == "" then return end
-            local okSave = pcall(function() return Window.SaveTheme(safe) end)
-            if okSave then
+			local okCall, saved = pcall(function() return Window.SaveTheme(safe) end)
+			if okCall and saved then
                 refreshList()
                 task.defer(function()
                     pcall(function() dd:Set(safe, true) end)
@@ -8842,8 +8870,8 @@ function Library:CreateLibrary(opts)
             local safe = sanitize(raw)
             local wasAutoLoad = false
             pcall(function() wasAutoLoad = autoToggle and autoToggle.Get and autoToggle:Get() end)
-            local okSave = pcall(function() return Window.SaveTheme(safe) end)
-            if okSave then
+			local okCall, saved = pcall(function() return Window.SaveTheme(safe) end)
+			if okCall and saved then
                 refreshList()
                 task.defer(function()
                     pcall(function() dd:Set(safe, true) end)
@@ -8996,7 +9024,31 @@ function Library:CreateLibrary(opts)
             themePickersByKey[k] = cp
         end
 
-        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers, ColorpickersByKey = themePickersByKey }
+        local imageBgToggle
+        local imageBgId
+        imageBgToggle = markThemeControl(group:AddToggle({ Name = "Image Background", Default = (Library._bgImageEnabled == true), Callback = function(on)
+            pcall(function() Library._bgImageEnabled = (on == true) end)
+            if imageBgId and imageBgId._row then imageBgId._row.Visible = on and true or false end
+            local id = ""
+            pcall(function() id = imageBgId and imageBgId.Get and imageBgId:Get() or tostring(Library._bgImageId or "") end)
+            pcall(function() if Library and Library.SetBackgroundImage then Library:SetBackgroundImage(on == true, id) end end)
+        end }))
+        imageBgId = markThemeControl(group:AddTextbox({ Name = "Image ID", Placeholder = "rbxassetid://...", Default = tostring(Library._bgImageId or ""), Callback = function(v)
+            local on = false
+            pcall(function() on = imageBgToggle and imageBgToggle.Get and imageBgToggle:Get() end)
+            if on and tostring(v or "") ~= "" then
+                pcall(function() if Library and Library.SetBackgroundImage then Library:SetBackgroundImage(true, v) end end)
+            else
+                pcall(function() Library._bgImageId = tostring(v or "") end)
+            end
+        end }))
+        if imageBgId and imageBgId._row then
+            local on = false
+            pcall(function() on = imageBgToggle and imageBgToggle.Get and imageBgToggle:Get() end)
+            imageBgId._row.Visible = on and true or false
+        end
+
+        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers, ColorpickersByKey = themePickersByKey, ImageBgToggle = imageBgToggle, ImageBgId = imageBgId }
         Window._lastThemeUI = themeUI
         return themeUI
     end
@@ -9422,11 +9474,106 @@ function Library:ApplyTheme(themePatch, fontsPatch)
         end
     end
 
+	pcall(function() if self._applyBackgroundImage then self:_applyBackgroundImage() end end)
+
     pcall(function()
         if self._updateWatermarkSize then
             self._updateWatermarkSize()
         end
     end)
+end
+
+function Library:SetBackgroundImage(enabled, imageId)
+    self._bgImageEnabled = (enabled == true)
+    self._bgImageId = tostring(imageId or self._bgImageId or "")
+    pcall(function() if self._applyBackgroundImage then self:_applyBackgroundImage() end end)
+end
+
+function Library:_applyBackgroundImage()
+    local enabled = (self._bgImageEnabled == true)
+    local id = tostring(self._bgImageId or "")
+    local hasId = (id ~= "" and id ~= "0")
+    local want = enabled and hasId
+    local function normAsset(s)
+        s = tostring(s or "")
+        if s:find("rbxassetid://", 1, true) then return s end
+        local n = s:match("(%d+)")
+        if n and n ~= "" then return "rbxassetid://" .. n end
+        return s
+    end
+    local asset = normAsset(id)
+    local targets = {}
+    if self._rootFrame and self._rootFrame.Parent then table.insert(targets, self._rootFrame) end
+    if self._watermarkFrame and self._watermarkFrame.Parent then table.insert(targets, self._watermarkFrame) end
+    if self._keybindList and self._keybindList.Parent then
+        local mf = self._keybindList:FindFirstChild("MainFrame")
+        if mf then table.insert(targets, mf) end
+    end
+    if self._mobileToggleFrame and self._mobileToggleFrame.Parent then
+        table.insert(targets, self._mobileToggleFrame)
+    elseif self._mobileToggleContainer and self._mobileToggleContainer.Parent then
+        local mt = self._mobileToggleContainer:FindFirstChild("MobileToggle")
+        if mt then table.insert(targets, mt) end
+    end
+
+    local function setBgT(obj, v)
+        if not obj or not obj.IsA then return end
+        if not obj:IsA("GuiObject") then return end
+        if obj.Name == "DendriteBackgroundImage" then return end
+        if obj:GetAttribute("DendriteNoThemeMap") == true then return end
+        if obj:GetAttribute("DendriteOrigBgT") == nil then
+            pcall(function() obj:SetAttribute("DendriteOrigBgT", obj.BackgroundTransparency) end)
+        end
+        pcall(function() obj.BackgroundTransparency = v end)
+    end
+    local function restoreBgT(obj)
+        if not obj or not obj.IsA then return end
+        if not obj:IsA("GuiObject") then return end
+        if obj.Name == "DendriteBackgroundImage" then return end
+        if obj:GetAttribute("DendriteNoThemeMap") == true then return end
+        local orig = obj:GetAttribute("DendriteOrigBgT")
+        if orig ~= nil then
+            pcall(function() obj.BackgroundTransparency = tonumber(orig) or 0 end)
+        end
+    end
+    local function ensureImage(parent)
+        local img = parent:FindFirstChild("DendriteBackgroundImage")
+        if not img or not img:IsA("ImageLabel") then
+            if img and img.Parent then pcall(function() img:Destroy() end) end
+            img = Instance.new("ImageLabel")
+            img.Name = "DendriteBackgroundImage"
+            img.BackgroundTransparency = 1
+            img.BorderSizePixel = 0
+            img.Size = UDim2.fromScale(1, 1)
+            img.Position = UDim2.fromScale(0, 0)
+            img.AnchorPoint = Vector2.new(0, 0)
+            img.ScaleType = Enum.ScaleType.Crop
+            img.ZIndex = (parent.ZIndex or 1)
+            img.Parent = parent
+        end
+        img.Image = asset
+        img.ImageTransparency = 0
+        img.Visible = true
+        pcall(function() img:SetAttribute("DendriteNoThemeMap", true) end)
+        return img
+    end
+
+    for _, t in ipairs(targets) do
+        if want then
+            pcall(function() ensureImage(t) end)
+            setBgT(t, 1)
+            for _, d in ipairs(t:GetDescendants()) do
+                setBgT(d, 1)
+            end
+        else
+            local img = t:FindFirstChild("DendriteBackgroundImage")
+            if img and img.Parent then pcall(function() img:Destroy() end) end
+            restoreBgT(t)
+            for _, d in ipairs(t:GetDescendants()) do
+                restoreBgT(d)
+            end
+        end
+    end
 end
 function Library:GetFlag(name)
     return (self.Flags and self.Flags[name]) or self._controls[name]
