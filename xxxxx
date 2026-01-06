@@ -5052,7 +5052,7 @@ function Library:CreateLibrary(opts)
                     elseif type(default) == "string" then
                         initText = Library.FormatKeyName(default)
                     else
-                        initText = "Press a key..."
+                        initText = "Insert Key"
                     end
                     local box = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.new(0.5,-4,1,0), Position = UDim2.new(0.5,4,0,0), Text = initText, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.SubText, Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                     
@@ -5062,7 +5062,7 @@ function Library:CreateLibrary(opts)
                     local actionName = sanitize(libraryName) .. "KeybindCapture_" .. id
                     
 
-                    local function startVisual()
+                    function startVisual()
                         
                         if focusBar then
                             focusBar.BackgroundTransparency = 0
@@ -5072,7 +5072,7 @@ function Library:CreateLibrary(opts)
                         if stroke then T(stroke,0.15,{Transparency = 0.18}):Play() end
                     end
 
-                    local function stopVisual()
+                    function stopVisual()
                         
                         if focusBar then
                             local tw1 = T(focusBar,0.18,{Size = UDim2.new(0,0,0,2)})
@@ -5112,14 +5112,14 @@ function Library:CreateLibrary(opts)
                             for _, v in ipairs(list) do
                                 table.insert(parts, Library.FormatKeyName(v))
                             end
-                            box.Text = (#parts > 0) and table.concat(parts, " + ") or "None"
+                            box.Text = (#parts > 0) and table.concat(parts, " + ") or "Insert Key"
                         else
                             self._value = keycode
                             
                             if keycode then
                                 box.Text = Library.FormatKeyName(keycode)
                             else
-                                box.Text = "None"
+                                box.Text = "Insert Key"
                             end
                         end
 
@@ -5267,7 +5267,7 @@ function Library:CreateLibrary(opts)
                                 if Keybind._value then
                                     box.Text = Library.FormatKeyName(Keybind._value)
                                 else
-                                    box.Text = "None"
+                                    box.Text = "Insert Key"
                                 end
                                 box.TextColor3 = Keybind._value and Theme.Text or Theme.SubText
                                 box.Font = Fonts.Regular
@@ -6678,12 +6678,21 @@ function Library:CreateLibrary(opts)
                     o = o or {}
                     local label = tostring(o.Name or "Keybind Toggle")
                     local cb = o.Callback
-                    local defaultKey = o.Default or o.Key or Enum.KeyCode.E
+                    local defaultKey = o.Default or o.Key
                     if typeof(defaultKey) ~= "EnumItem" and type(defaultKey) == "string" then
                         defaultKey = ParseKeyFromString(defaultKey) or defaultKey
                     end
-                    local mode = o.Mode or "Hold" 
-                    local defaultToggle = o.DefaultToggle or (mode == "Hold" or mode == "Always") 
+                    local function normalizeKeybindMode(m)
+                        if type(m) ~= "string" then return nil end
+                        m = m:lower()
+                        if m == "hold" then return "Hold" end
+                        if m == "toggle" then return "Toggle" end
+                        if m == "always" then return "Always" end
+                        return nil
+                    end
+
+                    local mode = normalizeKeybindMode(o.Mode) or "Hold"
+                    local defaultToggle = (o.DefaultToggle == true)
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s"):format(Category.Name, Page.Name, Group.Name, label)
                     
                     
@@ -6749,11 +6758,20 @@ function Library:CreateLibrary(opts)
                     
                     local currentKey = defaultKey
                     local currentInputType = nil 
-                    local isToggled = defaultToggle
+                    local isToggled
                     local isBinding = false
                     local isHolding = false
-                    local keybindToggleState = false 
+                    local keybindToggleState = defaultToggle
                     local connections = {}
+
+                    if mode == "Toggle" or mode == "Always" then
+                        isToggled = true
+                    else
+                        isToggled = (o.DefaultToggle ~= nil) and (o.DefaultToggle == true) or true
+                    end
+                    if mode == "Always" then
+                        keybindToggleState = true
+                    end
                     
                     
                     local rowH = 30
@@ -6765,7 +6783,7 @@ function Library:CreateLibrary(opts)
                     local rightLayout = Create("UIListLayout", {Parent = rightContainer, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,8), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center})
                     
                     
-                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(60, 18), Text = Library.FormatKeyName(getKeyName(currentKey, currentInputType)), Font = Fonts.Regular, TextSize = 11, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
+                    local keybindBtn = Create("TextButton", {BackgroundColor3 = Theme.Button, AutoButtonColor = false, Size = UDim2.fromOffset(60, 18), Text = (currentKey or currentInputType) and Library.FormatKeyName(getKeyName(currentKey, currentInputType)) or "Insert Key", Font = Fonts.Regular, TextSize = 11, TextColor3 = Theme.SubText, Parent = rightContainer}, {Create("UICorner", {CornerRadius = UDim.new(0,4)}), Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.3})})
                     
                     local focusBar = Create("Frame", {BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0,0,0,2), AnchorPoint = Vector2.new(0,1), Position = UDim2.new(0,0,1,0), BackgroundTransparency = 1, Parent = keybindBtn})
                     local stroke = keybindBtn:FindFirstChild("Stroke")
@@ -6790,7 +6808,15 @@ function Library:CreateLibrary(opts)
                     
                     
                     local function updateToggleVisual()
-                        if isToggled then
+                        local visualOn
+                        if mode == "Always" then
+                            visualOn = true
+                        elseif mode == "Toggle" then
+                            visualOn = keybindToggleState == true
+                        else
+                            visualOn = isToggled == true
+                        end
+                        if visualOn then
                             T(accentFill,0.25,{BackgroundTransparency = 0}):Play()
                             T(knob,0.25,{Position = UDim2.new(1,-16,0.5,0), BackgroundColor3 = Theme.Text}):Play()
                         else
@@ -6813,7 +6839,10 @@ function Library:CreateLibrary(opts)
                             if stroke then T(stroke,0.15,{Transparency = 0.18}):Play() end
                         else
                             
-                            if type(currentKey) == "table" then
+                            if (currentKey == nil and currentInputType == nil) then
+                                keybindBtn.Text = "Insert Key"
+                                keybindBtn.TextColor3 = Theme.SubText
+                            elseif type(currentKey) == "table" then
                                 local parts = {}
                                 for _, v in ipairs(currentKey) do
                                     if typeof(v) == "EnumItem" then
@@ -6943,11 +6972,17 @@ function Library:CreateLibrary(opts)
                         if mode == "Always" then
                             
                             isToggled = true
+                            keybindToggleState = true
                             updateToggleVisual()
+
+                            if updateKeybindTracking ~= nil then
+                                updateKeybindTracking({ active = true, toggleEnabled = true })
+                            end
                             
                             if type(cb) == "function" then
                                 pcall(cb, true, currentKey or currentInputType)
                             end
+                            return
                         end
                         
                         
@@ -6989,9 +7024,10 @@ function Library:CreateLibrary(opts)
                             if mode == "Toggle" then
                                 
                                 keybindToggleState = not keybindToggleState
+                                updateToggleVisual()
                                 
                                 if updateKeybindTracking ~= nil then
-                                    updateKeybindTracking({ active = keybindToggleState, toggleEnabled = isToggled })
+                                    updateKeybindTracking({ active = keybindToggleState, toggleEnabled = true })
                                 end
                                 if type(cb) == "function" then
                                     pcall(cb, keybindToggleState, currentKey or currentInputType)
@@ -7035,15 +7071,21 @@ function Library:CreateLibrary(opts)
                     
                     toggleContainer.MouseButton1Click:Connect(function()
                         if mode == "Always" then return end 
-                        isToggled = not isToggled
-                        updateToggleVisual()
-                        
-                        
-                        if updateKeybindTracking ~= nil then
-                            updateKeybindTracking({
-                                toggleEnabled = isToggled,
-                                active = isToggled
-                            })
+                        if mode == "Toggle" then
+                            keybindToggleState = not (keybindToggleState == true)
+                            updateToggleVisual()
+                            if updateKeybindTracking ~= nil then
+                                updateKeybindTracking({ toggleEnabled = true, active = keybindToggleState })
+                            end
+                            if type(cb) == "function" then
+                                pcall(cb, keybindToggleState, currentKey or currentInputType)
+                            end
+                        else
+                            isToggled = not isToggled
+                            updateToggleVisual()
+                            if updateKeybindTracking ~= nil then
+                                updateKeybindTracking({ toggleEnabled = isToggled, active = isToggled and isHolding or false })
+                            end
                         end
                         
                     end)
@@ -7209,29 +7251,31 @@ function Library:CreateLibrary(opts)
                     end
                     
                     function KeybindToggle:GetToggle()
-                        return isToggled
+                        if mode == "Always" then return true end
+                        if mode == "Toggle" then return keybindToggleState == true end
+                        return isToggled == true
                     end
                     
                     function KeybindToggle:SetToggle(state, silent)
                         if mode == "Always" then return end
-                        isToggled = state and true or false
-                        updateToggleVisual()
-                        
-                        
-                        if updateKeybindTracking ~= nil then
-                            local newActive
-                            if mode == "Always" then
-                                newActive = true
-                            elseif mode == "Hold" then
-                                newActive = false 
-                            elseif mode == "Toggle" then
-                                newActive = keybindToggleState
+                        if mode == "Toggle" then
+                            keybindToggleState = state and true or false
+                            updateToggleVisual()
+                            if updateKeybindTracking ~= nil then
+                                updateKeybindTracking({ toggleEnabled = true, active = keybindToggleState })
                             end
-                            updateKeybindTracking({ toggleEnabled = isToggled, active = newActive })
-                        end
-                        
-                        if not silent and type(cb) == "function" then
-                            pcall(cb, isToggled, currentKey)
+                            if not silent and type(cb) == "function" then
+                                pcall(cb, keybindToggleState, currentKey or currentInputType)
+                            end
+                        else
+                            isToggled = state and true or false
+                            updateToggleVisual()
+                            if updateKeybindTracking ~= nil then
+                                updateKeybindTracking({ toggleEnabled = isToggled, active = isToggled and isHolding or false })
+                            end
+                            if not silent and type(cb) == "function" then
+                                pcall(cb, isToggled, currentKey or currentInputType)
+                            end
                         end
                     end
                     
@@ -7240,8 +7284,15 @@ function Library:CreateLibrary(opts)
                     end
                     
                     function KeybindToggle:SetMode(newMode, silent)
+                        newMode = normalizeKeybindMode(newMode) or newMode
                         if newMode == "Toggle" or newMode == "Hold" or newMode == "Always" then
                             mode = newMode
+                            if mode == "Toggle" then
+                                isToggled = true
+                            elseif mode == "Always" then
+                                isToggled = true
+                                keybindToggleState = true
+                            end
                             if setupKeybindListener then setupKeybindListener() end
                             if mode == "Always" then
                                 isToggled = true
@@ -7268,7 +7319,7 @@ function Library:CreateLibrary(opts)
                         if options.Toggle ~= nil then self:SetToggle(options.Toggle, true) end
                         if options.Mode then self:SetMode(options.Mode, true) end
                         if not silent and type(cb) == "function" then
-                            pcall(cb, isToggled, currentKey)
+                            pcall(cb, self:GetToggle(), currentKey or currentInputType)
                         end
                     end
                     
@@ -7279,11 +7330,11 @@ function Library:CreateLibrary(opts)
                         elseif mode == "Hold" then
                             activeState = isToggled and isHolding or false
                         elseif mode == "Toggle" then
-                            activeState = isToggled and keybindToggleState or false
+                            activeState = keybindToggleState == true
                         end
                         return {
                             Key = currentKey or currentInputType,
-                            Toggle = isToggled,
+                            Toggle = self:GetToggle(),
                             Mode = mode,
                             KeyName = getKeyName(currentKey, currentInputType),
                             Active = activeState
