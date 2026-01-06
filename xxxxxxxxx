@@ -6763,6 +6763,7 @@ function Library:CreateLibrary(opts)
                     local isHolding = false
                     local keybindToggleState = false
                     local connections = {}
+                    local updateKeybindTracking
 
                     if mode == "Always" then
                         isToggled = true
@@ -6977,37 +6978,70 @@ function Library:CreateLibrary(opts)
                         end
                         
                         
+                        local function comboContainsPart(value, input)
+                            if not value then return false end
+                            if typeof(value) == "EnumItem" then
+                                if value.EnumType == Enum.KeyCode then
+                                    return input.KeyCode == value
+                                elseif value.EnumType == Enum.UserInputType then
+                                    return input.UserInputType == value
+                                end
+                                return false
+                            elseif type(value) == "table" then
+                                for _, part in ipairs(value) do
+                                    if typeof(part) == "EnumItem" then
+                                        if part.EnumType == Enum.KeyCode and input.KeyCode == part then return true end
+                                        if part.EnumType == Enum.UserInputType and input.UserInputType == part then return true end
+                                    end
+                                end
+                            end
+                            return false
+                        end
+
+                        local function comboMatchesOnBegin(value, input)
+                            if not value then return false end
+                            if typeof(value) == "EnumItem" then
+                                if value.EnumType == Enum.KeyCode then
+                                    return input.KeyCode == value
+                                elseif value.EnumType == Enum.UserInputType then
+                                    return input.UserInputType == value
+                                end
+                                return false
+                            elseif type(value) == "table" then
+                                if not comboContainsPart(value, input) then return false end
+                                for _, part in ipairs(value) do
+                                    if typeof(part) == "EnumItem" then
+                                        if part.EnumType == Enum.KeyCode then
+                                            if not (UserInputService:IsKeyDown(part) or input.KeyCode == part) then
+                                                return false
+                                            end
+                                        elseif part.EnumType == Enum.UserInputType then
+                                            if part == Enum.UserInputType.MouseButton1 or part == Enum.UserInputType.MouseButton2 then
+                                                if not (UserInputService:IsMouseButtonPressed(part) or input.UserInputType == part) then
+                                                    return false
+                                                end
+                                            else
+                                                if input.UserInputType ~= part then
+                                                    return false
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                                return true
+                            end
+                            return false
+                        end
+
                         table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
                             if gameProcessed then return end
                             if not isToggled then return end  
 
                             local matches = false
-                            
                             if currentInputType then
                                 matches = input.UserInputType == currentInputType
                             else
-                                if type(currentKey) == "table" then
-                                    
-                                    local matchedPart = false
-                                    for _, part in ipairs(currentKey) do
-                                        if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode and input.KeyCode == part then matchedPart = true; break end
-                                        if typeof(part) == "EnumItem" and part.EnumType == Enum.UserInputType and input.UserInputType == part then matchedPart = true; break end
-                                    end
-                                    if matchedPart then
-                                        
-                                        local allDown = true
-                                        for _, part in ipairs(currentKey) do
-                                            if typeof(part) == "EnumItem" and part.EnumType == Enum.KeyCode then
-                                                if not UserInputService:IsKeyDown(part) then allDown = false; break end
-                                            end
-                                        end
-                                        matches = allDown
-                                    else
-                                        matches = false
-                                    end
-                                else
-                                    matches = input.KeyCode == currentKey
-                                end
+                                matches = comboMatchesOnBegin(currentKey, input)
                             end
 
                             if not matches then return end
@@ -7037,15 +7071,11 @@ function Library:CreateLibrary(opts)
                             table.insert(connections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
                                 if not isToggled then return end  
                                 local matches = false
-                                
                                 if currentInputType then
-                                    
                                     matches = input.UserInputType == currentInputType
                                 else
-                                    
-                                    matches = input.KeyCode == currentKey
+                                    matches = comboContainsPart(currentKey, input)
                                 end
-                                
                                 if not matches then return end
                                 isHolding = false
                                 if updateKeybindTracking ~= nil then
