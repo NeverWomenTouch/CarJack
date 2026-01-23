@@ -295,6 +295,11 @@ Fonts = {
     Medium = Enum.Font.GothamMedium,
     Bold = Enum.Font.GothamBold,
 }
+
+local DefaultTheme = {}
+for k, v in pairs(Theme) do DefaultTheme[k] = v end
+local DefaultFonts = {}
+for k, v in pairs(Fonts) do DefaultFonts[k] = v end
 local function T(i, t, p) return TweenService:Create(i, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), p) end
 local function sanitize(s) s = tostring(s or "Game"); s = s:gsub("[^%w%s%-_]", "_"); s = s:gsub("%s+", "_"); return s end
 local function Signal()
@@ -314,12 +319,68 @@ local function Signal()
 end
 local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {} }
 Library.FormatKeyName = FormatKeyName
+Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, v = nil }
+Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, baseV = nil }
+
+local function _pickAnyKey(t)
+    for k,_ in pairs(t or {}) do
+        return k
+    end
+    return nil
+end
+
+local function syncRGBColor(color, sourceId)
+    local bus = Library and Library._globalRGBSync
+    if not bus or not bus.active then return end
+    if not sourceId then return end
+    bus.listeners = bus.listeners or {}
+    if bus.leader ~= nil and bus.listeners[bus.leader] == nil then
+        bus.leader = nil
+        bus.color = nil
+    end
+    if bus.leader == nil then
+        bus.leader = sourceId
+    elseif bus.leader ~= sourceId then
+        return
+    end
+    bus.color = color
+    for id, listener in pairs(bus.listeners) do
+        if id ~= sourceId then
+            pcall(listener, color, sourceId)
+        end
+    end
+end
+
+local function syncPulseColor(color, sourceId)
+    local bus = Library and Library._globalPulseSync
+    if not bus or not bus.active then return end
+    if not sourceId then return end
+    bus.listeners = bus.listeners or {}
+    if bus.leader ~= nil and bus.listeners[bus.leader] == nil then
+        bus.leader = nil
+        bus.color = nil
+    end
+    if bus.leader == nil then
+        bus.leader = sourceId
+    elseif bus.leader ~= sourceId then
+        return
+    end
+    bus.color = color
+    for id, listener in pairs(bus.listeners) do
+        if id ~= sourceId then
+            pcall(listener, color, sourceId)
+        end
+    end
+end
 
 Library._translationCache = Library._translationCache or {}
 Library._translationOriginals = Library._translationOriginals or {}
 
 function Library:TranslateTo(to)
     if not to or to == "" then to = "en" end
+
+    self._translationNonce = (self._translationNonce or 0) + 1
+    local nonce = self._translationNonce
 
     self._translationLang = to
     local root = self._rootGui
@@ -354,6 +415,9 @@ function Library:TranslateTo(to)
         end
     end
     if not root then return end
+
+    if self._translationNonce ~= nonce then return end
+
     local cache = self._translationCache
     local originals = self._translationOriginals
     local function isNoTranslate(inst)
@@ -408,10 +472,12 @@ function Library:TranslateTo(to)
     if #list == 0 then return end
 
     for _, orig in ipairs(list) do
+        if self._translationNonce ~= nonce then return end
         local key = orig .. "|" .. to
         local trans = cache[key]
         if not trans then
             trans = translate(orig, "en", to)
+            if self._translationNonce ~= nonce then return end
             if not trans or trans == "" then
                 trans = orig
             end
@@ -421,6 +487,7 @@ function Library:TranslateTo(to)
         if instMapText[orig] then
             for _, inst in ipairs(instMapText[orig]) do
                 pcall(function()
+                    if self._translationNonce ~= nonce then return end
                     inst.Text = trans
                 end)
             end
@@ -428,6 +495,7 @@ function Library:TranslateTo(to)
         if instMapPlaceholder[orig] then
             for _, inst in ipairs(instMapPlaceholder[orig]) do
                 pcall(function()
+                    if self._translationNonce ~= nonce then return end
                     inst.PlaceholderText = trans
                 end)
             end
@@ -497,15 +565,27 @@ function Library:Unload()
     pcall(function()
         for _, c in pairs(self._controls or {}) do
             if type(c) == "table" then
-                if type(c.SetToggle) == "function" then
-                    pcall(function() c:SetToggle(false, true) end)
-                end
-                if type(c.Get) == "function" then
-                    local ok, cur = pcall(function() return c:Get() end)
-                    if ok and type(cur) == "boolean" then
-                        self:_silentSet(c, false)
+                local handled = false
+
+                if type(c.GetMode) == "function" and type(c.SetMode) == "function" then
+                    local okMode, mode = pcall(function() return c:GetMode() end)
+                    if okMode and mode == "Always" then
+                        pcall(function() c:SetMode("Hold", true) end)
                     end
                 end
+
+                if type(c.SetToggle) == "function" then
+                    pcall(function() c:SetToggle(false, false) end)
+                    handled = true
+                end
+
+                if (not handled) and type(c.Get) == "function" and type(c.Set) == "function" then
+                    local ok, cur = pcall(function() return c:Get() end)
+                    if ok and type(cur) == "boolean" then
+                        pcall(function() c:Set(false, false) end)
+                    end
+                end
+
                 if type(c.Destroy) == "function" then
                     pcall(function() c:Destroy() end)
                 end
@@ -523,6 +603,37 @@ function Library:Unload()
         end
         if self._rainbowBus and type(self._rainbowBus.listeners) == "table" then table.clear(self._rainbowBus.listeners) end
         if Library and Library._rainbowBus and type(Library._rainbowBus.listeners) == "table" then table.clear(Library._rainbowBus.listeners) end
+    end)
+
+    pcall(function()
+        if Library._globalRGBSync then
+            Library._globalRGBSync.active = false
+            Library._globalRGBSync.leader = nil
+            Library._globalRGBSync.color = nil
+            Library._globalRGBSync.phase = nil
+            Library._globalRGBSync.s = nil
+            Library._globalRGBSync.v = nil
+            if type(Library._globalRGBSync.listeners) == "table" then
+                table.clear(Library._globalRGBSync.listeners)
+            end
+        end
+        if Library._globalPulseSync then
+            Library._globalPulseSync.active = false
+            Library._globalPulseSync.leader = nil
+            Library._globalPulseSync.color = nil
+            Library._globalPulseSync.phase = nil
+            Library._globalPulseSync.s = nil
+            Library._globalPulseSync.baseV = nil
+            if type(Library._globalPulseSync.listeners) == "table" then
+                table.clear(Library._globalPulseSync.listeners)
+            end
+        end
+        if Library._globalColorpickerModeSync then
+            Library._globalColorpickerModeSync.locked = false
+            if type(Library._globalColorpickerModeSync.listeners) == "table" then
+                table.clear(Library._globalColorpickerModeSync.listeners)
+            end
+        end
     end)
 
     pcall(function() self:_disconnectAllConnections() end)
@@ -972,15 +1083,23 @@ do
     end
     
         function Library:_updateNotificationPositions()
-        local baseY = self._watermarkFrame and self._watermarkFrame.Position.Y.Offset or 10
-        local gap = 5
+        local baseScaleY
+        local baseOffsetY
+        if self._watermarkFrame and self._watermarkFrame.Parent then
+            baseScaleY = self._watermarkFrame.Position.Y.Scale
+            baseOffsetY = self._watermarkFrame.Position.Y.Offset
+        else
+            baseScaleY = (self._watermarkPosition and self._watermarkPosition.Y) or 0
+            baseOffsetY = (self._watermarkPosition and self._watermarkPosition.YOffset) or 10
+        end
 
-        local currentY = baseY
-        for i, entry in ipairs(self._activeNotifications) do
+        local gap = 5
+        local currentY = baseOffsetY
+        for _, entry in ipairs(self._activeNotifications) do
             if entry and entry.gui and entry.gui.Parent and entry.frame then
                 local frame = entry.frame
                 T(frame, 0.2, {
-                    Position = UDim2.new(1, -10, frame.Position.Y.Scale, currentY)
+                    Position = UDim2.new(1, -10, baseScaleY, currentY)
                 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
                 currentY = currentY + (entry.height or frame.AbsoluteSize.Y) + gap
             end
@@ -1026,7 +1145,6 @@ do
                     self._watermarkPosition.YOffset
                 )
                 self._watermarkFrame.Position = newp
-                warn("[Library:SetWatermarkPosition] applied ->", tostring(newp))
             end
         end
     end
@@ -1111,13 +1229,6 @@ function Library:Notification(text, notifyType, timer)
             end
             self._notificationDedupe[dedupeKey] = { t = now }
         end
-
-        
-        if not self._watermark or not self._watermark.Parent then
-            
-            pcall(function() self:SetWatermark(self._watermarkText) end)
-        end
-
         
         local parentGui = nil
         if self._watermark and self._watermark.Parent then
@@ -1957,7 +2068,6 @@ do
         end
         
         if not libraryGui then
-            warn("Could not find library GUI for keybind list")
             return
         end
         
@@ -2074,21 +2184,17 @@ do
                 local kp = Library and Library._keybindListPosition
                 if kp and type(kp) == "table" then
                     mainFrame.Position = UDim2.new(kp.X or 0, kp.XOffset or 0, kp.Y or 0, kp.YOffset or 0)
-                    warn("[KeybindList._createKeybindList] applied initial Position ->", tostring(mainFrame.Position))
                 end
                 local ks = Library and Library._keybindListSize
                 if ks then
                     
                     if typeof and typeof(ks) == "UDim2" then
                         mainFrame.Size = ks
-                        warn("[KeybindList._createKeybindList] applied initial Size ->", tostring(mainFrame.Size))
                     elseif type(ks) == 'table' then
                         if ks.__t == 'ud2' and type(ks.x) == 'table' and type(ks.y) == 'table' then
                             mainFrame.Size = UDim2.new(ks.x[1] or 0, ks.x[2] or 0, ks.y[1] or 0, ks.y[2] or 0)
-                            warn("[KeybindList._createKeybindList] applied initial Size (from serialized ud2) ->", tostring(mainFrame.Size))
                         elseif ks.X and ks.Y then
                             mainFrame.Size = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
-                            warn("[KeybindList._createKeybindList] applied initial Size (from table) ->", tostring(mainFrame.Size))
                         end
                     end
                 end
@@ -3012,8 +3118,6 @@ function Library:CreateLibrary(opts)
         if Library then
             Library._librarySize = root.Size
             Library._libraryPosition = root.Position
-            warn("[Window/Create] cached Library._librarySize ->", tostring(root.Size))
-            warn("[Window/Create] cached Library._libraryPosition ->", tostring(root.Position))
         end
     end)
     
@@ -3022,14 +3126,12 @@ function Library:CreateLibrary(opts)
             local ok, ls = pcall(function() return Library._librarySize end)
             if ok and ls then
                 pcall(function() root.Size = (type(ls) == 'table' and (ls.__t == 'ud2' and UDim2.new(ls.x[1] or 0, ls.x[2] or 0, ls.y[1] or 0, ls.y[2] or 0) or (ls.X and UDim2.new(ls.X or 0, ls.XOffset or 0, ls.Y or 0, ls.YOffset or 0))) or ls) end)
-                warn("[Window/Create] applied cached Library._librarySize ->", tostring(root.Size))
             end
         end
         if Library and Library._libraryPosition then
             local ok2, lp = pcall(function() return Library._libraryPosition end)
             if ok2 and lp then
                 pcall(function() root.Position = (type(lp) == 'table' and (lp.__t == 'ud2' and UDim2.new(lp.x[1] or 0, lp.x[2] or 0, lp.y[1] or 0, lp.y[2] or 0) or (lp.X and UDim2.new(lp.X or 0, lp.XOffset or 0, lp.Y or 0, lp.YOffset or 0))) or lp) end)
-                warn("[Window/Create] applied cached Library._libraryPosition ->", tostring(root.Position))
             end
         end
     end)
@@ -3100,7 +3202,37 @@ function Library:CreateLibrary(opts)
     local fsCorners = {makeCorner(0,0), makeCorner(1,0), makeCorner(0,1), makeCorner(1,1)}
     closeBtn.MouseEnter:Connect(function() T(closeBtn, 0.12, {BackgroundColor3 = Theme.Bad}):Play() end)
     closeBtn.MouseLeave:Connect(function() T(closeBtn, 0.16, {BackgroundColor3 = Theme.Button}):Play() end)
-    closeBtn.MouseButton1Click:Connect(function() root.Visible = false if type(closeCb) == "function" then pcall(closeCb) end end)
+    closeBtn.MouseButton1Click:Connect(function()
+        root.Visible = false
+        if Library and Library._rainbowBus and Library._rainbowBus.conn then
+            pcall(function() Library._rainbowBus.conn:Disconnect() end)
+            Library._rainbowBus.conn = nil
+            if type(Library._rainbowBus.listeners) == "table" then table.clear(Library._rainbowBus.listeners) end
+        end
+        if Library._globalRGBSync then
+            Library._globalRGBSync.active = false
+            Library._globalRGBSync.leader = nil
+            Library._globalRGBSync.color = nil
+            Library._globalRGBSync.phase = nil
+            Library._globalRGBSync.s = nil
+            Library._globalRGBSync.v = nil
+            if type(Library._globalRGBSync.listeners) == "table" then table.clear(Library._globalRGBSync.listeners) end
+        end
+        if Library._globalPulseSync then
+            Library._globalPulseSync.active = false
+            Library._globalPulseSync.leader = nil
+            Library._globalPulseSync.color = nil
+            Library._globalPulseSync.phase = nil
+            Library._globalPulseSync.s = nil
+            Library._globalPulseSync.baseV = nil
+            if type(Library._globalPulseSync.listeners) == "table" then table.clear(Library._globalPulseSync.listeners) end
+        end
+        if Library._globalColorpickerModeSync then
+            Library._globalColorpickerModeSync.locked = false
+            if type(Library._globalColorpickerModeSync.listeners) == "table" then table.clear(Library._globalColorpickerModeSync.listeners) end
+        end
+        if type(closeCb) == "function" then pcall(closeCb) end
+    end)
     minBtn.MouseEnter:Connect(function() T(minBtn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end)
     minBtn.MouseLeave:Connect(function() T(minBtn, 0.12, {BackgroundColor3 = Theme.Button}):Play() end)
     fsBtn.MouseEnter:Connect(function() T(fsBtn, 0.12, {BackgroundColor3 = Theme.Hover}):Play() end)
@@ -4598,6 +4730,10 @@ function Library:CreateLibrary(opts)
                         local doTranslate = (lang and lang ~= "" and lang ~= "en")
                         local cache = Library._translationCache or {}
                         Library._translationCache = cache
+                        Dropdown._translateGen = (Dropdown._translateGen or 0) + 1
+                        local myGen = Dropdown._translateGen
+                        local myNonce = (Library and Library._translationNonce) or 0
+                        local myLang = tostring(lang or "en")
                         local pending = {}
                         local refs = {}
 
@@ -4673,9 +4809,17 @@ function Library:CreateLibrary(opts)
                         end
                         if doTranslate and #pending > 0 then
                             task.spawn(function()
-                                local results = batchTranslate(pending, "en", tostring(lang))
+                                local results = batchTranslate(pending, "en", myLang)
+
+                                if not (Library and Library._translationLang == myLang and (Library._translationNonce or 0) == myNonce) then
+                                    return
+                                end
+                                if not (Dropdown and Dropdown._translateGen == myGen) then
+                                    return
+                                end
+
                                 for orig, out in pairs(results or {}) do
-                                    local k = tostring(orig) .. "|" .. tostring(lang)
+                                    local k = tostring(orig) .. "|" .. myLang
                                     local v = out
                                     if not v or v == "" then v = tostring(orig) end
                                     cache[k] = v
@@ -4697,17 +4841,25 @@ function Library:CreateLibrary(opts)
                             local emptyText = "No matches"
                             local shownEmpty = emptyText
                             if doTranslate then
-                                local k = emptyText .. "|" .. tostring(lang)
+                                local k = emptyText .. "|" .. myLang
                                 if cache[k] then
                                     shownEmpty = cache[k]
                                 end
                             end
                             local empty = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,itemHeight), Text = shownEmpty, Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = listFrame, ZIndex = panel.ZIndex + 2})
                             if doTranslate then
-                                local k = emptyText .. "|" .. tostring(lang)
+                                local k = emptyText .. "|" .. myLang
                                 if not cache[k] then
                                     task.spawn(function()
-                                        local results = batchTranslate({emptyText}, "en", tostring(lang))
+                                        local results = batchTranslate({emptyText}, "en", myLang)
+
+                                        if not (Library and Library._translationLang == myLang and (Library._translationNonce or 0) == myNonce) then
+                                            return
+                                        end
+                                        if not (Dropdown and Dropdown._translateGen == myGen) then
+                                            return
+                                        end
+
                                         local out = results and results[emptyText]
                                         if out and out ~= "" then
                                             cache[k] = out
@@ -5676,8 +5828,7 @@ function Library:CreateLibrary(opts)
                     local label = tostring(o.Name or "Color")
                     local cb = o.Callback
                     local amount = math.max(1, tonumber(o.Amount) or 1)
-                    
-                    local doSync = (o.Sync == true) or (o.SyncGlobally == true)
+                    local doSync = not (o.Sync == false)
                     
                     local startRainbow = false
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s/%s"):format(Window.Name, Category.Name, Page.Name, Group.Name, label)
@@ -5710,38 +5861,39 @@ function Library:CreateLibrary(opts)
                     Library._rainbowBus = Library._rainbowBus or { listeners = {}, conn = nil }
                     
                     
-                    Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {} }
-                    Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {} }
-                    
-                    local function syncRGBColor(color, sourceId)
+                    Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, v = nil }
+                    Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, baseV = nil }
+                    Library._globalColorpickerModeSync = Library._globalColorpickerModeSync or { locked = false, listeners = {} }
+                    local _modeSyncId = tostring(id .. "_mode_" .. math.random(1000000, 9999999))
+
+                    local function broadcastColorpickerMode(mode, index)
                         if not doSync then return end
-                        if not Library._globalRGBSync.active then return end
-                        for id, listener in pairs(Library._globalRGBSync.listeners) do
-                            if id ~= sourceId then
-                                pcall(listener, color, sourceId)
+                        local bus = Library._globalColorpickerModeSync
+                        if not bus or bus.locked then return end
+                        bus.locked = true
+                        for listenerId, fn in pairs(bus.listeners) do
+                            if listenerId ~= _modeSyncId then
+                                pcall(fn, mode, index, _modeSyncId)
                             end
                         end
+                        bus.locked = false
                     end
                     
-                    local function syncPulseColor(color, sourceId)
-                        if not doSync then return end
-                        if not Library._globalPulseSync.active then return end
-                        for id, listener in pairs(Library._globalPulseSync.listeners) do
-                            if id ~= sourceId then
-                                pcall(listener, color, sourceId)
-                            end
-                        end
-                    end
+                    
                     local function rainbowStart()
                         if Library._rainbowBus.conn then return end
                         local RS = SRV("RunService")
                         local t0 = tick()
                         Library._rainbowBus.conn = RS.RenderStepped:Connect(function()
-                            local t = (tick() - t0) * 0.08 
+                            local now = tick()
+                            local dt = (now - t0)
+                            Library._rainbowBus.now = now
+                            Library._rainbowBus.dt = dt
+                            local t = dt * 0.08 
                             local h = t % 1
                             Library._rainbowBus.h = h 
                             for _, fn in ipairs(Library._rainbowBus.listeners) do
-                                pcall(fn, h)
+                                pcall(fn, h, dt, now)
                             end
                         end)
                     end
@@ -5989,6 +6141,27 @@ function Library:CreateLibrary(opts)
                         end
                         if type(cb)=="function" then pcall(cb, c, index) end
                     end
+
+                    local function updateGlobalSyncFromSlot(slot)
+                        if not doSync or not slot then return end
+                        local h = (slot.hsv and slot.hsv[1]) or 0
+                        local s = (slot.hsv and slot.hsv[2]) or 1
+                        local v = (slot.hsv and slot.hsv[3]) or 1
+                        local busH = (Library._rainbowBus and Library._rainbowBus.h)
+
+                        if slot.rainbow and Library._globalRGBSync then
+                            local bus = Library._globalRGBSync
+                            if busH ~= nil then bus.phase = (h - busH) % 1 end
+                            bus.s = s
+                            bus.v = v
+                        end
+                        if slot.pulse and Library._globalPulseSync then
+                            local bus = Library._globalPulseSync
+                            if busH ~= nil then bus.phase = (h - busH) % 1 end
+                            bus.s = s
+                            bus.baseV = v
+                        end
+                    end
                     local function setHSV(index, h,s,v)
                         local slot = slots[index]
                         if not slot then return end
@@ -6001,6 +6174,7 @@ function Library:CreateLibrary(opts)
                         slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
                         if slot.updateSVBackground then slot.updateSVBackground(H) end
                         applyColorFromHSV(index)
+                        updateGlobalSyncFromSlot(slot)
 
                     end
                     
@@ -6014,6 +6188,7 @@ function Library:CreateLibrary(opts)
                         slot.hsv = { clamp01(H), clamp01(S), clamp01(V) }
                         if slot.updateSVBackground then slot.updateSVBackground(H) end
                         applyColorFromHSV(index)
+                        updateGlobalSyncFromSlot(slot)
                     end
 
                     
@@ -6025,18 +6200,21 @@ function Library:CreateLibrary(opts)
                             slot.hueOffset = (currentH - Library._rainbowBus.h) % 1
                         end
                         return rainbowAdd(function(h)
+                            local bus = doSync and Library._globalRGBSync or nil
+                            local phase = (bus and bus.phase) or (slot.hueOffset or 0)
+                            local s0 = (bus and bus.s) or (slot.hsv[2] or 1)
+                            local v0 = (bus and bus.v) or (slot.hsv[3] or 1)
                             
-                            local s = math.max(0.8, slot.hsv[2] or 1) 
-                            local v = math.max(0.7, slot.hsv[3] or 1) 
-                            local hh = (h + (slot.hueOffset or 0)) % 1
+                            local s = math.max(0.8, s0)
+                            local v = math.max(0.7, v0)
+                            local hh = (h + phase) % 1
                             slot.hsv = {hh, s, v}
                             local c = hsvToColor(slot.hsv)
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
-                            
-                            
-                            if slot._syncId then
-                                syncRGBColor(c, slot._syncId)
+
+                            if doSync and bus then
+                                bus.color = c
                             end
                             
                             if open and activeIndex == i then
@@ -6081,14 +6259,30 @@ function Library:CreateLibrary(opts)
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         
                         if doSync and slot._syncId then
+                            local oldSyncId = slot._syncId
                             Library._globalRGBSync.listeners[slot._syncId] = nil
                             slot._syncId = nil
+
+                            if Library._globalRGBSync.leader == oldSyncId then
+                                Library._globalRGBSync.leader = nil
+                                for k,_ in pairs(Library._globalRGBSync.listeners) do
+                                    Library._globalRGBSync.leader = k
+                                    break
+                                end
+                            end
                             
                             local hasActiveRGB = false
                             for _, listener in pairs(Library._globalRGBSync.listeners) do 
                                 if listener then hasActiveRGB = true break end 
                             end
                             Library._globalRGBSync.active = hasActiveRGB
+                            if not hasActiveRGB then
+                                Library._globalRGBSync.leader = nil
+                                Library._globalRGBSync.color = nil
+                                Library._globalRGBSync.phase = nil
+                                Library._globalRGBSync.s = nil
+                                Library._globalRGBSync.v = nil
+                            end
                         elseif not doSync then
                             slot._syncId = nil
                         end
@@ -6100,6 +6294,7 @@ function Library:CreateLibrary(opts)
                             if svCursor and sv then svCursor.Position = UDim2.fromOffset(s*(sv.AbsoluteSize.X), (1-v)*(sv.AbsoluteSize.Y)) end
                             if hueGrab and hueSlider then hueGrab.Position = UDim2.fromOffset(math.floor(hueSlider.AbsoluteSize.X/2), h*(hueSlider.AbsoluteSize.Y)) end
                         end
+                        broadcastColorpickerMode("off", i)
                     end
                     local function enableRainbow(i)
                         local slot = slots[i]
@@ -6109,6 +6304,7 @@ function Library:CreateLibrary(opts)
                         slot._resumePulse = nil
                         
                         if doSync and slot._pulseSyncId then
+                            local oldSyncId = slot._pulseSyncId
                             Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
                             slot._pulseSyncId = nil
                             local hasActivePulse = false
@@ -6116,6 +6312,17 @@ function Library:CreateLibrary(opts)
                                 if listener then hasActivePulse = true break end 
                             end
                             Library._globalPulseSync.active = hasActivePulse
+                            if Library._globalPulseSync.leader == oldSyncId then
+                                Library._globalPulseSync.leader = nil
+                                for k,_ in pairs(Library._globalPulseSync.listeners) do
+                                    Library._globalPulseSync.leader = k
+                                    break
+                                end
+                            end
+                            if not hasActivePulse then
+                                Library._globalPulseSync.leader = nil
+                                Library._globalPulseSync.color = nil
+                            end
                         elseif not doSync then
                             slot._pulseSyncId = nil
                         end
@@ -6147,40 +6354,54 @@ function Library:CreateLibrary(opts)
                         else
                             slot._syncId = nil
                         end
-                        
-                        
-                        if doSync and Library._globalRGBSync.active then
-                            task.spawn(function()
-                                task.wait(0.1) 
-                                local foundRGBSync = false
-                                for existingId, existingListener in pairs(Library._globalRGBSync.listeners) do
-                                    if existingId ~= syncId and existingListener and not foundRGBSync then
-                                        
-                                        for checkId, checkSlot in pairs(Library._controls) do
-                                            if checkSlot._slots and not foundRGBSync then
-                                                for j, checkSlotData in ipairs(checkSlot._slots) do
-                                                    if checkSlotData.rainbow and checkSlotData._syncId and checkSlotData._syncId ~= syncId then
-                                                        
-                                                        local syncColor = checkSlotData.color
-                                                        if Library._globalRGBSync.listeners[syncId] then
-                                                            Library._globalRGBSync.listeners[syncId](syncColor, checkSlotData._syncId)
-                                                        end
-                                                        foundRGBSync = true
-                                                        break
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    end
+
+                        if doSync and Library._globalRGBSync then
+                            local bus = Library._globalRGBSync
+                            local busH = (Library._rainbowBus and Library._rainbowBus.h)
+                            local hasExisting = false
+                            for k, _ in pairs(bus.listeners or {}) do
+                                if k ~= syncId then
+                                    hasExisting = true
+                                    break
                                 end
-                            end)
+                            end
+                            
+                            if hasExisting and bus.phase ~= nil then
+                                slot.hueOffset = bus.phase
+                                slot.hsv[2] = bus.s or slot.hsv[2]
+                                slot.hsv[3] = bus.v or slot.hsv[3]
+                                if busH ~= nil then
+                                    slot.hsv[1] = (busH + bus.phase) % 1
+                                end
+                            else
+                                if bus.phase == nil and busH ~= nil then
+                                    bus.phase = ((slot.hsv[1] or 0) - busH) % 1
+                                elseif bus.phase == nil then
+                                    bus.phase = 0
+                                end
+                                if bus.s == nil then bus.s = slot.hsv[2] or 1 end
+                                if bus.v == nil then bus.v = slot.hsv[3] or 1 end
+                                slot.hueOffset = bus.phase
+                                slot.hsv[2] = bus.s
+                                slot.hsv[3] = bus.v
+                                if busH ~= nil then
+                                    slot.hsv[1] = (busH + bus.phase) % 1
+                                end
+                            end
                         end
                         if slot.rainbowHook then rainbowRemove(slot.rainbowHook); slot.rainbowHook = nil end
                         slot.rainbow = true
                         slot.rainbowHook = attachRainbow(i)
-                        if doSync and slot._syncId then
-                            local c0 = hsvToColor(slot.hsv)
-                            syncRGBColor(c0, slot._syncId)
+                        if doSync and Library._globalRGBSync and Library._rainbowBus and Library._rainbowBus.h then
+                            local bus = Library._globalRGBSync
+                            local hh = ((Library._rainbowBus.h or 0) + (bus.phase or 0)) % 1
+                            local s = math.max(0.8, bus.s or slot.hsv[2] or 1)
+                            local v = math.max(0.7, bus.v or slot.hsv[3] or 1)
+                            local c0 = Color3.fromHSV(hh, s, v)
+                            slot.color = c0
+                            slot.fill.BackgroundColor3 = c0
+                            bus.color = c0
+                            if type(cb) == "function" then pcall(cb, c0, i) end
                         end
                         updateSlotUI(i)
                         
@@ -6189,6 +6410,7 @@ function Library:CreateLibrary(opts)
                                 setCheckbox(slot.rainbow or false)
                             end
                         end)
+                        broadcastColorpickerMode("rgb", i)
                     end
                     local function disablePulse(i)
                         local slot = slots[i]
@@ -6197,18 +6419,35 @@ function Library:CreateLibrary(opts)
                         if slot.pulseHook then rainbowRemove(slot.pulseHook); slot.pulseHook = nil end
                         
                         if doSync and slot._pulseSyncId then
+                            local oldSyncId = slot._pulseSyncId
                             Library._globalPulseSync.listeners[slot._pulseSyncId] = nil
                             slot._pulseSyncId = nil
+
+                            if Library._globalPulseSync.leader == oldSyncId then
+                                Library._globalPulseSync.leader = nil
+                                for k,_ in pairs(Library._globalPulseSync.listeners) do
+                                    Library._globalPulseSync.leader = k
+                                    break
+                                end
+                            end
                             
                             local hasActivePulse = false
                             for _, listener in pairs(Library._globalPulseSync.listeners) do 
                                 if listener then hasActivePulse = true break end 
                             end
                             Library._globalPulseSync.active = hasActivePulse
+                            if not hasActivePulse then
+                                Library._globalPulseSync.leader = nil
+                                Library._globalPulseSync.color = nil
+                                Library._globalPulseSync.phase = nil
+                                Library._globalPulseSync.s = nil
+                                Library._globalPulseSync.baseV = nil
+                            end
                         elseif not doSync then
                             slot._pulseSyncId = nil
                         end
                         updateSlotUI(i)
+                        broadcastColorpickerMode("off", i)
                     end
                     local function enablePulse(i)
                         local slot = slots[i]
@@ -6218,6 +6457,7 @@ function Library:CreateLibrary(opts)
                         slot._resumeRainbow = nil
                         
                         if doSync and slot._syncId then
+                            local oldSyncId = slot._syncId
                             Library._globalRGBSync.listeners[slot._syncId] = nil
                             slot._syncId = nil
                             local hasActiveRGB = false
@@ -6225,6 +6465,17 @@ function Library:CreateLibrary(opts)
                                 if listener then hasActiveRGB = true break end 
                             end
                             Library._globalRGBSync.active = hasActiveRGB
+                            if Library._globalRGBSync.leader == oldSyncId then
+                                Library._globalRGBSync.leader = nil
+                                for k,_ in pairs(Library._globalRGBSync.listeners) do
+                                    Library._globalRGBSync.leader = k
+                                    break
+                                end
+                            end
+                            if not hasActiveRGB then
+                                Library._globalRGBSync.leader = nil
+                                Library._globalRGBSync.color = nil
+                            end
                         elseif not doSync then
                             slot._syncId = nil
                         end
@@ -6248,33 +6499,39 @@ function Library:CreateLibrary(opts)
                         else
                             slot._pulseSyncId = nil
                         end
-                        
-                        
-                        if doSync and Library._globalPulseSync.active then
-                            task.spawn(function()
-                                task.wait(0.1) 
-                                local foundPulseSync = false
-                                for existingId, existingListener in pairs(Library._globalPulseSync.listeners) do
-                                    if existingId ~= syncId and existingListener and not foundPulseSync then
-                                        
-                                        for checkId, checkSlot in pairs(Library._controls) do
-                                            if checkSlot._slots and not foundPulseSync then
-                                                for j, checkSlotData in ipairs(checkSlot._slots) do
-                                                    if checkSlotData.pulse and checkSlotData._pulseSyncId and checkSlotData._pulseSyncId ~= syncId then
-                                                        
-                                                        local syncColor = checkSlotData.color
-                                                        if Library._globalPulseSync.listeners[syncId] then
-                                                            Library._globalPulseSync.listeners[syncId](syncColor, checkSlotData._pulseSyncId)
-                                                        end
-                                                        foundPulseSync = true
-                                                        break
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    end
+
+                        if doSync and Library._globalPulseSync then
+                            local bus = Library._globalPulseSync
+                            local busH = (Library._rainbowBus and Library._rainbowBus.h)
+                            local hasExisting = false
+                            for k, _ in pairs(bus.listeners or {}) do
+                                if k ~= syncId then
+                                    hasExisting = true
+                                    break
                                 end
-                            end)
+                            end
+                            if hasExisting and bus.phase ~= nil then
+                                slot.pulseHueOffset = bus.phase
+                                slot.hsv[2] = bus.s or slot.hsv[2]
+                                slot.hsv[3] = bus.baseV or slot.hsv[3]
+                                if busH ~= nil then
+                                    slot.hsv[1] = (busH + bus.phase) % 1
+                                end
+                            else
+                                if bus.phase == nil and busH ~= nil then
+                                    bus.phase = ((slot.hsv[1] or 0) - busH) % 1
+                                elseif bus.phase == nil then
+                                    bus.phase = 0
+                                end
+                                if bus.s == nil then bus.s = slot.hsv[2] or 1 end
+                                if bus.baseV == nil then bus.baseV = slot.hsv[3] or 1 end
+                                slot.pulseHueOffset = bus.phase
+                                slot.hsv[2] = bus.s
+                                slot.hsv[3] = bus.baseV
+                                if busH ~= nil then
+                                    slot.hsv[1] = (busH + bus.phase) % 1
+                                end
+                            end
                         end
                         
                         if Library._rainbowBus and Library._rainbowBus.h then
@@ -6288,25 +6545,42 @@ function Library:CreateLibrary(opts)
                         slot.pulse = true
                         
                         slot.pulseHook = rainbowAdd(function(h)
+                            local bus = doSync and Library._globalPulseSync or nil
+                            local phase = (bus and bus.phase) or (slot.pulseHueOffset or 0)
+                            local s0 = (bus and bus.s) or (slot.hsv[2] or 1)
+                            local baseV0 = (bus and bus.baseV) or (slot.hsv[3] or 1)
                             
-                            local s = math.max(0.8, slot.hsv[2] or 1) 
-                            local baseV = math.max(0.7, slot.hsv[3] or 1) 
-                            local hh = (h + (slot.pulseHueOffset or 0)) % 1
-                            local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4))
+                            local s = math.max(0.8, s0)
+                            local baseV = math.max(0.7, baseV0)
+                            local hh = (h + phase) % 1
+                            local dt = (Library._rainbowBus and Library._rainbowBus.dt) or tick()
+                            local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
                             local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
                             slot.hsv = {hh, s, baseV}
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
-                            if doSync and slot._pulseSyncId then syncPulseColor(c, slot._pulseSyncId) end
+
+                            if doSync and bus then
+                                bus.color = c
+                            end
                             if type(cb) == "function" then pcall(cb, c, i) end
                             if open and activeIndex == i then
                                 if rgbBox and not rgbBox:IsFocused() then local r,g,b = toRGB255(c); rgbBox.Text = string.format("%d, %d, %d", r,g,b) end
                                 if hexBox and not hexBox:IsFocused() then local r,g,b = toRGB255(c); hexBox.Text = rgbToHex(r,g,b) end
                             end
                         end)
-                        if doSync and slot._pulseSyncId then
-                            local c0 = hsvToColor(slot.hsv)
-                            syncPulseColor(c0, slot._pulseSyncId)
+                        if doSync and Library._globalPulseSync and Library._rainbowBus and Library._rainbowBus.h then
+                            local bus = Library._globalPulseSync
+                            local hh = ((Library._rainbowBus.h or 0) + (bus.phase or 0)) % 1
+                            local s = math.max(0.8, bus.s or slot.hsv[2] or 1)
+                            local baseV = math.max(0.7, bus.baseV or slot.hsv[3] or 1)
+                            local dt = (Library._rainbowBus and Library._rainbowBus.dt) or tick()
+                            local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
+                            local c0 = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                            slot.color = c0
+                            slot.fill.BackgroundColor3 = c0
+                            bus.color = c0
+                            if type(cb) == "function" then pcall(cb, c0, i) end
                         end
                         updateSlotUI(i)
                         
@@ -6315,9 +6589,9 @@ function Library:CreateLibrary(opts)
                                 setPulseCheckbox(slot.pulse or false)
                             end
                         end)
+                        broadcastColorpickerMode("pulse", i)
                     end
-
-                    local function resolveColorPanelPosition(targetBtn, width, height)
+                    function resolveColorPanelPosition(targetBtn, width, height)
                         width = math.max(0, width or 250)
                         height = math.max(0, height or 220)
                         local btnAbs = targetBtn.AbsolutePosition
@@ -6816,7 +7090,7 @@ function Library:CreateLibrary(opts)
                     end
 
                     local mode = normalizeKeybindMode(o.Mode) or "Hold"
-                    local defaultToggleEnabled = (o.DefaultToggle ~= nil) and (o.DefaultToggle == true) or true
+                    local defaultToggleEnabled = (o.DefaultToggle ~= nil) and o.DefaultToggle or false
                     local id = o.Flag and tostring(o.Flag) or ("%s/%s/%s/%s"):format(Category.Name, Page.Name, Group.Name, label)
                     
                     
@@ -7518,6 +7792,455 @@ function Library:CreateLibrary(opts)
                     registerSearch(label)
                     return KeybindToggle
                 end
+
+                function Group:Add3DPreviewWidget(o)
+                    o = o or {}
+                    local label = tostring(o.Label or o.Name or "3D Preview")
+                    local height = math.max(240, tonumber(o.Height) or 340)
+
+                    local row = Create("Frame", {
+                        BackgroundColor3 = Theme.Bg,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, 0, 0, height),
+                        Position = UDim2.fromOffset(0, nextY(height)),
+                        Parent = gFrame
+                    }, {
+                        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35}),
+                        Create("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})
+                    })
+
+                    local header = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Parent = row})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Text = label, Font = Fonts.Bold, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = header})
+
+                    local viewportHolder = Create("Frame", {
+                        BackgroundColor3 = Theme.Panel,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, 0, 1, -24),
+                        Position = UDim2.fromOffset(0, 24),
+                        Parent = row
+                    }, {
+                        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                        Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35})
+                    })
+
+                    local viewport = Create("ViewportFrame", {
+                        BackgroundColor3 = Theme.Panel,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, 0, 1, 0),
+                        CurrentCamera = nil,
+                        Parent = viewportHolder
+                    }, {
+                        Create("UICorner", {CornerRadius = UDim.new(0, 6)})
+                    })
+
+                    local wm = Instance.new("WorldModel")
+                    wm.Parent = viewport
+                    local cam = Instance.new("Camera")
+                    cam.Parent = viewport
+                    viewport.CurrentCamera = cam
+
+                    local Players = SRV("Players")
+                    local RunService = SRV("RunService")
+                    local LocalPlayer = Players.LocalPlayer
+
+                    local state = {
+                        yaw = 0,
+                        pitch = -0.2,
+                        dist = 6,
+                        dragging = false,
+                        lastMouse = nil,
+                        model = nil,
+                        humanoid = nil,
+                        rootPart = nil,
+                        focus = Vector3.new(0, 2.5, 0)
+                    }
+
+                    local config = {
+                        NameESP = false,
+                        BoxesESP = false,
+                        HealthBar = false,
+                        Skeleton = false,
+                        Color = Theme.Accent
+                    }
+
+                    local function safeRemove(obj)
+                        if obj and type(obj) == "userdata" and obj.Remove then
+                            pcall(function() obj:Remove() end)
+                        end
+                    end
+
+                    local function newDrawing(kind)
+                        local ok, obj = pcall(Drawing.new, kind)
+                        if ok and obj then
+                            if kind == "Text" then
+                                obj.Center = true
+                                obj.Outline = true
+                            elseif kind == "Square" then
+                                obj.Filled = false
+                                obj.Thickness = 1
+                            elseif kind == "Line" then
+                                obj.Thickness = 1
+                            end
+                            obj.Visible = false
+                            return obj
+                        end
+                        return nil
+                    end
+
+                    local drawings = {
+                        box = nil,
+                        boxOutline = nil,
+                        name = nil,
+                        hp = nil,
+                        hpOutline = nil,
+                        skeleton = {}
+                    }
+
+                    local SKELETON_BONES = {
+                        {"Head", "UpperTorso"},
+                        {"UpperTorso", "LowerTorso"},
+                        {"UpperTorso", "LeftUpperArm"},
+                        {"UpperTorso", "RightUpperArm"},
+                        {"LowerTorso", "LeftUpperLeg"},
+                        {"LowerTorso", "RightUpperLeg"},
+                        {"LeftUpperArm", "LeftLowerArm"},
+                        {"RightUpperArm", "RightLowerArm"},
+                        {"LeftUpperLeg", "LeftLowerLeg"},
+                        {"RightUpperLeg", "RightLowerLeg"}
+                    }
+
+                    if Drawing and Drawing.new then
+                        drawings.box = newDrawing("Square")
+                        drawings.boxOutline = newDrawing("Square")
+                        drawings.name = newDrawing("Text")
+                        drawings.hp = newDrawing("Square")
+                        drawings.hpOutline = newDrawing("Square")
+                    end
+
+                    local function hideDrawings()
+                        if drawings.box then drawings.box.Visible = false end
+                        if drawings.boxOutline then drawings.boxOutline.Visible = false end
+                        if drawings.name then drawings.name.Visible = false end
+                        if drawings.hp then drawings.hp.Visible = false end
+                        if drawings.hpOutline then drawings.hpOutline.Visible = false end
+                        for _, ln in ipairs(drawings.skeleton) do if ln then ln.Visible = false end end
+                    end
+
+                    local function clearModel()
+                        if state.model and state.model.Parent then
+                            pcall(function() state.model:Destroy() end)
+                        end
+                        state.model = nil
+                        state.humanoid = nil
+                        state.rootPart = nil
+                    end
+
+                    local function cleanupClone(clone)
+                        for _, d in ipairs(clone:GetDescendants()) do
+                            if d:IsA("Script") or d:IsA("LocalScript") then
+                                pcall(function() d:Destroy() end)
+                            elseif d:IsA("BasePart") then
+                                d.Anchored = true
+                                d.CanCollide = false
+                                d.Massless = true
+                            end
+                        end
+                    end
+
+                    local function rebuild()
+                        clearModel()
+                        if not LocalPlayer then return end
+                        local char = LocalPlayer.Character
+                        if not char then return end
+                        local ok, clone = pcall(function() return char:Clone() end)
+                        if not ok or not clone then return end
+                        cleanupClone(clone)
+                        clone.Parent = wm
+                        pcall(function() clone:PivotTo(CFrame.new(0, 0, 0)) end)
+                        state.model = clone
+                        state.humanoid = clone:FindFirstChildOfClass("Humanoid")
+                        state.rootPart = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
+                        local cf, size = clone:GetBoundingBox()
+                        local radius = math.max(size.X, size.Y, size.Z) * 0.5
+                        state.dist = math.clamp(radius * 2.2, 4, 14)
+                        state.focus = cf.Position + Vector3.new(0, size.Y * 0.15, 0)
+                    end
+
+                    local function isMouseInside()
+                        if not viewport or not viewport.Parent then return false end
+                        local m = UserInputService:GetMouseLocation()
+                        local pos = viewport.AbsolutePosition
+                        local sz = viewport.AbsoluteSize
+                        return m.X >= pos.X and m.X <= pos.X + sz.X and m.Y >= pos.Y and m.Y <= pos.Y + sz.Y
+                    end
+
+                    Library:_connect(viewport.InputBegan, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 and isMouseInside() then
+                            state.dragging = true
+                            local m = UserInputService:GetMouseLocation()
+                            state.lastMouse = Vector2.new(m.X, m.Y)
+                        end
+                    end)
+
+                    Library:_connect(UserInputService.InputEnded, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            state.dragging = false
+                            state.lastMouse = nil
+                        end
+                    end)
+
+                    Library:_connect(UserInputService.InputChanged, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseWheel and isMouseInside() then
+                            local delta = input.Position.Z
+                            if delta ~= 0 then
+                                state.dist = math.clamp(state.dist - delta * 0.8, 2.5, 22)
+                            end
+                        end
+                        if not state.dragging then return end
+                        if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+                        local m = UserInputService:GetMouseLocation()
+                        local cur = Vector2.new(m.X, m.Y)
+                        if state.lastMouse then
+                            local d = cur - state.lastMouse
+                            state.yaw = state.yaw - d.X * 0.01
+                            state.pitch = math.clamp(state.pitch - d.Y * 0.01, -1.35, 1.2)
+                        end
+                        state.lastMouse = cur
+                    end)
+
+                    local function ensureSkeletonLine(idx)
+                        if not (Drawing and Drawing.new) then return nil end
+                        local ln = drawings.skeleton[idx]
+                        if not ln then
+                            ln = newDrawing("Line")
+                            drawings.skeleton[idx] = ln
+                        end
+                        return ln
+                    end
+
+                    Library:_connect(RunService.RenderStepped, function()
+                        if not viewport or not viewport.Parent then hideDrawings(); return end
+                        if Library and Library._rootFrame and (Library._rootFrame.Visible == false) then hideDrawings(); return end
+                        local absSize = viewport.AbsoluteSize
+                        if absSize.X < 20 or absSize.Y < 20 then hideDrawings(); return end
+                        cam.ViewportSize = Vector2.new(absSize.X, absSize.Y)
+
+                        if not state.model or not state.model.Parent then
+                            rebuild()
+                        end
+                        if not state.model then hideDrawings(); return end
+
+                        local realChar = LocalPlayer and LocalPlayer.Character
+                        local realHum = realChar and realChar:FindFirstChildOfClass("Humanoid")
+                        if state.humanoid and realHum then
+                            pcall(function()
+                                state.humanoid.MaxHealth = realHum.MaxHealth
+                                state.humanoid.Health = realHum.Health
+                            end)
+                        end
+
+                        local focus = state.focus
+                        local cx = math.cos(state.pitch)
+                        local sx = math.sin(state.pitch)
+                        local cy = math.cos(state.yaw)
+                        local sy = math.sin(state.yaw)
+                        local offset = Vector3.new(state.dist * cy * cx, state.dist * sx, state.dist * sy * cx)
+                        cam.CFrame = CFrame.new(focus + offset, focus)
+
+                        local absPos = viewport.AbsolutePosition
+
+                        if not (Drawing and Drawing.new) then return end
+                        if not (config.NameESP or config.BoxesESP or config.HealthBar or config.Skeleton) then hideDrawings(); return end
+
+                        local cf, size = state.model:GetBoundingBox()
+                        local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
+                        local corners = {
+                            Vector3.new(-hx, -hy, -hz), Vector3.new(hx, -hy, -hz), Vector3.new(-hx, hy, -hz), Vector3.new(hx, hy, -hz),
+                            Vector3.new(-hx, -hy, hz),  Vector3.new(hx, -hy, hz),  Vector3.new(-hx, hy, hz),  Vector3.new(hx, hy, hz)
+                        }
+
+                        local minX, minY = math.huge, math.huge
+                        local maxX, maxY = -math.huge, -math.huge
+                        local anyOn = false
+                        for i = 1, #corners do
+                            local w = cf:PointToWorldSpace(corners[i])
+                            local v, on = cam:WorldToViewportPoint(w)
+                            if on and v.Z > 0 then
+                                anyOn = true
+                                if v.X < minX then minX = v.X end
+                                if v.Y < minY then minY = v.Y end
+                                if v.X > maxX then maxX = v.X end
+                                if v.Y > maxY then maxY = v.Y end
+                            end
+                        end
+
+                        if not anyOn then hideDrawings(); return end
+
+                        local x = absPos.X + minX
+                        local y = absPos.Y + minY
+                        local w = math.max(2, maxX - minX)
+                        local h = math.max(2, maxY - minY)
+
+                        if config.BoxesESP and drawings.box and drawings.boxOutline then
+                            drawings.boxOutline.Visible = true
+                            drawings.boxOutline.Color = Color3.fromRGB(0, 0, 0)
+                            drawings.boxOutline.Thickness = 3
+                            drawings.boxOutline.Filled = false
+                            drawings.boxOutline.Size = Vector2.new(w + 2, h + 2)
+                            drawings.boxOutline.Position = Vector2.new(x - 1, y - 1)
+                            pcall(function() drawings.boxOutline.ZIndex = 1 end)
+
+                            drawings.box.Visible = true
+                            drawings.box.Color = config.Color
+                            drawings.box.Thickness = 1
+                            drawings.box.Filled = false
+                            drawings.box.Size = Vector2.new(w, h)
+                            drawings.box.Position = Vector2.new(x, y)
+                            pcall(function() drawings.box.ZIndex = 69 end)
+                        else
+                            if drawings.box then drawings.box.Visible = false end
+                            if drawings.boxOutline then drawings.boxOutline.Visible = false end
+                        end
+
+                        if config.NameESP and drawings.name then
+                            local top = Vector3.new(cf.Position.X, cf.Position.Y + hy, cf.Position.Z)
+                            local v, on = cam:WorldToViewportPoint(top)
+                            if on and v.Z > 0 then
+                                drawings.name.Visible = true
+                                drawings.name.Text = (LocalPlayer and LocalPlayer.Name) or "LocalPlayer"
+                                drawings.name.Color = config.Color
+                                drawings.name.Outline = true
+                                pcall(function() drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0) end)
+                                drawings.name.Font = 2
+                                drawings.name.Size = 15
+                                drawings.name.Position = Vector2.new(absPos.X + v.X, absPos.Y + v.Y - 18)
+                            else
+                                drawings.name.Visible = false
+                            end
+                        else
+                            if drawings.name then drawings.name.Visible = false end
+                        end
+
+                        if config.HealthBar and drawings.hp and drawings.hpOutline then
+                            local hpPerc = 1
+                            if state.humanoid then
+                                hpPerc = math.clamp(state.humanoid.Health / math.max(state.humanoid.MaxHealth, 1), 0, 1)
+                            end
+                            drawings.hpOutline.Visible = true
+                            drawings.hpOutline.Color = Color3.fromRGB(0, 0, 0)
+                            drawings.hpOutline.Filled = true
+                            drawings.hpOutline.Size = Vector2.new(3, h)
+                            drawings.hpOutline.Position = Vector2.new(x - 6, y)
+                            pcall(function() drawings.hpOutline.ZIndex = 1 end)
+
+                            local hpH = math.max(1, math.floor((h - 2) * hpPerc))
+                            drawings.hp.Visible = true
+                            drawings.hp.Filled = true
+                            drawings.hp.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hpPerc)
+                            drawings.hp.Size = Vector2.new(1, hpH)
+                            drawings.hp.Position = Vector2.new(x - 5, y + (h - hpH))
+                            pcall(function() drawings.hp.ZIndex = 69 end)
+                        else
+                            if drawings.hp then drawings.hp.Visible = false end
+                            if drawings.hpOutline then drawings.hpOutline.Visible = false end
+                        end
+
+                        if config.Skeleton then
+                            for idx, bone in ipairs(SKELETON_BONES) do
+                                local p1 = state.model:FindFirstChild(bone[1])
+                                local p2 = state.model:FindFirstChild(bone[2])
+                                local ln = ensureSkeletonLine(idx)
+                                if ln and p1 and p2 and p1:IsA("BasePart") and p2:IsA("BasePart") then
+                                    local s1, on1 = cam:WorldToViewportPoint(p1.Position)
+                                    local s2, on2 = cam:WorldToViewportPoint(p2.Position)
+                                    if on1 and on2 and s1.Z > 0 and s2.Z > 0 then
+                                        ln.Visible = true
+                                        ln.From = Vector2.new(absPos.X + s1.X, absPos.Y + s1.Y)
+                                        ln.To = Vector2.new(absPos.X + s2.X, absPos.Y + s2.Y)
+                                        ln.Thickness = 2
+                                        ln.Color = config.Color
+                                    else
+                                        ln.Visible = false
+                                    end
+                                elseif ln then
+                                    ln.Visible = false
+                                end
+                            end
+                        else
+                            for _, ln in ipairs(drawings.skeleton) do if ln then ln.Visible = false end end
+                        end
+                    end)
+
+                    if LocalPlayer then
+                        Library:_connect(LocalPlayer.CharacterAdded, function()
+                            task.defer(rebuild)
+                        end)
+                    end
+
+                    task.defer(rebuild)
+
+                    local Preview = {
+                        Config = config,
+                        Container = row,
+                        ViewportFrame = viewport,
+                        Camera = cam,
+                        WorldModel = wm
+                    }
+
+                    function Preview:SetFeature(name, v)
+                        v = (v == true)
+                        if name == "Name esp" or name == "NameESP" or name == "Name" then
+                            config.NameESP = v
+                        elseif name == "boxes esp" or name == "BoxesESP" or name == "Boxes" then
+                            config.BoxesESP = v
+                        elseif name == "Health bar" or name == "HealthBar" or name == "Health" then
+                            config.HealthBar = v
+                        elseif name == "skeleton" or name == "Skeleton" then
+                            config.Skeleton = v
+                        end
+                    end
+
+                    function Preview:GetFeature(name)
+                        if name == "Name esp" or name == "NameESP" or name == "Name" then
+                            return config.NameESP
+                        elseif name == "boxes esp" or name == "BoxesESP" or name == "Boxes" then
+                            return config.BoxesESP
+                        elseif name == "Health bar" or name == "HealthBar" or name == "Health" then
+                            return config.HealthBar
+                        elseif name == "skeleton" or name == "Skeleton" then
+                            return config.Skeleton
+                        end
+                        return nil
+                    end
+
+                    function Preview:BindToggle(toggle, feature)
+                        if not (toggle and type(toggle) == "table" and type(toggle.Set) == "function") then return end
+                        if not (toggle.OnChanged and type(toggle.OnChanged) == "function") then
+                            Library:_silentSet(toggle, self:GetFeature(feature) == true)
+                            return
+                        end
+                        Library:_silentSet(toggle, self:GetFeature(feature) == true)
+                        toggle:OnChanged(function(val)
+                            self:SetFeature(feature, val)
+                        end)
+                    end
+
+                    function Preview:Destroy()
+                        hideDrawings()
+                        safeRemove(drawings.box)
+                        safeRemove(drawings.boxOutline)
+                        safeRemove(drawings.name)
+                        safeRemove(drawings.hp)
+                        safeRemove(drawings.hpOutline)
+                        for i = 1, #drawings.skeleton do safeRemove(drawings.skeleton[i]) end
+                        table.clear(drawings.skeleton)
+                        clearModel()
+                        if row and row.Parent then pcall(function() row:Destroy() end) end
+                    end
+
+                    return Preview
+                end
                 return Group
             end
             table.insert(Category._pages, Page)
@@ -7807,6 +8530,37 @@ function Library:CreateLibrary(opts)
     end
     
     Window.AddTab = Window.AddCategory
+
+    function Window:Add3DPreview(PreviewGroup, options)
+        options = options or {}
+        local label = tostring(options.Label or "3D ESP Preview")
+        local integrated = (options.IntegratedESP ~= false)
+
+        local page
+        if PreviewGroup and type(PreviewGroup) == "table" and type(PreviewGroup.AddSection) == "function" then
+            page = PreviewGroup:AddSection({ Name = label, Columns = 2 })
+        elseif PreviewGroup and type(PreviewGroup) == "table" and type(PreviewGroup.AddPage) == "function" then
+            page = PreviewGroup
+        else
+            return nil
+        end
+
+        local left = page:AddPage({ Name = "ESP", Side = 1 })
+        local right = page:AddPage({ Name = "Preview", Side = 2 })
+        local preview = right:Add3DPreviewWidget({ Label = label })
+        preview.Page = page
+        preview.LeftGroup = left
+        preview.RightGroup = right
+
+        if integrated then
+            left:AddToggle({ Name = "Name esp", Default = false, Callback = function(v) preview:SetFeature("Name esp", v) end })
+            left:AddToggle({ Name = "boxes esp", Default = false, Callback = function(v) preview:SetFeature("boxes esp", v) end })
+            left:AddToggle({ Name = "Health bar", Default = false, Callback = function(v) preview:SetFeature("Health bar", v) end })
+            left:AddToggle({ Name = "skeleton", Default = false, Callback = function(v) preview:SetFeature("skeleton", v) end })
+        end
+
+        return preview
+    end
     
     function Window:Search(term, suppressHighlight)
         term = tostring(term or ""):lower():gsub("%s+", " "):gsub("^%s*(.-)%s$", "%1") 
@@ -8096,7 +8850,7 @@ function Library:CreateLibrary(opts)
                                                     local c = Color3.fromHSV(hh, s, v)
                                                     slot.color = c
                                                     pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
-                                                    if slot._syncId then syncRGBColor(c, slot._syncId) end
+                                                    if Library and Library._globalRGBSync then Library._globalRGBSync.color = c end
                                                     if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
                                                 end)
                                             end
@@ -8106,12 +8860,13 @@ function Library:CreateLibrary(opts)
                                                     local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
                                                     local baseV = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
                                                     local hh = (h + (slot.pulseHueOffset or 0)) % 1
-                                                    local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tick() * 4))
+                                                    local dt = (Library and Library._rainbowBus and Library._rainbowBus.dt) or tick()
+                                                    local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
                                                     local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
                                                     slot.hsv = {hh, s, baseV}
                                                     slot.color = c
                                                     pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
-                                                    if slot._pulseSyncId then syncPulseColor(c, slot._pulseSyncId) end
+                                                    if Library and Library._globalPulseSync then Library._globalPulseSync.color = c end
                                                     if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
                                                 end)
                                             end
@@ -8645,9 +9400,6 @@ function Library:CreateLibrary(opts)
         local ser = Library._serialize
         local srcTheme = (type(t.theme) == "table") and t.theme or Theme
         local srcFonts = (type(t.fonts) == "table") and t.fonts or Fonts
-
-        -- If the Themes UI exists, capture rainbow/pulse state from its colorpickers
-        -- using the same format as ConfigSystem.
         local pickerByKey = nil
         pcall(function()
             pickerByKey = (Window and Window._lastThemeUI and Window._lastThemeUI.ColorpickersByKey) or nil
@@ -8884,8 +9636,6 @@ function Library:CreateLibrary(opts)
                     Library:SetBackgroundImage(bg.enabled == true, tostring(bg.id or ""))
                 end
             end)
-
-            -- Restore theme colorpicker state (rainbow/pulse + offsets) if the Themes UI exists.
             pcall(function()
                 local ui = Window and Window._lastThemeUI
                 local map = ui and ui.ColorpickersByKey
@@ -8913,7 +9663,6 @@ function Library:CreateLibrary(opts)
                                 pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(false, 1) end end)
                                 pcall(function() if ctrl.SetPulse then ctrl:SetPulse(false, 1) end end)
                             end
-                            -- Ensure offsets survive enableRainbow/enablePulse recomputation
                             if slot then
                                 slot.hueOffset = (type(state.hueOffsets) == "table" and tonumber(state.hueOffsets[1])) or slot.hueOffset or 0
                                 slot.pulseHueOffset = (type(state.pulseHueOffsets) == "table" and tonumber(state.pulseHueOffsets[1])) or slot.pulseHueOffset or 0
@@ -8939,8 +9688,6 @@ function Library:CreateLibrary(opts)
         local name = (type(a) == "string" and a) or (type(b) == "string" and b) or ""
         local safe = sanitize(name or "")
         if safe == "" then return end
-		-- IMPORTANT: SetAutoLoad() writes the file. If we delete first (delfile),
-		-- calling SetAutoLoad(false) will recreate an empty theme file.
 		pcall(function() Themes.SetAutoLoad(safe, false) end)
 		Themes.Delete(safe)
     end
@@ -9038,6 +9785,38 @@ function Library:CreateLibrary(opts)
             local on = false
             pcall(function() on = Themes.GetAutoLoad(safe) end)
             if autoToggle and autoToggle.Set then autoToggle:Set(on, true) end
+        end })
+
+        local resetBtn = group:AddButton({ Name = "Reset to Default", Compact = true, Callback = function()
+            pcall(function()
+                if Library and Library.SetBackgroundImage then
+                    Library._bgImageEnabled = false
+                    Library._bgImageId = ""
+                    Library:SetBackgroundImage(false, "")
+                end
+            end)
+
+            pcall(function() if Library and Library.QueueApplyTheme then Library:QueueApplyTheme(DefaultTheme, DefaultFonts) end end)
+
+            task.defer(function()
+                pcall(function() if fr and fr.Set then fr:Set(DefaultFonts.Regular and DefaultFonts.Regular.Name or nil, true) end end)
+                pcall(function() if fm and fm.Set then fm:Set(DefaultFonts.Medium and DefaultFonts.Medium.Name or nil, true) end end)
+                pcall(function() if fb and fb.Set then fb:Set(DefaultFonts.Bold and DefaultFonts.Bold.Name or nil, true) end end)
+
+                pcall(function()
+                    for k, cp in pairs(themePickersByKey or {}) do
+                        if cp and cp.Set and DefaultTheme[k] ~= nil then
+                            cp:Set(DefaultTheme[k], nil, true)
+                        end
+                    end
+                end)
+
+                pcall(function()
+                    if imageBgToggle and imageBgToggle.Set then imageBgToggle:Set(false, true) end
+                    if imageBgId and imageBgId.Set then imageBgId:Set("", true) end
+                    if imageBgId and imageBgId._row then imageBgId._row.Visible = false end
+                end)
+            end)
         end })
         autoToggle = markThemeControl(group:AddToggle({ Name = "Auto Load Theme", Default = false, Callback = function(on)
             local raw = dd:Get()
@@ -9345,9 +10124,6 @@ function Library:CreateLibrary(opts)
     Window._lastConfigUI = configUI
     return configUI
     end
-
-    -- Debounced theme application to avoid repainting the entire UI on every
-    -- intermediate colorpicker drag tick.
     function Library:QueueApplyTheme(themePatch, fontsPatch, opts)
         opts = opts or {}
         local delay = opts.Delay
@@ -9428,6 +10204,10 @@ function Library:CreateLibrary(opts)
     end)
     
     
+    function Window:Unload()
+        return Library:Unload()
+    end
+
     self._activeWindow = Window
     return Window
 end
