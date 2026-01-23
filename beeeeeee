@@ -8015,7 +8015,7 @@ function Library:CreateLibrary(opts)
                             local rp = state.rootPart
                             if rp and rp:IsA("BasePart") then
                                 local lv = rp.CFrame.LookVector
-                                state.yaw = math.atan2(lv.Z, lv.X) + math.pi
+                                state.yaw = math.atan2(lv.Z, lv.X)
                             else
                                 state.yaw = math.pi * 0.5
                             end
@@ -8101,9 +8101,23 @@ function Library:CreateLibrary(opts)
                         return Vector2.new(x, y), z
                     end
 
+                    local function isGuiChainVisible(obj)
+                        local cur = obj
+                        while cur do
+                            if cur:IsA("GuiObject") then
+                                if cur.Visible == false then
+                                    return false
+                                end
+                            end
+                            cur = cur.Parent
+                        end
+                        return true
+                    end
+
                     Library:_connect(RunService.RenderStepped, function()
                         if not viewport or not viewport.Parent then hideDrawings(); return end
                         if Library and Library._rootFrame and (Library._rootFrame.Visible == false) then hideDrawings(); return end
+                        if not isGuiChainVisible(viewport) then hideDrawings(); return end
                         local absSize = viewport.AbsoluteSize
                         if absSize.X < 20 or absSize.Y < 20 then hideDrawings(); return end
 
@@ -8130,7 +8144,9 @@ function Library:CreateLibrary(opts)
                         cam.CFrame = CFrame.new(focus + offset, focus)
 
                         local absPos = viewport.AbsolutePosition
-                        local drawBase = Vector2.new(absPos.X, absPos.Y)
+                        local insetY = 0
+                        pcall(function() insetY = SRV("GuiService"):GetGuiInset().Y end)
+                        local drawBase = Vector2.new(absPos.X, absPos.Y + insetY)
 
                         if not (Drawing and Drawing.new) then return end
                         if not (config.NameESP or config.BoxesESP or config.HealthBar or config.Skeleton) then hideDrawings(); return end
