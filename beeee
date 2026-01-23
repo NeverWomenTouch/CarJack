@@ -7951,7 +7951,9 @@ function Library:CreateLibrary(opts)
                                 d.CanCollide = false
                                 d.Massless = true
                                 pcall(function() d.LocalTransparencyModifier = 0 end)
-                                if d.Transparency and d.Transparency > 0.95 then
+                                if d.Name == "HumanoidRootPart" then
+                                    d.Transparency = 1
+                                elseif d.Transparency and d.Transparency > 0.95 then
                                     d.Transparency = 0
                                 end
                             end
@@ -7996,7 +7998,15 @@ function Library:CreateLibrary(opts)
                         if not clone then return end
                         cleanupClone(clone)
                         clone.Parent = wm
-                        pcall(function() clone:PivotTo(CFrame.new(0, 0, 0)) end)
+
+                        pcall(function()
+                            clone:PivotTo(CFrame.new(0, 0, 0))
+                            local cf0, size0 = clone:GetBoundingBox()
+                            local bottomY = cf0.Position.Y - (size0.Y * 0.5)
+                            local offset = Vector3.new(-cf0.Position.X, -bottomY, -cf0.Position.Z)
+                            local pivot = clone:GetPivot()
+                            clone:PivotTo(pivot + offset)
+                        end)
                         state.model = clone
                         state.humanoid = clone:FindFirstChildOfClass("Humanoid")
                         state.rootPart = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
@@ -8008,7 +8018,7 @@ function Library:CreateLibrary(opts)
                         if okBB and cf and size then
                             local radius = math.max(size.X, size.Y, size.Z) * 0.5
                             state.dist = math.clamp(radius * 2.2, 4, 14)
-                            state.focus = cf.Position + Vector3.new(0, size.Y * 0.15, 0)
+                            state.focus = cf.Position + Vector3.new(0, size.Y * 0.35, 0)
                         else
                             state.dist = 7
                             state.focus = Vector3.new(0, 2.5, 0)
@@ -8067,6 +8077,19 @@ function Library:CreateLibrary(opts)
                         return ln
                     end
 
+                    local function projectPoint(worldPos, viewportSize)
+                        local rel = cam.CFrame:PointToObjectSpace(worldPos)
+                        local z = -rel.Z
+                        if z <= 0.01 then
+                            return nil
+                        end
+                        local fov = math.rad(cam.FieldOfView)
+                        local scale = (viewportSize.Y * 0.5) / math.tan(fov * 0.5)
+                        local x = (rel.X * scale) / z + (viewportSize.X * 0.5)
+                        local y = (-rel.Y * scale) / z + (viewportSize.Y * 0.5)
+                        return Vector2.new(x, y), z
+                    end
+
                     Library:_connect(RunService.RenderStepped, function()
                         if not viewport or not viewport.Parent then hideDrawings(); return end
                         if Library and Library._rootFrame and (Library._rootFrame.Visible == false) then hideDrawings(); return end
@@ -8112,13 +8135,13 @@ function Library:CreateLibrary(opts)
                         local anyOn = false
                         for i = 1, #corners do
                             local w = cf:PointToWorldSpace(corners[i])
-                            local v, on = cam:WorldToViewportPoint(w)
-                            if on and v.Z > 0 then
+                            local v2 = projectPoint(w, absSize)
+                            if v2 then
                                 anyOn = true
-                                if v.X < minX then minX = v.X end
-                                if v.Y < minY then minY = v.Y end
-                                if v.X > maxX then maxX = v.X end
-                                if v.Y > maxY then maxY = v.Y end
+                                if v2.X < minX then minX = v2.X end
+                                if v2.Y < minY then minY = v2.Y end
+                                if v2.X > maxX then maxX = v2.X end
+                                if v2.Y > maxY then maxY = v2.Y end
                             end
                         end
 
@@ -8152,8 +8175,8 @@ function Library:CreateLibrary(opts)
 
                         if config.NameESP and drawings.name then
                             local top = Vector3.new(cf.Position.X, cf.Position.Y + hy, cf.Position.Z)
-                            local v, on = cam:WorldToViewportPoint(top)
-                            if on and v.Z > 0 then
+                            local v2 = projectPoint(top, absSize)
+                            if v2 then
                                 drawings.name.Visible = true
                                 drawings.name.Text = (LocalPlayer and LocalPlayer.Name) or "LocalPlayer"
                                 drawings.name.Color = config.Color
@@ -8161,7 +8184,7 @@ function Library:CreateLibrary(opts)
                                 pcall(function() drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0) end)
                                 drawings.name.Font = 2
                                 drawings.name.Size = 15
-                                drawings.name.Position = Vector2.new(absPos.X + v.X, absPos.Y + v.Y - 18)
+                                drawings.name.Position = Vector2.new(absPos.X + v2.X, absPos.Y + v2.Y - 18)
                             else
                                 drawings.name.Visible = false
                             end
@@ -8199,9 +8222,9 @@ function Library:CreateLibrary(opts)
                                 local p2 = state.model:FindFirstChild(bone[2])
                                 local ln = ensureSkeletonLine(idx)
                                 if ln and p1 and p2 and p1:IsA("BasePart") and p2:IsA("BasePart") then
-                                    local s1, on1 = cam:WorldToViewportPoint(p1.Position)
-                                    local s2, on2 = cam:WorldToViewportPoint(p2.Position)
-                                    if on1 and on2 and s1.Z > 0 and s2.Z > 0 then
+                                    local s1 = projectPoint(p1.Position, absSize)
+                                    local s2 = projectPoint(p2.Position, absSize)
+                                    if s1 and s2 then
                                         ln.Visible = true
                                         ln.From = Vector2.new(absPos.X + s1.X, absPos.Y + s1.Y)
                                         ln.To = Vector2.new(absPos.X + s2.X, absPos.Y + s2.Y)
