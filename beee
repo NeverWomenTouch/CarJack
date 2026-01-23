@@ -7834,6 +7834,12 @@ function Library:CreateLibrary(opts)
                         Create("UICorner", {CornerRadius = UDim.new(0, 6)})
                     })
 
+                    pcall(function()
+                        viewport.Ambient = Color3.fromRGB(210, 210, 210)
+                        viewport.LightColor = Color3.fromRGB(255, 255, 255)
+                        viewport.LightDirection = Vector3.new(-0.35, -1, -0.25)
+                    end)
+
                     local wm = Instance.new("WorldModel")
                     wm.Parent = viewport
                     local cam = Instance.new("Camera")
@@ -7944,6 +7950,10 @@ function Library:CreateLibrary(opts)
                                 d.Anchored = true
                                 d.CanCollide = false
                                 d.Massless = true
+                                pcall(function() d.LocalTransparencyModifier = 0 end)
+                                if d.Transparency and d.Transparency > 0.95 then
+                                    d.Transparency = 0
+                                end
                             end
                         end
                     end
@@ -7953,18 +7963,56 @@ function Library:CreateLibrary(opts)
                         if not LocalPlayer then return end
                         local char = LocalPlayer.Character
                         if not char then return end
-                        local ok, clone = pcall(function() return char:Clone() end)
-                        if not ok or not clone then return end
+
+                        local function rigTypeFromCharacter()
+                            local hum = char:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.RigType then return hum.RigType end
+                            return Enum.HumanoidRigType.R15
+                        end
+
+                        local clone
+                        do
+                            local old = char.Archivable
+                            pcall(function() char.Archivable = true end)
+                            local ok, out = pcall(function() return char:Clone() end)
+                            pcall(function() char.Archivable = old end)
+                            if ok and out then clone = out end
+                        end
+
+                        if not clone then
+                            local okDesc, desc = pcall(function()
+                                return Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
+                            end)
+                            if okDesc and desc then
+                                local okModel, mdl = pcall(function()
+                                    return Players:CreateHumanoidModelFromDescription(desc, rigTypeFromCharacter())
+                                end)
+                                if okModel and mdl then
+                                    clone = mdl
+                                end
+                            end
+                        end
+
+                        if not clone then return end
                         cleanupClone(clone)
                         clone.Parent = wm
                         pcall(function() clone:PivotTo(CFrame.new(0, 0, 0)) end)
                         state.model = clone
                         state.humanoid = clone:FindFirstChildOfClass("Humanoid")
                         state.rootPart = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
-                        local cf, size = clone:GetBoundingBox()
-                        local radius = math.max(size.X, size.Y, size.Z) * 0.5
-                        state.dist = math.clamp(radius * 2.2, 4, 14)
-                        state.focus = cf.Position + Vector3.new(0, size.Y * 0.15, 0)
+
+                        local okBB, cf, size = pcall(function()
+                            local _cf, _size = clone:GetBoundingBox()
+                            return true, _cf, _size
+                        end)
+                        if okBB and cf and size then
+                            local radius = math.max(size.X, size.Y, size.Z) * 0.5
+                            state.dist = math.clamp(radius * 2.2, 4, 14)
+                            state.focus = cf.Position + Vector3.new(0, size.Y * 0.15, 0)
+                        else
+                            state.dist = 7
+                            state.focus = Vector3.new(0, 2.5, 0)
+                        end
                     end
 
                     local function isMouseInside()
