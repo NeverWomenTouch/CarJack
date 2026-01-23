@@ -8017,10 +8017,10 @@ function Library:CreateLibrary(opts)
                         end)
                         if okBB and cf and size then
                             local radius = math.max(size.X, size.Y, size.Z) * 0.5
-                            state.dist = math.clamp(radius * 2.2, 4, 14)
+                            state.dist = math.clamp(radius * 3.2, 6, 22)
                             state.focus = cf.Position + Vector3.new(0, size.Y * 0.35, 0)
                         else
-                            state.dist = 7
+                            state.dist = 10
                             state.focus = Vector3.new(0, 2.5, 0)
                         end
                     end
@@ -8119,6 +8119,9 @@ function Library:CreateLibrary(opts)
                         cam.CFrame = CFrame.new(focus + offset, focus)
 
                         local absPos = viewport.AbsolutePosition
+                        local insetY = 0
+                        pcall(function() insetY = SRV("GuiService"):GetGuiInset().Y end)
+                        local drawBase = Vector2.new(absPos.X, absPos.Y - insetY)
 
                         if not (Drawing and Drawing.new) then return end
                         if not (config.NameESP or config.BoxesESP or config.HealthBar or config.Skeleton) then hideDrawings(); return end
@@ -8147,8 +8150,8 @@ function Library:CreateLibrary(opts)
 
                         if not anyOn then hideDrawings(); return end
 
-                        local x = absPos.X + minX
-                        local y = absPos.Y + minY
+                        local x = drawBase.X + minX
+                        local y = drawBase.Y + minY
                         local w = math.max(2, maxX - minX)
                         local h = math.max(2, maxY - minY)
 
@@ -8184,7 +8187,7 @@ function Library:CreateLibrary(opts)
                                 pcall(function() drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0) end)
                                 drawings.name.Font = 2
                                 drawings.name.Size = 15
-                                drawings.name.Position = Vector2.new(absPos.X + v2.X, absPos.Y + v2.Y - 18)
+                                drawings.name.Position = Vector2.new(drawBase.X + v2.X, drawBase.Y + v2.Y - 18)
                             else
                                 drawings.name.Visible = false
                             end
@@ -8226,8 +8229,8 @@ function Library:CreateLibrary(opts)
                                     local s2 = projectPoint(p2.Position, absSize)
                                     if s1 and s2 then
                                         ln.Visible = true
-                                        ln.From = Vector2.new(absPos.X + s1.X, absPos.Y + s1.Y)
-                                        ln.To = Vector2.new(absPos.X + s2.X, absPos.Y + s2.Y)
+                                        ln.From = Vector2.new(drawBase.X + s1.X, drawBase.Y + s1.Y)
+                                        ln.To = Vector2.new(drawBase.X + s2.X, drawBase.Y + s2.Y)
                                         ln.Thickness = 2
                                         ln.Color = config.Color
                                     else
