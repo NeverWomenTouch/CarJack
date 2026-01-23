@@ -8152,19 +8152,21 @@ function Library:CreateLibrary(opts)
                         if not (config.NameESP or config.BoxesESP or config.HealthBar or config.Skeleton) then hideDrawings(); return end
 
                         local cf, size = state.model:GetBoundingBox()
-                        local focus2d, zFocus = projectPoint(focus, absSize)
-                        if not focus2d or not zFocus then hideDrawings(); return end
+                        local centerWorld = cf.Position
+                        local center2d, zCenter = projectPoint(centerWorld, absSize)
+                        if not center2d or not zCenter then hideDrawings(); return end
 
                         local fov = math.rad(cam.FieldOfView)
                         local scale = (absSize.Y * 0.5) / math.tan(fov * 0.5)
-                        local pixelsPerStud = scale / math.max(0.01, zFocus)
+                        local pixelsPerStud = scale / math.max(0.01, zCenter)
 
-                        local h = math.max(2, size.Y * pixelsPerStud)
-                        local w = math.max(2, math.max(size.X, size.Z) * pixelsPerStud)
+                        local pad = 1.08
+                        local h = math.max(2, (size.Y * pixelsPerStud) * pad)
+                        local w = math.max(2, (math.max(size.X, size.Z) * pixelsPerStud) * pad)
                         w = math.max(w, h * 0.35)
 
-                        local x = drawBase.X + focus2d.X - (w * 0.5)
-                        local y = drawBase.Y + focus2d.Y - (h * 0.5)
+                        local x = drawBase.X + center2d.X - (w * 0.5)
+                        local y = drawBase.Y + center2d.Y - (h * 0.5)
 
                         if config.BoxesESP and drawings.box and drawings.boxOutline then
                             drawings.boxOutline.Visible = true
