@@ -8152,33 +8152,19 @@ function Library:CreateLibrary(opts)
                         if not (config.NameESP or config.BoxesESP or config.HealthBar or config.Skeleton) then hideDrawings(); return end
 
                         local cf, size = state.model:GetBoundingBox()
-                        local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
-                        local corners = {
-                            Vector3.new(-hx, -hy, -hz), Vector3.new(hx, -hy, -hz), Vector3.new(-hx, hy, -hz), Vector3.new(hx, hy, -hz),
-                            Vector3.new(-hx, -hy, hz),  Vector3.new(hx, -hy, hz),  Vector3.new(-hx, hy, hz),  Vector3.new(hx, hy, hz)
-                        }
+                        local focus2d, zFocus = projectPoint(focus, absSize)
+                        if not focus2d or not zFocus then hideDrawings(); return end
 
-                        local minX, minY = math.huge, math.huge
-                        local maxX, maxY = -math.huge, -math.huge
-                        local anyOn = false
-                        for i = 1, #corners do
-                            local w = cf:PointToWorldSpace(corners[i])
-                            local v2 = projectPoint(w, absSize)
-                            if v2 then
-                                anyOn = true
-                                if v2.X < minX then minX = v2.X end
-                                if v2.Y < minY then minY = v2.Y end
-                                if v2.X > maxX then maxX = v2.X end
-                                if v2.Y > maxY then maxY = v2.Y end
-                            end
-                        end
+                        local fov = math.rad(cam.FieldOfView)
+                        local scale = (absSize.Y * 0.5) / math.tan(fov * 0.5)
+                        local pixelsPerStud = scale / math.max(0.01, zFocus)
 
-                        if not anyOn then hideDrawings(); return end
+                        local h = math.max(2, size.Y * pixelsPerStud)
+                        local w = math.max(2, math.max(size.X, size.Z) * pixelsPerStud)
+                        w = math.max(w, h * 0.35)
 
-                        local x = drawBase.X + minX
-                        local y = drawBase.Y + minY
-                        local w = math.max(2, maxX - minX)
-                        local h = math.max(2, maxY - minY)
+                        local x = drawBase.X + focus2d.X - (w * 0.5)
+                        local y = drawBase.Y + focus2d.Y - (h * 0.5)
 
                         if config.BoxesESP and drawings.box and drawings.boxOutline then
                             drawings.boxOutline.Visible = true
@@ -8202,20 +8188,14 @@ function Library:CreateLibrary(opts)
                         end
 
                         if config.NameESP and drawings.name then
-                            local top = Vector3.new(cf.Position.X, cf.Position.Y + hy, cf.Position.Z)
-                            local v2 = projectPoint(top, absSize)
-                            if v2 then
-                                drawings.name.Visible = true
-                                drawings.name.Text = (LocalPlayer and LocalPlayer.Name) or "LocalPlayer"
-                                drawings.name.Color = config.Color
-                                drawings.name.Outline = true
-                                pcall(function() drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0) end)
-                                drawings.name.Font = 2
-                                drawings.name.Size = 15
-                                drawings.name.Position = Vector2.new(drawBase.X + v2.X, drawBase.Y + v2.Y - 18)
-                            else
-                                drawings.name.Visible = false
-                            end
+                            drawings.name.Visible = true
+                            drawings.name.Text = (LocalPlayer and LocalPlayer.Name) or "LocalPlayer"
+                            drawings.name.Color = config.Color
+                            drawings.name.Outline = true
+                            pcall(function() drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0) end)
+                            drawings.name.Font = 2
+                            drawings.name.Size = 15
+                            drawings.name.Position = Vector2.new(x + (w * 0.5), y - (drawings.name.Size + 4))
                         else
                             if drawings.name then drawings.name.Visible = false end
                         end
