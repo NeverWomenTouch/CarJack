@@ -2365,6 +2365,25 @@ function Library:_registerControl(c)
     if type(c.id) == "string" and not string.find(c.id, "/", 1, true) then
         self.Flags[c.id] = c
     end
+
+    local pending = rawget(self, "_pendingConfig")
+    if type(pending) == "table" and type(rawget(self, "_applyConfigValue")) == "function" then
+        local id = c.id
+        local v = pending[id]
+        local short = nil
+        if v == nil and type(id) == "string" then
+            short = id:match("([^/]+)$")
+            if short then v = pending[short] end
+        end
+
+        if v ~= nil then
+            pending[id] = nil
+            if short and pending[short] == v then pending[short] = nil end
+            pcall(function()
+                self._applyConfigValue(id, c, v)
+            end)
+        end
+    end
 end
 function Library:_setValue(id, v, s)
     local c = self._controls[id]
@@ -2387,6 +2406,8 @@ function Library:CreateLibrary(opts)
     self._searchEntries = {}
     
     self.Flags = {}
+
+    self._pendingConfig = self._pendingConfig or {}
     
     self:InitializeKeybindList()
     opts = opts or {}
@@ -8750,6 +8771,185 @@ function Library:CreateLibrary(opts)
     
     local function cfgWarn() end 
     local function cfgErr() end 
+
+    local CFG_DEBUG = false
+    local function cfgPrint(...)
+        if CFG_DEBUG then
+            print(...)
+        end
+    end
+
+    local libRef = self
+    local function applyConfigValue(targetId, ctrl, value)
+        if not (ctrl and ctrl.Set) then return false end
+
+        if type(value) == 'table' and (value.__ctrl == 'Colorpicker' or value.colors) then
+            local okOuter = pcall(function()
+                local function applyOnce()
+                    local colors = {}
+                    if type(value.slots) == 'table' then
+                        for i = 1, #value.slots do
+                            local slotEntry = value.slots[i]
+                            if slotEntry then
+                                colors[i] = slotEntry.color
+                            end
+                        end
+                    elseif type(value.colors) == 'table' then
+                        colors = value.colors
+                    end
+
+                    local decColors = {}
+                    for i = 1, #colors do
+                        local raw = colors[i]
+                        local okd, dc = false, nil
+                        if type(raw) == 'table' or type(raw) == 'string' then
+                            if deserialize then
+                                okd, dc = pcall(function() return deserialize(raw) end)
+                            end
+                        elseif typeof and typeof(raw) == 'Color3' then
+                            okd, dc = true, raw
+                        end
+                        if okd and dc ~= nil then
+                            decColors[i] = dc
+                        end
+                    end
+
+                    if libRef and libRef._setValue then
+                        pcall(function() libRef:_setValue(targetId, decColors, true) end)
+                    end
+
+                    if ctrl and ctrl._slots and type(ctrl._slots) == 'table' then
+                        for i = 1, #ctrl._slots do
+                            local slot = ctrl._slots[i]
+                            local c = decColors[i] or decColors[1] or (slot and slot.color)
+                            if c then
+                                local okc, h, s, v = pcall(function() return Color3.toHSV(c) end)
+                                if okc and h then slot.hsv = { h, s, v } end
+                                slot.color = c
+                                pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
+                            end
+                            if type(value.hueOffsets) == 'table' then slot.hueOffset = value.hueOffsets[i] or slot.hueOffset end
+                            if type(value.pulseHueOffsets) == 'table' then slot.pulseHueOffset = value.pulseHueOffsets[i] or slot.pulseHueOffsets end
+                        end
+                    end
+
+                    local function ensure_sync_ids(slot, mode)
+                        if not slot then return end
+                        if not (ctrl and ctrl._doSync == true) then return end
+                        if mode == 'rainbow' then
+                            if not slot._syncId then
+                                slot._syncId = tostring(targetId .. "_rgb_" .. tostring(math.random(1000000, 9999999)))
+                                Library._globalRGBSync.listeners = Library._globalRGBSync.listeners or {}
+                                Library._globalRGBSync.listeners[slot._syncId] = function(syncColor, sourceId)
+                                    if not slot.rainbow or sourceId == slot._syncId then return end
+                                    local ok, h, s, v = pcall(function() return Color3.toHSV(syncColor) end)
+                                    if ok and h then slot.hsv = { h, s, v } end
+                                    slot.color = syncColor
+                                    pcall(function() if slot.fill then slot.fill.BackgroundColor3 = syncColor end end)
+                                    if type(ctrl._cb) == 'function' then pcall(ctrl._cb, syncColor, tonumber(slot._index)) end
+                                end
+                            end
+                        elseif mode == 'pulse' then
+                            if not slot._pulseSyncId then
+                                slot._pulseSyncId = tostring(targetId .. "_pulse_" .. tostring(math.random(1000000, 9999999)))
+                                Library._globalPulseSync.listeners = Library._globalPulseSync.listeners or {}
+                                Library._globalPulseSync.listeners[slot._pulseSyncId] = function(syncColor, sourceId)
+                                    if not slot.pulse or sourceId == slot._pulseSyncId then return end
+                                    slot.color = syncColor
+                                    pcall(function() if slot.fill then slot.fill.BackgroundColor3 = syncColor end end)
+                                    if type(ctrl._cb) == 'function' then pcall(ctrl._cb, syncColor, tonumber(slot._index)) end
+                                end
+                            end
+                        end
+                    end
+
+                    if ctrl then
+                        for i = 1, math.max(#(ctrl._slots or {}), 1) do
+                            local wantR = type(value.rainbow) == 'table' and value.rainbow[i]
+                            local wantP = type(value.pulse) == 'table' and value.pulse[i]
+                            if wantR then pcall(function() if ctrl._enableRainbow then ctrl._enableRainbow(i) end end); pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(true, i) end end) end
+                            if not wantR then pcall(function() if ctrl._disableRainbow then ctrl._disableRainbow(i) end end) end
+                            if wantP then pcall(function() if ctrl._enablePulse then ctrl._enablePulse(i) end end); pcall(function() if ctrl.SetPulse then ctrl:SetPulse(true, i) end end) end
+                            if not wantP then pcall(function() if ctrl._disablePulse then ctrl._disablePulse(i) end end) end
+                            if ctrl._slots and ctrl._slots[i] then
+                                ctrl._slots[i]._index = i
+                                if wantR then ensure_sync_ids(ctrl._slots[i], 'rainbow') end
+                                if wantP then ensure_sync_ids(ctrl._slots[i], 'pulse') end
+                            end
+                        end
+                    end
+
+                    if ctrl and ctrl._slots then
+                        for i = 1, #ctrl._slots do
+                            local slot = ctrl._slots[i]
+                            slot.hueOffset = slot.hueOffset or 0
+                            slot.pulseHueOffset = slot.pulseHueOffset or 0
+                            if type(value.rainbow) == 'table' and value.rainbow[i] == true and not slot.rainbowHook and rainbowAdd then
+                                slot.rainbow = true
+                                slot.rainbowHook = rainbowAdd(function(h)
+                                    local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
+                                    local v = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
+                                    local hh = (h + (slot.hueOffset or 0)) % 1
+                                    slot.hsv = { hh, s, v }
+                                    local c = Color3.fromHSV(hh, s, v)
+                                    slot.color = c
+                                    pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
+                                    if Library and Library._globalRGBSync then Library._globalRGBSync.color = c end
+                                    if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
+                                end)
+                            end
+                            if type(value.pulse) == 'table' and value.pulse[i] == true and not slot.pulseHook and rainbowAdd then
+                                slot.pulse = true
+                                slot.pulseHook = rainbowAdd(function(h)
+                                    local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
+                                    local baseV = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
+                                    local hh = (h + (slot.pulseHueOffset or 0)) % 1
+                                    local dt = (Library and Library._rainbowBus and Library._rainbowBus.dt) or tick()
+                                    local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
+                                    local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                                    slot.hsv = { hh, s, baseV }
+                                    slot.color = c
+                                    pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
+                                    if Library and Library._globalPulseSync then Library._globalPulseSync.color = c end
+                                    if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
+                                end)
+                            end
+                        end
+                    end
+
+                    local hooked = false
+                    if ctrl and ctrl._slots then
+                        for i = 1, #ctrl._slots do
+                            local s = ctrl._slots[i]
+                            if (value.rainbow and value.rainbow[i] and s and s.rainbowHook) or (value.pulse and value.pulse[i] and s and s.pulseHook) then
+                                hooked = true
+                                break
+                            end
+                        end
+                    end
+                    return hooked
+                end
+
+                local ok1, hookedNow = pcall(applyOnce)
+                if not ok1 or not hookedNow then
+                    task.spawn(function()
+                        task.wait(0.12)
+                        pcall(applyOnce)
+                        task.wait(0.45)
+                        pcall(applyOnce)
+                    end)
+                end
+            end)
+            return okOuter
+        end
+
+        if libRef and libRef._setValue then
+            return pcall(function() libRef:_setValue(targetId, value, true) end)
+        end
+        return false
+    end
+
+    self._applyConfigValue = applyConfigValue
     
     
     Window.SaveConfig = function(a, b)
@@ -8783,6 +8983,7 @@ function Library:CreateLibrary(opts)
         local okLoad, data = pcall(function() return Config.Load(safe) end)
         if not okLoad then return end
         if type(data) ~= 'table' then return end
+        libRef._pendingConfig = {}
         local applied = 0
         for id, value in pairs(data) do
             if type(id) == "string" and id:sub(1,2) == "__" then
@@ -8798,7 +8999,8 @@ function Library:CreateLibrary(opts)
                 
                 if not ctrl then
                     for k, c in pairs(Library._controls) do
-                        if type(k) == 'string' and k:match("/" .. id .. "$") then
+                        local suffix = "/" .. tostring(id)
+                        if type(k) == 'string' and k:sub(-#suffix) == suffix then
                             ctrl = c
                             targetId = k
                             break
@@ -8806,403 +9008,15 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 if not ctrl then
-                    
-                else
-                    if not ctrl.Set then
-                        
-                    else
-                        
-                        if type(value) == 'table' and (value.__ctrl == 'Colorpicker' or value.colors) then
-                            
-                            
-                            
-                            
-                            
-                            
-                            local okOuter, outerErr = pcall(function()
-                                local function applyOnce()
-                                    
-                                    local colors = {}
-                                    if type(value.slots) == 'table' then
-                                        for i=1, #value.slots do
-                                            local slotEntry = value.slots[i]
-                                            if slotEntry then
-                                                colors[i] = slotEntry.color
-                                            end
-                                        end
-                                    elseif type(value.colors) == 'table' then
-                                        colors = value.colors
-                                    end
-
-                                    local decColors = {}
-                                    
-                                    for i=1, #colors do
-                                        local raw = colors[i]
-                                        local okd, dc = false, nil
-                                        if type(raw) == 'table' or type(raw) == 'string' then
-                                            if deserialize then
-                                                okd, dc = pcall(function() return deserialize(raw) end)
-                                            end
-                                        elseif typeof and typeof(raw) == 'Color3' then
-                                            okd, dc = true, raw
-                                        end
-                                        if okd and dc ~= nil then
-                                            decColors[i] = dc
-                                        end
-                                    end
-
-                                    
-                                    if Library and Library._setValue then
-                                        pcall(function() Library:_setValue(targetId, decColors, true) end)
-                                    end
-
-                                    
-                                    if ctrl and ctrl._slots and type(ctrl._slots) == 'table' then
-                                        for i=1, #ctrl._slots do
-                                            local slot = ctrl._slots[i]
-                                            local c = decColors[i] or decColors[1] or (slot and slot.color)
-                                            if c then
-                                                local okc, h,s,v = pcall(function() return Color3.toHSV(c) end)
-                                                if okc and h then slot.hsv = {h,s,v} end
-                                                slot.color = c
-                                                pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
-                                            end
-                                            if type(value.hueOffsets) == 'table' then slot.hueOffset = value.hueOffsets[i] or slot.hueOffset end
-                                            if type(value.pulseHueOffsets) == 'table' then slot.pulseHueOffset = value.pulseHueOffsets[i] or slot.pulseHueOffset end
-                                        end
-                                    end
-
-                                    
-                                    local function ensure_sync_ids(slot, mode)
-                                        if not slot then return end
-                                        if not (ctrl and ctrl._doSync == true) then return end
-                                        if mode == 'rainbow' then
-                                            if not slot._syncId then
-                                                slot._syncId = tostring(targetId .. "_rgb_" .. tostring(math.random(1000000,9999999)))
-                                                Library._globalRGBSync.listeners = Library._globalRGBSync.listeners or {}
-                                                Library._globalRGBSync.listeners[slot._syncId] = function(syncColor, sourceId)
-                                                    if not slot.rainbow or sourceId == slot._syncId then return end
-                                                    local ok, h,s,v = pcall(function() return Color3.toHSV(syncColor) end)
-                                                    if ok and h then slot.hsv = {h,s,v} end
-                                                    slot.color = syncColor
-                                                    pcall(function() if slot.fill then slot.fill.BackgroundColor3 = syncColor end end)
-                                                    if type(ctrl._cb) == 'function' then pcall(ctrl._cb, syncColor, tonumber(slot._index)) end
-                                                end
-                                            end
-                                        elseif mode == 'pulse' then
-                                            if not slot._pulseSyncId then
-                                                slot._pulseSyncId = tostring(targetId .. "_pulse_" .. tostring(math.random(1000000,9999999)))
-                                                Library._globalPulseSync.listeners = Library._globalPulseSync.listeners or {}
-                                                Library._globalPulseSync.listeners[slot._pulseSyncId] = function(syncColor, sourceId)
-                                                    if not slot.pulse or sourceId == slot._pulseSyncId then return end
-                                                    slot.color = syncColor
-                                                    pcall(function() if slot.fill then slot.fill.BackgroundColor3 = syncColor end end)
-                                                    if type(ctrl._cb) == 'function' then pcall(ctrl._cb, syncColor, tonumber(slot._index)) end
-                                                end
-                                            end
-                                        end
-                                    end
-
-                                    if ctrl then
-                                        for i=1, math.max(#(ctrl._slots or {}), 1) do
-                                            local wantR = type(value.rainbow) == 'table' and value.rainbow[i]
-                                            local wantP = type(value.pulse) == 'table' and value.pulse[i]
-                                            if wantR then pcall(function() if ctrl._enableRainbow then ctrl._enableRainbow(i) end end); pcall(function() if ctrl.SetRainbow then ctrl:SetRainbow(true, i) end end) end
-                                            if not wantR then pcall(function() if ctrl._disableRainbow then ctrl._disableRainbow(i) end end) end
-                                            if wantP then pcall(function() if ctrl._enablePulse then ctrl._enablePulse(i) end end); pcall(function() if ctrl.SetPulse then ctrl:SetPulse(true, i) end end) end
-                                            if not wantP then pcall(function() if ctrl._disablePulse then ctrl._disablePulse(i) end end) end
-                                            if ctrl._slots and ctrl._slots[i] then ctrl._slots[i]._index = i; if wantR then ensure_sync_ids(ctrl._slots[i], 'rainbow') end; if wantP then ensure_sync_ids(ctrl._slots[i], 'pulse') end end
-                                        end
-                                    end
-
-                                    
-                                    if ctrl and ctrl._slots then
-                                        for i=1,#ctrl._slots do
-                                            local slot = ctrl._slots[i]
-                                            slot.hueOffset = slot.hueOffset or 0; slot.pulseHueOffset = slot.pulseHueOffset or 0
-                                            if type(value.rainbow) == 'table' and value.rainbow[i] == true and not slot.rainbowHook and rainbowAdd then
-                                                slot.rainbow = true
-                                                slot.rainbowHook = rainbowAdd(function(h)
-                                                    local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
-                                                    local v = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
-                                                    local hh = (h + (slot.hueOffset or 0)) % 1
-                                                    slot.hsv = {hh, s, v}
-                                                    local c = Color3.fromHSV(hh, s, v)
-                                                    slot.color = c
-                                                    pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
-                                                    if Library and Library._globalRGBSync then Library._globalRGBSync.color = c end
-                                                    if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
-                                                end)
-                                            end
-                                            if type(value.pulse) == 'table' and value.pulse[i] == true and not slot.pulseHook and rainbowAdd then
-                                                slot.pulse = true
-                                                slot.pulseHook = rainbowAdd(function(h)
-                                                    local s = math.max(0.8, (slot.hsv and slot.hsv[2]) or 1)
-                                                    local baseV = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
-                                                    local hh = (h + (slot.pulseHueOffset or 0)) % 1
-                                                    local dt = (Library and Library._rainbowBus and Library._rainbowBus.dt) or tick()
-                                                    local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
-                                                    local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
-                                                    slot.hsv = {hh, s, baseV}
-                                                    slot.color = c
-                                                    pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
-                                                    if Library and Library._globalPulseSync then Library._globalPulseSync.color = c end
-                                                    if type(ctrl._cb) == 'function' then pcall(ctrl._cb, c, i) end
-                                                end)
-                                            end
-                                        end
-                                    end
-
-                                    
-                                    local function checkState()
-                                        if not (ctrl and ctrl._slots) then return false end
-                                        for i=1,#ctrl._slots do
-                                            local slot = ctrl._slots[i]
-                                            if slot and (slot.rainbow or slot.pulse) then return true end
-                                        end
-                                        return false
-                                    end
-
-                                    
-                                    local hooked = false
-                                    if ctrl and ctrl._slots then
-                                        for i=1,#ctrl._slots do local s=ctrl._slots[i]; if (value.rainbow and value.rainbow[i] and s and s.rainbowHook) or (value.pulse and value.pulse[i] and s and s.pulseHook) then hooked = true; break end end
-                                    end
-                                    return hooked
-                                end
-
-                                
-                                local ok1 = pcall(function() return applyOnce() end)
-                                local hookedNow = false
-                                if ok1 then hookedNow = applyOnce() end
-                                if not hookedNow then
-                                    
-                                    task.spawn(function()
-                                        task.wait(0.12)
-                                        pcall(function()
-                                            local ok2 = pcall(function() return applyOnce() end)
-                                            if not ok2 then return end
-                                        end)
-                                        task.wait(0.45)
-                                        pcall(function() pcall(applyOnce) end)
-                                    end)
-                                end
-                                applied = applied + 1
-                            end)
-                        else
-                            if Library and Library._setValue then
-                                local ok = pcall(function() Library:_setValue(targetId, value, true) end)
-                                if ok then
-                                    applied = applied + 1
-                                end
-                            end
-                        end
+                    if type(id) == "string" then
+                        libRef._pendingConfig[id] = value
                     end
+                else
+                    local ok = libRef._applyConfigValue and libRef:_applyConfigValue(targetId, ctrl, value) or applyConfigValue(targetId, ctrl, value)
+                    if ok then applied = applied + 1 end
                 end
             end
         end
-        pcall(function()
-            local okRaw, raw = pcall(function() return gr(filePath(safe)) end)
-            if okRaw and type(raw) == "string" and #raw > 0 then
-                local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                    if okj and type(dec) == "table" and type(dec.library) == "table" then
-                    local lib = dec.library
-                    if type(lib) == 'table' and type(lib.layout) == 'table' then
-                        
-                        for k,v in pairs(lib.layout) do if lib[k] == nil then lib[k] = v end end
-                    end
-                    pcall(function()
-                        
-                        
-                        local loadedWindowSize, loadedWindowPos = nil, nil
-                        local loadedKeybindSize, loadedKeybindPos = nil, nil
-                        local loadedWatermark, loadedMobile = nil, nil
-
-                        local okenc, libjson = pcall(function() return HttpService:JSONEncode(lib) end)
-                        print("[Window.LoadConfig] loaded library block:", okenc and libjson or tostring(lib))
-                        
-                        if lib.window and lib.window.size then
-                            local s = deserialize(lib.window.size) or lib.window.size
-                            if s then
-                                print("[Window.LoadConfig] applying window.size ->", tostring(s))
-                                pcall(function()
-                                    local targetRoot = root or (Library and Library._rootFrame)
-                                    if targetRoot then targetRoot.Size = s end
-                                end)
-                                pcall(function() Library._librarySize = s end)
-                                loadedWindowSize = s
-                            end
-                        end
-                        if lib.window and lib.window.position then
-                            local p = deserialize(lib.window.position) or lib.window.position
-                            if p then
-                                print("[Window.LoadConfig] applying window.position ->", tostring(p))
-                                pcall(function()
-                                    local targetRoot = root or (Library and Library._rootFrame)
-                                    if targetRoot then targetRoot.Position = p end
-                                end)
-                                pcall(function() Library._libraryPosition = p end)
-                                loadedWindowPos = p
-                            end
-                        end
-
-                        
-                        if lib.keybindList then
-                            
-                            if type(lib.keybindList) == 'table' and lib.keybindList.size then
-                                local ks = deserialize(lib.keybindList.size) or lib.keybindList.size
-                                if ks then
-                                    pcall(function() Library._keybindListSize = ks end)
-                                    loadedKeybindSize = ks
-                                    if Library._keybindList and Library._keybindList.Parent then
-                                        local mf = Library._keybindList:FindFirstChild("MainFrame")
-                                        if mf then
-                                            if typeof and typeof(ks) == 'UDim2' then
-                                                mf.Size = ks
-                                                print("[Window.LoadConfig] applied KeybindList.size (UDim2):", tostring(ks))
-                                            elseif type(ks) == 'table' and ks.X and ks.Y then
-                                                local setv = UDim2.new(ks.X or 0, ks.XOffset or 0, ks.Y or 0, ks.YOffset or 0)
-                                                mf.Size = setv
-                                                print("[Window.LoadConfig] applied KeybindList.size (table):", tostring(setv))
-                                            elseif type(ks) == 'table' and ks.__t == 'ud2' and type(ks.x) == 'table' and type(ks.y) == 'table' then
-                                                local setv = UDim2.new(tonumber(ks.x[1]) or 0, tonumber(ks.x[2]) or 0, tonumber(ks.y[1]) or 0, tonumber(ks.y[2]) or 0)
-                                                mf.Size = setv
-                                                print("[Window.LoadConfig] applied KeybindList.size (serialized ud2):", tostring(setv))
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-
-                            
-                            local posSrc = nil
-                            if type(lib.keybindList) == 'table' and lib.keybindList.position then posSrc = lib.keybindList.position else posSrc = lib.keybindList end
-                            local kp = deserialize(posSrc) or posSrc
-                            if kp then
-                                local kpTable = kp
-                                if typeof and typeof(kp) == "UDim2" then
-                                    kpTable = { X = kp.X.Scale, XOffset = kp.X.Offset, Y = kp.Y.Scale, YOffset = kp.Y.Offset }
-                                elseif type(kp) == 'table' and kp.__t == 'ud2' and type(kp.x) == 'table' and type(kp.y) == 'table' then
-                                    kpTable = { X = tonumber(kp.x[1]) or 0, XOffset = tonumber(kp.x[2]) or 0, Y = tonumber(kp.y[1]) or 0, YOffset = tonumber(kp.y[2]) or 0 }
-                                end
-                                Library._keybindListPosition = kpTable
-                                loadedKeybindPos = kpTable
-                                if Library._keybindList and Library._keybindList.Parent then
-                                    local mf = Library._keybindList:FindFirstChild("MainFrame")
-                                    if mf then
-                                        local setp = UDim2.new(kpTable.X or 0, kpTable.XOffset or 0, kpTable.Y or 0, kpTable.YOffset or 0)
-                                        mf.Position = setp
-                                        print("[Window.LoadConfig] applied KeybindList.position:", tostring(setp))
-                                    end
-                                end
-                            end
-                        end
-
-                        
-                        if lib.watermark then
-                            local wp = deserialize(lib.watermark) or lib.watermark
-                            if wp then
-                                local wpTable = wp
-                                if typeof and typeof(wp) == "UDim2" then
-                                    wpTable = { X = wp.X.Scale, XOffset = wp.X.Offset, Y = wp.Y.Scale, YOffset = wp.Y.Offset }
-                                end
-                                pcall(function() Library:SetWatermarkPosition(wpTable) end)
-                                loadedWatermark = wpTable
-                            end
-                        end
-
-                        
-                        if lib.mobileToggle then
-                            local mp = deserialize(lib.mobileToggle) or lib.mobileToggle
-                            if mp then
-                                local mpTable = mp
-                                if typeof and typeof(mp) == "UDim2" then
-                                    mpTable = { X = mp.X.Scale, XOffset = mp.X.Offset, Y = mp.Y.Scale, YOffset = mp.Y.Offset }
-                                end
-                                Library._mobileTogglePosition = mpTable
-                                pcall(function()
-                                    local cont = (Library and Library._mobileToggleContainer) or (RootGui and RootGui:FindFirstChild("MobileToggleContainer"))
-                                    if cont then
-                                        cont.Position = UDim2.new(mpTable.X or 0, mpTable.XOffset or 0, mpTable.Y or 0, mpTable.YOffset or 0)
-                                    end
-                                end)
-                                loadedMobile = mpTable
-                            end
-                        end
-
-                        
-                        local function toUDim2(v)
-                            if not v then return nil end
-                            if typeof and typeof(v) == 'UDim2' then return v end
-                            if type(v) == 'table' then
-                                if v.__t == 'ud2' and type(v.x) == 'table' and type(v.y) == 'table' then
-                                    return UDim2.new(tonumber(v.x[1]) or 0, tonumber(v.x[2]) or 0, tonumber(v.y[1]) or 0, tonumber(v.y[2]) or 0)
-                                end
-                                if v.X and v.Y then return UDim2.new(v.X or 0, v.XOffset or 0, v.Y or 0, v.YOffset or 0) end
-                            end
-                            return nil
-                        end
-
-                        local function reapplyOnce()
-                            pcall(function()
-                                local targetRoot = root or (Library and Library._rootFrame)
-                                local conv = toUDim2(loadedWindowSize)
-                                if conv and targetRoot then
-                                    targetRoot.Size = conv
-                                    print("[Window.LoadConfig][Reapply] root.Size ->", tostring(conv))
-                                end
-                                local convp = toUDim2(loadedWindowPos)
-                                if convp and targetRoot then
-                                    targetRoot.Position = convp
-                                    print("[Window.LoadConfig][Reapply] root.Position ->", tostring(convp))
-                                end
-                            end)
-
-                            pcall(function()
-                                local ks = loadedKeybindSize
-                                local kp = loadedKeybindPos
-                                if (ks or kp) and Library and Library._keybindList and Library._keybindList.Parent then
-                                    local mf = Library._keybindList:FindFirstChild("MainFrame")
-                                    if mf then
-                                        local convk = toUDim2(ks)
-                                        if convk then mf.Size = convk; print("[Window.LoadConfig][Reapply] KeybindList.Size ->", tostring(convk)) end
-                                        local convkp = toUDim2(kp)
-                                        if convkp then mf.Position = convkp; print("[Window.LoadConfig][Reapply] KeybindList.Position ->", tostring(convkp)) end
-                                    else
-                                        print("[Window.LoadConfig][Reapply] KeybindList MainFrame not present yet")
-                                    end
-                                end
-                            end)
-
-                            pcall(function()
-                                if loadedWatermark and type(loadedWatermark) == 'table' then
-                                    pcall(function() Library:SetWatermarkPosition(loadedWatermark) end)
-                                    print("[Window.LoadConfig][Reapply] Watermark ->", tostring(loadedWatermark))
-                                end
-                            end)
-
-                            pcall(function()
-                                if loadedMobile then
-                                    local mp2 = loadedMobile
-                                    local cont = (Library and Library._mobileToggleContainer) or (RootGui and RootGui:FindFirstChild("MobileToggleContainer"))
-                                    if cont and mp2 then
-                                        pcall(function() cont.Position = UDim2.new(mp2.X or 0, mp2.XOffset or 0, mp2.Y or 0, mp2.YOffset or 0) end)
-                                        print("[Window.LoadConfig][Reapply] MobileToggle ->", tostring(mp2))
-                                    end
-                                end
-                            end)
-                        end
-
-                        
-                        if loadedWindowSize or loadedWindowPos or loadedKeybindSize or loadedKeybindPos or loadedWatermark or loadedMobile then
-                            for i = 1, 20 do reapplyOnce(); task.wait(0.06) end
-                        end
-                    end)
-                end
-            end
-        end)
-
-        
         do
             local lib = type(data) == 'table' and (data.__library or data.__layout) or nil
             if type(lib) == 'table' then
@@ -10243,16 +10057,18 @@ function Library:CreateLibrary(opts)
     
     
     task.spawn(function()
-        
-        task.wait(0.25)
         local toLoad = nil
-        pcall(function() toLoad = Config.MostRecentAutoLoad() end)
+        for attempt = 1, 12 do
+            task.wait(attempt == 1 and 0.05 or 0.12)
+            pcall(function() toLoad = Config.MostRecentAutoLoad() end)
+            if toLoad and type(toLoad) == "string" and #toLoad > 0 then
+                break
+            end
+        end
         if toLoad and type(toLoad) == "string" and #toLoad > 0 then
-            pcall(function() 
+            pcall(function()
                 Window.LoadConfig(toLoad)
-                
                 Config.SetAutoLoad(toLoad, true)
-                
                 if Window._lastConfigUI and Window._lastConfigUI.AutoToggle then
                     Window._lastConfigUI.AutoToggle:Set(true, true)
                 end
@@ -10261,7 +10077,7 @@ function Library:CreateLibrary(opts)
     end)
 
     task.spawn(function()
-        task.wait(0.25)
+        task.wait(0.05)
         local toLoad
         pcall(function() toLoad = Themes.MostRecentAutoLoad() end)
         if toLoad and type(toLoad) == "string" and #toLoad > 0 then
