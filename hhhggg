@@ -3946,6 +3946,57 @@ function Library:CreateLibrary(opts)
                     Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6), PaddingTop = UDim.new(0,6), PaddingBottom = UDim.new(0,6)})
                 })
                 Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = gName, Font = Fonts.Bold, TextSize = 14, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z + 2, Parent = gFrame})
+
+                if g.AutoRotateToggle == true then
+                    local arVal = false
+                    local arSignal = Signal()
+
+                    local autoWrap = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(130, 18), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, 0), ZIndex = z + 3, Parent = gFrame})
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -42, 1, 0), Position = UDim2.fromOffset(0, 0), Text = "Auto Rotate", Font = Fonts.Medium, TextSize = 11, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = z + 3, Parent = autoWrap})
+
+                    local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(32, 14), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), ZIndex = z + 3, Parent = autoWrap})
+                    Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = shell})
+                    local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(28, 10), Position = UDim2.fromOffset(2, 2), Parent = shell})
+                    Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = recess})
+                    pcall(function() shell:SetAttribute("DendriteNoBgImage", true) end)
+                    pcall(function() recess:SetAttribute("DendriteNoBgImage", true) end)
+
+                    local accentFill = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = shell})
+                    Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = accentFill})
+                    local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(8,8), Position = UDim2.new(0,3,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
+                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+
+                    local button = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Size = UDim2.new(1, 0, 1, 0), Text = "", ZIndex = z + 4, Parent = autoWrap})
+                    pcall(function() button:SetAttribute("DendriteNoTranslate", true) end)
+
+                    local function setAuto(v, silent)
+                        arVal = (v == true)
+                        if arVal then
+                            T(accentFill, 0.18, {BackgroundTransparency = 0}):Play()
+                            T(knob, 0.18, {Position = UDim2.new(1, -11, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
+                        else
+                            T(accentFill, 0.18, {BackgroundTransparency = 1}):Play()
+                            T(knob, 0.18, {Position = UDim2.new(0, 3, 0.5, 0), BackgroundColor3 = Theme.Scrollbar}):Play()
+                        end
+                        if not silent then arSignal:Fire(arVal) end
+                    end
+
+                    button.MouseButton1Click:Connect(function()
+                        setAuto(not arVal)
+                    end)
+                    setAuto(false, true)
+
+                    Group._autoRotateToggle = {}
+                    function Group._autoRotateToggle:Set(v, silent)
+                        setAuto(v, silent)
+                    end
+                    function Group._autoRotateToggle:Get()
+                        return arVal
+                    end
+                    function Group._autoRotateToggle:OnChanged(fn)
+                        return arSignal:Connect(fn)
+                    end
+                end
                 local y = 22
                 if desc and #desc > 0 then
                     
@@ -7843,43 +7894,7 @@ function Library:CreateLibrary(opts)
                     })
 
                     local header = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Parent = row})
-                    local title = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Text = label, Font = Fonts.Bold, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = header})
-
-                    local autoRotate = false
-                    do
-                        local autoWrap = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(150, 18), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0), Parent = header})
-                        Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -44, 1, 0), Position = UDim2.fromOffset(0, 0), Text = "Auto Rotate", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Right, Parent = autoWrap})
-
-                        local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(38, 16), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Parent = autoWrap})
-                        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = shell})
-                        local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(34, 12), Position = UDim2.fromOffset(2, 2), Parent = shell})
-                        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = recess})
-                        pcall(function() shell:SetAttribute("DendriteNoBgImage", true) end)
-                        pcall(function() recess:SetAttribute("DendriteNoBgImage", true) end)
-
-                        local accentFill = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = shell})
-                        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = accentFill})
-                        local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(10,10), Position = UDim2.new(0,3,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
-                        Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
-
-                        local button = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Size = UDim2.new(1, 0, 1, 0), Text = "", Parent = autoWrap})
-
-                        local function setAuto(v, silent)
-                            autoRotate = (v == true)
-                            if autoRotate then
-                                T(accentFill, 0.2, {BackgroundTransparency = 0}):Play()
-                                T(knob, 0.2, {Position = UDim2.new(1, -13, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
-                            else
-                                T(accentFill, 0.2, {BackgroundTransparency = 1}):Play()
-                                T(knob, 0.2, {Position = UDim2.new(0, 3, 0.5, 0), BackgroundColor3 = Theme.Scrollbar}):Play()
-                            end
-                        end
-
-                        button.MouseButton1Click:Connect(function()
-                            setAuto(not autoRotate)
-                        end)
-                        setAuto(false, true)
-                    end
+                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Text = label, Font = Fonts.Bold, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = header})
 
                     local viewportHolder = Create("Frame", {
                         BackgroundColor3 = Theme.Panel,
@@ -7924,6 +7939,7 @@ function Library:CreateLibrary(opts)
                         dist = 6,
                         dragging = false,
                         lastMouse = nil,
+                        autoRotate = false,
                         model = nil,
                         humanoid = nil,
                         rootPart = nil,
@@ -8100,7 +8116,7 @@ function Library:CreateLibrary(opts)
                         if okBB and cf and size then
                             local radius = math.max(size.X, size.Y, size.Z) * 0.5
                             state.dist = math.clamp(radius * 3.2, 6, 22)
-                            state.focus = Vector3.new(0, size.Y * 0.55, 0)
+                            state.focus = Vector3.new(0, size.Y * 0.62, 0)
                         else
                             state.dist = 10
                             state.focus = Vector3.new(0, 2.5, 0)
@@ -8144,7 +8160,7 @@ function Library:CreateLibrary(opts)
                         if state.lastMouse then
                             local d = cur - state.lastMouse
                             state.yaw = state.yaw + d.X * 0.01
-                            state.pitch = math.clamp(state.pitch - d.Y * 0.01, -1.35, 1.2)
+                            state.pitch = math.clamp(state.pitch + d.Y * 0.01, -1.35, 1.2)
                         end
                         state.lastMouse = cur
                     end)
@@ -8197,7 +8213,7 @@ function Library:CreateLibrary(opts)
                         end
                         if not state.model then hideDrawings(); return end
 
-                        if autoRotate and not state.dragging then
+                        if state.autoRotate and not state.dragging then
                             local dtt = (typeof(dt) == "number" and dt) or (1/60)
                             state.yaw = state.yaw + dtt * 0.85
                         end
@@ -8343,6 +8359,14 @@ function Library:CreateLibrary(opts)
                         Camera = cam,
                         WorldModel = wm
                     }
+
+                    function Preview:SetAutoRotate(v)
+                        state.autoRotate = (v == true)
+                    end
+
+                    function Preview:GetAutoRotate()
+                        return state.autoRotate
+                    end
 
                     function Preview:SetFeature(name, v)
                         v = (v == true)
@@ -8702,11 +8726,18 @@ function Library:CreateLibrary(opts)
         end
 
         local left = page:AddPage({ Name = "ESP", Side = 1 })
-        local right = page:AddPage({ Name = "Preview", Side = 2 })
+        local right = page:AddPage({ Name = "Preview", Side = 2, AutoRotateToggle = true })
         local preview = right:Add3DPreviewWidget({ Label = label })
         preview.Page = page
         preview.LeftGroup = left
         preview.RightGroup = right
+
+        if right and right._autoRotateToggle and preview and preview.SetAutoRotate then
+            right._autoRotateToggle:Set(false, true)
+            right._autoRotateToggle:OnChanged(function(v)
+                preview:SetAutoRotate(v)
+            end)
+        end
 
         if integrated then
             left:AddToggle({ Name = "Name esp", Default = false, Callback = function(v) preview:SetFeature("Name esp", v) end })
