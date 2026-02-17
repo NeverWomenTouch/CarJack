@@ -4190,7 +4190,8 @@ function Library:CreateLibrary(opts)
 
                     local KNOB_HIT = 18
                     local KNOB_W, KNOB_H = 6, 14
-                    local KNOB_INSET = math.floor(KNOB_HIT/2)
+                    local KNOB_HIT_INSET = math.floor(KNOB_HIT/2)
+                    local KNOB_VIS_INSET = math.floor(KNOB_W/2)
                     
                     local dragPulse = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Parent = bar})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dragPulse})
@@ -4206,7 +4207,7 @@ function Library:CreateLibrary(opts)
                     gradient.Parent = fill
 
                     gradient.Offset = Vector2.new(0, 0)
-                    local knobHit = Create("Frame", {Active = true, BackgroundTransparency = 1, Size = UDim2.fromOffset(KNOB_HIT,KNOB_HIT), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,KNOB_INSET,0.5,0), Parent = bar})
+                    local knobHit = Create("Frame", {Active = true, BackgroundTransparency = 1, Size = UDim2.fromOffset(KNOB_HIT,KNOB_HIT), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,KNOB_VIS_INSET,0.5,0), Parent = bar})
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Panel, Size = UDim2.fromOffset(KNOB_W,KNOB_H), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Parent = knobHit}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
                     local knobStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35, Parent = knob})
                     local knobStripe = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.15, Size = UDim2.fromOffset(2, math.max(6, KNOB_H - 6)), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Parent = knob}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
@@ -4281,8 +4282,8 @@ function Library:CreateLibrary(opts)
                         self._value = num
                         local pct = (num - min) / (max - min)
                         local w = bar.AbsoluteSize.X
-                        local usable = math.max(1, w - (KNOB_INSET*2))
-                        local x = KNOB_INSET + (pct * usable)
+                        local usable = math.max(1, w - (KNOB_VIS_INSET*2))
+                        local x = KNOB_VIS_INSET + (pct * usable)
                         fill.Size = UDim2.new(pct, 0, 1, 0)
                         knobHit.Position = UDim2.new(0, x, 0.5, 0)
                         valueBox.Text = formatValue(num)
@@ -4293,8 +4294,8 @@ function Library:CreateLibrary(opts)
                     
                     local function updateFromX(x)
                         local w = bar.AbsoluteSize.X
-                        local usable = math.max(1, w - (KNOB_INSET*2))
-                        local rel = (x - bar.AbsolutePosition.X - KNOB_INSET) / usable
+                        local usable = math.max(1, w - (KNOB_VIS_INSET*2))
+                        local rel = (x - bar.AbsolutePosition.X - KNOB_VIS_INSET) / usable
                         rel = math.clamp(rel,0,1)
                         local raw = min + rel * (max - min)
                         if not precise then
@@ -4306,6 +4307,14 @@ function Library:CreateLibrary(opts)
                     bar:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                         Slider:Set(Slider._value, true)
                     end)
+                    local function pointerX(input)
+                        local ok, pos = pcall(function() return input.Position end)
+                        if ok and pos then
+                            return pos.X
+                        end
+                        return UserInputService:GetMouseLocation().X
+                    end
+
                     local function beginDrag(input)
                         dragging = true
                         bindDragSink()
@@ -4313,7 +4322,7 @@ function Library:CreateLibrary(opts)
                         dragPulse.BackgroundTransparency = 0.9
                         dragPulse.Size = UDim2.new(1,0,1,0)
                         T(dragPulse,0.25,{BackgroundTransparency = 1}):Play()
-                        local x = (input.UserInputType==Enum.UserInputType.Touch) and input.Position.X or UserInputService:GetMouseLocation().X
+                        local x = pointerX(input)
                         updateFromX(x)
                     end
                     barHit.InputBegan:Connect(function(input)
@@ -4328,7 +4337,7 @@ function Library:CreateLibrary(opts)
                     end)
                     Library:_connect(UserInputService.InputChanged, function(input)
                         if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
-                            local x = (input.UserInputType==Enum.UserInputType.Touch) and input.Position.X or UserInputService:GetMouseLocation().X
+                            local x = pointerX(input)
                             if fine then
                                 
                                 updateFromX(x)
