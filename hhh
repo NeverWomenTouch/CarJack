@@ -4175,16 +4175,22 @@ function Library:CreateLibrary(opts)
                     Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = valueBox})
                     local vbStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = valueBox})
                     
-                    local bar = Create("Frame", {BackgroundColor3 = Color3.fromRGB(30,32,31), Size = UDim2.new(1,0,0,6), Position = UDim2.new(0,0,0,26), Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+                    local bar = Create("Frame", {Active = true, BackgroundColor3 = Color3.fromRGB(30,32,31), Size = UDim2.new(1,0,0,6), Position = UDim2.new(0,0,0,26), Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
                     local barStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.6, Parent = bar})
 
-                    local KNOB_SIZE = 10
-                    local track = Create("Frame", {
+                    local barHit = Create("Frame", {
+                        Active = true,
                         BackgroundTransparency = 1,
-                        Size = UDim2.new(1, -KNOB_SIZE, 1, 0),
-                        Position = UDim2.fromOffset(math.floor(KNOB_SIZE/2), 0),
+                        Size = UDim2.new(1, 0, 0, 18),
+                        AnchorPoint = Vector2.new(0, 0.5),
+                        Position = UDim2.new(0, 0, 0.5, 0),
+                        ZIndex = bar.ZIndex + 2,
                         Parent = bar,
                     })
+
+                    local KNOB_HIT = 18
+                    local KNOB_W, KNOB_H = 6, 14
+                    local KNOB_INSET = math.floor(KNOB_HIT/2)
                     
                     local dragPulse = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Parent = bar})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dragPulse})
@@ -4200,9 +4206,10 @@ function Library:CreateLibrary(opts)
                     gradient.Parent = fill
 
                     gradient.Offset = Vector2.new(0, 0)
-                    local knobHit = Create("Frame", {Active = true, BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,0,0.5,0), Parent = track})
-                    local knob = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(KNOB_SIZE,KNOB_SIZE), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = knobHit}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
-                    local knobStroke = Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0.35, Parent = knob})
+                    local knobHit = Create("Frame", {Active = true, BackgroundTransparency = 1, Size = UDim2.fromOffset(KNOB_HIT,KNOB_HIT), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,KNOB_INSET,0.5,0), Parent = bar})
+                    local knob = Create("Frame", {BackgroundColor3 = Theme.Panel, Size = UDim2.fromOffset(KNOB_W,KNOB_H), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Parent = knobHit}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+                    local knobStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35, Parent = knob})
+                    local knobStripe = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.15, Size = UDim2.fromOffset(2, math.max(6, KNOB_H - 6)), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Parent = knob}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
                     
                     local sheen = Create("Frame", {BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 0.85, Size = UDim2.new(0,0,1,0), Parent = fill})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = sheen})
@@ -4216,18 +4223,20 @@ function Library:CreateLibrary(opts)
                         if on then
                             T(bar,0.16,{BackgroundColor3 = Color3.fromRGB(36,40,38)}):Play()
                             T(barStroke,0.18,{Transparency = 0.35}):Play()
-                            T(knobStroke,0.18,{Transparency = 0.15}):Play()
+                            T(knobStroke,0.18,{Transparency = 0.10}):Play()
+                            T(knobStripe,0.18,{BackgroundTransparency = 0.0}):Play()
                         else
                             T(bar,0.20,{BackgroundColor3 = Color3.fromRGB(30,32,31)}):Play()
                             T(barStroke,0.20,{Transparency = 0.6}):Play()
-                            T(knobStroke,0.20,{Transparency = 0.35}):Play()
+                            T(knobStroke,0.20,{Transparency = 0.25}):Play()
+                            T(knobStripe,0.20,{BackgroundTransparency = 0.15}):Play()
                         end
                     end
-                    bar.MouseEnter:Connect(function() hover(true) end)
-                    bar.MouseLeave:Connect(function() hover(false) end)
+                    barHit.MouseEnter:Connect(function() hover(true) end)
+                    barHit.MouseLeave:Connect(function() hover(false) end)
                     knobHit.MouseEnter:Connect(function() hover(true) end)
                     
-                    local dragging, fine, lastClick = false, false, 0
+                    local dragging, fine = false, false
                     
                     local dragSinkAction = sanitize(libraryName) .. "SliderDrag_" .. id
                     local function bindDragSink()
@@ -4271,8 +4280,11 @@ function Library:CreateLibrary(opts)
                         end
                         self._value = num
                         local pct = (num - min) / (max - min)
-                        fill.Size = UDim2.new(pct,0,1,0)
-                        knobHit.Position = UDim2.new(pct,0,0.5,0)
+                        local w = bar.AbsoluteSize.X
+                        local usable = math.max(1, w - (KNOB_INSET*2))
+                        local x = KNOB_INSET + (pct * usable)
+                        fill.Size = UDim2.new(pct, 0, 1, 0)
+                        knobHit.Position = UDim2.new(0, x, 0.5, 0)
                         valueBox.Text = formatValue(num)
                         if not silent and type(cb)=="function" then pcall(cb,num) end
                     end
@@ -4280,7 +4292,9 @@ function Library:CreateLibrary(opts)
                     
                     
                     local function updateFromX(x)
-                        local rel = (x - track.AbsolutePosition.X)/math.max(1, track.AbsoluteSize.X)
+                        local w = bar.AbsoluteSize.X
+                        local usable = math.max(1, w - (KNOB_INSET*2))
+                        local rel = (x - bar.AbsolutePosition.X - KNOB_INSET) / usable
                         rel = math.clamp(rel,0,1)
                         local raw = min + rel * (max - min)
                         if not precise then
@@ -4289,6 +4303,9 @@ function Library:CreateLibrary(opts)
                             Slider:Set(raw)
                         end
                     end
+                    bar:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                        Slider:Set(Slider._value, true)
+                    end)
                     local function beginDrag(input)
                         dragging = true
                         bindDragSink()
@@ -4299,16 +4316,9 @@ function Library:CreateLibrary(opts)
                         local x = (input.UserInputType==Enum.UserInputType.Touch) and input.Position.X or UserInputService:GetMouseLocation().X
                         updateFromX(x)
                     end
-                    bar.InputBegan:Connect(function(input)
+                    barHit.InputBegan:Connect(function(input)
                         if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-                            local now = tick()
-                            if now - lastClick < 0.35 then
-                                
-                                Slider:Set(default)
-                            else
-                                beginDrag(input)
-                            end
-                            lastClick = now
+                            beginDrag(input)
                         end
                     end)
                     knobHit.InputBegan:Connect(function(input)
