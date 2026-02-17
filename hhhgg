@@ -7843,7 +7843,43 @@ function Library:CreateLibrary(opts)
                     })
 
                     local header = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Parent = row})
-                    Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Text = label, Font = Fonts.Bold, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = header})
+                    local title = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Text = label, Font = Fonts.Bold, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = header})
+
+                    local autoRotate = false
+                    do
+                        local autoWrap = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(150, 18), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0), Parent = header})
+                        Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -44, 1, 0), Position = UDim2.fromOffset(0, 0), Text = "Auto Rotate", Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Right, Parent = autoWrap})
+
+                        local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(38, 16), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Parent = autoWrap})
+                        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = shell})
+                        local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(34, 12), Position = UDim2.fromOffset(2, 2), Parent = shell})
+                        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = recess})
+                        pcall(function() shell:SetAttribute("DendriteNoBgImage", true) end)
+                        pcall(function() recess:SetAttribute("DendriteNoBgImage", true) end)
+
+                        local accentFill = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = shell})
+                        Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = accentFill})
+                        local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(10,10), Position = UDim2.new(0,3,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
+                        Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+
+                        local button = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Size = UDim2.new(1, 0, 1, 0), Text = "", Parent = autoWrap})
+
+                        local function setAuto(v, silent)
+                            autoRotate = (v == true)
+                            if autoRotate then
+                                T(accentFill, 0.2, {BackgroundTransparency = 0}):Play()
+                                T(knob, 0.2, {Position = UDim2.new(1, -13, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
+                            else
+                                T(accentFill, 0.2, {BackgroundTransparency = 1}):Play()
+                                T(knob, 0.2, {Position = UDim2.new(0, 3, 0.5, 0), BackgroundColor3 = Theme.Scrollbar}):Play()
+                            end
+                        end
+
+                        button.MouseButton1Click:Connect(function()
+                            setAuto(not autoRotate)
+                        end)
+                        setAuto(false, true)
+                    end
 
                     local viewportHolder = Create("Frame", {
                         BackgroundColor3 = Theme.Panel,
@@ -8039,20 +8075,23 @@ function Library:CreateLibrary(opts)
                             local pivot = clone:GetPivot()
                             clone:PivotTo(pivot + offset)
                         end)
+
+                        -- Normalize facing so the preview is consistently front-facing.
+                        pcall(function()
+                            local rp = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
+                            if rp and rp:IsA("BasePart") then
+                                local lv = rp.CFrame.LookVector
+                                local yaw0 = math.atan2(lv.X, -lv.Z) -- 0 when facing -Z
+                                clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, -yaw0, 0))
+                            end
+                        end)
                         state.model = clone
                         state.humanoid = clone:FindFirstChildOfClass("Humanoid")
                         state.rootPart = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
 
-                        do
-                            local rp = state.rootPart
-                            if rp and rp:IsA("BasePart") then
-                                local lv = rp.CFrame.LookVector
-                                state.yaw = math.atan2(lv.Z, lv.X)
-                            else
-                                state.yaw = math.pi * 0.5
-                            end
-                            state.pitch = -0.15
-                        end
+                        -- Consistent default view (front/center) regardless of the player's current facing.
+                        state.yaw = -math.pi * 0.5
+                        state.pitch = -0.15
 
                         local okBB, cf, size = pcall(function()
                             local _cf, _size = clone:GetBoundingBox()
@@ -8061,7 +8100,7 @@ function Library:CreateLibrary(opts)
                         if okBB and cf and size then
                             local radius = math.max(size.X, size.Y, size.Z) * 0.5
                             state.dist = math.clamp(radius * 3.2, 6, 22)
-                            state.focus = cf.Position + Vector3.new(0, size.Y * 0.35, 0)
+                            state.focus = Vector3.new(0, size.Y * 0.55, 0)
                         else
                             state.dist = 10
                             state.focus = Vector3.new(0, 2.5, 0)
@@ -8104,7 +8143,7 @@ function Library:CreateLibrary(opts)
                         local cur = Vector2.new(m.X, m.Y)
                         if state.lastMouse then
                             local d = cur - state.lastMouse
-                            state.yaw = state.yaw - d.X * 0.01
+                            state.yaw = state.yaw + d.X * 0.01
                             state.pitch = math.clamp(state.pitch - d.Y * 0.01, -1.35, 1.2)
                         end
                         state.lastMouse = cur
@@ -8146,7 +8185,7 @@ function Library:CreateLibrary(opts)
                         return true
                     end
 
-                    Library:_connect(RunService.RenderStepped, function()
+                    Library:_connect(RunService.RenderStepped, function(dt)
                         if not viewport or not viewport.Parent then hideDrawings(); return end
                         if Library and Library._rootFrame and (Library._rootFrame.Visible == false) then hideDrawings(); return end
                         if not isGuiChainVisible(viewport) then hideDrawings(); return end
@@ -8157,6 +8196,11 @@ function Library:CreateLibrary(opts)
                             rebuild()
                         end
                         if not state.model then hideDrawings(); return end
+
+                        if autoRotate and not state.dragging then
+                            local dtt = (typeof(dt) == "number" and dt) or (1/60)
+                            state.yaw = state.yaw + dtt * 0.85
+                        end
 
                         local realChar = LocalPlayer and LocalPlayer.Character
                         local realHum = realChar and realChar:FindFirstChildOfClass("Humanoid")
