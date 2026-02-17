@@ -4177,6 +4177,14 @@ function Library:CreateLibrary(opts)
                     
                     local bar = Create("Frame", {BackgroundColor3 = Color3.fromRGB(30,32,31), Size = UDim2.new(1,0,0,6), Position = UDim2.new(0,0,0,26), Parent = row}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
                     local barStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.6, Parent = bar})
+
+                    local KNOB_SIZE = 10
+                    local track = Create("Frame", {
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -KNOB_SIZE, 1, 0),
+                        Position = UDim2.fromOffset(math.floor(KNOB_SIZE/2), 0),
+                        Parent = bar,
+                    })
                     
                     local dragPulse = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Parent = bar})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = dragPulse})
@@ -4190,23 +4198,17 @@ function Library:CreateLibrary(opts)
                     })
                     gradient.Rotation = 0
                     gradient.Parent = fill
-                    
-                    task.spawn(function()
-                        local t0 = tick()
-                        while row.Parent do
-                            local tNow = (tick() - t0) * 25
-                            gradient.Offset = Vector2.new((tNow % 100)/100, 0)
-                            task.wait(0.05)
-                        end
-                    end)
-                    local knob = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(14,14), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,0,0.5,0), Parent = bar}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
-                    local knobStroke = Create("UIStroke", {Color = Theme.Accent, Thickness = 2, Transparency = 0.2, Parent = knob})
-                    local knobGlow = Create("ImageLabel", {BackgroundTransparency = 1, Image = "rbxassetid://4996891970", ImageColor3 = Theme.Accent, ImageTransparency = 0.9, Size = UDim2.fromOffset(28,28), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = knob})
+
+                    gradient.Offset = Vector2.new(0, 0)
+                    local knobHit = Create("Frame", {Active = true, BackgroundTransparency = 1, Size = UDim2.fromOffset(18,18), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0,0,0.5,0), Parent = track})
+                    local knob = Create("Frame", {BackgroundColor3 = Theme.Text, Size = UDim2.fromOffset(KNOB_SIZE,KNOB_SIZE), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Parent = knobHit}, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+                    local knobStroke = Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0.35, Parent = knob})
                     
                     local sheen = Create("Frame", {BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 0.85, Size = UDim2.new(0,0,1,0), Parent = fill})
                     Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = sheen})
                     
-                    knobGlow.ZIndex = 9 knob.ZIndex = 9
+                    knobHit.ZIndex = 9
+                    knob.ZIndex = 9
                     
                     
                     
@@ -4214,18 +4216,16 @@ function Library:CreateLibrary(opts)
                         if on then
                             T(bar,0.16,{BackgroundColor3 = Color3.fromRGB(36,40,38)}):Play()
                             T(barStroke,0.18,{Transparency = 0.35}):Play()
-                            T(knobGlow,0.2,{ImageTransparency = 0.75}):Play()
-                            T(knob,0.18,{Size = UDim2.fromOffset(18,18)}):Play()
+                            T(knobStroke,0.18,{Transparency = 0.15}):Play()
                         else
                             T(bar,0.20,{BackgroundColor3 = Color3.fromRGB(30,32,31)}):Play()
                             T(barStroke,0.20,{Transparency = 0.6}):Play()
-                            T(knobGlow,0.25,{ImageTransparency = 0.9}):Play()
-                            T(knob,0.20,{Size = UDim2.fromOffset(14,14)}):Play()
+                            T(knobStroke,0.20,{Transparency = 0.35}):Play()
                         end
                     end
                     bar.MouseEnter:Connect(function() hover(true) end)
                     bar.MouseLeave:Connect(function() hover(false) end)
-                    knob.MouseEnter:Connect(function() hover(true) end)
+                    knobHit.MouseEnter:Connect(function() hover(true) end)
                     
                     local dragging, fine, lastClick = false, false, 0
                     
@@ -4240,7 +4240,7 @@ function Library:CreateLibrary(opts)
                     local function unbindDragSink()
                         pcall(function() ContextActionService:UnbindAction(dragSinkAction) end)
                     end
-                    knob.MouseLeave:Connect(function() if not dragging then hover(false) end end)
+                    knobHit.MouseLeave:Connect(function() if not dragging then hover(false) end end)
                     valueBox.Focused:Connect(function() T(vbStroke,0.15,{Transparency = 0.25}):Play() end)
                     valueBox.FocusLost:Connect(function() T(vbStroke,0.18,{Transparency = 0.45}):Play() end)
                     local Slider = { id = id, _value = default }
@@ -4272,7 +4272,7 @@ function Library:CreateLibrary(opts)
                         self._value = num
                         local pct = (num - min) / (max - min)
                         fill.Size = UDim2.new(pct,0,1,0)
-                        knob.Position = UDim2.new(pct,0,0.5,0)
+                        knobHit.Position = UDim2.new(pct,0,0.5,0)
                         valueBox.Text = formatValue(num)
                         if not silent and type(cb)=="function" then pcall(cb,num) end
                     end
@@ -4280,7 +4280,7 @@ function Library:CreateLibrary(opts)
                     
                     
                     local function updateFromX(x)
-                        local rel = (x - bar.AbsolutePosition.X)/math.max(1, bar.AbsoluteSize.X)
+                        local rel = (x - track.AbsolutePosition.X)/math.max(1, track.AbsoluteSize.X)
                         rel = math.clamp(rel,0,1)
                         local raw = min + rel * (max - min)
                         if not precise then
@@ -4311,7 +4311,7 @@ function Library:CreateLibrary(opts)
                             lastClick = now
                         end
                     end)
-                    knob.InputBegan:Connect(function(input)
+                    knobHit.InputBegan:Connect(function(input)
                         if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
                             beginDrag(input)
                         end
@@ -4378,15 +4378,7 @@ function Library:CreateLibrary(opts)
                     end)
                     
                     Slider:Set(default,true)
-                    
-                    task.spawn(function()
-                        while row.Parent do
-                            sheen.Size = UDim2.new(0,0,1,0)
-                            sheen.BackgroundTransparency = 0.9
-                            T(sheen,1.2,{Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1}):Play()
-                            task.wait(3.5)
-                        end
-                    end)
+
                     Library:_registerControl(Slider)
                     table.insert(Group._controls, Slider)
                     registerSearch(label)
