@@ -8087,7 +8087,8 @@ function Library:CreateLibrary(opts)
                             clone:PivotTo(CFrame.new(0, 0, 0))
                             local cf0, size0 = clone:GetBoundingBox()
                             local bottomY = cf0.Position.Y - (size0.Y * 0.5)
-                            local offset = Vector3.new(-cf0.Position.X, -bottomY, -cf0.Position.Z)
+                            local extraDown = math.clamp(size0.Y * 0.1, 0.2, 1.2)
+                            local offset = Vector3.new(-cf0.Position.X, -bottomY - extraDown, -cf0.Position.Z)
                             local pivot = clone:GetPivot()
                             clone:PivotTo(pivot + offset)
                         end)
@@ -8259,12 +8260,6 @@ function Library:CreateLibrary(opts)
 
                         local x = drawBase.X + center2d.X - (w * 0.5)
                         local y = drawBase.Y + center2d.Y - (h * 0.5)
-
-                        -- Nudge the character slightly down in the preview so it appears lower
-                        -- relative to the viewport. The shift scales with the projected height
-                        -- so it remains visually consistent across zoom levels.
-                        local yShift = h * 0.18
-                        y = y + yShift
 
                         if config.BoxesESP and drawings.box and drawings.boxOutline then
                             drawings.boxOutline.Visible = true
