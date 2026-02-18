@@ -7945,7 +7945,9 @@ function Library:CreateLibrary(opts)
                         rootPart = nil,
                         focus = Vector3.new(0, 2.5, 0),
                         _rebuildToken = 0,
-                        _rebuilding = false
+                        _rebuilding = false,
+                        _accessoryRefreshUsed = false,
+                        _lastAccessoryCount = 0
                     }
 
                     local config = {
@@ -8039,17 +8041,65 @@ function Library:CreateLibrary(opts)
                         return n
                     end
 
+                    local function countAccessories(m)
+                        if not m then return 0 end
+                        local n = 0
+                        for _, c in ipairs(m:GetChildren()) do
+                            if c:IsA("Accessory") then
+                                n = n + 1
+                            end
+                        end
+                        return n
+                    end
+
+                    local function getCharacterRoot(char)
+                        if not char then return nil end
+                        return char:FindFirstChild("HumanoidRootPart")
+                            or char:FindFirstChild("Root")
+                            or char:FindFirstChild("RootPart")
+                            or char:FindFirstChild("Torso")
+                            or char:FindFirstChild("UpperTorso")
+                    end
+
+                    local function findBestCharacterModel()
+                        local char = LocalPlayer and LocalPlayer.Character
+                        if char and char:IsA("Model") then
+                            return char
+                        end
+
+                        local best, bestScore
+                        bestScore = -1
+                        for _, inst in ipairs(workspace:GetDescendants()) do
+                            if inst:IsA("Model") and inst ~= wm and inst ~= state.model then
+                                local hum = inst:FindFirstChildOfClass("Humanoid")
+                                local head = inst:FindFirstChild("Head")
+                                local root = getCharacterRoot(inst)
+                                if hum and head and root and root:IsA("BasePart") then
+                                    local score = 0
+                                    if inst.Name == (LocalPlayer and LocalPlayer.Name) then score = score + 5 end
+                                    score = score + math.min(20, countBaseParts(inst))
+                                    score = score + math.min(10, countAccessories(inst) * 2)
+                                    if score > bestScore then
+                                        best = inst
+                                        bestScore = score
+                                    end
+                                end
+                            end
+                        end
+                        return best
+                    end
+
                     local function isCharacterReady(char)
                         if not char then return false end
                         local hum = char:FindFirstChildOfClass("Humanoid")
                         if not hum then return false end
                         local head = char:FindFirstChild("Head")
                         local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
-                        local root = char:FindFirstChild("HumanoidRootPart") or torso
+                        local root = getCharacterRoot(char) or torso
                         if not (head and torso and root) then
                             return false
                         end
-                        if countBaseParts(char) < 8 then
+                        if countBaseParts(char) < 6 then
                             return false
                         end
                         return true
@@ -8075,7 +8125,7 @@ function Library:CreateLibrary(opts)
 
                     local function rebuild()
                         if not LocalPlayer then return false end
-                        local char = LocalPlayer.Character
+                        local char = findBestCharacterModel()
                         if not isCharacterReady(char) then return false end
 
                         local function rigTypeFromCharacter()
@@ -8134,6 +8184,7 @@ function Library:CreateLibrary(opts)
                         state.model = clone
                         state.humanoid = clone:FindFirstChildOfClass("Humanoid")
                         state.rootPart = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
+                        state._lastAccessoryCount = countAccessories(char)
                         if prevModel and prevModel ~= clone and prevModel.Parent then
                             pcall(function() prevModel:Destroy() end)
                         end
@@ -8173,10 +8224,25 @@ function Library:CreateLibrary(opts)
                                     break
                                 end
                                 attempts = attempts + 1
-                                local char = LocalPlayer and LocalPlayer.Character
+                                local char = findBestCharacterModel()
                                 if isCharacterReady(char) then
                                     local ok = rebuild()
                                     if ok then
+                                        if (not state._accessoryRefreshUsed) then
+                                            task.delay(0.8, function()
+                                                if token ~= state._rebuildToken then return end
+                                                if not state.model or not state.model.Parent then return end
+                                                local live = findBestCharacterModel()
+                                                if not isCharacterReady(live) then return end
+                                                local liveAcc = countAccessories(live)
+                                                local previewAcc = countAccessories(state.model)
+                                                if liveAcc > previewAcc then
+                                                    state._accessoryRefreshUsed = true
+                                                    state._rebuilding = false
+                                                    scheduleRebuild()
+                                                end
+                                            end)
+                                        end
                                         break
                                     end
                                 end
