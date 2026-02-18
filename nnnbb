@@ -8274,15 +8274,11 @@ function Library:CreateLibrary(opts)
                         end
 
                         local clone
-                        do
-                            local old = char.Archivable
-                            pcall(function() char.Archivable = true end)
-                            local ok, out = pcall(function() return char:Clone() end)
-                            pcall(function() char.Archivable = old end)
-                            if ok and out then clone = out end
-                        end
 
-                        if (not clone) and (not usedManual) then
+                        -- IMPORTANT: cloning the live character can freeze "look at camera" / aim offsets
+                        -- (head/waist shifted based on the user's current camera). Prefer a fresh neutral
+                        -- HumanoidDescription model for a static, clean preview.
+                        if not usedManual then
                             local desc
                             local okApplied, applied = pcall(function()
                                 local hum = char:FindFirstChildOfClass("Humanoid")
@@ -8307,6 +8303,15 @@ function Library:CreateLibrary(opts)
                                     clone = mdl
                                 end
                             end
+                        end
+
+                        -- Fallback: clone the found character model (used for manual mode, or if desc failed).
+                        if not clone then
+                            local old = char.Archivable
+                            pcall(function() char.Archivable = true end)
+                            local ok, out = pcall(function() return char:Clone() end)
+                            pcall(function() char.Archivable = old end)
+                            if ok and out then clone = out end
                         end
 
                         if not clone then return false end
