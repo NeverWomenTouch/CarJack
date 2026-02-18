@@ -8244,8 +8244,6 @@ function Library:CreateLibrary(opts)
                         for _, d in ipairs(clone:GetDescendants()) do
                             if d:IsA("Script") or d:IsA("LocalScript") then
                                 pcall(function() d:Destroy() end)
-                            elseif d:IsA("Animator") or d:IsA("Animation") or d:IsA("AnimationController") then
-                                pcall(function() d:Destroy() end)
                             elseif d:IsA("BasePart") then
                                 d.Anchored = true
                                 d.CanCollide = false
@@ -8273,49 +8271,37 @@ function Library:CreateLibrary(opts)
 
                         local clone
                         do
-                            local desc
-                            if not usedManual then
-                                local okApplied, applied = pcall(function()
-                                    local hum = char:FindFirstChildOfClass("Humanoid")
-                                    return hum and hum.GetAppliedDescription and hum:GetAppliedDescription() or nil
-                                end)
-                                if okApplied and applied then
-                                    desc = applied
-                                else
-                                    local okDesc, d = pcall(function()
-                                        return Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
-                                    end)
-                                    if okDesc and d then
-                                        desc = d
-                                    end
-                                end
-
-                                if desc then
-                                    local okModel, mdl = pcall(function()
-                                        return Players:CreateHumanoidModelFromDescription(desc, rigTypeFromCharacter())
-                                    end)
-                                    if okModel and mdl then
-                                        clone = mdl
-                                    end
-                                end
-                            end
-                        end
-
-                        if not clone then
                             local old = char.Archivable
                             pcall(function() char.Archivable = true end)
                             local ok, out = pcall(function() return char:Clone() end)
                             pcall(function() char.Archivable = old end)
                             if ok and out then clone = out end
+                        end
 
-                            if clone then
-                                pcall(function()
-                                    for _, m6d in ipairs(clone:GetDescendants()) do
-                                        if m6d:IsA("Motor6D") then
-                                            m6d.Transform = CFrame.new()
-                                        end
-                                    end
+                        if (not clone) and (not usedManual) then
+                            local desc
+                            local okApplied, applied = pcall(function()
+                                local hum = char:FindFirstChildOfClass("Humanoid")
+                                return hum and hum.GetAppliedDescription and hum:GetAppliedDescription() or nil
+                            end)
+                            if okApplied and applied then
+                                desc = applied
+                            else
+                                local okDesc, d = pcall(function()
+                                    return Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
                                 end)
+                                if okDesc and d then
+                                    desc = d
+                                end
+                            end
+
+                            if desc then
+                                local okModel, mdl = pcall(function()
+                                    return Players:CreateHumanoidModelFromDescription(desc, rigTypeFromCharacter())
+                                end)
+                                if okModel and mdl then
+                                    clone = mdl
+                                end
                             end
                         end
 
