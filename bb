@@ -7881,6 +7881,9 @@ function Library:CreateLibrary(opts)
                     local label = tostring(o.Label or o.Name or "3D Preview")
                     local height = math.max(240, tonumber(o.Height) or 340)
 
+                    local manualCharacterName = (type(o.CharacterName) == "string" and o.CharacterName) or ""
+                    local manualCharacterPartsRaw = o.CharacterParts
+
                     local row = Create("Frame", {
                         BackgroundColor3 = Theme.Bg,
                         BorderSizePixel = 0,
@@ -7947,7 +7950,8 @@ function Library:CreateLibrary(opts)
                         _rebuildToken = 0,
                         _rebuilding = false,
                         _accessoryRefreshUsed = false,
-                        _lastAccessoryCount = 0
+                        _lastAccessoryCount = 0,
+                        _lastBuildUsedManual = false
                     }
 
                     local config = {
@@ -8061,10 +8065,72 @@ function Library:CreateLibrary(opts)
                             or char:FindFirstChild("UpperTorso")
                     end
 
+                    local function normalizeManualParts(v)
+                        if v == nil then return nil end
+                        if type(v) == "table" then
+                            local out = {}
+                            for _, it in ipairs(v) do
+                                if type(it) == "string" then
+                                    local s = it:gsub("^%s+", ""):gsub("%s+$", "")
+                                    if s ~= "" then
+                                        out[#out + 1] = s
+                                    end
+                                end
+                            end
+                            if #out > 0 then return out end
+                            return nil
+                        end
+                        if type(v) == "string" then
+                            local s = v:gsub("[()%[%]{}\"]", "")
+                            local out = {}
+                            for partName in string.gmatch(s, "[^,%s]+") do
+                                local p = tostring(partName):gsub("^%s+", ""):gsub("%s+$", "")
+                                if p ~= "" then
+                                    out[#out + 1] = p
+                                end
+                            end
+                            if #out > 0 then return out end
+                        end
+                        return nil
+                    end
+
+                    local manualCharacterParts = normalizeManualParts(manualCharacterPartsRaw)
+
+                    local function isManualEnabled()
+                        return (type(manualCharacterName) == "string" and manualCharacterName ~= "")
+                            and (type(manualCharacterParts) == "table" and #manualCharacterParts > 0)
+                    end
+
+                    local function findManualCharacterModel()
+                        if not isManualEnabled() then
+                            return nil
+                        end
+                        for _, inst in ipairs(workspace:GetDescendants()) do
+                            if inst:IsA("Model") and inst.Name == manualCharacterName then
+                                local okAll = true
+                                for i = 1, #manualCharacterParts do
+                                    local partName = manualCharacterParts[i]
+                                    if not inst:FindFirstChild(partName) then
+                                        okAll = false
+                                        break
+                                    end
+                                end
+                                if okAll then
+                                    return inst
+                                end
+                            end
+                        end
+                        return nil
+                    end
+
                     local function findBestCharacterModel()
+                        local manual = findManualCharacterModel()
+                        if manual then
+                            return manual, true
+                        end
                         local char = LocalPlayer and LocalPlayer.Character
                         if char and char:IsA("Model") then
-                            return char
+                            return char, false
                         end
 
                         local best, bestScore
@@ -8086,11 +8152,21 @@ function Library:CreateLibrary(opts)
                                 end
                             end
                         end
-                        return best
+                        return best, false
                     end
 
                     local function isCharacterReady(char)
                         if not char then return false end
+
+                        if isManualEnabled() and char:IsA("Model") and char.Name == manualCharacterName then
+                            for i = 1, #manualCharacterParts do
+                                if not char:FindFirstChild(manualCharacterParts[i]) then
+                                    return false
+                                end
+                            end
+                            return countBaseParts(char) >= 1
+                        end
+
                         local hum = char:FindFirstChildOfClass("Humanoid")
                         if not hum then return false end
                         local head = char:FindFirstChild("Head")
@@ -8109,6 +8185,8 @@ function Library:CreateLibrary(opts)
                         for _, d in ipairs(clone:GetDescendants()) do
                             if d:IsA("Script") or d:IsA("LocalScript") then
                                 pcall(function() d:Destroy() end)
+                            elseif d:IsA("Animator") or d:IsA("Animation") or d:IsA("AnimationController") then
+                                pcall(function() d:Destroy() end)
                             elseif d:IsA("BasePart") then
                                 d.Anchored = true
                                 d.CanCollide = false
@@ -8125,7 +8203,7 @@ function Library:CreateLibrary(opts)
 
                     local function rebuild()
                         if not LocalPlayer then return false end
-                        local char = findBestCharacterModel()
+                        local char, usedManual = findBestCharacterModel()
                         if not isCharacterReady(char) then return false end
 
                         local function rigTypeFromCharacter()
@@ -8136,24 +8214,49 @@ function Library:CreateLibrary(opts)
 
                         local clone
                         do
+                            local desc
+                            if not usedManual then
+                                local okApplied, applied = pcall(function()
+                                    local hum = char:FindFirstChildOfClass("Humanoid")
+                                    return hum and hum.GetAppliedDescription and hum:GetAppliedDescription() or nil
+                                end)
+                                if okApplied and applied then
+                                    desc = applied
+                                else
+                                    local okDesc, d = pcall(function()
+                                        return Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
+                                    end)
+                                    if okDesc and d then
+                                        desc = d
+                                    end
+                                end
+
+                                if desc then
+                                    local okModel, mdl = pcall(function()
+                                        return Players:CreateHumanoidModelFromDescription(desc, rigTypeFromCharacter())
+                                    end)
+                                    if okModel and mdl then
+                                        clone = mdl
+                                    end
+                                end
+                            end
+                        end
+
+                        if not clone then
                             local old = char.Archivable
                             pcall(function() char.Archivable = true end)
                             local ok, out = pcall(function() return char:Clone() end)
                             pcall(function() char.Archivable = old end)
                             if ok and out then clone = out end
-                        end
 
-                        if not clone then
-                            local okDesc, desc = pcall(function()
-                                return Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
-                            end)
-                            if okDesc and desc then
-                                local okModel, mdl = pcall(function()
-                                    return Players:CreateHumanoidModelFromDescription(desc, rigTypeFromCharacter())
+                            if clone then
+                                pcall(function()
+                                    for _, m6d in ipairs(clone:GetDescendants()) do
+                                        if m6d:IsA("Motor6D") then
+                                            m6d.Transform = CFrame.new()
+                                        end
+                                    end
                                 end)
-                                if okModel and mdl then
-                                    clone = mdl
-                                end
                             end
                         end
 
@@ -8184,7 +8287,10 @@ function Library:CreateLibrary(opts)
                         state.model = clone
                         state.humanoid = clone:FindFirstChildOfClass("Humanoid")
                         state.rootPart = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
-                        state._lastAccessoryCount = countAccessories(char)
+                        state._lastBuildUsedManual = (usedManual == true)
+                        if not usedManual then
+                            state._lastAccessoryCount = countAccessories(char)
+                        end
                         if prevModel and prevModel ~= clone and prevModel.Parent then
                             pcall(function() prevModel:Destroy() end)
                         end
@@ -8228,7 +8334,7 @@ function Library:CreateLibrary(opts)
                                 if isCharacterReady(char) then
                                     local ok = rebuild()
                                     if ok then
-                                        if (not state._accessoryRefreshUsed) then
+                                        if (not state._accessoryRefreshUsed) and (not state._lastBuildUsedManual) then
                                             task.delay(0.8, function()
                                                 if token ~= state._rebuildToken then return end
                                                 if not state.model or not state.model.Parent then return end
@@ -8858,7 +8964,11 @@ function Library:CreateLibrary(opts)
 
         local left = page:AddPage({ Name = "ESP", Side = 1 })
         local right = page:AddPage({ Name = "Preview", Side = 2, AutoRotateToggle = true })
-        local preview = right:Add3DPreviewWidget({ Label = label })
+        local preview = right:Add3DPreviewWidget({
+            Label = label,
+            CharacterName = options.CharacterName,
+            CharacterParts = options.CharacterParts
+        })
         preview.Page = page
         preview.LeftGroup = left
         preview.RightGroup = right
