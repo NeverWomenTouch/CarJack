@@ -8049,29 +8049,24 @@ function Library:CreateLibrary(opts)
                         local out = Instance.new("Model")
                         out.Name = "DendritePreviewModel"
                         local partCount = 0
-                        for _, d in ipairs(sourceModel:GetDescendants()) do
+                        local descendants = sourceModel:GetDescendants()
+                        for _, d in ipairs(descendants) do
                             if d:IsA("BasePart") then
-                                local p
-                                local ok, cloned = pcall(function() return d:Clone() end)
-                                if ok and cloned and cloned:IsA("BasePart") then
-                                    p = cloned
+                                local p = d
+                                for _, c in ipairs(p:GetChildren()) do
+                                    pcall(function() c:Destroy() end)
                                 end
-                                if p then
-                                    for _, c in ipairs(p:GetChildren()) do
-                                        pcall(function() c:Destroy() end)
-                                    end
-                                    p.Anchored = true
-                                    p.CanCollide = false
-                                    p.Massless = true
-                                    pcall(function() p.LocalTransparencyModifier = 0 end)
-                                    if p.Name == "HumanoidRootPart" then
-                                        p.Transparency = 1
-                                    elseif p.Transparency and p.Transparency > 0.95 then
-                                        p.Transparency = 0
-                                    end
-                                    p.Parent = out
-                                    partCount = partCount + 1
+                                p.Anchored = true
+                                p.CanCollide = false
+                                p.Massless = true
+                                pcall(function() p.LocalTransparencyModifier = 0 end)
+                                if p.Name == "HumanoidRootPart" then
+                                    p.Transparency = 1
+                                elseif p.Transparency and p.Transparency > 0.95 then
+                                    p.Transparency = 0
                                 end
+                                p.Parent = out
+                                partCount = partCount + 1
                             end
                         end
                         return out, partCount
@@ -8081,15 +8076,15 @@ function Library:CreateLibrary(opts)
                         if not (m and m.Parent) then return false end
                         local head = m:FindFirstChild("Head")
                         local torso = m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso")
-                        local hrp = m:FindFirstChild("HumanoidRootPart")
-                        if not (head and torso and hrp) then
+                        local root = m:FindFirstChild("HumanoidRootPart") or torso or m:FindFirstChild("LowerTorso")
+                        if not (head and torso and root) then
                             return false
                         end
                         local parts = 0
                         for _, c in ipairs(m:GetChildren()) do
                             if c:IsA("BasePart") then parts = parts + 1 end
                         end
-                        if parts < 8 then
+                        if parts < 4 then
                             return false
                         end
                         local okBB, _cf, size = pcall(function()
