@@ -8293,45 +8293,34 @@ function Library:CreateLibrary(opts)
 
                     local function getPrimaryRigRoot(model)
                         if not model then return nil end
-                        return model:FindFirstChild("HumanoidRootPart")
-                            or model:FindFirstChild("UpperTorso")
+                        -- Prefer the actual torso/root of the rig over HumanoidRootPart.
+                        -- Using HRP as the root can produce odd-looking limb offsets on some rigs.
+                        return model:FindFirstChild("LowerTorso")
                             or model:FindFirstChild("Torso")
-                            or model:FindFirstChild("LowerTorso")
+                            or model:FindFirstChild("UpperTorso")
+                            or model:FindFirstChild("HumanoidRootPart")
                             or model:FindFirstChild("Head")
                     end
 
                     local function buildJointGraph(model)
-                        local edges = {}
+                        local motorEdges = {}
+                        local weldEdges = {}
                         for _, inst in ipairs(model:GetDescendants()) do
                             if (inst:IsA("Motor6D") or inst:IsA("Weld")) and inst.Part0 and inst.Part1 then
                                 local p0 = inst.Part0
                                 local p1 = inst.Part1
-                                edges[p0] = edges[p0] or {}
-                                edges[p1] = edges[p1] or {}
-                                table.insert(edges[p0], inst)
-                                table.insert(edges[p1], inst)
+                                local target = inst:IsA("Motor6D") and motorEdges or weldEdges
+                                target[p0] = target[p0] or {}
+                                target[p1] = target[p1] or {}
+                                table.insert(target[p0], inst)
+                                table.insert(target[p1], inst)
                             end
                         end
-                        return edges
+                        return motorEdges, weldEdges
                     end
 
-                    local function solvePoseFromJoints(model)
-                        local root = getPrimaryRigRoot(model)
-                        if not (root and root:IsA("BasePart")) then
-                            return false
-                        end
-
-                        -- Ensure joints can reposition parts while we solve.
-                        setAllAnchored(model, false)
-
-                        -- Start from origin; later framing code will center/offset the entire model.
-                        pcall(function() root.CFrame = CFrame.new(0, 0, 0) end)
-
-                        local edges = buildJointGraph(model)
-                        local visited = {}
-                        local queue = { root }
-                        visited[root] = true
-
+                    local function propagateFromEdges(edges, visited, initialQueue)
+                        local queue = initialQueue
                         while #queue > 0 do
                             local cur = table.remove(queue, 1)
                             local list = edges[cur]
@@ -8358,6 +8347,33 @@ function Library:CreateLibrary(opts)
                                 end
                             end
                         end
+                    end
+
+                    local function solvePoseFromJoints(model)
+                        local root = getPrimaryRigRoot(model)
+                        if not (root and root:IsA("BasePart")) then
+                            return false
+                        end
+
+                        -- Ensure joints can reposition parts while we solve.
+                        setAllAnchored(model, false)
+
+                        -- Start from origin; later framing code will center/offset the entire model.
+                        pcall(function() root.CFrame = CFrame.new(0, 0, 0) end)
+
+                        local motorEdges, weldEdges = buildJointGraph(model)
+                        local visited = {}
+                        visited[root] = true
+
+                        -- 1) Solve the body pose using Motor6Ds only (stable, avoids accessory influence).
+                        propagateFromEdges(motorEdges, visited, { root })
+
+                        -- 2) Then solve Weld joints for remaining parts (mostly accessories).
+                        local weldQueue = {}
+                        for part, _ in pairs(visited) do
+                            table.insert(weldQueue, part)
+                        end
+                        propagateFromEdges(weldEdges, visited, weldQueue)
 
                         -- Freeze the solved neutral pose.
                         setAllAnchored(model, true)
