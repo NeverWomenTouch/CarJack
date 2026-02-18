@@ -8074,24 +8074,18 @@ function Library:CreateLibrary(opts)
 
                     local function isPreviewModelComplete(m)
                         if not (m and m.Parent) then return false end
-                        local head = m:FindFirstChild("Head")
-                        local torso = m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso")
-                        local root = m:FindFirstChild("HumanoidRootPart") or torso or m:FindFirstChild("LowerTorso")
-                        if not (head and torso and root) then
-                            return false
-                        end
                         local parts = 0
                         for _, c in ipairs(m:GetChildren()) do
                             if c:IsA("BasePart") then parts = parts + 1 end
                         end
-                        if parts < 4 then
+                        if parts < 1 then
                             return false
                         end
                         local okBB, _cf, size = pcall(function()
                             local a, b = m:GetBoundingBox()
                             return true, a, b
                         end)
-                        if not okBB or not size or (size.Y and size.Y < 2) then
+                        if not okBB or not size or (size.Y and size.Y < 0.25) then
                             return false
                         end
                         return true
@@ -8196,11 +8190,6 @@ function Library:CreateLibrary(opts)
                             state.focus = Vector3.new(0, 3.2, 0)
                         end
 
-                        if not isPreviewModelComplete(clone) then
-                            clearModel()
-                            return false
-                        end
-
                         state.builtOnce = true
                         if markRefresh then
                             state.refreshUsed = true
@@ -8298,20 +8287,6 @@ function Library:CreateLibrary(opts)
                         end
                         if not state.model then hideDrawings(); return end
 
-                        if not isPreviewModelComplete(state.model) then
-                            hideDrawings()
-                            if (not state.pendingRefresh) and (not state.refreshUsed) then
-                                state.pendingRefresh = true
-                                task.delay(0.35, function()
-                                    state.pendingRefresh = false
-                                    if (not state.model) or (not isPreviewModelComplete(state.model)) then
-                                        rebuild(true, true)
-                                    end
-                                end)
-                            end
-                            return
-                        end
-
                         if state.autoRotate and not state.dragging then
                             local dtt = (typeof(dt) == "number" and dt) or (1/60)
                             state.yaw = state.yaw + dtt * 0.85
@@ -8331,6 +8306,20 @@ function Library:CreateLibrary(opts)
                         local sy = math.sin(state.yaw)
                         local offset = Vector3.new(state.dist * cy * cx, state.dist * sx, state.dist * sy * cx)
                         cam.CFrame = CFrame.new(focus + offset, focus)
+
+                        if not isPreviewModelComplete(state.model) then
+                            hideDrawings()
+                            if (not state.pendingRefresh) and (not state.refreshUsed) then
+                                state.pendingRefresh = true
+                                task.delay(0.35, function()
+                                    state.pendingRefresh = false
+                                    if (not state.model) or (not isPreviewModelComplete(state.model)) then
+                                        rebuild(true, true)
+                                    end
+                                end)
+                            end
+                            return
+                        end
 
                         local absPos = viewport.AbsolutePosition
                         local insetY = 0
