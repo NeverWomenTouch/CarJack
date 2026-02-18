@@ -8065,6 +8065,65 @@ function Library:CreateLibrary(opts)
                             or char:FindFirstChild("UpperTorso")
                     end
 
+                    local function computeAabbFromParts(parts)
+                        local minV = Vector3.new(math.huge, math.huge, math.huge)
+                        local maxV = Vector3.new(-math.huge, -math.huge, -math.huge)
+                        local any = false
+                        for _, p in ipairs(parts) do
+                            if p and p:IsA("BasePart") then
+                                local cf = p.CFrame
+                                local hs = p.Size * 0.5
+                                local corners = {
+                                    Vector3.new(-hs.X, -hs.Y, -hs.Z),
+                                    Vector3.new(-hs.X, -hs.Y,  hs.Z),
+                                    Vector3.new(-hs.X,  hs.Y, -hs.Z),
+                                    Vector3.new(-hs.X,  hs.Y,  hs.Z),
+                                    Vector3.new( hs.X, -hs.Y, -hs.Z),
+                                    Vector3.new( hs.X, -hs.Y,  hs.Z),
+                                    Vector3.new( hs.X,  hs.Y, -hs.Z),
+                                    Vector3.new( hs.X,  hs.Y,  hs.Z)
+                                }
+                                for i = 1, 8 do
+                                    local w = cf:PointToWorldSpace(corners[i])
+                                    minV = Vector3.new(math.min(minV.X, w.X), math.min(minV.Y, w.Y), math.min(minV.Z, w.Z))
+                                    maxV = Vector3.new(math.max(maxV.X, w.X), math.max(maxV.Y, w.Y), math.max(maxV.Z, w.Z))
+                                end
+                                any = true
+                            end
+                        end
+                        if not any then
+                            return nil
+                        end
+                        local size = (maxV - minV)
+                        local center = (minV + maxV) * 0.5
+                        return CFrame.new(center), size
+                    end
+
+                    local function getFramingBounds(m)
+                        if not m then return nil end
+                        local parts = {}
+                        for _, d in ipairs(m:GetDescendants()) do
+                            if d:IsA("BasePart") then
+                                local acc = d.FindFirstAncestorOfClass and d:FindFirstAncestorOfClass("Accessory")
+                                if not acc then
+                                    parts[#parts + 1] = d
+                                end
+                            end
+                        end
+                        local cf, size = computeAabbFromParts(parts)
+                        if cf and size then
+                            return cf, size
+                        end
+                        local ok, c2, s2 = pcall(function()
+                            local c, s = m:GetBoundingBox()
+                            return true, c, s
+                        end)
+                        if ok and c2 and s2 then
+                            return c2, s2
+                        end
+                        return nil
+                    end
+
                     local function normalizeManualParts(v)
                         if v == nil then return nil end
                         if type(v) == "table" then
@@ -8264,14 +8323,17 @@ function Library:CreateLibrary(opts)
                         cleanupClone(clone)
                         clone.Parent = wm
 
+                        local extraDown = 1.0
                         pcall(function()
                             clone:PivotTo(CFrame.new(0, 0, 0))
-                            local cf0, size0 = clone:GetBoundingBox()
-                            local bottomY = cf0.Position.Y - (size0.Y * 0.5)
-                            local extraDown = math.clamp(size0.Y * 0.28, 0.8, 3.5)
-                            local offset = Vector3.new(-cf0.Position.X, -bottomY - extraDown, -cf0.Position.Z)
-                            local pivot = clone:GetPivot()
-                            clone:PivotTo(pivot + offset)
+                            local cf0, size0 = getFramingBounds(clone)
+                            if cf0 and size0 then
+                                local bottomY = cf0.Position.Y - (size0.Y * 0.5)
+                                extraDown = math.clamp(size0.Y * 0.28, 0.8, 3.5)
+                                local offset = Vector3.new(-cf0.Position.X, -bottomY - extraDown, -cf0.Position.Z)
+                                local pivot = clone:GetPivot()
+                                clone:PivotTo(pivot + offset)
+                            end
                         end)
 
                         -- Normalize facing so the preview is consistently front-facing.
@@ -8281,6 +8343,15 @@ function Library:CreateLibrary(opts)
                                 local lv = rp.CFrame.LookVector
                                 local yaw0 = math.atan2(lv.X, -lv.Z) -- 0 when facing -Z
                                 clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, -yaw0, 0))
+                            end
+                        end)
+
+                        pcall(function()
+                            local cf1, size1 = getFramingBounds(clone)
+                            if cf1 and size1 then
+                                local bottomY = cf1.Position.Y - (size1.Y * 0.5)
+                                local offset = Vector3.new(-cf1.Position.X, -bottomY - extraDown, -cf1.Position.Z)
+                                clone:PivotTo(clone:GetPivot() + offset)
                             end
                         end)
                         local prevModel = state.model
@@ -8299,11 +8370,8 @@ function Library:CreateLibrary(opts)
                         state.yaw = -math.pi * 0.5
                         state.pitch = 0.06
 
-                        local okBB, cf, size = pcall(function()
-                            local _cf, _size = clone:GetBoundingBox()
-                            return true, _cf, _size
-                        end)
-                        if okBB and cf and size then
+                        local cf, size = getFramingBounds(clone)
+                        if cf and size then
                             local radius = math.max(size.X, size.Y, size.Z) * 0.5
                             state.dist = math.clamp(radius * 3.2, 6, 22)
                             state.focus = Vector3.new(0, size.Y * 0.80, 0)
