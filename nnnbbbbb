@@ -8264,7 +8264,6 @@ function Library:CreateLibrary(opts)
                                     end
                                 end)
                             elseif d:IsA("BasePart") then
-                                d.Anchored = true
                                 d.CanCollide = false
                                 d.Massless = true
                                 pcall(function() d.LocalTransparencyModifier = 0 end)
@@ -8273,8 +8272,96 @@ function Library:CreateLibrary(opts)
                                 elseif d.Transparency and d.Transparency > 0.95 then
                                     d.Transparency = 0
                                 end
+                                pcall(function()
+                                    d.AssemblyLinearVelocity = Vector3.zero
+                                    d.AssemblyAngularVelocity = Vector3.zero
+                                end)
+                            elseif d:IsA("Animator") then
+                                -- Stop any residual animation state from influencing Motor6D.Transform.
+                                pcall(function() d:Destroy() end)
                             end
                         end
+                    end
+
+                    local function setAllAnchored(model, anchored)
+                        for _, d in ipairs(model:GetDescendants()) do
+                            if d:IsA("BasePart") then
+                                d.Anchored = anchored
+                            end
+                        end
+                    end
+
+                    local function getPrimaryRigRoot(model)
+                        if not model then return nil end
+                        return model:FindFirstChild("HumanoidRootPart")
+                            or model:FindFirstChild("UpperTorso")
+                            or model:FindFirstChild("Torso")
+                            or model:FindFirstChild("LowerTorso")
+                            or model:FindFirstChild("Head")
+                    end
+
+                    local function buildJointGraph(model)
+                        local edges = {}
+                        for _, inst in ipairs(model:GetDescendants()) do
+                            if (inst:IsA("Motor6D") or inst:IsA("Weld")) and inst.Part0 and inst.Part1 then
+                                local p0 = inst.Part0
+                                local p1 = inst.Part1
+                                edges[p0] = edges[p0] or {}
+                                edges[p1] = edges[p1] or {}
+                                table.insert(edges[p0], inst)
+                                table.insert(edges[p1], inst)
+                            end
+                        end
+                        return edges
+                    end
+
+                    local function solvePoseFromJoints(model)
+                        local root = getPrimaryRigRoot(model)
+                        if not (root and root:IsA("BasePart")) then
+                            return false
+                        end
+
+                        -- Ensure joints can reposition parts while we solve.
+                        setAllAnchored(model, false)
+
+                        -- Start from origin; later framing code will center/offset the entire model.
+                        pcall(function() root.CFrame = CFrame.new(0, 0, 0) end)
+
+                        local edges = buildJointGraph(model)
+                        local visited = {}
+                        local queue = { root }
+                        visited[root] = true
+
+                        while #queue > 0 do
+                            local cur = table.remove(queue, 1)
+                            local list = edges[cur]
+                            if list then
+                                for _, joint in ipairs(list) do
+                                    local p0 = joint.Part0
+                                    local p1 = joint.Part1
+                                    if p0 and p1 and p0:IsA("BasePart") and p1:IsA("BasePart") then
+                                        -- Constraint: p0.CFrame * C0 == p1.CFrame * C1
+                                        if cur == p0 and not visited[p1] then
+                                            visited[p1] = true
+                                            pcall(function()
+                                                p1.CFrame = p0.CFrame * joint.C0 * joint.C1:Inverse()
+                                            end)
+                                            table.insert(queue, p1)
+                                        elseif cur == p1 and not visited[p0] then
+                                            visited[p0] = true
+                                            pcall(function()
+                                                p0.CFrame = p1.CFrame * joint.C1 * joint.C0:Inverse()
+                                            end)
+                                            table.insert(queue, p0)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+
+                        -- Freeze the solved neutral pose.
+                        setAllAnchored(model, true)
+                        return true
                     end
 
                     local function buildNeutralMotorDefaultsForRig(rigType)
@@ -8408,6 +8495,10 @@ function Library:CreateLibrary(opts)
                                 applyNeutralMotorDefaults(clone, defaults)
                             end
                         end
+
+                        -- After resetting joints, re-solve all part CFrames from the joints so the preview
+                        -- does not freeze the current live pose (head/waist look offsets, etc.).
+                        solvePoseFromJoints(clone)
                         clone.Parent = wm
 
                         -- How far below the feet the model is allowed to sit in the viewport world.
