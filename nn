@@ -8309,13 +8309,17 @@ function Library:CreateLibrary(opts)
                         cleanupClone(clone)
                         clone.Parent = wm
 
-                        local extraDown = 1.0
+                        -- How far below the feet the model is allowed to sit in the viewport world.
+                        -- Keeping this small prevents the character from looking too low in the preview.
+                        local extraDown = 0.25
                         pcall(function()
                             clone:PivotTo(CFrame.new(0, 0, 0))
                             local cf0, size0 = getFramingBounds(clone)
                             if cf0 and size0 then
                                 local bottomY = cf0.Position.Y - (size0.Y * 0.5)
-                                extraDown = math.clamp(size0.Y * 0.28, 0.8, 3.5)
+                                -- Previously this pushed the model down a lot on taller rigs.
+                                -- Keep a modest margin so the feet don't clip while staying centered.
+                                extraDown = math.clamp(size0.Y * 0.08, 0.15, 1.2)
                                 local offset = Vector3.new(-cf0.Position.X, -bottomY - extraDown, -cf0.Position.Z)
                                 local pivot = clone:GetPivot()
                                 clone:PivotTo(pivot + offset)
@@ -8359,8 +8363,10 @@ function Library:CreateLibrary(opts)
                         local cf, size = getFramingBounds(clone)
                         if cf and size then
                             local radius = math.max(size.X, size.Y, size.Z) * 0.5
-                            state.dist = math.clamp(radius * 3.2, 6, 22)
-                            state.focus = Vector3.new(0, size.Y * 0.62, 0)
+                            -- Default zoom: slightly closer than before.
+                            state.dist = math.clamp(radius * 2.75, 5, 18)
+                            -- Aim a touch lower so the character sits higher in-frame.
+                            state.focus = Vector3.new(0, size.Y * 0.55, 0)
                         else
                             state.dist = 10
                             state.focus = Vector3.new(0, 2.5, 0)
