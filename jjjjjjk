@@ -7941,13 +7941,9 @@ function Library:CreateLibrary(opts)
                         lastMouse = nil,
                         autoRotate = false,
                         model = nil,
+                        humanoid = nil,
                         rootPart = nil,
-                        focus = Vector3.new(0, 2.5, 0),
-                        health = 100,
-                        maxHealth = 100,
-                        builtOnce = false,
-                        pendingRefresh = false,
-                        refreshUsed = false
+                        focus = Vector3.new(0, 2.5, 0)
                     }
 
                     local config = {
@@ -8026,89 +8022,50 @@ function Library:CreateLibrary(opts)
                             pcall(function() state.model:Destroy() end)
                         end
                         state.model = nil
+                        state.humanoid = nil
                         state.rootPart = nil
                     end
 
-                    local function hasMinimumRig(m)
-                        if not m then return false end
-                        local head = m:FindFirstChild("Head")
-                        local torso = m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso")
-                        local hrp = m:FindFirstChild("HumanoidRootPart")
-                        local hum = m:FindFirstChildOfClass("Humanoid")
-                        if not (hum and head and torso and hrp) then
-                            return false
-                        end
-                        local cnt = 0
-                        for _, d in ipairs(m:GetDescendants()) do
-                            if d:IsA("BasePart") then cnt = cnt + 1 end
-                        end
-                        return cnt >= 8
-                    end
-
-                    local function extractBasePartsOnly(sourceModel)
-                        local out = Instance.new("Model")
-                        out.Name = "DendritePreviewModel"
-                        local partCount = 0
-                        local descendants = sourceModel:GetDescendants()
-                        for _, d in ipairs(descendants) do
-                            if d:IsA("BasePart") then
-                                local p = d
-                                for _, c in ipairs(p:GetChildren()) do
-                                    pcall(function() c:Destroy() end)
+                    local function cleanupClone(clone)
+                        for _, d in ipairs(clone:GetDescendants()) do
+                            if d:IsA("Script") or d:IsA("LocalScript") then
+                                pcall(function() d:Destroy() end)
+                            elseif d:IsA("BasePart") then
+                                d.Anchored = true
+                                d.CanCollide = false
+                                d.Massless = true
+                                pcall(function() d.LocalTransparencyModifier = 0 end)
+                                if d.Name == "HumanoidRootPart" then
+                                    d.Transparency = 1
+                                elseif d.Transparency and d.Transparency > 0.95 then
+                                    d.Transparency = 0
                                 end
-                                p.Anchored = true
-                                p.CanCollide = false
-                                p.Massless = true
-                                pcall(function() p.LocalTransparencyModifier = 0 end)
-                                if p.Name == "HumanoidRootPart" then
-                                    p.Transparency = 1
-                                elseif p.Transparency and p.Transparency > 0.95 then
-                                    p.Transparency = 0
-                                end
-                                p.Parent = out
-                                partCount = partCount + 1
                             end
                         end
-                        return out, partCount
                     end
 
-                    local function isPreviewModelComplete(m)
-                        if not (m and m.Parent) then return false end
-                        local parts = 0
-                        for _, c in ipairs(m:GetChildren()) do
-                            if c:IsA("BasePart") then parts = parts + 1 end
-                        end
-                        if parts < 1 then
-                            return false
-                        end
-                        local okBB, _cf, size = pcall(function()
-                            local a, b = m:GetBoundingBox()
-                            return true, a, b
-                        end)
-                        if not okBB or not size or (size.Y and size.Y < 0.25) then
-                            return false
-                        end
-                        return true
-                    end
-
-                    local function rebuild(force, markRefresh)
-                        if state.builtOnce and not force then
-                            return false
-                        end
-
+                    local function rebuild()
                         clearModel()
-                        if not LocalPlayer then return false end
+                        if not LocalPlayer then return end
                         local char = LocalPlayer.Character
+                        if not char then return end
 
                         local function rigTypeFromCharacter()
-                            if not char then return Enum.HumanoidRigType.R15 end
                             local hum = char:FindFirstChildOfClass("Humanoid")
                             if hum and hum.RigType then return hum.RigType end
                             return Enum.HumanoidRigType.R15
                         end
 
-                        local sourceModel
+                        local clone
                         do
+                            local old = char.Archivable
+                            pcall(function() char.Archivable = true end)
+                            local ok, out = pcall(function() return char:Clone() end)
+                            pcall(function() char.Archivable = old end)
+                            if ok and out then clone = out end
+                        end
+
+                        if not clone then
                             local okDesc, desc = pcall(function()
                                 return Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
                             end)
@@ -8117,38 +8074,13 @@ function Library:CreateLibrary(opts)
                                     return Players:CreateHumanoidModelFromDescription(desc, rigTypeFromCharacter())
                                 end)
                                 if okModel and mdl then
-                                    sourceModel = mdl
+                                    clone = mdl
                                 end
                             end
                         end
 
-                        if not sourceModel then
-                            if not (char and hasMinimumRig(char)) then
-                                return false
-                            end
-                            local old = char.Archivable
-                            pcall(function() char.Archivable = true end)
-                            local ok, out = pcall(function() return char:Clone() end)
-                            pcall(function() char.Archivable = old end)
-                            if ok and out then
-                                sourceModel = out
-                            end
-                        end
-
-                        if not sourceModel then return false end
-                        local clone
-                        do
-                            local ok, out, _ = pcall(function()
-                                local m, _cnt = extractBasePartsOnly(sourceModel)
-                                return m, _cnt
-                            end)
-                            pcall(function() sourceModel:Destroy() end)
-                            if ok and out then
-                                clone = out
-                            end
-                        end
-
-                        if not clone then return false end
+                        if not clone then return end
+                        cleanupClone(clone)
                         clone.Parent = wm
 
                         pcall(function()
@@ -8171,6 +8103,7 @@ function Library:CreateLibrary(opts)
                             end
                         end)
                         state.model = clone
+                        state.humanoid = clone:FindFirstChildOfClass("Humanoid")
                         state.rootPart = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
 
                         -- Consistent default view (front/center) regardless of the player's current facing.
@@ -8189,12 +8122,6 @@ function Library:CreateLibrary(opts)
                             state.dist = 10
                             state.focus = Vector3.new(0, 3.2, 0)
                         end
-
-                        state.builtOnce = true
-                        if markRefresh then
-                            state.refreshUsed = true
-                        end
-                        return true
                     end
 
                     local function isMouseInside()
@@ -8283,7 +8210,7 @@ function Library:CreateLibrary(opts)
                         if absSize.X < 20 or absSize.Y < 20 then hideDrawings(); return end
 
                         if not state.model or not state.model.Parent then
-                            rebuild(false, false)
+                            rebuild()
                         end
                         if not state.model then hideDrawings(); return end
 
@@ -8294,9 +8221,11 @@ function Library:CreateLibrary(opts)
 
                         local realChar = LocalPlayer and LocalPlayer.Character
                         local realHum = realChar and realChar:FindFirstChildOfClass("Humanoid")
-                        if realHum then
-                            state.maxHealth = tonumber(realHum.MaxHealth) or state.maxHealth or 100
-                            state.health = tonumber(realHum.Health) or state.health or 100
+                        if state.humanoid and realHum then
+                            pcall(function()
+                                state.humanoid.MaxHealth = realHum.MaxHealth
+                                state.humanoid.Health = realHum.Health
+                            end)
                         end
 
                         local focus = state.focus
@@ -8306,20 +8235,6 @@ function Library:CreateLibrary(opts)
                         local sy = math.sin(state.yaw)
                         local offset = Vector3.new(state.dist * cy * cx, state.dist * sx, state.dist * sy * cx)
                         cam.CFrame = CFrame.new(focus + offset, focus)
-
-                        if not isPreviewModelComplete(state.model) then
-                            hideDrawings()
-                            if (not state.pendingRefresh) and (not state.refreshUsed) then
-                                state.pendingRefresh = true
-                                task.delay(0.35, function()
-                                    state.pendingRefresh = false
-                                    if (not state.model) or (not isPreviewModelComplete(state.model)) then
-                                        rebuild(true, true)
-                                    end
-                                end)
-                            end
-                            return
-                        end
 
                         local absPos = viewport.AbsolutePosition
                         local insetY = 0
@@ -8382,7 +8297,9 @@ function Library:CreateLibrary(opts)
 
                         if config.HealthBar and drawings.hp and drawings.hpOutline then
                             local hpPerc = 1
-                            hpPerc = math.clamp((state.health or 1) / math.max(state.maxHealth or 1, 1), 0, 1)
+                            if state.humanoid then
+                                hpPerc = math.clamp(state.humanoid.Health / math.max(state.humanoid.MaxHealth, 1), 0, 1)
+                            end
                             drawings.hpOutline.Visible = true
                             drawings.hpOutline.Color = Color3.fromRGB(0, 0, 0)
                             drawings.hpOutline.Filled = true
@@ -8430,11 +8347,7 @@ function Library:CreateLibrary(opts)
 
                     if LocalPlayer then
                         Library:_connect(LocalPlayer.CharacterAdded, function()
-                            if not state.builtOnce then
-                                task.defer(function()
-                                    rebuild(false, false)
-                                end)
-                            end
+                            task.defer(rebuild)
                         end)
                     end
 
