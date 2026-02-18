@@ -7943,7 +7943,9 @@ function Library:CreateLibrary(opts)
                         model = nil,
                         humanoid = nil,
                         rootPart = nil,
-                        focus = Vector3.new(0, 2.5, 0)
+                        focus = Vector3.new(0, 2.5, 0),
+                        _rebuildToken = 0,
+                        _rebuilding = false
                     }
 
                     local config = {
@@ -8026,6 +8028,33 @@ function Library:CreateLibrary(opts)
                         state.rootPart = nil
                     end
 
+                    local function countBaseParts(m)
+                        if not m then return 0 end
+                        local n = 0
+                        for _, d in ipairs(m:GetDescendants()) do
+                            if d:IsA("BasePart") then
+                                n = n + 1
+                            end
+                        end
+                        return n
+                    end
+
+                    local function isCharacterReady(char)
+                        if not char then return false end
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        if not hum then return false end
+                        local head = char:FindFirstChild("Head")
+                        local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+                        local root = char:FindFirstChild("HumanoidRootPart") or torso
+                        if not (head and torso and root) then
+                            return false
+                        end
+                        if countBaseParts(char) < 8 then
+                            return false
+                        end
+                        return true
+                    end
+
                     local function cleanupClone(clone)
                         for _, d in ipairs(clone:GetDescendants()) do
                             if d:IsA("Script") or d:IsA("LocalScript") then
@@ -8045,10 +8074,9 @@ function Library:CreateLibrary(opts)
                     end
 
                     local function rebuild()
-                        clearModel()
-                        if not LocalPlayer then return end
+                        if not LocalPlayer then return false end
                         local char = LocalPlayer.Character
-                        if not char then return end
+                        if not isCharacterReady(char) then return false end
 
                         local function rigTypeFromCharacter()
                             local hum = char:FindFirstChildOfClass("Humanoid")
@@ -8079,7 +8107,7 @@ function Library:CreateLibrary(opts)
                             end
                         end
 
-                        if not clone then return end
+                        if not clone then return false end
                         cleanupClone(clone)
                         clone.Parent = wm
 
@@ -8102,9 +8130,13 @@ function Library:CreateLibrary(opts)
                                 clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, -yaw0, 0))
                             end
                         end)
+                        local prevModel = state.model
                         state.model = clone
                         state.humanoid = clone:FindFirstChildOfClass("Humanoid")
                         state.rootPart = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChild("Torso")
+                        if prevModel and prevModel ~= clone and prevModel.Parent then
+                            pcall(function() prevModel:Destroy() end)
+                        end
 
                         -- Consistent default view (front/center) regardless of the player's current facing.
                         state.yaw = -math.pi * 0.5
@@ -8122,6 +8154,38 @@ function Library:CreateLibrary(opts)
                             state.dist = 10
                             state.focus = Vector3.new(0, 3.2, 0)
                         end
+
+                        return true
+                    end
+
+                    local function scheduleRebuild()
+                        if state._rebuilding then
+                            return
+                        end
+                        state._rebuilding = true
+                        state._rebuildToken = (state._rebuildToken or 0) + 1
+                        local token = state._rebuildToken
+
+                        task.spawn(function()
+                            local attempts = 0
+                            while attempts < 30 do
+                                if token ~= state._rebuildToken then
+                                    break
+                                end
+                                attempts = attempts + 1
+                                local char = LocalPlayer and LocalPlayer.Character
+                                if isCharacterReady(char) then
+                                    local ok = rebuild()
+                                    if ok then
+                                        break
+                                    end
+                                end
+                                task.wait(0.15)
+                            end
+                            if token == state._rebuildToken then
+                                state._rebuilding = false
+                            end
+                        end)
                     end
 
                     local function isMouseInside()
@@ -8210,7 +8274,7 @@ function Library:CreateLibrary(opts)
                         if absSize.X < 20 or absSize.Y < 20 then hideDrawings(); return end
 
                         if not state.model or not state.model.Parent then
-                            rebuild()
+                            scheduleRebuild()
                         end
                         if not state.model then hideDrawings(); return end
 
@@ -8347,11 +8411,11 @@ function Library:CreateLibrary(opts)
 
                     if LocalPlayer then
                         Library:_connect(LocalPlayer.CharacterAdded, function()
-                            task.defer(rebuild)
+                            task.defer(scheduleRebuild)
                         end)
                     end
 
-                    task.defer(rebuild)
+                    task.defer(scheduleRebuild)
 
                     local Preview = {
                         Config = config,
