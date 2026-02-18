@@ -8244,6 +8244,10 @@ function Library:CreateLibrary(opts)
                         for _, d in ipairs(clone:GetDescendants()) do
                             if d:IsA("Script") or d:IsA("LocalScript") then
                                 pcall(function() d:Destroy() end)
+                            elseif d:IsA("Motor6D") then
+                                -- Prevent the preview from inheriting the live character's joint offsets
+                                -- (e.g. Neck/Waist look-at-camera systems). This keeps the preview static.
+                                pcall(function() d.Transform = CFrame.new() end)
                             elseif d:IsA("BasePart") then
                                 d.Anchored = true
                                 d.CanCollide = false
