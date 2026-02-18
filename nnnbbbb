@@ -8242,7 +8242,7 @@ function Library:CreateLibrary(opts)
 
                     local function cleanupClone(clone)
                         for _, d in ipairs(clone:GetDescendants()) do
-                            if d:IsA("Script") or d:IsA("LocalScript") then
+                            if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("ModuleScript") then
                                 pcall(function() d:Destroy() end)
                             elseif d:IsA("Motor6D") then
                                 -- Prevent the preview from inheriting the live character's joint offsets
@@ -8272,6 +8272,73 @@ function Library:CreateLibrary(opts)
                                     d.Transparency = 1
                                 elseif d.Transparency and d.Transparency > 0.95 then
                                     d.Transparency = 0
+                                end
+                            end
+                        end
+                    end
+
+                    local function buildNeutralMotorDefaultsForRig(rigType)
+                        if not (LocalPlayer and Players and typeof(rigType) == "EnumItem") then
+                            return nil
+                        end
+                        if state._neutralMotorDefaults
+                            and state._neutralMotorDefaultsRigType == rigType
+                            and state._neutralMotorDefaultsUserId == (LocalPlayer.UserId)
+                        then
+                            return state._neutralMotorDefaults
+                        end
+
+                        local desc
+                        local okDesc, d = pcall(function()
+                            return Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
+                        end)
+                        if okDesc and d then
+                            desc = d
+                        end
+                        if not desc then
+                            return nil
+                        end
+
+                        local okModel, neutral = pcall(function()
+                            return Players:CreateHumanoidModelFromDescription(desc, rigType)
+                        end)
+                        if not okModel or not neutral then
+                            return nil
+                        end
+
+                        local defaults = {}
+                        for _, inst in ipairs(neutral:GetDescendants()) do
+                            if inst:IsA("Motor6D") and inst.Part0 and inst.Part1 then
+                                -- Key includes name + connected parts to avoid collisions.
+                                local key = tostring(inst.Name)
+                                    .. "|" .. tostring(inst.Part0.Name)
+                                    .. "|" .. tostring(inst.Part1.Name)
+                                defaults[key] = { C0 = inst.C0, C1 = inst.C1 }
+                            end
+                        end
+
+                        pcall(function() neutral:Destroy() end)
+
+                        state._neutralMotorDefaults = defaults
+                        state._neutralMotorDefaultsRigType = rigType
+                        state._neutralMotorDefaultsUserId = LocalPlayer.UserId
+                        return defaults
+                    end
+
+                    local function applyNeutralMotorDefaults(clone, defaults)
+                        if not (clone and defaults) then return end
+                        for _, inst in ipairs(clone:GetDescendants()) do
+                            if inst:IsA("Motor6D") and inst.Part0 and inst.Part1 then
+                                local key = tostring(inst.Name)
+                                    .. "|" .. tostring(inst.Part0.Name)
+                                    .. "|" .. tostring(inst.Part1.Name)
+                                local def = defaults[key]
+                                if def then
+                                    pcall(function()
+                                        inst.Transform = CFrame.new()
+                                        inst.C0 = def.C0
+                                        inst.C1 = def.C1
+                                    end)
                                 end
                             end
                         end
@@ -8329,7 +8396,18 @@ function Library:CreateLibrary(opts)
                         end
 
                         if not clone then return false end
+
+                        -- Strip scripts & anchor parts first.
                         cleanupClone(clone)
+
+                        -- Hard reset joints to a neutral default pose so we never freeze the live
+                        -- character's current "look at camera" / aim offsets into the preview.
+                        if not usedManual then
+                            local defaults = buildNeutralMotorDefaultsForRig(rigTypeFromCharacter())
+                            if defaults then
+                                applyNeutralMotorDefaults(clone, defaults)
+                            end
+                        end
                         clone.Parent = wm
 
                         -- How far below the feet the model is allowed to sit in the viewport world.
