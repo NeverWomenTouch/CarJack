@@ -9642,6 +9642,9 @@ function Library:CreateLibrary(opts)
         local safe = sanitize(name or "")
         local low = safe:lower()
         if safe == "" or low == "__meta" or low == "__index" then return end
+
+        -- Track last explicit load to avoid double-loading from the auto-load task.
+        Window._lastLoadedConfigName = safe
         local okLoad, data = pcall(function() return Config.Load(safe) end)
         if not okLoad then return end
         if type(data) ~= 'table' then return end
@@ -9674,7 +9677,10 @@ function Library:CreateLibrary(opts)
                         libRef._pendingConfig[id] = value
                     end
                 else
-                    local ok = libRef._applyConfigValue and libRef:_applyConfigValue(targetId, ctrl, value) or applyConfigValue(targetId, ctrl, value)
+                    -- NOTE: _applyConfigValue is a plain function, not a method.
+                    -- Using ':' shifts arguments and breaks config application.
+                    local ok = (libRef._applyConfigValue and libRef._applyConfigValue(targetId, ctrl, value))
+                        or applyConfigValue(targetId, ctrl, value)
                     if ok then applied = applied + 1 end
                 end
             end
@@ -10729,6 +10735,9 @@ function Library:CreateLibrary(opts)
         end
         if toLoad and type(toLoad) == "string" and #toLoad > 0 then
             pcall(function()
+                if Window._lastLoadedConfigName and Window._lastLoadedConfigName == toLoad then
+                    return
+                end
                 Window.LoadConfig(toLoad)
                 Config.SetAutoLoad(toLoad, true)
                 if Window._lastConfigUI and Window._lastConfigUI.AutoToggle then
