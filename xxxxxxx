@@ -2581,8 +2581,10 @@ function Library:CreateLibrary(opts)
             return (sanitize(Base) .. "__index.json")
         end
 
+        -- Autoload pointer lives in the config root (DIR) for maximum executor compatibility.
+        -- (Some executors are flaky with nested folders like DIR/Configs.)
         local function autoloadPath()
-            return (DIR .. "/Configs/__autoload.json")
+            return (DIR .. "/__autoload.json")
         end
 
         local function rootAutoloadPath()
@@ -11095,20 +11097,11 @@ function Library:CreateLibrary(opts)
     
     task.spawn(function()
         local toLoad = nil
-        for attempt = 1, 20 do
-            task.wait(attempt == 1 and 0.08 or 0.12)
-            -- Give the consumer script time to register controls so the loaded
-            -- config visibly applies on first run.
-            local controlsReady = true
-            if attempt < 6 then
-                local ctl = (Library and Library._controls) or nil
-                controlsReady = (type(ctl) == "table" and next(ctl) ~= nil)
-            end
-            if controlsReady then
+        for attempt = 1, 30 do
+            task.wait(attempt == 1 and 0.08 or 0.10)
             pcall(function() toLoad = Config.MostRecentAutoLoad() end)
             if toLoad and type(toLoad) == "string" and #toLoad > 0 then
                 break
-            end
             end
         end
         if toLoad and type(toLoad) == "string" and #toLoad > 0 then
