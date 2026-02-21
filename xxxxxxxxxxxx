@@ -2422,7 +2422,7 @@ function Library:CreateLibrary(opts)
     local DIR = tostring(opts.ConfigFolder or Library.ConfigFolder or Base)
 
         local function cfgDbg(...)
-            local on = (opts and opts.ConfigDebug == true) or (rawget(_G, "DENDRITE_CONFIG_DEBUG") == true)
+            local on = (opts and opts.ConfigDebug == true) or (_G and _G.DENDRITE_CONFIG_DEBUG == true)
             if on then
                 local msg = ""
                 pcall(function()
@@ -2435,10 +2435,11 @@ function Library:CreateLibrary(opts)
                 end)
                 pcall(function() warn("[Dendrite/Config]", msg) end)
                 pcall(function()
-                    local log = rawget(_G, "DENDRITE_CONFIG_DEBUG_LOG")
+                    if not _G then return end
+                    local log = _G.DENDRITE_CONFIG_DEBUG_LOG
                     if type(log) ~= "table" then
                         log = {}
-                        rawset(_G, "DENDRITE_CONFIG_DEBUG_LOG", log)
+                        _G.DENDRITE_CONFIG_DEBUG_LOG = log
                     end
                     log[#log + 1] = { t = os.time(), msg = msg }
                     if #log > 200 then
@@ -11249,10 +11250,10 @@ function Library:CreateLibrary(opts)
                 end
             end)
             pcall(function()
-                local on = rawget(_G, "DENDRITE_CONFIG_DEBUG") == true
-                if on then
-                    local log = rawget(_G, "DENDRITE_CONFIG_DEBUG_LOG")
-                    if type(log) ~= "table" then log = {}; rawset(_G, "DENDRITE_CONFIG_DEBUG_LOG", log) end
+                local on = (_G and _G.DENDRITE_CONFIG_DEBUG == true)
+                if on and _G then
+                    local log = _G.DENDRITE_CONFIG_DEBUG_LOG
+                    if type(log) ~= "table" then log = {}; _G.DENDRITE_CONFIG_DEBUG_LOG = log end
                     log[#log + 1] = { t = os.time(), msg = ("autoload attempt: %s ok=%s err=%s"):format(tostring(toLoad), tostring(ok), tostring(err)) }
                 end
             end)
