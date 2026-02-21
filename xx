@@ -2575,6 +2575,36 @@ function Library:CreateLibrary(opts)
         local function indexPath()
             return (configsFolder() .. "/__index.json")
         end
+
+        local function autoloadPath()
+            return (configsFolder() .. "/__autoload.json")
+        end
+
+        local function readAutoloadPointer()
+            if MEM_MODE then return nil end
+            local raw = cfgRead(autoloadPath())
+            if type(raw) ~= "string" or raw == "" then return nil end
+            local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+            if ok and type(dec) == "table" then
+                local n = dec.name
+                if type(n) == "string" and n ~= "" then
+                    return sanitize(n)
+                end
+            end
+            return nil
+        end
+
+        local function writeAutoloadPointer(nameOrNil)
+            if MEM_MODE then return false end
+            if gmf then pcall(ensureFoldersCompat) end
+            local payload = {
+                name = (type(nameOrNil) == "string" and sanitize(nameOrNil)) or "",
+                lastModified = os.time()
+            }
+            local ok, json = pcall(function() return HttpService:JSONEncode(payload) end)
+            if not ok or type(json) ~= "string" then return false end
+            return atomicWriteCompat(autoloadPath(), json) == true
+        end
         local function readIndex()
             if MEM_MODE then return nil end
             local raw = cfgRead(indexPath())
@@ -3004,6 +3034,9 @@ function Library:CreateLibrary(opts)
             sessionAdd(s)
             pcall(function() Config.RecordSave(s) end)
             pcall(function() upsertIndex(s, { autoLoad = meta.autoLoad == true, lastModified = meta.lastModified }) end)
+            if meta.autoLoad == true then
+                pcall(function() writeAutoloadPointer(s) end)
+            end
             return true
         end
 
@@ -3200,6 +3233,14 @@ function Library:CreateLibrary(opts)
             sessionRemove(s)
             pcall(function() Config.ClearMeta(s) end)
             pcall(function() tombstoneIndex(s) end)
+
+            -- If the deleted config was the autoload target, clear pointer.
+            pcall(function()
+                local cur = readAutoloadPointer()
+                if cur and cur == s then
+                    writeAutoloadPointer("")
+                end
+            end)
         end
 
         function Config.SetAutoLoad(name, on)
@@ -3230,6 +3271,18 @@ function Library:CreateLibrary(opts)
                 atomicWriteCompat(path, json)
             end
             pcall(function() upsertIndex(s, { autoLoad = (on == true), lastModified = os.time(), __deleted = nil }) end)
+
+            -- Update autoload pointer (deterministic autoload across executors).
+            if on == true then
+                pcall(function() writeAutoloadPointer(s) end)
+            else
+                pcall(function()
+                    local cur = readAutoloadPointer()
+                    if cur and cur == s then
+                        writeAutoloadPointer("")
+                    end
+                end)
+            end
         end
 
         function Config.GetAutoLoad(name)
@@ -3262,6 +3315,18 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 return best
+            end
+
+            -- Deterministic autoload: prefer explicit pointer file.
+            do
+                local ptr = readAutoloadPointer()
+                if ptr and ptr ~= "" then
+                    local ok = false
+                    pcall(function() ok = (Config.GetAutoLoad(ptr) == true) end)
+                    if ok then
+                        return ptr
+                    end
+                end
             end
 
             -- Prefer persistent index when listfiles is missing/unreliable.
