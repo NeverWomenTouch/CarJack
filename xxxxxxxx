@@ -3363,78 +3363,84 @@ function Library:CreateLibrary(opts)
                 local newest, best
                 local key = memEnsure()
                 for name, t in pairs(Library._memConfig.files[key] or {}) do
-                    if type(t) == "table" and t.metadata and t.metadata.autoLoad then
+                    if type(t) == "table" and type(t.metadata) == "table" then
                         local ts = tonumber(t.metadata.lastModified or 0) or 0
-                        if not newest or ts > newest then newest, best = ts, name end
+                        if (not newest) or ts > newest then
+                            newest = ts
+                            best = (t.metadata.autoLoad == true) and name or nil
+                        end
                     end
                 end
                 return best
             end
 
-            -- Deterministic autoload: prefer explicit pointer file.
-            do
-                local ptr = readAutoloadPointer()
-                if ptr and ptr ~= "" then
-                    -- If index marks it deleted, ignore pointer.
-                    local idx = readIndex()
-                    if type(idx) == "table" and type(idx.configs) == "table" then
-                        local meta = idx.configs[ptr]
-                        if type(meta) == "table" and meta.__deleted == true then
-                            -- fall through
-                        else
-                            return ptr
+            -- Spec: find latest-modified config, then load it only if metadata.autoLoad == true.
+            -- 1) Prefer filesystem scan when listfiles is available.
+            if glf and cfgIsFolder(DIR .. "/Configs") then
+                local files = cfgListFiles(DIR .. "/Configs")
+                local newestTs, newestName, newestAuto = nil, nil, false
+                if type(files) == "table" then
+                    for _, f in ipairs(files) do
+                        if type(f) == "string" then
+                            local base = (f:match("([^/\\]+)$") or f)
+                            if base and base:sub(-5) == ".json" then
+                                local name = base:gsub("%.json$", "")
+                                if name ~= "" and not name:match("^__") then
+                                    local raw = cfgRead(f)
+                                    if type(raw) == "string" and raw ~= "" then
+                                        local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                                        if okj and type(dec) == "table" and type(dec.metadata) == "table" and dec.metadata.__deleted ~= true then
+                                            local ts = tonumber(dec.metadata.lastModified or 0) or 0
+                                            if (not newestTs) or ts > newestTs then
+                                                newestTs = ts
+                                                newestName = name
+                                                newestAuto = (dec.metadata.autoLoad == true)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
                         end
-                    else
-                    return ptr
                     end
                 end
+                if newestName and newestAuto then
+                    return newestName
+                end
+                return nil
             end
 
-            -- Your expected behavior: check the most recently saved/modified config overall,
-            -- then auto-load it only if its autoLoad flag is enabled.
+            -- 2) Fallback: use __index.json (written on save/set autoload), then verify by reading the config.
             do
                 local idx = readIndex()
                 if type(idx) == "table" and type(idx.configs) == "table" then
-                    local newestTs, newestName, newestAuto = nil, nil, false
+                    local newestTs, newestName = nil, nil
                     for name, meta in pairs(idx.configs) do
                         if type(name) == "string" and name ~= "" and type(meta) == "table" and meta.__deleted ~= true then
                             local ts = tonumber(meta.lastModified or 0) or 0
                             if (not newestTs) or ts > newestTs then
                                 newestTs = ts
                                 newestName = name
-                                newestAuto = (meta.autoLoad == true)
                             end
                         end
                     end
-                    if newestName and newestAuto then
-                        return newestName
+                    if newestName then
+                        local raw = cfgRead(filePath(newestName))
+                        if type(raw) ~= "string" or raw == "" then
+                            local alt = sanitize(Base) .. "_" .. sanitize(newestName) .. ".json"
+                            raw = cfgRead(alt)
+                        end
+                        if type(raw) == "string" and raw ~= "" then
+                            local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                            if okj and type(dec) == "table" and type(dec.metadata) == "table" and dec.metadata.__deleted ~= true then
+                                if dec.metadata.autoLoad == true then
+                                    return newestName
+                                end
+                            end
+                        end
                     end
-                    return nil
                 end
             end
 
-            -- Fallback: scan config files (when index isn't available).
-            local list = Config.List()
-            local newestTs, newestName, newestAuto = nil, nil, false
-            for _, name in ipairs(list) do
-                local raw = cfgRead(filePath(name))
-                if type(raw) == "string" and #raw > 0 then
-                    local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                    if okj and type(dec) == "table" and type(dec.metadata) == "table" then
-                        if dec.metadata.__deleted ~= true then
-                            local ts = tonumber(dec.metadata.lastModified or 0) or 0
-                            if (not newestTs) or ts > newestTs then
-                                newestTs = ts
-                                newestName = name
-                                newestAuto = (dec.metadata.autoLoad == true)
-                            end
-                        end
-                    end
-                end
-            end
-            if newestName and newestAuto then
-                return newestName
-            end
             return nil
         end
     end
