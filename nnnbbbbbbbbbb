@@ -2455,6 +2455,93 @@ function Library:CreateLibrary(opts)
             if not gif(cdir) then pcall(gmf, cdir) end
         end
 
+        -- Some executors on Windows require backslash paths for file APIs.
+        -- Use helpers that transparently try both '/' and '\\' variants.
+        local function cfgPathVariants(path)
+            if type(path) ~= "string" then return path, nil end
+            if path:find("/", 1, true) then
+                return path, (path:gsub("/", "\\"))
+            end
+            if path:find("\\", 1, true) then
+                return path, (path:gsub("\\", "/"))
+            end
+            return path, nil
+        end
+
+        local function cfgIsFolder(path)
+            if not gif then return false end
+            local p1, p2 = cfgPathVariants(path)
+            local ok, res = pcall(function() return gif(p1) end)
+            if ok and res then return true end
+            if p2 then
+                local ok2, res2 = pcall(function() return gif(p2) end)
+                if ok2 and res2 then return true end
+            end
+            return false
+        end
+
+        local function cfgMakeFolder(path)
+            if not gmf then return end
+            local p1, p2 = cfgPathVariants(path)
+            pcall(function() gmf(p1) end)
+            if p2 then pcall(function() gmf(p2) end) end
+        end
+
+        local function cfgRead(path)
+            if not gr then return nil end
+            local p1, p2 = cfgPathVariants(path)
+            local ok, raw = pcall(function() return gr(p1) end)
+            if ok and type(raw) == "string" then return raw end
+            if p2 then
+                local ok2, raw2 = pcall(function() return gr(p2) end)
+                if ok2 and type(raw2) == "string" then return raw2 end
+            end
+            return nil
+        end
+
+        local function cfgWrite(path, data)
+            if not gw then return false end
+            local p1, p2 = cfgPathVariants(path)
+            local ok = pcall(function() gw(p1, data) end)
+            if ok then return true end
+            if p2 then
+                local ok2 = pcall(function() gw(p2, data) end)
+                if ok2 then return true end
+            end
+            return false
+        end
+
+        local function cfgDelete(path)
+            if not gd then return false end
+            local p1, p2 = cfgPathVariants(path)
+            local ok = pcall(function() gd(p1) end)
+            if ok then return true end
+            if p2 then
+                local ok2 = pcall(function() gd(p2) end)
+                if ok2 then return true end
+            end
+            return false
+        end
+
+        local function cfgListFiles(path)
+            if not glf then return nil end
+            local p1, p2 = cfgPathVariants(path)
+            local ok, files = pcall(function() return glf(p1) end)
+            if ok and type(files) == "table" then return files end
+            if p2 then
+                local ok2, files2 = pcall(function() return glf(p2) end)
+                if ok2 and type(files2) == "table" then return files2 end
+            end
+            return nil
+        end
+
+        local function ensureFoldersCompat()
+            if not gmf then return end
+            if not cfgIsFolder(DIR) then cfgMakeFolder(DIR) end
+            local cdir = DIR .. "/Configs"
+            if not cfgIsFolder(cdir) then cfgMakeFolder(cdir) end
+        end
+
         local function atomicWrite(path, content)
             if not gw or not gr then error("No filesystem write support") end
             local tmp = path .. ".tmp"
@@ -2470,6 +2557,18 @@ function Library:CreateLibrary(opts)
                 pcall(function() gw(path, content) end)
             end
             if gd then pcall(gd, tmp) end
+        end
+
+        local function atomicWriteCompat(path, content)
+            if MEM_MODE ~= nil and MEM_MODE == true then return end
+            local p1, p2 = cfgPathVariants(path)
+            local ok = pcall(function() atomicWrite(p1, content) end)
+            if ok then return true end
+            if p2 then
+                local ok2 = pcall(function() atomicWrite(p2, content) end)
+                if ok2 then return true end
+            end
+            return false
         end
 
         
@@ -2547,7 +2646,7 @@ function Library:CreateLibrary(opts)
             if MEM_MODE ~= nil then return end
             MEM_MODE = not (gw and gr)
             if not MEM_MODE then
-                pcall(ensureFolders)
+                pcall(ensureFoldersCompat)
             else
                 memEnsure()
             end
@@ -2813,14 +2912,14 @@ function Library:CreateLibrary(opts)
             local okPretty, pretty = pcall(function() return prettyJSON(json) end)
             if okPretty and type(pretty) == 'string' and #pretty > 0 then json = pretty end
             local path = filePath(s)
-            if gif and gmf then pcall(ensureFolders) end
-            local okw, err = pcall(function() atomicWrite(path, json) end)
+            if gmf then pcall(ensureFoldersCompat) end
+            local okw = atomicWriteCompat(path, json)
             if not okw then
                 
                 local alt = sanitize(Base) .. "_" .. sanitize(s) .. ".json"
-                local altOk, altErr = pcall(function() atomicWrite(alt, json) end)
+                local altOk = atomicWriteCompat(alt, json)
                 if not altOk then
-                    cfgErr("[Config] Save failed:", tostring(altErr))
+                    cfgErr("[Config] Save failed:", "fallback write failed")
                     return false
                 end
                 sessionAdd(s)
@@ -2876,8 +2975,8 @@ function Library:CreateLibrary(opts)
                 return {}
             end
             local path = filePath(s)
-            local ok, raw = pcall(function() return gr(path) end)
-            if ok and type(raw) == "string" and #raw > 0 then
+            local raw = cfgRead(path)
+            if type(raw) == "string" and #raw > 0 then
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(dec) == "table" then
                             local out = {}
@@ -2932,18 +3031,18 @@ function Library:CreateLibrary(opts)
                 return out
             end
             
-            if glf and gif and gif(configsFolder()) then
-                local ok, files = pcall(function() return glf(configsFolder()) end)
+            if glf and cfgIsFolder(configsFolder()) then
+                local files = cfgListFiles(configsFolder())
                 local out = {}
-                if ok and type(files) == "table" then
+                if type(files) == "table" then
                     for _, f in ipairs(files) do
                         local n = f:match("([^/\\]+)$") or f
                         n = n:gsub("%.json$", "")
                         if n ~= "" and not n:match("^__") then
                             local include = true
                             if gr then
-                                local okr, raw = pcall(function() return gr(f) end)
-                                if okr and type(raw) == "string" and #raw > 0 then
+                                local raw = cfgRead(f)
+                                if type(raw) == "string" and #raw > 0 then
                                     local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                                     if okj and type(dec) == "table" and type(dec.metadata) == "table" and dec.metadata.__deleted == true then
                                         include = false
@@ -3024,15 +3123,18 @@ function Library:CreateLibrary(opts)
             end
             local path = filePath(s)
             local obj = {}
-            local ok, raw = pcall(function() return gr(path) end)
-            if ok and type(raw) == "string" and #raw > 0 then
+            local raw = cfgRead(path)
+            if type(raw) == "string" and #raw > 0 then
                 pcall(function() obj = HttpService:JSONDecode(raw) or {} end)
             end
             obj.metadata = obj.metadata or {}
             obj.metadata.autoLoad = (on == true) or nil
             obj.metadata.lastModified = os.time()
             local okj, json = pcall(function() return HttpService:JSONEncode(obj) end)
-            if okj then pcall(function() atomicWrite(path, json) end) end
+            if okj then
+                if gmf then pcall(ensureFoldersCompat) end
+                atomicWriteCompat(path, json)
+            end
         end
 
         function Config.GetAutoLoad(name)
@@ -3045,8 +3147,8 @@ function Library:CreateLibrary(opts)
                 return type(t) == "table" and t.metadata and t.metadata.autoLoad == true
             end
             local path = filePath(s)
-            local ok, raw = pcall(function() return gr(path) end)
-            if ok and type(raw) == "string" and #raw > 0 then
+            local raw = cfgRead(path)
+            if type(raw) == "string" and #raw > 0 then
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(dec) == "table" and type(dec.metadata) == "table" then return dec.metadata.autoLoad == true end
             end
@@ -3069,8 +3171,8 @@ function Library:CreateLibrary(opts)
             local list = Config.List()
             local newest, best
             for _, name in ipairs(list) do
-                local ok, raw = pcall(function() return gr(filePath(name)) end)
-                if ok and type(raw) == "string" and #raw > 0 then
+                local raw = cfgRead(filePath(name))
+                if type(raw) == "string" and #raw > 0 then
                     local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                     if okj and type(dec) == "table" and dec.metadata and dec.metadata.autoLoad then
                         local ts = tonumber(dec.metadata.lastModified or 0) or 0
