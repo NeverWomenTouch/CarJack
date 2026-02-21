@@ -10649,7 +10649,11 @@ function Library:CreateLibrary(opts)
         pcall(function() langDd:Set("English", true) end)
 
         autoToggle = group:AddToggle({ Name = "Auto Load Config", Default = false, Callback = function(on)
-            local raw = dd:Get()
+            local raw = nil
+            pcall(function() raw = dd and dd.Get and dd:Get() end)
+            if (not raw or raw == "") then
+                pcall(function() raw = nameBox and nameBox.Get and nameBox:Get() end)
+            end
             local safe = raw and sanitize(raw) or nil
             if not safe or safe == "" then return end
             pcall(function() Config.SetAutoLoad(safe, on) end)
