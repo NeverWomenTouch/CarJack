@@ -2573,11 +2573,11 @@ function Library:CreateLibrary(opts)
 
         -- Persistent index for executors lacking listfiles/isfolder.
         local function indexPath()
-            return (configsFolder() .. "/__index.json")
+            return (DIR .. "/Configs/__index.json")
         end
 
         local function autoloadPath()
-            return (configsFolder() .. "/__autoload.json")
+            return (DIR .. "/Configs/__autoload.json")
         end
 
         local function readAutoloadPointer()
@@ -11051,12 +11051,16 @@ function Library:CreateLibrary(opts)
             task.wait(attempt == 1 and 0.08 or 0.12)
             -- Give the consumer script time to register controls so the loaded
             -- config visibly applies on first run.
-            if attempt < 6 and (not next(Library._controls)) then
-                continue
+            local controlsReady = true
+            if attempt < 6 then
+                local ctl = (Library and Library._controls) or nil
+                controlsReady = (type(ctl) == "table" and next(ctl) ~= nil)
             end
+            if controlsReady then
             pcall(function() toLoad = Config.MostRecentAutoLoad() end)
             if toLoad and type(toLoad) == "string" and #toLoad > 0 then
                 break
+            end
             end
         end
         if toLoad and type(toLoad) == "string" and #toLoad > 0 then
