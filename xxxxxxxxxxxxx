@@ -661,9 +661,11 @@ function Library:Unload()
     self._rootFrame = nil
 
     pcall(function()
-        local reg = rawget(_G, "__DENDRITE_ACTIVE_LIBS")
-        if type(reg) == "table" and self._screenGuiName and reg[self._screenGuiName] == self then
-            reg[self._screenGuiName] = nil
+        if _G then
+            local reg = _G.__DENDRITE_ACTIVE_LIBS
+            if type(reg) == "table" and self._screenGuiName and reg[self._screenGuiName] == self then
+                reg[self._screenGuiName] = nil
+            end
         end
     end)
 
@@ -2366,8 +2368,8 @@ function Library:_registerControl(c)
         self.Flags[c.id] = c
     end
 
-    local pending = rawget(self, "_pendingConfig")
-    if type(pending) == "table" and type(rawget(self, "_applyConfigValue")) == "function" then
+    local pending = self._pendingConfig
+    if type(pending) == "table" and type(self._applyConfigValue) == "function" then
         local id = c.id
         local v = pending[id]
         local short = nil
@@ -2818,8 +2820,10 @@ function Library:CreateLibrary(opts)
         
         
         pcall(function()
-            rawset(_G, "serialize", serialize)
-            rawset(_G, "deserialize", deserialize)
+            if _G then
+                _G.serialize = serialize
+                _G.deserialize = deserialize
+            end
         end)
         Library._serialize = serialize
         Library._deserialize = deserialize
@@ -3563,13 +3567,15 @@ function Library:CreateLibrary(opts)
     local screenGuiName = sanitize(libraryName)
 
     pcall(function()
-        local reg = rawget(_G, "__DENDRITE_ACTIVE_LIBS")
-        if type(reg) ~= "table" then reg = {}; rawset(_G, "__DENDRITE_ACTIVE_LIBS", reg) end
-        local old = reg[screenGuiName]
-        if old and old ~= self and type(old.Unload) == "function" then
-            pcall(function() old:Unload() end)
+        if _G then
+            local reg = _G.__DENDRITE_ACTIVE_LIBS
+            if type(reg) ~= "table" then reg = {}; _G.__DENDRITE_ACTIVE_LIBS = reg end
+            local old = reg[screenGuiName]
+            if old and old ~= self and type(old.Unload) == "function" then
+                pcall(function() old:Unload() end)
+            end
+            reg[screenGuiName] = self
         end
-        reg[screenGuiName] = self
     end)
     
     for _, child in ipairs(CoreGui:GetChildren()) do
