@@ -2576,13 +2576,25 @@ function Library:CreateLibrary(opts)
             return (DIR .. "/Configs/__index.json")
         end
 
+        local function rootIndexPath()
+            -- Fallback when DIR/Configs isn't readable/writable.
+            return (sanitize(Base) .. "__index.json")
+        end
+
         local function autoloadPath()
             return (DIR .. "/Configs/__autoload.json")
+        end
+
+        local function rootAutoloadPath()
+            return (sanitize(Base) .. "__autoload.json")
         end
 
         local function readAutoloadPointer()
             if MEM_MODE then return nil end
             local raw = cfgRead(autoloadPath())
+            if type(raw) ~= "string" or raw == "" then
+                raw = cfgRead(rootAutoloadPath())
+            end
             if type(raw) ~= "string" or raw == "" then return nil end
             local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
             if ok and type(dec) == "table" then
@@ -2603,11 +2615,17 @@ function Library:CreateLibrary(opts)
             }
             local ok, json = pcall(function() return HttpService:JSONEncode(payload) end)
             if not ok or type(json) ~= "string" then return false end
-            return atomicWriteCompat(autoloadPath(), json) == true
+            if atomicWriteCompat(autoloadPath(), json) == true then
+                return true
+            end
+            return atomicWriteCompat(rootAutoloadPath(), json) == true
         end
         local function readIndex()
             if MEM_MODE then return nil end
             local raw = cfgRead(indexPath())
+            if type(raw) ~= "string" or raw == "" then
+                raw = cfgRead(rootIndexPath())
+            end
             if type(raw) ~= "string" or raw == "" then return nil end
             local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
             if ok and type(dec) == "table" then return dec end
@@ -2619,7 +2637,10 @@ function Library:CreateLibrary(opts)
             if gmf then pcall(ensureFoldersCompat) end
             local ok, json = pcall(function() return HttpService:JSONEncode(idx) end)
             if not ok or type(json) ~= "string" then return false end
-            return atomicWriteCompat(indexPath(), json) == true
+            if atomicWriteCompat(indexPath(), json) == true then
+                return true
+            end
+            return atomicWriteCompat(rootIndexPath(), json) == true
         end
         local function upsertIndex(name, patch)
             if MEM_MODE then return end
@@ -3088,6 +3109,10 @@ function Library:CreateLibrary(opts)
             end
             local path = filePath(s)
             local raw = cfgRead(path)
+            if (type(raw) ~= "string" or raw == "") then
+                local alt = sanitize(Base) .. "_" .. sanitize(s) .. ".json"
+                raw = cfgRead(alt)
+            end
             if type(raw) == "string" and #raw > 0 then
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(dec) == "table" then
@@ -3271,8 +3296,17 @@ function Library:CreateLibrary(opts)
                 return
             end
             local path = filePath(s)
+            local alt = sanitize(Base) .. "_" .. sanitize(s) .. ".json"
             local obj = {}
             local raw = cfgRead(path)
+            local targetPath = path
+            if (type(raw) ~= "string" or raw == "") then
+                local rawAlt = cfgRead(alt)
+                if type(rawAlt) == "string" and rawAlt ~= "" then
+                    raw = rawAlt
+                    targetPath = alt
+                end
+            end
             if type(raw) == "string" and #raw > 0 then
                 pcall(function() obj = HttpService:JSONDecode(raw) or {} end)
             end
@@ -3282,7 +3316,7 @@ function Library:CreateLibrary(opts)
             local okj, json = pcall(function() return HttpService:JSONEncode(obj) end)
             if okj then
                 if gmf then pcall(ensureFoldersCompat) end
-                atomicWriteCompat(path, json)
+                atomicWriteCompat(targetPath, json)
             end
             pcall(function() upsertIndex(s, { autoLoad = (on == true), lastModified = os.time(), __deleted = nil }) end)
 
@@ -3310,6 +3344,10 @@ function Library:CreateLibrary(opts)
             end
             local path = filePath(s)
             local raw = cfgRead(path)
+            if (type(raw) ~= "string" or raw == "") then
+                local alt = sanitize(Base) .. "_" .. sanitize(s) .. ".json"
+                raw = cfgRead(alt)
+            end
             if type(raw) == "string" and #raw > 0 then
                 local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                 if okj and type(dec) == "table" and type(dec.metadata) == "table" then return dec.metadata.autoLoad == true end
@@ -10874,12 +10912,22 @@ function Library:CreateLibrary(opts)
             local safe = sanitize(raw)
             local low = safe:lower()
             if safe == "" or low == "__meta" or low == "__index" then return end
+
+            local wasAutoLoad = false
+            pcall(function() wasAutoLoad = autoToggle and autoToggle.Get and autoToggle:Get() end)
             local okSave, res = pcall(function() return Window.SaveConfig(safe) end)
             if okSave and res then
+                if wasAutoLoad then
+                    pcall(function() Config.SetAutoLoad(safe, true) end)
+                end
                 refreshList()
                 task.defer(function()
                     pcall(function() dd:Set(safe, true) end)
                     if nameBox and nameBox.Set then nameBox:Set(safe, true) end
+
+                    if wasAutoLoad and autoToggle and autoToggle.Set then
+                        autoToggle:Set(true, true)
+                    end
                 end)
             end
         end })
