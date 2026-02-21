@@ -3029,6 +3029,9 @@ function Library:CreateLibrary(opts)
                 sessionAdd(s)
                 pcall(function() Config.RecordSave(s) end)
                 pcall(function() upsertIndex(s, { autoLoad = meta.autoLoad == true, lastModified = meta.lastModified }) end)
+                if meta.autoLoad == true then
+                    pcall(function() writeAutoloadPointer(s) end)
+                end
                 return true
             end
             sessionAdd(s)
@@ -3117,13 +3120,14 @@ function Library:CreateLibrary(opts)
                         end
                         out.__library = dec.library or (type(dec.library) == 'table' and type(dec.library.layout) == 'table' and dec.library) or nil
                         sessionAdd(s)
-                        pcall(function() upsertIndex(s, { __deleted = nil, lastModified = os.time() }) end)
+                        -- Don't mutate lastModified on load; it should reflect save time.
+                        pcall(function() upsertIndex(s, { __deleted = nil }) end)
                         return out
                     elseif type(dec.values) == "table" then
                         for k, v in pairs(dec.values) do out[k] = deserialize(v) end
                         out.__library = dec.library or (type(dec.library) == 'table' and type(dec.library.layout) == 'table' and dec.library) or nil
                         sessionAdd(s)
-                        pcall(function() upsertIndex(s, { __deleted = nil, lastModified = os.time() }) end)
+                        pcall(function() upsertIndex(s, { __deleted = nil }) end)
                         return out
                     end
                 end
@@ -3143,6 +3147,7 @@ function Library:CreateLibrary(opts)
             end
             
             if glf and cfgIsFolder(configsFolder()) then
+                local idx = readIndex()
                 local files = cfgListFiles(configsFolder())
                 local out = {}
                 if type(files) == "table" then
@@ -3157,6 +3162,14 @@ function Library:CreateLibrary(opts)
                                     local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                                     if okj and type(dec) == "table" and type(dec.metadata) == "table" and dec.metadata.__deleted == true then
                                         include = false
+                                    end
+                                else
+                                    -- If we can't read the file, consult the index (if present) to honor deletions.
+                                    if type(idx) == "table" and type(idx.configs) == "table" then
+                                        local meta = idx.configs[n]
+                                        if type(meta) == "table" and meta.__deleted == true then
+                                            include = false
+                                        end
                                     end
                                 end
                             end
@@ -3216,7 +3229,12 @@ function Library:CreateLibrary(opts)
             local function tryDelete(p)
                 if not p or p == "" then return end
                 if gd then
-                    pcall(function() cfgDelete(p) end)
+                    local okDel = false
+                    pcall(function() okDel = (cfgDelete(p) == true) end)
+                    if not okDel then
+                        -- If deletion fails (common), tombstone so it disappears from lists.
+                        tombstone(p)
+                    end
                 else
                     tombstone(p)
                     -- atomicWriteCompat already tries variants, but keep legacy extra call.
@@ -3317,38 +3335,67 @@ function Library:CreateLibrary(opts)
             do
                 local ptr = readAutoloadPointer()
                 if ptr and ptr ~= "" then
+                    -- If index marks it deleted, ignore pointer.
+                    local idx = readIndex()
+                    if type(idx) == "table" and type(idx.configs) == "table" then
+                        local meta = idx.configs[ptr]
+                        if type(meta) == "table" and meta.__deleted == true then
+                            -- fall through
+                        else
+                            return ptr
+                        end
+                    else
                     return ptr
-                end
-            end
-
-            -- Prefer persistent index when listfiles is missing/unreliable.
-            if not glf then
-                local best = mostRecentAutoLoadFromIndex()
-                if best and type(best) == "string" and best ~= "" then
-                    return best
-                end
-            end
-
-            local list = Config.List()
-            local newest, best
-            for _, name in ipairs(list) do
-                local raw = cfgRead(filePath(name))
-                if type(raw) == "string" and #raw > 0 then
-                    local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
-                    if okj and type(dec) == "table" and dec.metadata and dec.metadata.autoLoad then
-                        local ts = tonumber(dec.metadata.lastModified or 0) or 0
-                        if not newest or ts > newest then newest, best = ts, name end
                     end
                 end
             end
 
-            if (not best) then
-                local idxBest = mostRecentAutoLoadFromIndex()
-                if idxBest and type(idxBest) == "string" and idxBest ~= "" then
-                    return idxBest
+            -- Your expected behavior: check the most recently saved/modified config overall,
+            -- then auto-load it only if its autoLoad flag is enabled.
+            do
+                local idx = readIndex()
+                if type(idx) == "table" and type(idx.configs) == "table" then
+                    local newestTs, newestName, newestAuto = nil, nil, false
+                    for name, meta in pairs(idx.configs) do
+                        if type(name) == "string" and name ~= "" and type(meta) == "table" and meta.__deleted ~= true then
+                            local ts = tonumber(meta.lastModified or 0) or 0
+                            if (not newestTs) or ts > newestTs then
+                                newestTs = ts
+                                newestName = name
+                                newestAuto = (meta.autoLoad == true)
+                            end
+                        end
+                    end
+                    if newestName and newestAuto then
+                        return newestName
+                    end
+                    return nil
                 end
             end
-            return best
+
+            -- Fallback: scan config files (when index isn't available).
+            local list = Config.List()
+            local newestTs, newestName, newestAuto = nil, nil, false
+            for _, name in ipairs(list) do
+                local raw = cfgRead(filePath(name))
+                if type(raw) == "string" and #raw > 0 then
+                    local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                    if okj and type(dec) == "table" and type(dec.metadata) == "table" then
+                        if dec.metadata.__deleted ~= true then
+                            local ts = tonumber(dec.metadata.lastModified or 0) or 0
+                            if (not newestTs) or ts > newestTs then
+                                newestTs = ts
+                                newestName = name
+                                newestAuto = (dec.metadata.autoLoad == true)
+                            end
+                        end
+                    end
+                end
+            end
+            if newestName and newestAuto then
+                return newestName
+            end
+            return nil
         end
     end
     
@@ -11000,8 +11047,13 @@ function Library:CreateLibrary(opts)
     
     task.spawn(function()
         local toLoad = nil
-        for attempt = 1, 12 do
-            task.wait(attempt == 1 and 0.05 or 0.12)
+        for attempt = 1, 20 do
+            task.wait(attempt == 1 and 0.08 or 0.12)
+            -- Give the consumer script time to register controls so the loaded
+            -- config visibly applies on first run.
+            if attempt < 6 and (not next(Library._controls)) then
+                continue
+            end
             pcall(function() toLoad = Config.MostRecentAutoLoad() end)
             if toLoad and type(toLoad) == "string" and #toLoad > 0 then
                 break
