@@ -2571,6 +2571,80 @@ function Library:CreateLibrary(opts)
             return false
         end
 
+        -- Persistent index for executors lacking listfiles/isfolder.
+        local function indexPath()
+            return (configsFolder() .. "/__index.json")
+        end
+        local function readIndex()
+            if MEM_MODE then return nil end
+            local raw = cfgRead(indexPath())
+            if type(raw) ~= "string" or raw == "" then return nil end
+            local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+            if ok and type(dec) == "table" then return dec end
+            return nil
+        end
+        local function writeIndex(idx)
+            if MEM_MODE then return false end
+            if type(idx) ~= "table" then return false end
+            if gmf then pcall(ensureFoldersCompat) end
+            local ok, json = pcall(function() return HttpService:JSONEncode(idx) end)
+            if not ok or type(json) ~= "string" then return false end
+            return atomicWriteCompat(indexPath(), json) == true
+        end
+        local function upsertIndex(name, patch)
+            if MEM_MODE then return end
+            local s = sanitize(name or "")
+            if s == "" then return end
+            local idx = readIndex() or {}
+            idx.configs = idx.configs or {}
+            local cur = idx.configs[s]
+            if type(cur) ~= "table" then cur = { name = s } end
+            if type(patch) == "table" then
+                for k, v in pairs(patch) do
+                    cur[k] = v
+                end
+            end
+            cur.lastModified = tonumber(cur.lastModified or os.time()) or os.time()
+            idx.configs[s] = cur
+            writeIndex(idx)
+        end
+        local function tombstoneIndex(name)
+            if MEM_MODE then return end
+            local s = sanitize(name or "")
+            if s == "" then return end
+            upsertIndex(s, { __deleted = true, autoLoad = nil, lastModified = os.time() })
+        end
+        local function listFromIndex()
+            local idx = readIndex()
+            if type(idx) ~= "table" or type(idx.configs) ~= "table" then return nil end
+            local out = {}
+            for n, meta in pairs(idx.configs) do
+                if type(n) == "string" and n ~= "" then
+                    if not (type(meta) == "table" and meta.__deleted == true) then
+                        table.insert(out, n)
+                    end
+                end
+            end
+            table.sort(out)
+            return out
+        end
+        local function mostRecentAutoLoadFromIndex()
+            local idx = readIndex()
+            if type(idx) ~= "table" or type(idx.configs) ~= "table" then return nil end
+            local newest, best = nil, nil
+            for n, meta in pairs(idx.configs) do
+                if type(n) == "string" and n ~= "" and type(meta) == "table" then
+                    if meta.__deleted ~= true and meta.autoLoad == true then
+                        local ts = tonumber(meta.lastModified or 0) or 0
+                        if (not newest) or ts > newest then
+                            newest, best = ts, n
+                        end
+                    end
+                end
+            end
+            return best
+        end
+
         
         local function serialize(v)
             local t = typeof(v)
@@ -2924,10 +2998,12 @@ function Library:CreateLibrary(opts)
                 end
                 sessionAdd(s)
                 pcall(function() Config.RecordSave(s) end)
+                pcall(function() upsertIndex(s, { autoLoad = meta.autoLoad == true, lastModified = meta.lastModified }) end)
                 return true
             end
             sessionAdd(s)
             pcall(function() Config.RecordSave(s) end)
+            pcall(function() upsertIndex(s, { autoLoad = meta.autoLoad == true, lastModified = meta.lastModified }) end)
             return true
         end
 
@@ -3008,11 +3084,13 @@ function Library:CreateLibrary(opts)
                         end
                         out.__library = dec.library or (type(dec.library) == 'table' and type(dec.library.layout) == 'table' and dec.library) or nil
                         sessionAdd(s)
+                        pcall(function() upsertIndex(s, { __deleted = nil, lastModified = os.time() }) end)
                         return out
                     elseif type(dec.values) == "table" then
                         for k, v in pairs(dec.values) do out[k] = deserialize(v) end
                         out.__library = dec.library or (type(dec.library) == 'table' and type(dec.library.layout) == 'table' and dec.library) or nil
                         sessionAdd(s)
+                        pcall(function() upsertIndex(s, { __deleted = nil, lastModified = os.time() }) end)
                         return out
                     end
                 end
@@ -3053,8 +3131,23 @@ function Library:CreateLibrary(opts)
                         end
                     end
                 end
+                if #out > 0 then
+                    table.sort(out)
+                    return out
+                end
+                -- Fallback: listfiles returned empty; use index if present.
+                local idxList = listFromIndex()
+                if type(idxList) == "table" and #idxList > 0 then
+                    return idxList
+                end
                 table.sort(out)
                 return out
+            end
+
+            -- Fallback: no listfiles support; use the persistent index.
+            local idxList = listFromIndex()
+            if type(idxList) == "table" then
+                return idxList
             end
             
             local out = {}
@@ -3106,6 +3199,7 @@ function Library:CreateLibrary(opts)
             tryDelete(alt)
             sessionRemove(s)
             pcall(function() Config.ClearMeta(s) end)
+            pcall(function() tombstoneIndex(s) end)
         end
 
         function Config.SetAutoLoad(name, on)
@@ -3135,6 +3229,7 @@ function Library:CreateLibrary(opts)
                 if gmf then pcall(ensureFoldersCompat) end
                 atomicWriteCompat(path, json)
             end
+            pcall(function() upsertIndex(s, { autoLoad = (on == true), lastModified = os.time(), __deleted = nil }) end)
         end
 
         function Config.GetAutoLoad(name)
@@ -3168,6 +3263,15 @@ function Library:CreateLibrary(opts)
                 end
                 return best
             end
+
+            -- Prefer persistent index when listfiles is missing/unreliable.
+            if not glf then
+                local best = mostRecentAutoLoadFromIndex()
+                if best and type(best) == "string" and best ~= "" then
+                    return best
+                end
+            end
+
             local list = Config.List()
             local newest, best
             for _, name in ipairs(list) do
@@ -3178,6 +3282,13 @@ function Library:CreateLibrary(opts)
                         local ts = tonumber(dec.metadata.lastModified or 0) or 0
                         if not newest or ts > newest then newest, best = ts, name end
                     end
+                end
+            end
+
+            if (not best) then
+                local idxBest = mostRecentAutoLoadFromIndex()
+                if idxBest and type(idxBest) == "string" and idxBest ~= "" then
+                    return idxBest
                 end
             end
             return best
