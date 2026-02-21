@@ -2421,12 +2421,33 @@ function Library:CreateLibrary(opts)
     local Base = sanitize(libraryName)
     local DIR = tostring(opts.ConfigFolder or Library.ConfigFolder or Base)
 
-        local CFG_DEBUG_LOCAL = (opts and opts.ConfigDebug == true) or (rawget(_G, "DENDRITE_CONFIG_DEBUG") == true)
         local function cfgDbg(...)
-            if CFG_DEBUG_LOCAL then
-                print("[Dendrite/Config]", ...)
+            local on = (opts and opts.ConfigDebug == true) or (rawget(_G, "DENDRITE_CONFIG_DEBUG") == true)
+            if on then
+                local msg = ""
+                pcall(function()
+                    local parts = {}
+                    for i = 1, select("#", ...) do
+                        local v = select(i, ...)
+                        parts[#parts + 1] = tostring(v)
+                    end
+                    msg = table.concat(parts, " ")
+                end)
+                pcall(function() warn("[Dendrite/Config]", msg) end)
+                pcall(function()
+                    local log = rawget(_G, "DENDRITE_CONFIG_DEBUG_LOG")
+                    if type(log) ~= "table" then
+                        log = {}
+                        rawset(_G, "DENDRITE_CONFIG_DEBUG_LOG", log)
+                    end
+                    log[#log + 1] = { t = os.time(), msg = msg }
+                    if #log > 200 then
+                        table.remove(log, 1)
+                    end
+                end)
             end
         end
+        cfgDbg("init", "DIR=", DIR)
 
                 local gw = (type(writefile) == "function") and writefile or nil
         local gr = (type(readfile) == "function") and readfile or nil
@@ -2624,10 +2645,10 @@ function Library:CreateLibrary(opts)
             }
             local ok, json = pcall(function() return HttpService:JSONEncode(payload) end)
             if not ok or type(json) ~= "string" then return false end
-            if atomicWriteCompat(autoloadPath(), json) == true then
+            if cfgWrite(autoloadPath(), json) == true or atomicWriteCompat(autoloadPath(), json) == true then
                 return true
             end
-            return atomicWriteCompat(rootAutoloadPath(), json) == true
+            return cfgWrite(rootAutoloadPath(), json) == true or atomicWriteCompat(rootAutoloadPath(), json) == true
         end
         local function readIndex()
             if MEM_MODE then return nil end
@@ -2646,10 +2667,10 @@ function Library:CreateLibrary(opts)
             if gmf then pcall(ensureFoldersCompat) end
             local ok, json = pcall(function() return HttpService:JSONEncode(idx) end)
             if not ok or type(json) ~= "string" then return false end
-            if atomicWriteCompat(indexPath(), json) == true then
+            if cfgWrite(indexPath(), json) == true or atomicWriteCompat(indexPath(), json) == true then
                 return true
             end
-            return atomicWriteCompat(rootIndexPath(), json) == true
+            return cfgWrite(rootIndexPath(), json) == true or atomicWriteCompat(rootIndexPath(), json) == true
         end
 
         -- Tracks the last saved config deterministically (no scanning required).
@@ -2676,10 +2697,10 @@ function Library:CreateLibrary(opts)
             if gmf then pcall(ensureFoldersCompat) end
             local ok, json = pcall(function() return HttpService:JSONEncode(obj) end)
             if not ok or type(json) ~= "string" then return false end
-            if atomicWriteCompat(lastSavedPath(), json) == true then
+            if cfgWrite(lastSavedPath(), json) == true or atomicWriteCompat(lastSavedPath(), json) == true then
                 return true
             end
-            return atomicWriteCompat(rootLastSavedPath(), json) == true
+            return cfgWrite(rootLastSavedPath(), json) == true or atomicWriteCompat(rootLastSavedPath(), json) == true
         end
         local function upsertIndex(name, patch)
             if MEM_MODE then return end
@@ -2846,7 +2867,7 @@ function Library:CreateLibrary(opts)
             local s = sanitize(name or "")
             if s == "" then return false end
 
-            cfgDbg("Save", s, "DIR=", DIR)
+            cfgDbg("Save", s, "path=", filePath(s), "alt=", (sanitize(Base) .. "_" .. sanitize(s) .. ".json"))
             
             
             local controlsTbl = {}
@@ -3116,7 +3137,7 @@ function Library:CreateLibrary(opts)
             local s = sanitize(name or "")
             if s == "" then return {} end
 
-            cfgDbg("Load", s)
+            cfgDbg("Load", s, "path=", filePath(s), "alt=", (sanitize(Base) .. "_" .. sanitize(s) .. ".json"))
             if MEM_MODE then
                 local key = memEnsure()
                 local t = Library._memConfig.files[key][s]
@@ -3338,7 +3359,7 @@ function Library:CreateLibrary(opts)
             local s = sanitize(name or "")
             if s == "" then return end
 
-            cfgDbg("SetAutoLoad", s, on == true)
+            cfgDbg("SetAutoLoad", s, on == true, "path=", filePath(s), "alt=", (sanitize(Base) .. "_" .. sanitize(s) .. ".json"))
             if MEM_MODE then
                 local key = memEnsure()
                 local t = Library._memConfig.files[key][s] or { metadata = {}, values = {} }
@@ -11217,7 +11238,7 @@ function Library:CreateLibrary(opts)
             end
         end
         if toLoad and type(toLoad) == "string" and #toLoad > 0 then
-            pcall(function()
+            local ok, err = pcall(function()
                 if Window._lastLoadedConfigName and Window._lastLoadedConfigName == toLoad then
                     return
                 end
@@ -11225,6 +11246,14 @@ function Library:CreateLibrary(opts)
                 Config.SetAutoLoad(toLoad, true)
                 if Window._lastConfigUI and Window._lastConfigUI.AutoToggle then
                     Window._lastConfigUI.AutoToggle:Set(true, true)
+                end
+            end)
+            pcall(function()
+                local on = rawget(_G, "DENDRITE_CONFIG_DEBUG") == true
+                if on then
+                    local log = rawget(_G, "DENDRITE_CONFIG_DEBUG_LOG")
+                    if type(log) ~= "table" then log = {}; rawset(_G, "DENDRITE_CONFIG_DEBUG_LOG", log) end
+                    log[#log + 1] = { t = os.time(), msg = ("autoload attempt: %s ok=%s err=%s"):format(tostring(toLoad), tostring(ok), tostring(err)) }
                 end
             end)
         end
