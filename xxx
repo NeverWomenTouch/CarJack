@@ -3206,24 +3206,20 @@ function Library:CreateLibrary(opts)
                 if not gw then return end
                 local payload = { metadata = { __deleted = true, name = s, lastModified = os.time() }, controls = {} }
                 local okj, json = pcall(function() return HttpService:JSONEncode(payload) end)
-                if okj and type(json) == "string" then
-                    pcall(function() gw(p, json) end)
-                else
-                    pcall(function() gw(p, "{}") end)
+                if not okj or type(json) ~= "string" then
+                    json = "{}"
                 end
+                -- Use compat writer so tombstone works even when executor needs backslashes.
+                pcall(function() atomicWriteCompat(p, json) end)
             end
 
             local function tryDelete(p)
                 if not p or p == "" then return end
                 if gd then
-                    pcall(function() gd(p) end)
-                    if p:find("/", 1, true) then
-                        pcall(function() gd((p:gsub("/", "\\"))) end)
-                    elseif p:find("\\", 1, true) then
-                        pcall(function() gd((p:gsub("\\", "/"))) end)
-                    end
+                    pcall(function() cfgDelete(p) end)
                 else
                     tombstone(p)
+                    -- atomicWriteCompat already tries variants, but keep legacy extra call.
                     if p:find("/", 1, true) then tombstone((p:gsub("/", "\\"))) end
                 end
             end
@@ -3321,11 +3317,7 @@ function Library:CreateLibrary(opts)
             do
                 local ptr = readAutoloadPointer()
                 if ptr and ptr ~= "" then
-                    local ok = false
-                    pcall(function() ok = (Config.GetAutoLoad(ptr) == true) end)
-                    if ok then
-                        return ptr
-                    end
+                    return ptr
                 end
             end
 
