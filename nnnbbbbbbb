@@ -8244,25 +8244,6 @@ function Library:CreateLibrary(opts)
                         for _, d in ipairs(clone:GetDescendants()) do
                             if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("ModuleScript") then
                                 pcall(function() d:Destroy() end)
-                            elseif d:IsA("Motor6D") then
-                                -- Prevent the preview from inheriting the live character's joint offsets
-                                -- (e.g. Neck/Waist look-at-camera systems). Some games bake this into
-                                -- Motor6D.C0/C1 (not just Transform). If RigAttachments exist, rebuild
-                                -- C0/C1 from them to restore the neutral rig pose.
-                                pcall(function() d.Transform = CFrame.new() end)
-                                pcall(function()
-                                    local p0 = d.Part0
-                                    local p1 = d.Part1
-                                    if p0 and p1 and p0.FindFirstChild and p1.FindFirstChild then
-                                        local attName = tostring(d.Name) .. "RigAttachment"
-                                        local a0 = p0:FindFirstChild(attName)
-                                        local a1 = p1:FindFirstChild(attName)
-                                        if a0 and a1 and a0:IsA("Attachment") and a1:IsA("Attachment") then
-                                            d.C0 = a0.CFrame
-                                            d.C1 = a1.CFrame
-                                        end
-                                    end
-                                end)
                             elseif d:IsA("BasePart") then
                                 d.CanCollide = false
                                 d.Massless = true
@@ -8279,6 +8260,10 @@ function Library:CreateLibrary(opts)
                             elseif d:IsA("Animator") then
                                 -- Stop any residual animation state from influencing Motor6D.Transform.
                                 pcall(function() d:Destroy() end)
+                            elseif d:IsA("Motor6D") then
+                                -- Cloning a live rig can carry over non-identity Transform values from animations,
+                                -- which makes parts look offset in ViewportFrames. Clear them.
+                                pcall(function() d.Transform = CFrame.new() end)
                             end
                         end
                     end
@@ -8378,6 +8363,60 @@ function Library:CreateLibrary(opts)
                         -- Freeze the solved neutral pose.
                         setAllAnchored(model, true)
                         return true
+                    end
+                    local function partPath(model, inst)
+                        if not (model and inst) then return nil end
+                        local names = {}
+                        local cur = inst
+                        while cur and cur ~= model do
+                            names[#names + 1] = cur.Name
+                            cur = cur.Parent
+                        end
+                        if cur ~= model then
+                            return nil
+                        end
+                        local out = {}
+                        for i = #names, 1, -1 do
+                            out[#out + 1] = names[i]
+                        end
+                        return table.concat(out, "/")
+                    end
+
+                    local function buildLivePartMap(sourceModel, cloneModel)
+                        if not (sourceModel and cloneModel) then return nil end
+                        local src = {}
+                        for _, d in ipairs(sourceModel:GetDescendants()) do
+                            if d:IsA("BasePart") then
+                                local p = partPath(sourceModel, d)
+                                if p then
+                                    src[p] = d
+                                end
+                            end
+                        end
+
+                        local map = {}
+                        for _, d in ipairs(cloneModel:GetDescendants()) do
+                            if d:IsA("BasePart") then
+                                local p = partPath(cloneModel, d)
+                                local s = p and src[p]
+                                if s then
+                                    map[#map + 1] = { src = s, dst = d, path = p }
+                                end
+                            end
+                        end
+                        if #map == 0 then
+                            return nil
+                        end
+                        return map
+                    end
+
+                    local function getModelRootPart(model)
+                        if not model then return nil end
+                        return getCharacterRoot(model)
+                            or model:FindFirstChild("LowerTorso")
+                            or model:FindFirstChild("Torso")
+                            or model:FindFirstChild("UpperTorso")
+                            or model:FindFirstChild("Head")
                     end
 
                     local function buildNeutralMotorDefaultsForRig(rigType)
@@ -8503,18 +8542,19 @@ function Library:CreateLibrary(opts)
                         -- Strip scripts & anchor parts first.
                         cleanupClone(clone)
 
-                        -- Hard reset joints to a neutral default pose so we never freeze the live
-                        -- character's current "look at camera" / aim offsets into the preview.
-                        if not usedManual then
-                            local defaults = buildNeutralMotorDefaultsForRig(rigTypeFromCharacter())
-                            if defaults then
-                                applyNeutralMotorDefaults(clone, defaults)
-                            end
-                        end
+                        -- Ensure the clone is assembled in a sane neutral pose before we frame it.
+                        -- This prevents scattered/offset limbs on some executors/rigs.
+                        pcall(function()
+                            solvePoseFromJoints(clone)
+                        end)
 
-                        -- After resetting joints, re-solve all part CFrames from the joints so the preview
-                        -- does not freeze the current live pose (head/waist look offsets, etc.).
-                        solvePoseFromJoints(clone)
+                        -- Anchor the clone so it stays in the viewport world. We'll mirror the live pose
+                        -- by copying relative part CFrames every frame.
+                        setAllAnchored(clone, true)
+
+                        -- Store live source + mapping for RenderStepped mirroring.
+                        state._liveSource = char
+                        state._liveMap = buildLivePartMap(char, clone)
                         clone.Parent = wm
 
                         -- How far below the feet the model is allowed to sit in the viewport world.
@@ -8717,6 +8757,33 @@ function Library:CreateLibrary(opts)
                             scheduleRebuild()
                         end
                         if not state.model then hideDrawings(); return end
+
+                        -- Live pose mirroring: copy the live character's relative part CFrames onto the
+                        -- preview clone so crouching/looking/etc is reflected in the viewport.
+                        do
+                            local srcModel = state._liveSource
+                            local map = state._liveMap
+                            if srcModel and map and srcModel.Parent and state.model and state.model.Parent then
+                                local srcRoot = getModelRootPart(srcModel)
+                                local dstRoot = getModelRootPart(state.model)
+                                if srcRoot and dstRoot and srcRoot:IsA("BasePart") and dstRoot:IsA("BasePart") then
+                                    for i = 1, #map do
+                                        local pair = map[i]
+                                        local s = pair and pair.src
+                                        local d = pair and pair.dst
+                                        if s and d and s.Parent and d.Parent and d ~= dstRoot then
+                                            local ok = pcall(function()
+                                                local rel = srcRoot.CFrame:ToObjectSpace(s.CFrame)
+                                                d.CFrame = dstRoot.CFrame * rel
+                                            end)
+                                            if not ok then
+                                                -- Ignore any transient mapping errors.
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
 
                         if state.autoRotate and not state.dragging then
                             local dtt = (typeof(dt) == "number" and dt) or (1/60)
