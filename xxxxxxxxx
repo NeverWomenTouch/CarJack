@@ -2644,6 +2644,36 @@ function Library:CreateLibrary(opts)
             end
             return atomicWriteCompat(rootIndexPath(), json) == true
         end
+
+        -- Tracks the last saved config deterministically (no scanning required).
+        local function lastSavedPath()
+            return (DIR .. "/__last_saved_config.json")
+        end
+        local function rootLastSavedPath()
+            return (sanitize(Base) .. "__last_saved_config.json")
+        end
+        local function readLastSaved()
+            if MEM_MODE then return nil end
+            local raw = cfgRead(lastSavedPath())
+            if type(raw) ~= "string" or raw == "" then
+                raw = cfgRead(rootLastSavedPath())
+            end
+            if type(raw) ~= "string" or raw == "" then return nil end
+            local ok, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+            if ok and type(dec) == "table" then return dec end
+            return nil
+        end
+        local function writeLastSaved(obj)
+            if MEM_MODE then return false end
+            if type(obj) ~= "table" then return false end
+            if gmf then pcall(ensureFoldersCompat) end
+            local ok, json = pcall(function() return HttpService:JSONEncode(obj) end)
+            if not ok or type(json) ~= "string" then return false end
+            if atomicWriteCompat(lastSavedPath(), json) == true then
+                return true
+            end
+            return atomicWriteCompat(rootLastSavedPath(), json) == true
+        end
         local function upsertIndex(name, patch)
             if MEM_MODE then return end
             local s = sanitize(name or "")
@@ -3055,6 +3085,9 @@ function Library:CreateLibrary(opts)
                 if meta.autoLoad == true then
                     pcall(function() writeAutoloadPointer(s) end)
                 end
+                pcall(function()
+                    writeLastSaved({ name = s, lastModified = meta.lastModified, autoLoad = meta.autoLoad == true })
+                end)
                 return true
             end
             sessionAdd(s)
@@ -3063,6 +3096,9 @@ function Library:CreateLibrary(opts)
             if meta.autoLoad == true then
                 pcall(function() writeAutoloadPointer(s) end)
             end
+            pcall(function()
+                writeLastSaved({ name = s, lastModified = meta.lastModified, autoLoad = meta.autoLoad == true })
+            end)
             return true
         end
 
@@ -3333,6 +3369,19 @@ function Library:CreateLibrary(opts)
                     end
                 end)
             end
+
+            -- The UI sets autoload AFTER saving, so update last-saved record too.
+            pcall(function()
+                local ls = readLastSaved()
+                if type(ls) == "table" and sanitize(ls.name or "") == s then
+                    ls.autoLoad = (on == true)
+                    ls.name = s
+                    writeLastSaved(ls)
+                elseif on == true then
+                    -- If user turns on autoload for a config, treat it as the target.
+                    writeLastSaved({ name = s, lastModified = os.time(), autoLoad = true })
+                end
+            end)
         end
 
         function Config.GetAutoLoad(name)
@@ -3372,6 +3421,30 @@ function Library:CreateLibrary(opts)
                     end
                 end
                 return best
+            end
+
+            -- Fast path: last saved config record.
+            do
+                local ls = readLastSaved()
+                if type(ls) == "table" then
+                    local n = sanitize(ls.name or "")
+                    if n ~= "" then
+                        -- Verify the config file says autoLoad=true.
+                        local raw = cfgRead(filePath(n))
+                        if (type(raw) ~= "string" or raw == "") then
+                            local alt = sanitize(Base) .. "_" .. sanitize(n) .. ".json"
+                            raw = cfgRead(alt)
+                        end
+                        if type(raw) == "string" and raw ~= "" then
+                            local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
+                            if okj and type(dec) == "table" and type(dec.metadata) == "table" and dec.metadata.__deleted ~= true then
+                                if dec.metadata.autoLoad == true then
+                                    return n
+                                end
+                            end
+                        end
+                    end
+                end
             end
 
             -- Spec: find latest-modified config, then load it only if metadata.autoLoad == true.
