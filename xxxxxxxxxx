@@ -2421,6 +2421,13 @@ function Library:CreateLibrary(opts)
     local Base = sanitize(libraryName)
     local DIR = tostring(opts.ConfigFolder or Library.ConfigFolder or Base)
 
+        local CFG_DEBUG_LOCAL = (opts and opts.ConfigDebug == true) or (rawget(_G, "DENDRITE_CONFIG_DEBUG") == true)
+        local function cfgDbg(...)
+            if CFG_DEBUG_LOCAL then
+                print("[Dendrite/Config]", ...)
+            end
+        end
+
                 local gw = (type(writefile) == "function") and writefile or nil
         local gr = (type(readfile) == "function") and readfile or nil
         local gd = (type(delfile) == "function") and delfile or nil
@@ -2838,6 +2845,8 @@ function Library:CreateLibrary(opts)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return false end
+
+            cfgDbg("Save", s, "DIR=", DIR)
             
             
             local controlsTbl = {}
@@ -3106,6 +3115,8 @@ function Library:CreateLibrary(opts)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return {} end
+
+            cfgDbg("Load", s)
             if MEM_MODE then
                 local key = memEnsure()
                 local t = Library._memConfig.files[key][s]
@@ -3269,6 +3280,8 @@ function Library:CreateLibrary(opts)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return end
+
+            cfgDbg("Delete", s)
             if MEM_MODE then
                 local key = memEnsure()
                 Library._memConfig.files[key][s] = nil
@@ -3324,6 +3337,8 @@ function Library:CreateLibrary(opts)
             Config.Ensure()
             local s = sanitize(name or "")
             if s == "" then return end
+
+            cfgDbg("SetAutoLoad", s, on == true)
             if MEM_MODE then
                 local key = memEnsure()
                 local t = Library._memConfig.files[key][s] or { metadata = {}, values = {} }
@@ -3429,6 +3444,7 @@ function Library:CreateLibrary(opts)
                 if type(ls) == "table" then
                     local n = sanitize(ls.name or "")
                     if n ~= "" then
+                        cfgDbg("MostRecentAutoLoad: lastSaved=", n)
                         -- Verify the config file says autoLoad=true.
                         local raw = cfgRead(filePath(n))
                         if (type(raw) ~= "string" or raw == "") then
@@ -3439,6 +3455,7 @@ function Library:CreateLibrary(opts)
                             local okj, dec = pcall(function() return HttpService:JSONDecode(raw) end)
                             if okj and type(dec) == "table" and type(dec.metadata) == "table" and dec.metadata.__deleted ~= true then
                                 if dec.metadata.autoLoad == true then
+                                    cfgDbg("MostRecentAutoLoad: autoLoad true ->", n)
                                     return n
                                 end
                             end
@@ -3446,6 +3463,8 @@ function Library:CreateLibrary(opts)
                     end
                 end
             end
+
+            cfgDbg("MostRecentAutoLoad: no autoload config found")
 
             -- Spec: find latest-modified config, then load it only if metadata.autoLoad == true.
             -- 1) Prefer filesystem scan when listfiles is available.
@@ -10972,8 +10991,22 @@ function Library:CreateLibrary(opts)
             Search = true,
             Placeholder = "Select a config"
         })
-        local function refreshList()
+        local function refreshList(ensureName)
             local list = Window.ListConfigs() or {}
+            local ensure = (type(ensureName) == "string" and sanitize(ensureName)) or nil
+            if ensure and ensure ~= "" then
+                local found = false
+                for i = 1, #list do
+                    if list[i] == ensure then
+                        found = true
+                        break
+                    end
+                end
+                if not found then
+                    table.insert(list, ensure)
+                    table.sort(list)
+                end
+            end
             dd:SetOptions(list)
         end
 
@@ -11001,7 +11034,7 @@ function Library:CreateLibrary(opts)
                 if wasAutoLoad then
                     pcall(function() Config.SetAutoLoad(safe, true) end)
                 end
-                refreshList()
+                refreshList(safe)
                 task.defer(function()
                     pcall(function() dd:Set(safe, true) end)
                     if nameBox and nameBox.Set then nameBox:Set(safe, true) end
@@ -11027,7 +11060,7 @@ function Library:CreateLibrary(opts)
             pcall(function() wasAutoLoad = autoToggle and autoToggle.Get and autoToggle:Get() end)
             local okSave, res = pcall(function() return Window.SaveConfig(safe) end)
             if okSave and res then
-                refreshList()
+                refreshList(safe)
                 task.defer(function()
                     pcall(function() dd:Set(safe, true) end)
                     if nameBox and nameBox.Set then nameBox:Set(safe, true) end
