@@ -107,6 +107,8 @@ local Library do
     local MathAbs = math.abs
     local MathSin = math.sin
 
+    local OsDate = os.date
+
     local TableInsert = table.insert
     local TableFind = table.find
     local TableRemove = table.remove
@@ -4760,11 +4762,18 @@ local Library do
                 Items["ConnectedCircle"].Instance.BackgroundColor3 = Color
             end
 
+            local StoredClientId = getgenv().__GLOBALCHAT_CLIENT_ID
+            if type(StoredClientId) ~= "string" or StoredClientId == "" then
+                StoredClientId = StringFormat("globalchat-%s", tostring(LocalPlayer.UserId))
+                getgenv().__GLOBALCHAT_CLIENT_ID = StoredClientId
+            end
+
             local BackendState = {
-                ClientId = HttpService:GenerateGUID(false),
+                ClientId = StoredClientId,
                 Config = nil,
                 Destroyed = false,
                 HeartbeatRunning = false,
+                InitialSyncComplete = false,
                 LastMessageId = 0,
                 Polling = false,
                 Profile = {
@@ -4783,6 +4792,15 @@ local Library do
                 ChatSystem:SetConnectedText(Text)
                 ChatSystem:SetConnectedColor(Color)
                 ChatSystem:SetConnectedTextColor(Color)
+            end
+
+            local function FormatMessageTimestamp(Value)
+                local Timestamp = tonumber(Value)
+                if not Timestamp then
+                    return OsDate("%d/%m/%Y %H:%M")
+                end
+
+                return OsDate("%d/%m/%Y %H:%M", MathFloor(Timestamp / 1000))
             end
 
             local function SetConnectedCount(Count)
@@ -4844,8 +4862,22 @@ local Library do
                     MessageData.username or "Unknown",
                     MessageText,
                     IsLocalMessage(MessageData),
-                    MessageData.anonymous
+                    MessageData.anonymous,
+                    MessageData.createdAt
                 )
+            end
+
+            local function PrimeMessageState(Messages)
+                if type(Messages) ~= "table" then
+                    BackendState.InitialSyncComplete = true
+                    return
+                end
+
+                for _, Value in Messages do
+                    TrackMessageId(Value)
+                end
+
+                BackendState.InitialSyncComplete = true
             end
 
             local function HandlePayload(Payload)
@@ -4863,6 +4895,11 @@ local Library do
                 end
 
                 if type(Payload.messages) == "table" then
+                    if not BackendState.InitialSyncComplete then
+                        PrimeMessageState(Payload.messages)
+                        return
+                    end
+
                     for _, Value in Payload.messages do
                         RenderIncomingMessage(Value)
                     end
@@ -5109,6 +5146,7 @@ local Library do
                 BackendState.Destroyed = false
                 BackendState.Config = NormalizeGlobalChatConfig(Config)
                 BackendState.SeenMessages = { }
+                BackendState.InitialSyncComplete = false
                 BackendState.LastMessageId = 0
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
                 StartPresenceHeartbeat()
@@ -5154,7 +5192,7 @@ local Library do
                 return BackendState.Polling
             end
 
-            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous)
+            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous, CreatedAt)
                 local ShouldHideIdentity = IsAnonymous
 
                 if ShouldHideIdentity == nil then
@@ -5163,189 +5201,114 @@ local Library do
 
                 Username = ShouldHideIdentity and "Anonymous" or Username
                 Avatar = ShouldHideIdentity and "rbxassetid://80377955535798" or Avatar
+                local TimestampText = FormatMessageTimestamp(CreatedAt)
 
                 local SubItems = { } do
-                    if not IsLocalPlayer then
-                        SubItems["Message1"] = Instances:Create("Frame", {
-                            Parent = Items["Messages"].Instance,
-                            Name = "\0",
-                            BackgroundTransparency = 1,
-                            Size = UDim2New(1, 0, 0, 45),
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            BorderSizePixel = 0,
-                            AutomaticSize = Enum.AutomaticSize.Y
-                        })
-                        
-                        SubItems["PlayerName"] = Instances:Create("TextLabel", {
-                            Parent = SubItems["Message1"].Instance,
-                            Name = "\0",
-                            FontFace = Library.Font,
-                            TextColor3 = FromRGB(255, 255, 255),
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            Text = Username,
-                            Size = UDim2New(0, 0, 0, 15),
-                            BackgroundTransparency = 1,
-                            Position = UDim2New(0, 43, 0, 0),
-                            BorderSizePixel = 0,
-                            AutomaticSize = Enum.AutomaticSize.X,
-                            TextSize = 14
-                        })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
-                        
-                        SubItems["RealMessage"] = Instances:Create("Frame", {
-                            Parent = SubItems["Message1"].Instance,
-                            Name = "\0",
-                            Position = UDim2New(0, 43, 0, 24),
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            BorderSizePixel = 0,
-                            AutomaticSize = Enum.AutomaticSize.XY,
-                            BackgroundColor3 = FromRGB(17, 16, 20)
-                        })  SubItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
-                        
-                        Instances:Create("UICorner", {
-                            Parent = SubItems["RealMessage"].Instance,
-                            Name = "\0",
-                            CornerRadius = UDimNew(0, 4)
-                        })
-                        
-                        SubItems["MessageText"] = Instances:Create("TextLabel", {
-                            Parent = SubItems["RealMessage"].Instance,
-                            Name = "\0",
-                            FontFace = Library.Font,
-                            TextColor3 = FromRGB(255, 255, 255),
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            Text = Message,
-                            BorderSizePixel = 0,
-                            BackgroundTransparency = 1,
-                            TextXAlignment = Enum.TextXAlignment.Left,
-                            TextWrapped = true,
-                            AutomaticSize = Enum.AutomaticSize.XY,
-                            TextSize = 14
-                        })  SubItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
-                        
-                        Instances:Create("UIPadding", {
-                            Parent = SubItems["RealMessage"].Instance,
-                            Name = "\0",
-                            PaddingTop = UDimNew(0, 10),
-                            PaddingBottom = UDimNew(0, 10),
-                            PaddingRight = UDimNew(0, 10),
-                            PaddingLeft = UDimNew(0, 10)
-                        })
-                        
-                        Instances:Create("UISizeConstraint", {
-                            Parent = SubItems["RealMessage"].Instance,
-                            Name = "\0",
-                            MaxSize = Vector2New(300, 75)
-                        })
-                        
-                        SubItems["Avatar"] = Instances:Create("ImageLabel", {
-                            Parent = SubItems["Message1"].Instance,
-                            Name = "\0",
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            AnchorPoint = Vector2New(0, 0.5),
-                            Image = Avatar,
-                            BackgroundTransparency = 1,
-                            Position = UDim2New(0, 0, 0.5, 0),
-                            Size = UDim2New(0, 35, 0, 35),
-                            BorderSizePixel = 0
-                        })
-                        
-                        Instances:Create("UICorner", {
-                            Parent = SubItems["Avatar"].Instance,
-                            Name = "\0",
-                            CornerRadius = UDimNew(0, 4)
-                        })                        
-                    else
-                        SubItems["Message1"] = Instances:Create("Frame", {
-                            Parent = Items["Messages"].Instance,
-                            Name = "\0",
-                            BackgroundTransparency = 1,
-                            Size = UDim2New(1, 0, 0, 45),
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            BorderSizePixel = 0,
-                            AutomaticSize = Enum.AutomaticSize.Y
-                        })
-                        
-                        SubItems["PlayerName"] = Instances:Create("TextLabel", {
-                            Parent = SubItems["Message1"].Instance,
-                            Name = "\0",
-                            FontFace = Library.Font,
-                            TextColor3 = FromRGB(255, 255, 255),
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            Text = Username,
-                            AnchorPoint = Vector2New(1, 0),
-                            Size = UDim2New(0, 0, 0, 15),
-                            BackgroundTransparency = 1,
-                            Position = UDim2New(1, -43, 0, 0),
-                            BorderSizePixel = 0,
-                            AutomaticSize = Enum.AutomaticSize.X,
-                            TextSize = 14
-                        })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
-                        
-                        SubItems["RealMessage"] = Instances:Create("Frame", {
-                            Parent = SubItems["Message1"].Instance,
-                            Name = "\0",
-                            AnchorPoint = Vector2New(1, 0),
-                            Position = UDim2New(1, -43, 0, 24),
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            BorderSizePixel = 0,
-                            AutomaticSize = Enum.AutomaticSize.XY,
-                            BackgroundColor3 = FromRGB(17, 16, 20)
-                        })  SubItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
-                        
-                        Instances:Create("UICorner", {
-                            Parent = SubItems["RealMessage"].Instance,
-                            Name = "\0",
-                            CornerRadius = UDimNew(0, 4)
-                        })
-                        
-                        SubItems["MessageText"] = Instances:Create("TextLabel", {
-                            Parent = SubItems["RealMessage"].Instance,
-                            Name = "\0",
-                            FontFace = Library.Font,
-                            TextColor3 = FromRGB(255, 255, 255),
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            Text = Message,
-                            BorderSizePixel = 0,
-                            BackgroundTransparency = 1,
-                            TextXAlignment = Enum.TextXAlignment.Left,
-                            TextWrapped = true,
-                            AutomaticSize = Enum.AutomaticSize.XY,
-                            TextSize = 14
-                        })  SubItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
-                        
-                        Instances:Create("UIPadding", {
-                            Parent = SubItems["RealMessage"].Instance,
-                            Name = "\0",
-                            PaddingTop = UDimNew(0, 10),
-                            PaddingBottom = UDimNew(0, 10),
-                            PaddingRight = UDimNew(0, 10),
-                            PaddingLeft = UDimNew(0, 10)
-                        })
-                        
-                        Instances:Create("UISizeConstraint", {
-                            Parent = SubItems["RealMessage"].Instance,
-                            Name = "\0",
-                            MaxSize = Vector2New(300, 75)
-                        })
-                        
-                        SubItems["Avatar"] = Instances:Create("ImageLabel", {
-                            Parent = SubItems["Message1"].Instance,
-                            Name = "\0",
-                            BorderColor3 = FromRGB(0, 0, 0),
-                            AnchorPoint = Vector2New(1, 0.5),
-                            Image = Avatar,
-                            BackgroundTransparency = 1,
-                            Position = UDim2New(1, 0, 0.5, 0),
-                            Size = UDim2New(0, 35, 0, 35),
-                            BorderSizePixel = 0
-                        })
-                        
-                        Instances:Create("UICorner", {
-                            Parent = SubItems["Avatar"].Instance,
-                            Name = "\0",
-                            CornerRadius = UDimNew(0, 4)
-                        })                        
-                    end
+                    SubItems["Message1"] = Instances:Create("Frame", {
+                        Parent = Items["Messages"].Instance,
+                        Name = "\0",
+                        BackgroundTransparency = 1,
+                        Size = UDim2New(1, 0, 0, 45),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.Y
+                    })
+
+                    SubItems["PlayerName"] = Instances:Create("TextLabel", {
+                        Parent = SubItems["Message1"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = Username,
+                        Size = UDim2New(0, 0, 0, 15),
+                        BackgroundTransparency = 1,
+                        Position = UDim2New(0, 43, 0, 0),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.X,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left
+                    })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
+
+                    SubItems["Timestamp"] = Instances:Create("TextLabel", {
+                        Parent = SubItems["Message1"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Subfont,
+                        TextColor3 = FromRGB(180, 180, 180),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = TimestampText,
+                        Size = UDim2New(0, 0, 0, 15),
+                        BackgroundTransparency = 1,
+                        Position = UDim2New(0, 43, 0, 14),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.X,
+                        TextSize = 12,
+                        TextXAlignment = Enum.TextXAlignment.Left
+                    })  SubItems["Timestamp"]:AddToTheme({TextColor3 = "Gradient"})
+
+                    SubItems["RealMessage"] = Instances:Create("Frame", {
+                        Parent = SubItems["Message1"].Instance,
+                        Name = "\0",
+                        Position = UDim2New(0, 43, 0, 34),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.XY,
+                        BackgroundColor3 = FromRGB(17, 16, 20)
+                    })  SubItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
+
+                    Instances:Create("UICorner", {
+                        Parent = SubItems["RealMessage"].Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 4)
+                    })
+
+                    SubItems["MessageText"] = Instances:Create("TextLabel", {
+                        Parent = SubItems["RealMessage"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = Message,
+                        BorderSizePixel = 0,
+                        BackgroundTransparency = 1,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true,
+                        AutomaticSize = Enum.AutomaticSize.XY,
+                        TextSize = 14
+                    })  SubItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
+
+                    Instances:Create("UIPadding", {
+                        Parent = SubItems["RealMessage"].Instance,
+                        Name = "\0",
+                        PaddingTop = UDimNew(0, 10),
+                        PaddingBottom = UDimNew(0, 10),
+                        PaddingRight = UDimNew(0, 10),
+                        PaddingLeft = UDimNew(0, 10)
+                    })
+
+                    Instances:Create("UISizeConstraint", {
+                        Parent = SubItems["RealMessage"].Instance,
+                        Name = "\0",
+                        MaxSize = Vector2New(300, 140)
+                    })
+
+                    SubItems["Avatar"] = Instances:Create("ImageLabel", {
+                        Parent = SubItems["Message1"].Instance,
+                        Name = "\0",
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        AnchorPoint = Vector2New(0, 0),
+                        Image = Avatar,
+                        BackgroundTransparency = 1,
+                        Position = UDim2New(0, 0, 0, 0),
+                        Size = UDim2New(0, 35, 0, 35),
+                        BorderSizePixel = 0
+                    })
+
+                    Instances:Create("UICorner", {
+                        Parent = SubItems["Avatar"].Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 4)
+                    })
                 end
             end
 
