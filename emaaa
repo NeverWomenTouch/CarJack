@@ -141,7 +141,7 @@ local Library do
         GlobalChat = {
             HttpUrl = "http://109.199.111.222:3000",
             WsUrl = "ws://109.199.111.222:3000/ws",
-            Token = "",
+            Token = "gchat_2026_9f6f2f4e83a84b0dbce13f5c0fb915",
             PollInterval = 3,
             MessageLimit = 50,
             RetryDelay = 5,
@@ -4778,7 +4778,8 @@ local Library do
                     MessageData.avatar or Content,
                     MessageData.username or "Unknown",
                     MessageText,
-                    IsLocalMessage(MessageData)
+                    IsLocalMessage(MessageData),
+                    MessageData.anonymous
                 )
             end
 
@@ -5009,9 +5010,15 @@ local Library do
                 return BackendState.Polling
             end
 
-            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer)
-                Username = Toggle.Value and "Anonymous" or Username
-                Avatar = Toggle.Value and getAsset("80377955535798.png") or Avatar
+            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous)
+                local ShouldHideIdentity = IsAnonymous
+
+                if ShouldHideIdentity == nil then
+                    ShouldHideIdentity = Toggle.Value
+                end
+
+                Username = ShouldHideIdentity and "Anonymous" or Username
+                Avatar = ShouldHideIdentity and "rbxassetid://80377955535798" or Avatar
 
                 local SubItems = { } do
                     if not IsLocalPlayer then
