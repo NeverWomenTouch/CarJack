@@ -4702,6 +4702,11 @@ local Library do
                 Destroyed = false,
                 LastMessageId = 0,
                 Polling = false,
+                Profile = {
+                    Avatar = tostring(Content),
+                    SenderId = tostring(LocalPlayer.UserId),
+                    Username = nil,
+                },
                 SeenMessages = { },
                 Socket = nil,
                 SocketConnections = { }
@@ -4721,8 +4726,8 @@ local Library do
             end
 
             local function GetLocalUsername()
-                if LocalPlayer.DisplayName and LocalPlayer.DisplayName ~= LocalPlayer.Name then
-                    return LocalPlayer.DisplayName .. " (@" .. LocalPlayer.Name .. ")"
+                if BackendState.Profile.Username and BackendState.Profile.Username ~= "" then
+                    return BackendState.Profile.Username
                 end
 
                 return LocalPlayer.Name
@@ -4871,9 +4876,9 @@ local Library do
                 local Payload = {
                     type = "message",
                     username = GetLocalUsername(),
-                    avatar = tostring(Content),
+                    avatar = BackendState.Profile.Avatar or tostring(Content),
                     message = tostring(Message),
-                    senderId = tostring(LocalPlayer.UserId),
+                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                     clientId = BackendState.ClientId,
                     anonymous = Toggle.Value
                 }
@@ -4925,6 +4930,24 @@ local Library do
 
             function ChatSystem:GetTypedMessage()
                 return Items["Input"].Instance.Text
+            end
+
+            function ChatSystem:SetProfile(Data)
+                if type(Data) ~= "table" then
+                    return
+                end
+
+                if Data.Username ~= nil then
+                    BackendState.Profile.Username = tostring(Data.Username)
+                end
+
+                if Data.Avatar ~= nil then
+                    BackendState.Profile.Avatar = tostring(Data.Avatar)
+                end
+
+                if Data.SenderId ~= nil then
+                    BackendState.Profile.SenderId = tostring(Data.SenderId)
+                end
             end
 
             function ChatSystem:DisconnectBackend()
@@ -5180,18 +5203,14 @@ local Library do
                 Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Items["Messages"].Instance.AbsoluteCanvasSize.Y - Items["Messages"].Instance.AbsoluteSize.Y)})
             end)
 
-            ChatSystem:OnMessageSendPressed(function()
-                local TypedMessage = ChatSystem:GetTypedMessage()
-                if TypedMessage == "" then
-                    return
-                end
-
-                SendChatMessage(TypedMessage)
-            end)
-
             local function FireMessagePressedCallbacks()
                 for _, Callback in OnMessagePressed do
                     Library:SafeCall(Callback)
+                end
+
+                local TypedMessage = ChatSystem:GetTypedMessage()
+                if TypedMessage ~= "" then
+                    SendChatMessage(TypedMessage)
                 end
             end
             
