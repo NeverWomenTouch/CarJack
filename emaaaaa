@@ -139,8 +139,8 @@ local Library do
         Theme =  { },
 
         GlobalChat = {
-            HttpUrl = "http://109.199.111.222:3000",
-            WsUrl = "ws://109.199.111.222:3000/ws",
+                HttpUrl = "http://127.0.0.1:3000",
+                WsUrl = "ws://127.0.0.1:3000/ws",
             Token = "gchat_2026_9f6f2f4e83a84b0dbce13f5c0fb915",
             PollInterval = 3,
             MessageLimit = 50,
@@ -291,6 +291,56 @@ local Library do
         return BaseUrl .. (StringFind(BaseUrl, "?", 1, true) and "&" or "?") .. TableConcat(Segments, "&")
     end
 
+    local function TrimTrailingSlashes(Value)
+        if type(Value) ~= "string" then
+            return Value
+        end
+
+        return StringGSub(Value, "/+$", "")
+    end
+
+    local function DeriveWsUrl(HttpUrl)
+        if type(HttpUrl) ~= "string" or HttpUrl == "" then
+            return nil
+        end
+
+        local BaseUrl = TrimTrailingSlashes(HttpUrl)
+        local SocketUrl = StringGSub(BaseUrl, "^http://", "ws://")
+        SocketUrl = StringGSub(SocketUrl, "^https://", "wss://")
+
+        if SocketUrl == BaseUrl then
+            return nil
+        end
+
+        return SocketUrl .. "/ws"
+    end
+
+    local function NormalizeGlobalChatConfig(Config)
+        local Normalized = MergeTable(Library.GlobalChat, Config)
+
+        if type(Normalized.HttpUrl) == "string" then
+            Normalized.HttpUrl = TrimTrailingSlashes(Normalized.HttpUrl)
+        end
+
+        if type(Normalized.WsUrl) == "string" and Normalized.WsUrl ~= "" then
+            Normalized.WsUrl = TrimTrailingSlashes(Normalized.WsUrl)
+        else
+            Normalized.WsUrl = DeriveWsUrl(Normalized.HttpUrl)
+        end
+
+        if (not Normalized.HttpUrl or Normalized.HttpUrl == "") and type(Normalized.WsUrl) == "string" then
+            local BaseUrl = StringGSub(Normalized.WsUrl, "^ws://", "http://")
+            BaseUrl = StringGSub(BaseUrl, "^wss://", "https://")
+            BaseUrl = StringGSub(BaseUrl, "/ws$", "")
+
+            if BaseUrl ~= Normalized.WsUrl then
+                Normalized.HttpUrl = BaseUrl
+            end
+        end
+
+        return Normalized
+    end
+
     local function DoHttpRequest(Options)
         if not RequestFunction then
             return false, "Request function is not available"
@@ -372,7 +422,7 @@ local Library do
     end
 
     Library.ConfigureGlobalChat = function(self, Config)
-        self.GlobalChat = MergeTable(self.GlobalChat, Config)
+        self.GlobalChat = NormalizeGlobalChatConfig(Config)
         return self.GlobalChat
     end
 
@@ -4895,6 +4945,12 @@ local Library do
                 Library:Thread(function()
                     while BackendState.Polling and not BackendState.Destroyed do
                         local Config = BackendState.Config
+                        if not Config or not Config.HttpUrl or Config.HttpUrl == "" then
+                            SetConnectionAppearance("No backend URL", FromRGB(255, 120, 120))
+                            StopPolling()
+                            break
+                        end
+
                         local Success, ResponseBody = DoHttpRequest({
                             Url = BuildUrl(Config.HttpUrl .. "/messages", {
                                 afterId = BackendState.LastMessageId,
@@ -4908,11 +4964,11 @@ local Library do
 
                         if Success then
                             HandlePayload(JsonDecode(ResponseBody))
+                            task.wait(Config.PollInterval or 3)
                         else
                             SetConnectionAppearance("Retrying...", FromRGB(255, 120, 120))
+                            task.wait(Config.RetryDelay or 5)
                         end
-
-                        task.wait(Config.PollInterval or 3)
                     end
                 end)
             end
@@ -5013,7 +5069,7 @@ local Library do
                 self:DisconnectBackend()
 
                 BackendState.Destroyed = false
-                BackendState.Config = MergeTable(Library.GlobalChat, Config)
+                BackendState.Config = NormalizeGlobalChatConfig(Config)
                 BackendState.SeenMessages = { }
                 BackendState.LastMessageId = 0
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
