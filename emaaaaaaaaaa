@@ -146,7 +146,7 @@ local Library do
             Token = "gchat_2026_9f6f2f4e83a84b0dbce13f5c0fb915",
             PollInterval = 3,
             MessageLimit = 50,
-            PresenceInterval = 15,
+            PresenceInterval = 5,
             RetryDelay = 5,
             AutoConnect = true,
         },
@@ -4762,11 +4762,7 @@ local Library do
                 Items["ConnectedCircle"].Instance.BackgroundColor3 = Color
             end
 
-            local StoredClientId = getgenv().__GLOBALCHAT_CLIENT_ID
-            if type(StoredClientId) ~= "string" or StoredClientId == "" then
-                StoredClientId = StringFormat("globalchat-%s", tostring(LocalPlayer.UserId))
-                getgenv().__GLOBALCHAT_CLIENT_ID = StoredClientId
-            end
+            local StoredClientId = StringFormat("globalchat-%s", tostring(LocalPlayer.UserId))
 
             local BackendState = {
                 ClientId = StoredClientId,
@@ -4939,7 +4935,8 @@ local Library do
                 end
 
                 local Encoded = JsonEncode({
-                    clientId = BackendState.ClientId
+                    clientId = BackendState.ClientId,
+                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
                 })
 
                 if not Encoded then
@@ -4970,6 +4967,7 @@ local Library do
                         if Config and RequestFunction then
                             local Encoded = JsonEncode({
                                 clientId = BackendState.ClientId,
+                                senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                                 username = GetLocalUsername()
                             })
 
@@ -5029,6 +5027,7 @@ local Library do
                             Url = BuildUrl(Config.HttpUrl .. "/messages", {
                                 afterId = BackendState.LastMessageId,
                                 clientId = BackendState.ClientId,
+                                senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                                 username = GetLocalUsername(),
                                 limit = Config.MessageLimit
                             }),
@@ -5155,6 +5154,7 @@ local Library do
                     local SocketUrl = BuildUrl(BackendState.Config.WsUrl, {
                         token = BackendState.Config.Token,
                         clientId = BackendState.ClientId,
+                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                         username = GetLocalUsername()
                     })
 
