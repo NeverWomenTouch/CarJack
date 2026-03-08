@@ -149,6 +149,9 @@ local Library do
             PresenceInterval = 5,
             RetryDelay = 5,
             AutoConnect = true,
+            AutoCreate = true,
+            SubTabName = "Chat",
+            InitialStatusText = "Connecting...",
         },
 
         MenuKeybind = tostring(Enum.KeyCode.Z),
@@ -435,6 +438,58 @@ local Library do
         end
 
         TableInsert(self.CleanupCallbacks, Callback)
+    end
+
+    local function AttachAutoGlobalChat(Window)
+        if not Window or not Window.GlobalChatOptions or not Window.GlobalChatOptions.Enabled then
+            return nil
+        end
+
+        if Window.AutoGlobalChat and Window.AutoGlobalChat.ChatSystem then
+            return Window.AutoGlobalChat.ChatSystem
+        end
+
+        local LastCount = -1
+        local StableTicks = 0
+
+        for _ = 1, 20 do
+            local Count = #Window.Pages
+
+            if Count > 0 and Count == LastCount then
+                StableTicks = StableTicks + 1
+            else
+                StableTicks = 0
+            end
+
+            LastCount = Count
+
+            if Count > 0 and StableTicks >= 1 then
+                break
+            end
+
+            task.wait()
+        end
+
+        local LastPage = Window.Pages[#Window.Pages]
+        if not LastPage then
+            return nil
+        end
+
+        local SubTab = LastPage:AddSubTab({
+            Name = Window.GlobalChatOptions.SubTabName,
+            Columns = 1
+        })
+
+        local ChatSystem = SubTab:GlobalChat()
+        ChatSystem:SetConnectedText(Window.GlobalChatOptions.InitialStatusText)
+
+        Window.AutoGlobalChat = {
+            Page = LastPage,
+            SubTab = SubTab,
+            ChatSystem = ChatSystem
+        }
+
+        return ChatSystem
     end
 
     local Themes = {
@@ -2699,6 +2754,11 @@ local Library do
         Library.MakeWindow = function(self, Data)
             Data = Data or { }
 
+            local AutoGlobalChatEnabled = Data.AutoGlobalChat
+            if AutoGlobalChatEnabled == nil then
+                AutoGlobalChatEnabled = Library.GlobalChat.AutoCreate
+            end
+
             local Window = {
                 Name = Data.Name or Data.name or "Window",
                 CloseCallback = Data.CloseCallback or Data.closecallback or function() end,
@@ -2709,6 +2769,12 @@ local Library do
                 IsMinimized = false,
                 ResizeButton = nil,
                 ResizeHandle = nil,
+                AutoGlobalChat = nil,
+                GlobalChatOptions = {
+                    Enabled = AutoGlobalChatEnabled,
+                    SubTabName = Data.GlobalChatSubTabName or Library.GlobalChat.SubTabName or "Chat",
+                    InitialStatusText = Data.GlobalChatInitialStatusText or Library.GlobalChat.InitialStatusText or "Connecting..."
+                }
             }
 
             local Items = { } do
@@ -3291,6 +3357,13 @@ local Library do
             end)
 
             Window:SetOpen(true)
+
+            if Window.GlobalChatOptions.Enabled then
+                task.defer(function()
+                    AttachAutoGlobalChat(Window)
+                end)
+            end
+
             return setmetatable(Window, self)
         end
 
@@ -4605,7 +4678,7 @@ local Library do
                     FontFace = Library.Font,
                     TextColor3 = FromRGB(73, 255, 109),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Text = "6 Connected",
+                    Text = Library.GlobalChat.InitialStatusText or "Connecting...",
                     AnchorPoint = Vector2New(0, 1),
                     Size = UDim2New(0, 0, 0, 15),
                     BackgroundTransparency = 1,
