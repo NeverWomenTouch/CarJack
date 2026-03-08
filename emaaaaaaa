@@ -183,6 +183,7 @@ local Library do
         Sections = { },
 
         Connections = { },
+        CleanupCallbacks = { },
         Threads = { },
 
         ThemeMap = { },
@@ -424,6 +425,14 @@ local Library do
     Library.ConfigureGlobalChat = function(self, Config)
         self.GlobalChat = NormalizeGlobalChatConfig(Config)
         return self.GlobalChat
+    end
+
+    Library.RegisterCleanupCallback = function(self, Callback)
+        if type(Callback) ~= "function" then
+            return
+        end
+
+        TableInsert(self.CleanupCallbacks, Callback)
     end
 
     local Themes = {
@@ -1055,6 +1064,10 @@ local Library do
     })
 
     Library.Unload = function(self)
+        for _, Callback in self.CleanupCallbacks do
+            self:SafeCall(Callback)
+        end
+
         for Index, Value in self.Connections do 
             Value.Connection:Disconnect()
         end
@@ -4882,6 +4895,30 @@ local Library do
                 BackendState.Polling = false
             end
 
+            local function NotifyPresenceDisconnect()
+                local Config = BackendState.Config
+                if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then
+                    return
+                end
+
+                local Encoded = JsonEncode({
+                    clientId = BackendState.ClientId
+                })
+
+                if not Encoded then
+                    return
+                end
+
+                DoHttpRequest({
+                    Url = Config.HttpUrl .. "/presence/disconnect",
+                    Method = "POST",
+                    Headers = MergeTable(GetRequestHeaders(Config), {
+                        ["Content-Type"] = "application/json"
+                    }),
+                    Body = Encoded
+                })
+            end
+
             local function StartPresenceHeartbeat()
                 if BackendState.HeartbeatRunning then
                     return
@@ -5059,6 +5096,7 @@ local Library do
             function ChatSystem:DisconnectBackend()
                 BackendState.Destroyed = true
                 StopPolling()
+                NotifyPresenceDisconnect()
                 DisconnectSocketListeners()
                 SocketClose(BackendState.Socket)
                 BackendState.Socket = nil
@@ -5362,6 +5400,10 @@ local Library do
                     ChatSystem:ConnectBackend()
                 end)
             end
+
+            Library:RegisterCleanupCallback(function()
+                ChatSystem:DisconnectBackend()
+            end)
 
             return ChatSystem
         end
