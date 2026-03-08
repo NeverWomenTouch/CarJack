@@ -144,6 +144,7 @@ local Library do
             Token = "gchat_2026_9f6f2f4e83a84b0dbce13f5c0fb915",
             PollInterval = 3,
             MessageLimit = 50,
+            PresenceInterval = 15,
             RetryDelay = 5,
             AutoConnect = true,
         },
@@ -4700,6 +4701,7 @@ local Library do
                 ClientId = HttpService:GenerateGUID(false),
                 Config = nil,
                 Destroyed = false,
+                HeartbeatRunning = false,
                 LastMessageId = 0,
                 Polling = false,
                 Profile = {
@@ -4828,6 +4830,53 @@ local Library do
 
             local function StopPolling()
                 BackendState.Polling = false
+            end
+
+            local function StartPresenceHeartbeat()
+                if BackendState.HeartbeatRunning then
+                    return
+                end
+
+                BackendState.HeartbeatRunning = true
+
+                Library:Thread(function()
+                    while not BackendState.Destroyed do
+                        local Config = BackendState.Config
+
+                        if Config and RequestFunction then
+                            local Encoded = JsonEncode({
+                                clientId = BackendState.ClientId,
+                                username = GetLocalUsername()
+                            })
+
+                            if Encoded then
+                                local Success, ResponseBody = DoHttpRequest({
+                                    Url = Config.HttpUrl .. "/presence",
+                                    Method = "POST",
+                                    Headers = MergeTable(GetRequestHeaders(Config), {
+                                        ["Content-Type"] = "application/json"
+                                    }),
+                                    Body = Encoded
+                                })
+
+                                if Success then
+                                    HandlePayload(JsonDecode(ResponseBody))
+                                end
+                            end
+                        end
+
+                        if Config and BackendState.Socket then
+                            local PingPayload = JsonEncode({ type = "ping" })
+                            if PingPayload then
+                                SocketSend(BackendState.Socket, PingPayload)
+                            end
+                        end
+
+                        task.wait((Config and Config.PresenceInterval) or 15)
+                    end
+
+                    BackendState.HeartbeatRunning = false
+                end)
             end
 
             local function StartPolling()
@@ -4968,6 +5017,7 @@ local Library do
                 BackendState.SeenMessages = { }
                 BackendState.LastMessageId = 0
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
+                StartPresenceHeartbeat()
 
                 if BackendState.Config.WsUrl and WebSocketFunction then
                     local SocketUrl = BuildUrl(BackendState.Config.WsUrl, {
