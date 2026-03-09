@@ -4576,22 +4576,46 @@ local Library do
                     BorderSizePixel = 0
                 })  Items["Input"]:AddToTheme({TextColor3 = "Text"})
 
-                Items["TypingText"] = Instances:Create("TextLabel", {
+                Items["TypingIndicator"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
                     Name = "\0",
-                    FontFace = Library.Subfont,
-                    TextColor3 = FromRGB(180, 180, 180),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Text = "",
                     Visible = false,
                     AnchorPoint = Vector2New(0, 1),
-                    Size = UDim2New(1, -20, 0, 14),
+                    Size = UDim2New(1, -65, 0, 20),
+                    Position = UDim2New(0, 10, 1, -84),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(32, 31, 38),
+                    ZIndex = 4
+                })  Items["TypingIndicator"]:AddToTheme({BackgroundColor3 = "Element"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["TypingIndicator"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Instances:Create("UIPadding", {
+                    Parent = Items["TypingIndicator"].Instance,
+                    Name = "\0",
+                    PaddingLeft = UDimNew(0, 8),
+                    PaddingRight = UDimNew(0, 8)
+                })
+
+                Items["TypingText"] = Instances:Create("TextLabel", {
+                    Parent = Items["TypingIndicator"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(215, 215, 215),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Text = "",
+                    Size = UDim2New(1, 0, 1, 0),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 10, 1, -82),
                     BorderSizePixel = 0,
                     TextSize = 12,
-                    TextXAlignment = Enum.TextXAlignment.Left
-                })  Items["TypingText"]:AddToTheme({TextColor3 = "Gradient"})
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 5
+                })  Items["TypingText"]:AddToTheme({TextColor3 = "Text"})
                 
                 Items["SendButton"] = Instances:Create("TextButton", {
                     Parent = Items["GlobalChat"].Instance,
@@ -5062,7 +5086,7 @@ local Library do
 
                 local Text = FormatTypingUsers(BackendState.TypingUsers)
                 Items["TypingText"].Instance.Text = Text
-                Items["TypingText"].Instance.Visible = Text ~= ""
+                Items["TypingIndicator"].Instance.Visible = Text ~= ""
             end
 
             local function SendTypingState(IsTyping, Force)
@@ -5687,17 +5711,27 @@ local Library do
                 Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Items["Messages"].Instance.AbsoluteCanvasSize.Y - Items["Messages"].Instance.AbsoluteSize.Y)})
             end)
 
-            local function FireMessagePressedCallbacks()
+            local function CommitTypedMessage()
+                local TypedMessage = ChatSystem:GetTypedMessage()
+                if TypedMessage == "" then
+                    return false
+                end
+
                 for _, Callback in OnMessagePressed do
                     Library:SafeCall(Callback)
                 end
 
-                local TypedMessage = ChatSystem:GetTypedMessage()
-                if TypedMessage ~= "" then
-                    if SendChatMessage(TypedMessage) then
-                        SendTypingState(false, true)
-                    end
+                local Sent = SendChatMessage(TypedMessage)
+                if Sent then
+                    Items["Input"].Instance.Text = ""
+                    Items["Input"].Instance.CursorPosition = -1
+                    SendTypingState(false, true)
+                    task.defer(function()
+                        Items["Input"].Instance:CaptureFocus()
+                    end)
                 end
+
+                return Sent
             end
 
             local function RefreshChatViewState()
@@ -5735,32 +5769,28 @@ local Library do
             end
             
             Items["SendButton"]:Connect("MouseButton1Down", function()
-                if ChatSystem:GetTypedMessage() == "" then
+                if not CommitTypedMessage() then
                     return
                 end
-                
-                FireMessagePressedCallbacks()
+
                 Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Accent})
                 task.wait(0.1)
                 Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
-
-                Items["Input"].Instance.Text = ""
-                Items["Input"].Instance:CaptureFocus()
             end)
 
             Library:Connect(UserInputService.InputBegan, function(Input)
                 if Input.KeyCode == Enum.KeyCode.Return then
-                    if ChatSystem:GetTypedMessage() == "" then
+                    if UserInputService:GetFocusedTextBox() ~= Items["Input"].Instance then
                         return
                     end
 
-                    FireMessagePressedCallbacks()
+                    if not CommitTypedMessage() then
+                        return
+                    end
+
                     Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Accent})
                     task.wait(0.1)
                     Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
-
-                    Items["Input"].Instance.Text = ""
-                    Items["Input"].Instance:CaptureFocus()
                 end
             end)
 
