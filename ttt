@@ -5045,7 +5045,7 @@ local Library do
                 end
 
                 if #Names > 2 then
-                    return "Multiple People are typing.."
+                    return "Multiple people typing.."
                 end
 
                 local Parts = { }
@@ -5085,9 +5085,10 @@ local Library do
                 local Payload = {
                     type = "typing",
                     typing = IsTyping,
-                    username = GetLocalUsername(),
+                    username = Toggle.Value and "Anonymous" or GetLocalUsername(),
                     senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                    clientId = BackendState.ClientId
+                    clientId = BackendState.ClientId,
+                    anonymous = Toggle.Value
                 }
 
                 local Sent = false
@@ -5097,7 +5098,7 @@ local Library do
                     Sent = true
                 end
 
-                if not Sent and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
+                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
                     local Success, ResponseBody = DoHttpRequest({
                         Url = Config.HttpUrl .. "/typing",
                         Method = "POST",
@@ -5109,7 +5110,12 @@ local Library do
 
                     if Success then
                         Sent = true
-                        HandlePayload(JsonDecode(ResponseBody))
+                        local Decoded = JsonDecode(ResponseBody)
+                        if not BackendState.Socket then
+                            HandlePayload(Decoded)
+                        elseif Decoded and Decoded.typingUsers ~= nil then
+                            UpdateTypingText(Decoded.typingUsers)
+                        end
                     end
                 end
 
