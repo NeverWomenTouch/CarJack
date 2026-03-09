@@ -5147,11 +5147,14 @@ local Library do
                 end
 
                 local AfterId = FromStart and 0 or BackendState.LastMessageId
+                local IsTyping = StringLen(ChatSystem:GetTypedMessage()) > 0
                 local Success, Body = DoHttpRequest({
                     Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages", {
                         clientId = BackendState.ClientId,
                         senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                        username = GetLocalUsername(),
+                        username = Toggle.Value and "Anonymous" or GetLocalUsername(),
+                        typing = IsTyping,
+                        anonymous = Toggle.Value,
                         afterId = AfterId,
                         limit = (Config and Config.MessageLimit) or 50
                     }),
@@ -5163,7 +5166,12 @@ local Library do
                     return false
                 end
 
-                HandlePayload(JsonDecode(Body))
+                local Decoded = JsonDecode(Body)
+                if Decoded and Decoded.typingUsers ~= nil then
+                    ShowTyping(Decoded.typingUsers)
+                end
+
+                HandlePayload(Decoded)
                 return true
             end
 
@@ -5376,7 +5384,7 @@ local Library do
                 Library:Thread(function()
                     while not BackendState.Destroyed do
                         FetchMessages(not BackendState.InitialSyncComplete)
-                        task.wait(1.5)
+                        task.wait(1)
                     end
 
                     BackendState.PollRunning = false
@@ -5503,6 +5511,7 @@ local Library do
                 ShowTyping({ })
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
                 FetchInitialHistory()
+                StartMessagePolling()
                 StartPresenceHeartbeat()
                 StartTypingThread()
 
@@ -5529,7 +5538,6 @@ local Library do
                         local CloseConnection = ConnectSocketSignal(Socket.OnClose or Socket.Closed, function()
                             BackendState.Socket = nil
                             DisconnectSocketListeners()
-                            StartPolling()
                         end)
 
                         if MessageConnection then
