@@ -5127,7 +5127,7 @@ local Library do
 
                 if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
                     local Success, ResponseBody = DoHttpRequest({
-                        Url = Config.HttpUrl .. "/typing",
+                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing"),
                         Method = "POST",
                         Headers = MergeTable(GetRequestHeaders(Config), {
                             ["Content-Type"] = "application/json"
@@ -5288,6 +5288,16 @@ local Library do
                 return Headers
             end
 
+            local function BuildAuthorizedUrl(Config, BaseUrl, Query)
+                local FinalQuery = type(Query) == "table" and TableClone(Query) or { }
+
+                if Config and Config.Token and Config.Token ~= "" then
+                    FinalQuery.token = Config.Token
+                end
+
+                return BuildUrl(BaseUrl, FinalQuery)
+            end
+
             local function DisconnectSocketListeners()
                 for _, Connection in BackendState.SocketConnections do
                     if Connection and type(Connection.Disconnect) == "function" then
@@ -5318,7 +5328,7 @@ local Library do
                 end
 
                 DoHttpRequest({
-                    Url = Config.HttpUrl .. "/presence/disconnect",
+                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence/disconnect"),
                     Method = "POST",
                     Headers = MergeTable(GetRequestHeaders(Config), {
                         ["Content-Type"] = "application/json"
@@ -5347,7 +5357,7 @@ local Library do
 
                             if Encoded then
                                 local Success, ResponseBody = DoHttpRequest({
-                                    Url = Config.HttpUrl .. "/presence",
+                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence"),
                                     Method = "POST",
                                     Headers = MergeTable(GetRequestHeaders(Config), {
                                         ["Content-Type"] = "application/json"
@@ -5388,7 +5398,7 @@ local Library do
 
                         if Config and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
                             local Success, ResponseBody = DoHttpRequest({
-                                Url = BuildUrl(Config.HttpUrl .. "/typing", {
+                                Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
                                     clientId = BackendState.ClientId,
                                     senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                                     username = GetLocalUsername()
@@ -5435,7 +5445,7 @@ local Library do
                         end
 
                         local Success, ResponseBody = DoHttpRequest({
-                            Url = BuildUrl(Config.HttpUrl .. "/messages", {
+                            Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages", {
                                 afterId = BackendState.LastMessageId,
                                 clientId = BackendState.ClientId,
                                 senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
@@ -5486,7 +5496,7 @@ local Library do
                 end
 
                 local Success, ResponseBody = DoHttpRequest({
-                    Url = Config.HttpUrl .. "/messages",
+                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages"),
                     Method = "POST",
                     Headers = MergeTable(GetRequestHeaders(Config), {
                         ["Content-Type"] = "application/json"
