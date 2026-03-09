@@ -5177,7 +5177,7 @@ local Library do
                     end
                 end
 
-                if not Sent and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
+                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
                     local Success, ResponseBody = DoHttpRequest({
                         Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence"),
                         Method = "POST",
@@ -5189,9 +5189,9 @@ local Library do
 
                     if Success then
                         Sent = true
-                        SetTypingDebug(StringFormat("typing fallback ok (%s)", IsTyping and "on" or "off"), FromRGB(150, 220, 255))
+                        SetTypingDebug(StringFormat("typing presence ok (%s)", IsTyping and "on" or "off"), FromRGB(150, 220, 255))
                         HandlePayload(JsonDecode(ResponseBody))
-                    else
+                    elseif not Sent then
                         SetTypingDebug("typing send failed", FromRGB(255, 140, 140))
                     end
                 end
