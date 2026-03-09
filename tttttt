@@ -5749,7 +5749,15 @@ local Library do
                 SyncTypingState(false)
             end)
 
-            Items["Input"].Instance.FocusLost:Connect(function()
+            Items["Input"].Instance.FocusLost:Connect(function(EnterPressed)
+                if EnterPressed then
+                    CommitTypedMessage()
+                    Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Accent})
+                    task.wait(0.1)
+                    Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
+                    return
+                end
+
                 SendTypingState(false, true)
             end)
 
@@ -5777,22 +5785,6 @@ local Library do
                 Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Accent})
                 task.wait(0.1)
                 Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
-            end)
-
-            Library:Connect(UserInputService.InputBegan, function(Input)
-                if Input.KeyCode == Enum.KeyCode.Return then
-                    if UserInputService:GetFocusedTextBox() ~= Items["Input"].Instance then
-                        return
-                    end
-
-                    if not CommitTypedMessage() then
-                        return
-                    end
-
-                    Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Accent})
-                    task.wait(0.1)
-                    Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
-                end
             end)
 
             if Library.GlobalChat.AutoConnect then
