@@ -5055,10 +5055,9 @@ local Library do
                     end
 
                     local IsLocalClient = tostring(Value.clientId or "") == BackendState.ClientId
-                    local IsLocalSender = tostring(Value.senderId or "") == tostring(LocalPlayer.UserId)
                     local Username = tostring(Value.username or "")
 
-                    if not IsLocalClient and not IsLocalSender and Username ~= "" then
+                    if not IsLocalClient and Username ~= "" then
                         TableInsert(Names, Username)
                     end
                 end
@@ -5175,7 +5174,26 @@ local Library do
                     end
                 end
 
-                local Sent = PerformSync(false, IsTyping)
+                local Sent = false
+
+                if BackendState.Socket then
+                    local Encoded = JsonEncode({
+                        type = "typing",
+                        typing = IsTyping,
+                        username = Toggle.Value and "Anonymous" or GetLocalUsername(),
+                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                        clientId = BackendState.ClientId,
+                        anonymous = Toggle.Value
+                    })
+
+                    if Encoded and SocketSend(BackendState.Socket, Encoded) then
+                        Sent = true
+                    end
+                end
+
+                if not Sent then
+                    Sent = PerformSync(false, IsTyping)
+                end
 
                 if Sent or Force then
                     BackendState.TypingActive = IsTyping
