@@ -4926,7 +4926,7 @@ local Library do
             local UnreadBadge = MainPageItems and MainPageItems["UnreadBadge"]
             local UnreadBadgeText = MainPageItems and MainPageItems["UnreadBadgeText"]
 
-            local StoredClientId = StringFormat("globalchat-%s", tostring(LocalPlayer.UserId))
+            local StoredClientId = StringFormat("globalchat-%s-%d", tostring(LocalPlayer.UserId), math.random(100000, 999999))
 
             local BackendState = {
                 ClientId = StoredClientId,
