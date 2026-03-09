@@ -5112,14 +5112,8 @@ local Library do
 
             local function SetTypingDebug(Text, Color)
                 local Label = Items["TypingDebug"].Instance
-                local Value = tostring(Text or "")
-
-                Label.Text = Value
-                Label.Visible = Value ~= ""
-
-                if Color then
-                    Label.TextColor3 = Color
-                end
+                Label.Text = ""
+                Label.Visible = false
             end
 
             local function SendTypingState(IsTyping, Force)
@@ -5151,38 +5145,6 @@ local Library do
                 local Sent = false
                 local Encoded = JsonEncode(Payload)
 
-                if BackendState.Socket and Encoded and SocketSend(BackendState.Socket, Encoded) then
-                    Sent = true
-                end
-
-                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
-                    local Success, ResponseBody = DoHttpRequest({
-                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
-                            clientId = BackendState.ClientId,
-                            senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                            username = Toggle.Value and "Anonymous" or GetLocalUsername(),
-                            typing = IsTyping,
-                            anonymous = Toggle.Value
-                        }),
-                        Method = "POST",
-                        Headers = MergeTable(GetRequestHeaders(Config), {
-                            ["Content-Type"] = "application/json"
-                        }),
-                        Body = Encoded
-                    })
-
-                    if Success then
-                        Sent = true
-                        SetTypingDebug(StringFormat("typing send ok (%s)", IsTyping and "on" or "off"), FromRGB(150, 255, 170))
-                        local Decoded = JsonDecode(ResponseBody)
-                        if not BackendState.Socket then
-                            HandlePayload(Decoded)
-                        elseif Decoded and Decoded.typingUsers ~= nil then
-                            UpdateTypingText(Decoded.typingUsers)
-                        end
-                    end
-                end
-
                 if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
                     local Success, ResponseBody = DoHttpRequest({
                         Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
@@ -5201,10 +5163,7 @@ local Library do
 
                     if Success then
                         Sent = true
-                        SetTypingDebug(StringFormat("typing presence ok (%s)", IsTyping and "on" or "off"), FromRGB(150, 220, 255))
                         HandlePayload(JsonDecode(ResponseBody))
-                    elseif not Sent then
-                        SetTypingDebug("typing send failed", FromRGB(255, 140, 140))
                     end
                 end
 
@@ -5471,60 +5430,37 @@ local Library do
                         local Config = BackendState.Config
 
                         if Config and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
-                            local Success, ResponseBody = DoHttpRequest({
-                                Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
-                                    clientId = BackendState.ClientId,
-                                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                    username = GetLocalUsername()
-                                }),
-                                Method = "GET",
-                                Headers = GetRequestHeaders(Config)
+                            local PresenceEncoded = JsonEncode({
+                                clientId = BackendState.ClientId,
+                                senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                                username = GetLocalUsername(),
+                                typing = StringLen(ChatSystem:GetTypedMessage()) > 0,
+                                anonymous = Toggle.Value
                             })
 
-                            if Success then
-                                local Payload = JsonDecode(ResponseBody)
-                                if Payload and Payload.typingUsers ~= nil then
-                                    SetTypingDebug(StringFormat("typing poll ok: %d", #Payload.typingUsers), FromRGB(170, 220, 255))
-                                    UpdateTypingText(Payload.typingUsers)
-                                end
-                            else
-                                local PresenceEncoded = JsonEncode({
-                                    clientId = BackendState.ClientId,
-                                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                    username = GetLocalUsername(),
-                                    typing = StringLen(ChatSystem:GetTypedMessage()) > 0,
-                                    anonymous = Toggle.Value
+                            if PresenceEncoded then
+                                local Success, ResponseBody = DoHttpRequest({
+                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
+                                        clientId = BackendState.ClientId,
+                                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                                        username = GetLocalUsername(),
+                                        typing = StringLen(ChatSystem:GetTypedMessage()) > 0,
+                                        anonymous = Toggle.Value
+                                    }),
+                                    Method = "POST",
+                                    Headers = MergeTable(GetRequestHeaders(Config), {
+                                        ["Content-Type"] = "application/json"
+                                    }),
+                                    Body = PresenceEncoded
                                 })
 
-                                if PresenceEncoded then
-                                    local PresenceSuccess, PresenceResponseBody = DoHttpRequest({
-                                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
-                                            clientId = BackendState.ClientId,
-                                            senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                            username = GetLocalUsername(),
-                                            typing = StringLen(ChatSystem:GetTypedMessage()) > 0,
-                                            anonymous = Toggle.Value
-                                        }),
-                                        Method = "POST",
-                                        Headers = MergeTable(GetRequestHeaders(Config), {
-                                            ["Content-Type"] = "application/json"
-                                        }),
-                                        Body = PresenceEncoded
-                                    })
-
-                                    if PresenceSuccess then
-                                        local PresencePayload = JsonDecode(PresenceResponseBody)
-                                        if PresencePayload and PresencePayload.typingUsers ~= nil then
-                                            SetTypingDebug(StringFormat("typing poll fallback ok: %d", #PresencePayload.typingUsers), FromRGB(150, 220, 255))
-                                            UpdateTypingText(PresencePayload.typingUsers)
-                                        else
-                                            SetTypingDebug("typing poll fallback empty", FromRGB(255, 210, 140))
-                                        end
+                                if Success then
+                                    local Payload = JsonDecode(ResponseBody)
+                                    if Payload and Payload.typingUsers ~= nil then
+                                        UpdateTypingText(Payload.typingUsers)
                                     else
-                                        SetTypingDebug("typing poll failed", FromRGB(255, 140, 140))
+                                        UpdateTypingText({ })
                                     end
-                                else
-                                    SetTypingDebug("typing poll failed", FromRGB(255, 140, 140))
                                 end
                             end
                         end
