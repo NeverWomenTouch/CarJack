@@ -5106,39 +5106,30 @@ local Library do
                     return false
                 end
 
-                local IsTyping = TypingOverride
-                if IsTyping == nil then
-                    IsTyping = StringLen(ChatSystem:GetTypedMessage()) > 0
-                end
-
                 local AfterId = FetchFullHistory and 0 or BackendState.LastMessageId
                 local Payload = {
                     clientId = BackendState.ClientId,
                     senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                     username = GetLocalUsername(),
-                    typing = IsTyping,
-                    anonymous = Toggle.Value,
                     afterId = AfterId,
                     limit = (Config and Config.MessageLimit) or 50
                 }
 
-                local Encoded = JsonEncode(Payload)
-
                 local Success, ResponseBody = DoHttpRequest({
-                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/sync", Payload),
+                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages", Payload),
                     Method = "GET",
                     Headers = GetRequestHeaders(Config)
                 })
 
                 if not Success then
-                    SetTypingDebug("sync request failed", FromRGB(255, 140, 140))
+                    SetTypingDebug("messages sync failed", FromRGB(255, 140, 140))
                     return false
                 end
 
                 local Decoded = JsonDecode(ResponseBody)
                 local TypingUsers = Decoded and Decoded.typingUsers
                 local TypingCount = type(TypingUsers) == "table" and #TypingUsers or 0
-                SetTypingDebug(StringFormat("sync typing count: %d", TypingCount), FromRGB(150, 220, 255))
+                SetTypingDebug(StringFormat("messages typing count: %d", TypingCount), FromRGB(150, 220, 255))
 
                 if TypingCount > 0 then
                     local Names = { }
@@ -5150,13 +5141,11 @@ local Library do
                     end
 
                     if #Names > 0 then
-                        SetTypingDebug(StringFormat("sync typing count: %d [%s]", TypingCount, TableConcat(Names, ", ")), FromRGB(150, 220, 255))
+                        SetTypingDebug(StringFormat("messages typing count: %d [%s]", TypingCount, TableConcat(Names, ", ")), FromRGB(150, 220, 255))
                     end
                 end
 
                 HandlePayload(Decoded)
-                BackendState.TypingActive = IsTyping
-                BackendState.LastTypingSentAt = os.clock()
                 return true
             end
 
@@ -5177,7 +5166,47 @@ local Library do
                     end
                 end
 
-                local Sent = PerformSync(false, IsTyping)
+                local Payload = {
+                    type = "typing",
+                    username = Toggle.Value and "Anonymous" or GetLocalUsername(),
+                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                    clientId = BackendState.ClientId,
+                    typing = IsTyping,
+                    anonymous = Toggle.Value
+                }
+
+                local Sent = false
+                local Encoded = JsonEncode(Payload)
+
+                if BackendState.Socket and Encoded and SocketSend(BackendState.Socket, Encoded) then
+                    Sent = true
+                end
+
+                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
+                    local Success, ResponseBody = DoHttpRequest({
+                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
+                            clientId = BackendState.ClientId,
+                            senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                            username = Toggle.Value and "Anonymous" or GetLocalUsername(),
+                            typing = IsTyping,
+                            anonymous = Toggle.Value
+                        }),
+                        Method = "POST",
+                        Headers = MergeTable(GetRequestHeaders(Config), {
+                            ["Content-Type"] = "application/json"
+                        }),
+                        Body = Encoded
+                    })
+
+                    if Success then
+                        Sent = true
+
+                        local Decoded = JsonDecode(ResponseBody)
+                        if Decoded and Decoded.typingUsers ~= nil then
+                            UpdateTypingText(Decoded.typingUsers)
+                        end
+                    end
+                end
 
                 if Sent or Force then
                     BackendState.TypingActive = IsTyping
