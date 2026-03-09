@@ -150,6 +150,7 @@ local Library do
             RetryDelay = 5,
             AutoConnect = true,
             AutoCreate = true,
+            TabName = "Global Chat",
             SubTabName = "Chat",
             InitialStatusText = "Connecting...",
         },
@@ -470,21 +471,26 @@ local Library do
             task.wait()
         end
 
-        local LastPage = Window.Pages[#Window.Pages]
-        if not LastPage then
+        if #Window.Pages == 0 then
             return nil
         end
 
-        local SubTab = LastPage:AddSubTab({
-            Name = Window.GlobalChatOptions.SubTabName,
-            Columns = 1
+        local GlobalChatTab = Window:MakeTab({
+                Name = Window.GlobalChatOptions.TabName,
+                Icon = getAsset("10734906975.png"),
+                PremiumOnly = false
+        })
+
+        local SubTab = GlobalChatTab:AddSubTab({
+                Name = Window.GlobalChatOptions.SubTabName,
+                Columns = 1
         })
 
         local ChatSystem = SubTab:GlobalChat()
         ChatSystem:SetConnectedText(Window.GlobalChatOptions.InitialStatusText)
 
         Window.AutoGlobalChat = {
-            Page = LastPage,
+            Page = GlobalChatTab,
             SubTab = SubTab,
             ChatSystem = ChatSystem
         }
@@ -2772,6 +2778,7 @@ local Library do
                 AutoGlobalChat = nil,
                 GlobalChatOptions = {
                     Enabled = AutoGlobalChatEnabled,
+                    TabName = Data.GlobalChatTabName or Library.GlobalChat.TabName or "Global Chat",
                     SubTabName = Data.GlobalChatSubTabName or Library.GlobalChat.SubTabName or "Chat",
                     InitialStatusText = Data.GlobalChatInitialStatusText or Library.GlobalChat.InitialStatusText or "Connecting..."
                 }
@@ -4568,6 +4575,23 @@ local Library do
                     ClearTextOnFocus = false,
                     BorderSizePixel = 0
                 })  Items["Input"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["TypingText"] = Instances:Create("TextLabel", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(180, 180, 180),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Text = "",
+                    Visible = false,
+                    AnchorPoint = Vector2New(0, 1),
+                    Size = UDim2New(1, -20, 0, 14),
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 10, 1, -82),
+                    BorderSizePixel = 0,
+                    TextSize = 12,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })  Items["TypingText"]:AddToTheme({TextColor3 = "Gradient"})
                 
                 Items["SendButton"] = Instances:Create("TextButton", {
                     Parent = Items["GlobalChat"].Instance,
@@ -4633,7 +4657,7 @@ local Library do
                     MidImage = getAsset("81680855285439.png"),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ScrollBarThickness = 2,
-                    Size = UDim2New(1, -20, 1, -100),
+                    Size = UDim2New(1, -20, 1, -122),
                     Position = UDim2New(0, 10, 0, 10),
                     TopImage = getAsset("81680855285439.png"),
                     CanvasPosition = Vector2New(0, 79),
@@ -4835,6 +4859,45 @@ local Library do
                 Items["ConnectedCircle"].Instance.BackgroundColor3 = Color
             end
 
+            local MainPage = ChatSystem.Page and ChatSystem.Page.Page
+            local MainPageItems = MainPage and MainPage.Items or nil
+
+            if MainPageItems and not MainPageItems["UnreadBadge"] then
+                MainPageItems["UnreadBadge"] = Instances:Create("Frame", {
+                    Parent = MainPageItems["Inactive"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(1, 0),
+                    Position = UDim2New(1, -2, 0, 2),
+                    Size = UDim2New(0, 20, 0, 20),
+                    Visible = false,
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(230, 59, 59)
+                })
+
+                Instances:Create("UICorner", {
+                    Parent = MainPageItems["UnreadBadge"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(1, 0)
+                })
+
+                MainPageItems["UnreadBadgeText"] = Instances:Create("TextLabel", {
+                    Parent = MainPageItems["UnreadBadge"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Text = "+0",
+                    Size = UDim2New(1, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextSize = 11
+                })
+            end
+
+            local UnreadBadge = MainPageItems and MainPageItems["UnreadBadge"]
+            local UnreadBadgeText = MainPageItems and MainPageItems["UnreadBadgeText"]
+
             local StoredClientId = StringFormat("globalchat-%s", tostring(LocalPlayer.UserId))
 
             local BackendState = {
@@ -4851,11 +4914,18 @@ local Library do
                     Username = nil,
                 },
                 SeenMessages = { },
+                TypingActive = false,
+                TypingUsers = { },
+                LastTypingSentAt = 0,
+                LastRenderedGroup = nil,
+                UnreadCount = 0,
                 Socket = nil,
                 SocketConnections = { }
             }
 
             local OnMessagePressed = { }
+            local HandlePayload
+            local IsLocalMessage
 
             local function SetConnectionAppearance(Text, Color)
                 ChatSystem:SetConnectedText(Text)
@@ -4885,6 +4955,172 @@ local Library do
                 return LocalPlayer.Name
             end
 
+            local function GetMessageSenderKey(MessageData, Username, IsAnonymous)
+                if type(MessageData) == "table" then
+                    local SenderId = tostring(MessageData.senderId or "")
+                    if SenderId ~= "" then
+                        return StringFormat("%s:%s", IsAnonymous and "anonymous-sender" or "sender", SenderId)
+                    end
+
+                    local ClientId = tostring(MessageData.clientId or "")
+                    if ClientId ~= "" then
+                        return StringFormat("%s:%s", IsAnonymous and "anonymous-client" or "client", ClientId)
+                    end
+                end
+
+                return StringFormat("%s:%s", tostring(IsAnonymous), tostring(Username or "Unknown"))
+            end
+
+            local function IsViewingChat()
+                local IsMainPageOpen = not MainPage or MainPage.Active
+                local IsSubPageOpen = not ChatSystem.Page or ChatSystem.Page.Active
+                return IsMainPageOpen and IsSubPageOpen
+            end
+
+            local function UpdateUnreadBadge()
+                if not UnreadBadge or not UnreadBadgeText then
+                    return
+                end
+
+                local Count = tonumber(BackendState.UnreadCount) or 0
+                UnreadBadge.Instance.Visible = Count > 0
+
+                if Count > 0 then
+                    UnreadBadgeText.Instance.Text = StringFormat("+%d", math.min(Count, 9))
+                end
+            end
+
+            local function ClearUnreadBadge()
+                if (tonumber(BackendState.UnreadCount) or 0) <= 0 then
+                    return
+                end
+
+                BackendState.UnreadCount = 0
+                UpdateUnreadBadge()
+            end
+
+            local function TrackUnreadMessage(MessageData, SkipUnread)
+                if SkipUnread or IsLocalMessage(MessageData) or IsViewingChat() then
+                    return
+                end
+
+                BackendState.UnreadCount = (tonumber(BackendState.UnreadCount) or 0) + 1
+                UpdateUnreadBadge()
+            end
+
+            local function FormatTypingUsers(TypingUsers)
+                if type(TypingUsers) ~= "table" then
+                    return ""
+                end
+
+                local Names = { }
+
+                for _, Value in TypingUsers do
+                    if type(Value) ~= "table" then
+                        continue
+                    end
+
+                    local IsLocalClient = tostring(Value.clientId or "") == BackendState.ClientId
+                    local IsLocalSender = tostring(Value.senderId or "") == tostring(LocalPlayer.UserId)
+                    local Username = tostring(Value.username or "")
+
+                    if not IsLocalClient and not IsLocalSender and Username ~= "" then
+                        TableInsert(Names, Username)
+                    end
+                end
+
+                if #Names == 0 then
+                    return ""
+                end
+
+                if #Names > 2 then
+                    return "Multiple People are typing.."
+                end
+
+                local Parts = { }
+
+                for _, Name in Names do
+                    TableInsert(Parts, StringFormat("%s is typing..", Name))
+                end
+
+                return TableConcat(Parts, ", ")
+            end
+
+            local function UpdateTypingText(TypingUsers)
+                BackendState.TypingUsers = type(TypingUsers) == "table" and TypingUsers or { }
+
+                local Text = FormatTypingUsers(BackendState.TypingUsers)
+                Items["TypingText"].Instance.Text = Text
+                Items["TypingText"].Instance.Visible = Text ~= ""
+            end
+
+            local function SendTypingState(IsTyping, Force)
+                local Config = BackendState.Config
+                if not Config or BackendState.Destroyed then
+                    return false
+                end
+
+                local Now = os.clock()
+                if not Force and BackendState.TypingActive == IsTyping then
+                    if not IsTyping then
+                        return true
+                    end
+
+                    if Now - (BackendState.LastTypingSentAt or 0) < 1.25 then
+                        return true
+                    end
+                end
+
+                local Payload = {
+                    type = "typing",
+                    typing = IsTyping,
+                    username = GetLocalUsername(),
+                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                    clientId = BackendState.ClientId
+                }
+
+                local Sent = false
+                local Encoded = JsonEncode(Payload)
+
+                if BackendState.Socket and Encoded and SocketSend(BackendState.Socket, Encoded) then
+                    Sent = true
+                end
+
+                if not Sent and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
+                    local Success, ResponseBody = DoHttpRequest({
+                        Url = Config.HttpUrl .. "/typing",
+                        Method = "POST",
+                        Headers = MergeTable(GetRequestHeaders(Config), {
+                            ["Content-Type"] = "application/json"
+                        }),
+                        Body = Encoded
+                    })
+
+                    if Success then
+                        Sent = true
+                        HandlePayload(JsonDecode(ResponseBody))
+                    end
+                end
+
+                if Sent or Force then
+                    BackendState.TypingActive = IsTyping
+                    BackendState.LastTypingSentAt = Now
+                end
+
+                return Sent
+            end
+
+            local function SyncTypingState(Force)
+                if StringLen(ChatSystem:GetTypedMessage()) > 0 then
+                    SendTypingState(true, Force)
+                    return
+                end
+
+                if Force or BackendState.TypingActive then
+                    SendTypingState(false, true)
+                end
+            end
+
             local function TrackMessageId(MessageData)
                 local MessageId = tonumber(MessageData.id)
                 if not MessageId then
@@ -4900,7 +5136,7 @@ local Library do
                 return true
             end
 
-            local function IsLocalMessage(MessageData)
+            IsLocalMessage = function(MessageData)
                 if tostring(MessageData.clientId or "") == BackendState.ClientId then
                     return true
                 end
@@ -4912,7 +5148,7 @@ local Library do
                 return false
             end
 
-            local function RenderIncomingMessage(MessageData)
+            local function RenderIncomingMessage(MessageData, SkipUnread)
                 if type(MessageData) ~= "table" then
                     return
                 end
@@ -4926,30 +5162,20 @@ local Library do
                     return
                 end
 
+                TrackUnreadMessage(MessageData, SkipUnread)
+
                 ChatSystem:SendMessage(
                     MessageData.avatar or Content,
                     MessageData.username or "Unknown",
                     MessageText,
                     IsLocalMessage(MessageData),
                     MessageData.anonymous,
-                    MessageData.createdAt
+                    MessageData.createdAt,
+                    GetMessageSenderKey(MessageData, MessageData.username or "Unknown", MessageData.anonymous)
                 )
             end
 
-            local function PrimeMessageState(Messages)
-                if type(Messages) ~= "table" then
-                    BackendState.InitialSyncComplete = true
-                    return
-                end
-
-                for _, Value in Messages do
-                    TrackMessageId(Value)
-                end
-
-                BackendState.InitialSyncComplete = true
-            end
-
-            local function HandlePayload(Payload)
+            HandlePayload = function(Payload)
                 if type(Payload) ~= "table" then
                     return
                 end
@@ -4958,20 +5184,27 @@ local Library do
                     SetConnectedCount(Payload.connectedUsers)
                 end
 
+                if Payload.typingUsers ~= nil then
+                    UpdateTypingText(Payload.typingUsers)
+                end
+
+                if Payload.type == "typing" then
+                    return
+                end
+
                 if Payload.type == "message" and type(Payload.message) == "table" then
                     RenderIncomingMessage(Payload.message)
                     return
                 end
 
                 if type(Payload.messages) == "table" then
-                    if not BackendState.InitialSyncComplete then
-                        PrimeMessageState(Payload.messages)
-                        return
-                    end
+                    local SkipUnread = not BackendState.InitialSyncComplete
 
                     for _, Value in Payload.messages do
-                        RenderIncomingMessage(Value)
+                        RenderIncomingMessage(Value, SkipUnread)
                     end
+
+                    BackendState.InitialSyncComplete = true
                 end
             end
 
@@ -5209,6 +5442,8 @@ local Library do
                 DisconnectSocketListeners()
                 SocketClose(BackendState.Socket)
                 BackendState.Socket = nil
+                BackendState.TypingActive = false
+                UpdateTypingText({ })
                 SetConnectionAppearance("Disconnected", FromRGB(255, 120, 120))
             end
 
@@ -5220,6 +5455,11 @@ local Library do
                 BackendState.SeenMessages = { }
                 BackendState.InitialSyncComplete = false
                 BackendState.LastMessageId = 0
+                BackendState.LastRenderedGroup = nil
+                BackendState.TypingActive = false
+                BackendState.TypingUsers = { }
+                BackendState.LastTypingSentAt = 0
+                UpdateTypingText({ })
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
                 StartPresenceHeartbeat()
 
@@ -5265,7 +5505,7 @@ local Library do
                 return BackendState.Polling
             end
 
-            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous, CreatedAt)
+            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous, CreatedAt, SenderKey)
                 local ShouldHideIdentity = IsAnonymous
 
                 if ShouldHideIdentity == nil then
@@ -5273,8 +5513,67 @@ local Library do
                 end
 
                 Username = ShouldHideIdentity and "Anonymous" or Username
-                Avatar = ShouldHideIdentity and "rbxassetid://80377955535798" or Avatar
+                Avatar = ShouldHideIdentity and getAsset("80377955535798.png") or Avatar
                 local TimestampText = FormatMessageTimestamp(CreatedAt)
+                local GroupKey = tostring(SenderKey or Username or "Unknown")
+                local LastGroup = BackendState.LastRenderedGroup
+
+                local function CreateBubble(Parent)
+                    local BubbleItems = { }
+
+                    BubbleItems["RealMessage"] = Instances:Create("Frame", {
+                        Parent = Parent,
+                        Name = "\0",
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.XY,
+                        BackgroundColor3 = FromRGB(17, 16, 20)
+                    })  BubbleItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
+
+                    Instances:Create("UICorner", {
+                        Parent = BubbleItems["RealMessage"].Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 4)
+                    })
+
+                    BubbleItems["MessageText"] = Instances:Create("TextLabel", {
+                        Parent = BubbleItems["RealMessage"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = Message,
+                        BorderSizePixel = 0,
+                        BackgroundTransparency = 1,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true,
+                        AutomaticSize = Enum.AutomaticSize.XY,
+                        TextSize = 14
+                    })  BubbleItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
+
+                    Instances:Create("UIPadding", {
+                        Parent = BubbleItems["RealMessage"].Instance,
+                        Name = "\0",
+                        PaddingTop = UDimNew(0, 10),
+                        PaddingBottom = UDimNew(0, 10),
+                        PaddingRight = UDimNew(0, 10),
+                        PaddingLeft = UDimNew(0, 10)
+                    })
+
+                    Instances:Create("UISizeConstraint", {
+                        Parent = BubbleItems["RealMessage"].Instance,
+                        Name = "\0",
+                        MaxSize = Vector2New(300, 140)
+                    })
+                end
+
+                if LastGroup and LastGroup.GroupKey == GroupKey and LastGroup.IsAnonymous == ShouldHideIdentity and LastGroup.IsLocalPlayer == IsLocalPlayer then
+                    CreateBubble(LastGroup.Stack.Instance)
+                    task.defer(function()
+                        Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Items["Messages"].Instance.AbsoluteCanvasSize.Y - Items["Messages"].Instance.AbsoluteSize.Y)})
+                    end)
+                    return
+                end
 
                 local SubItems = { } do
                     SubItems["Message1"] = Instances:Create("Frame", {
@@ -5319,50 +5618,22 @@ local Library do
                         TextXAlignment = Enum.TextXAlignment.Left
                     })  SubItems["Timestamp"]:AddToTheme({TextColor3 = "Gradient"})
 
-                    SubItems["RealMessage"] = Instances:Create("Frame", {
+                    SubItems["MessageStack"] = Instances:Create("Frame", {
                         Parent = SubItems["Message1"].Instance,
                         Name = "\0",
                         Position = UDim2New(0, 43, 0, 34),
-                        BorderColor3 = FromRGB(0, 0, 0),
-                        BorderSizePixel = 0,
-                        AutomaticSize = Enum.AutomaticSize.XY,
-                        BackgroundColor3 = FromRGB(17, 16, 20)
-                    })  SubItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
-
-                    Instances:Create("UICorner", {
-                        Parent = SubItems["RealMessage"].Instance,
-                        Name = "\0",
-                        CornerRadius = UDimNew(0, 4)
-                    })
-
-                    SubItems["MessageText"] = Instances:Create("TextLabel", {
-                        Parent = SubItems["RealMessage"].Instance,
-                        Name = "\0",
-                        FontFace = Library.Font,
-                        TextColor3 = FromRGB(255, 255, 255),
-                        BorderColor3 = FromRGB(0, 0, 0),
-                        Text = Message,
-                        BorderSizePixel = 0,
                         BackgroundTransparency = 1,
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                        TextWrapped = true,
-                        AutomaticSize = Enum.AutomaticSize.XY,
-                        TextSize = 14
-                    })  SubItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
-
-                    Instances:Create("UIPadding", {
-                        Parent = SubItems["RealMessage"].Instance,
-                        Name = "\0",
-                        PaddingTop = UDimNew(0, 10),
-                        PaddingBottom = UDimNew(0, 10),
-                        PaddingRight = UDimNew(0, 10),
-                        PaddingLeft = UDimNew(0, 10)
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        Size = UDim2New(1, -43, 0, 0)
                     })
 
-                    Instances:Create("UISizeConstraint", {
-                        Parent = SubItems["RealMessage"].Instance,
+                    Instances:Create("UIListLayout", {
+                        Parent = SubItems["MessageStack"].Instance,
                         Name = "\0",
-                        MaxSize = Vector2New(300, 140)
+                        Padding = UDimNew(0, 6),
+                        SortOrder = Enum.SortOrder.LayoutOrder
                     })
 
                     SubItems["Avatar"] = Instances:Create("ImageLabel", {
@@ -5382,7 +5653,16 @@ local Library do
                         Name = "\0",
                         CornerRadius = UDimNew(0, 4)
                     })
+
+                    CreateBubble(SubItems["MessageStack"].Instance)
                 end
+
+                BackendState.LastRenderedGroup = {
+                    GroupKey = GroupKey,
+                    IsAnonymous = ShouldHideIdentity,
+                    IsLocalPlayer = IsLocalPlayer,
+                    Stack = SubItems["MessageStack"]
+                }
             end
 
             Items["Messages"]:Connect("ChildAdded", function()
@@ -5397,8 +5677,40 @@ local Library do
 
                 local TypedMessage = ChatSystem:GetTypedMessage()
                 if TypedMessage ~= "" then
-                    SendChatMessage(TypedMessage)
+                    if SendChatMessage(TypedMessage) then
+                        SendTypingState(false, true)
+                    end
                 end
+            end
+
+            local function RefreshChatViewState()
+                if IsViewingChat() then
+                    ClearUnreadBadge()
+                end
+            end
+
+            Library:Connect(Items["Input"].Instance:GetPropertyChangedSignal("Text"), function()
+                SyncTypingState(false)
+            end)
+
+            Library:Connect(Items["Input"].Instance.FocusLost, function()
+                SendTypingState(false, true)
+            end)
+
+            if MainPageItems and MainPageItems["Inactive"] then
+                Library:Connect(MainPageItems["Inactive"].Instance.InputBegan, function(Input)
+                    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                        task.defer(RefreshChatViewState)
+                    end
+                end)
+            end
+
+            if ChatSystem.Page and ChatSystem.Page.Items and ChatSystem.Page.Items["Inactive"] then
+                Library:Connect(ChatSystem.Page.Items["Inactive"].Instance.InputBegan, function(Input)
+                    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                        task.defer(RefreshChatViewState)
+                    end
+                end)
             end
             
             Items["SendButton"]:Connect("MouseButton1Down", function()
