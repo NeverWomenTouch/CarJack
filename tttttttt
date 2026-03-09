@@ -4939,6 +4939,7 @@ local Library do
                 Config = nil,
                 Destroyed = false,
                 HeartbeatRunning = false,
+                TypingHeartbeatRunning = false,
                 TypingPollRunning = false,
                 InitialSyncComplete = false,
                 LastMessageId = 0,
@@ -5151,6 +5152,30 @@ local Library do
                 end
 
                 return Sent
+            end
+
+            local function StartTypingHeartbeat()
+                if BackendState.TypingHeartbeatRunning then
+                    return
+                end
+
+                BackendState.TypingHeartbeatRunning = true
+
+                Library:Thread(function()
+                    while not BackendState.Destroyed do
+                        local TypedMessage = ChatSystem:GetTypedMessage()
+
+                        if StringLen(TypedMessage) > 0 then
+                            SendTypingState(true, true)
+                        elseif BackendState.TypingActive then
+                            SendTypingState(false, true)
+                        end
+
+                        task.wait(0.9)
+                    end
+
+                    BackendState.TypingHeartbeatRunning = false
+                end)
             end
 
             local function SyncTypingState(Force)
@@ -5542,6 +5567,7 @@ local Library do
                 UpdateTypingText({ })
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
                 StartPresenceHeartbeat()
+                StartTypingHeartbeat()
                 StartTypingPolling()
 
                 if BackendState.Config.WsUrl and WebSocketFunction then
