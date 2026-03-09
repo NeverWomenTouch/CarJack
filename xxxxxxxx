@@ -5182,7 +5182,7 @@ local Library do
                     Sent = true
                 end
 
-                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
+                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
                     local Success, ResponseBody = DoHttpRequest({
                         Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
                             clientId = BackendState.ClientId,
@@ -5191,11 +5191,8 @@ local Library do
                             typing = IsTyping,
                             anonymous = Toggle.Value
                         }),
-                        Method = "POST",
-                        Headers = MergeTable(GetRequestHeaders(Config), {
-                            ["Content-Type"] = "application/json"
-                        }),
-                        Body = Encoded
+                        Method = "GET",
+                        Headers = GetRequestHeaders(Config)
                     })
 
                     if Success then
@@ -5205,6 +5202,8 @@ local Library do
                         if Decoded and Decoded.typingUsers ~= nil then
                             UpdateTypingText(Decoded.typingUsers)
                         end
+                    elseif not BackendState.Socket then
+                        SetTypingDebug("typing publish failed", FromRGB(255, 140, 140))
                     end
                 end
 
