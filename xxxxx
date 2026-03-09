@@ -5090,8 +5090,14 @@ local Library do
 
             local function SetTypingDebug(Text, Color)
                 local Label = Items["TypingDebug"].Instance
-                Label.Text = ""
-                Label.Visible = false
+                local Value = tostring(Text or "")
+
+                Label.Text = Value
+                Label.Visible = Value ~= ""
+
+                if Color then
+                    Label.TextColor3 = Color
+                end
             end
 
             PerformSync = function(FetchFullHistory, TypingOverride)
@@ -5131,10 +5137,30 @@ local Library do
                 })
 
                 if not Success then
+                    SetTypingDebug("sync request failed", FromRGB(255, 140, 140))
                     return false
                 end
 
-                HandlePayload(JsonDecode(ResponseBody))
+                local Decoded = JsonDecode(ResponseBody)
+                local TypingUsers = Decoded and Decoded.typingUsers
+                local TypingCount = type(TypingUsers) == "table" and #TypingUsers or 0
+                SetTypingDebug(StringFormat("sync typing count: %d", TypingCount), FromRGB(150, 220, 255))
+
+                if TypingCount > 0 then
+                    local Names = { }
+
+                    for _, Value in TypingUsers do
+                        if type(Value) == "table" and tostring(Value.username or "") ~= "" then
+                            TableInsert(Names, tostring(Value.username))
+                        end
+                    end
+
+                    if #Names > 0 then
+                        SetTypingDebug(StringFormat("sync typing count: %d [%s]", TypingCount, TableConcat(Names, ", ")), FromRGB(150, 220, 255))
+                    end
+                end
+
+                HandlePayload(Decoded)
                 BackendState.TypingActive = IsTyping
                 BackendState.LastTypingSentAt = os.clock()
                 return true
