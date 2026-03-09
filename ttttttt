@@ -4939,6 +4939,7 @@ local Library do
                 Config = nil,
                 Destroyed = false,
                 HeartbeatRunning = false,
+                TypingPollRunning = false,
                 InitialSyncComplete = false,
                 LastMessageId = 0,
                 Polling = false,
@@ -5349,6 +5350,43 @@ local Library do
                 end)
             end
 
+            local function StartTypingPolling()
+                if BackendState.TypingPollRunning then
+                    return
+                end
+
+                BackendState.TypingPollRunning = true
+
+                Library:Thread(function()
+                    while not BackendState.Destroyed do
+                        local Config = BackendState.Config
+
+                        if Config and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
+                            local Success, ResponseBody = DoHttpRequest({
+                                Url = BuildUrl(Config.HttpUrl .. "/typing", {
+                                    clientId = BackendState.ClientId,
+                                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                                    username = GetLocalUsername()
+                                }),
+                                Method = "GET",
+                                Headers = GetRequestHeaders(Config)
+                            })
+
+                            if Success then
+                                local Payload = JsonDecode(ResponseBody)
+                                if Payload and Payload.typingUsers ~= nil then
+                                    UpdateTypingText(Payload.typingUsers)
+                                end
+                            end
+                        end
+
+                        task.wait(1)
+                    end
+
+                    BackendState.TypingPollRunning = false
+                end)
+            end
+
             local function StartPolling()
                 if BackendState.Polling then
                     return
@@ -5504,6 +5542,7 @@ local Library do
                 UpdateTypingText({ })
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
                 StartPresenceHeartbeat()
+                StartTypingPolling()
 
                 if BackendState.Config.WsUrl and WebSocketFunction then
                     local SocketUrl = BuildUrl(BackendState.Config.WsUrl, {
