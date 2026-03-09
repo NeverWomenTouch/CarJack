@@ -5157,7 +5157,13 @@ local Library do
 
                 if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
                     local Success, ResponseBody = DoHttpRequest({
-                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing"),
+                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
+                            clientId = BackendState.ClientId,
+                            senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                            username = Toggle.Value and "Anonymous" or GetLocalUsername(),
+                            typing = IsTyping,
+                            anonymous = Toggle.Value
+                        }),
                         Method = "POST",
                         Headers = MergeTable(GetRequestHeaders(Config), {
                             ["Content-Type"] = "application/json"
@@ -5179,7 +5185,13 @@ local Library do
 
                 if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
                     local Success, ResponseBody = DoHttpRequest({
-                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence"),
+                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
+                            clientId = BackendState.ClientId,
+                            senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                            username = Toggle.Value and "Anonymous" or GetLocalUsername(),
+                            typing = IsTyping,
+                            anonymous = Toggle.Value
+                        }),
                         Method = "POST",
                         Headers = MergeTable(GetRequestHeaders(Config), {
                             ["Content-Type"] = "application/json"
@@ -5378,7 +5390,10 @@ local Library do
                 end
 
                 DoHttpRequest({
-                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence/disconnect"),
+                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence/disconnect", {
+                        clientId = BackendState.ClientId,
+                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
+                    }),
                     Method = "POST",
                     Headers = MergeTable(GetRequestHeaders(Config), {
                         ["Content-Type"] = "application/json"
@@ -5410,7 +5425,13 @@ local Library do
 
                             if Encoded then
                                 local Success, ResponseBody = DoHttpRequest({
-                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence"),
+                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
+                                        clientId = BackendState.ClientId,
+                                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                                        username = GetLocalUsername(),
+                                        typing = IsTyping,
+                                        anonymous = Toggle.Value
+                                    }),
                                     Method = "POST",
                                     Headers = MergeTable(GetRequestHeaders(Config), {
                                         ["Content-Type"] = "application/json"
@@ -5477,7 +5498,13 @@ local Library do
 
                                 if PresenceEncoded then
                                     local PresenceSuccess, PresenceResponseBody = DoHttpRequest({
-                                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence"),
+                                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
+                                            clientId = BackendState.ClientId,
+                                            senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                                            username = GetLocalUsername(),
+                                            typing = StringLen(ChatSystem:GetTypedMessage()) > 0,
+                                            anonymous = Toggle.Value
+                                        }),
                                         Method = "POST",
                                         Headers = MergeTable(GetRequestHeaders(Config), {
                                             ["Content-Type"] = "application/json"
