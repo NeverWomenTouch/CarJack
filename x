@@ -5122,11 +5122,7 @@ local Library do
                 local Sent = false
                 local Encoded = JsonEncode(Payload)
 
-                if BackendState.Socket and Encoded and SocketSend(BackendState.Socket, Encoded) then
-                    Sent = true
-                end
-
-                if not Sent and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
+                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
                     local Success, ResponseBody = DoHttpRequest({
                         Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
                             clientId = BackendState.ClientId,
@@ -5146,6 +5142,10 @@ local Library do
                         Sent = true
                         HandlePayload(JsonDecode(ResponseBody))
                     end
+                end
+
+                if BackendState.Socket and Encoded then
+                    SocketSend(BackendState.Socket, Encoded)
                 end
 
                 if Sent or Force then
@@ -5405,16 +5405,16 @@ local Library do
                     while not BackendState.Destroyed do
                         local Config = BackendState.Config
 
-                        if not BackendState.Socket and Config and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
+                        if Config and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
                             local Success, ResponseBody = DoHttpRequest({
-                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
-                                        clientId = BackendState.ClientId,
-                                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                        username = GetLocalUsername()
-                                    }),
-                                    Method = "GET",
-                                    Headers = GetRequestHeaders(Config)
-                                })
+                                Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
+                                    clientId = BackendState.ClientId,
+                                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                                    username = GetLocalUsername()
+                                }),
+                                Method = "GET",
+                                Headers = GetRequestHeaders(Config)
+                            })
 
                             if Success then
                                 local Payload = JsonDecode(ResponseBody)
