@@ -4867,18 +4867,26 @@ local Library do
                     Parent = MainPageItems["Inactive"].Instance,
                     Name = "\0",
                     AnchorPoint = Vector2New(1, 0.5),
-                    Position = UDim2New(1, -8, 0.5, 0),
-                    Size = UDim2New(0, 26, 0, 26),
+                    Position = UDim2New(1, -10, 0.5, 0),
+                    Size = UDim2New(0, 22, 0, 22),
                     Visible = false,
                     BorderColor3 = FromRGB(0, 0, 0),
                     BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(230, 59, 59)
+                    BackgroundColor3 = FromRGB(237, 66, 69)
                 })
 
                 Instances:Create("UICorner", {
                     Parent = MainPageItems["UnreadBadge"].Instance,
                     Name = "\0",
                     CornerRadius = UDimNew(1, 0)
+                })
+
+                Instances:Create("UIStroke", {
+                    Parent = MainPageItems["UnreadBadge"].Instance,
+                    Name = "\0",
+                    Transparency = 0.2,
+                    Thickness = 1.2,
+                    Color = FromRGB(140, 32, 34)
                 })
 
                 MainPageItems["UnreadBadgeText"] = Instances:Create("TextLabel", {
@@ -4891,8 +4899,9 @@ local Library do
                     Size = UDim2New(1, 0, 1, 0),
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
-                    TextSize = 13,
-                    TextStrokeTransparency = 0.35
+                    TextSize = 12,
+                    TextStrokeColor3 = FromRGB(90, 20, 22),
+                    TextStrokeTransparency = 0.45
                 })
             end
 
@@ -4988,6 +4997,7 @@ local Library do
 
                 if Count > 0 then
                     UnreadBadgeText.Instance.Text = StringFormat("+%d", math.min(Count, 9))
+                    UnreadBadge.Instance.Size = Count >= 10 and UDim2New(0, 24, 0, 22) or UDim2New(0, 22, 0, 22)
                 end
             end
 
@@ -5690,11 +5700,15 @@ local Library do
                 end
             end
 
-            Library:Connect(Items["Input"].Instance:GetPropertyChangedSignal("Text"), function()
+            Items["Input"].Instance:GetPropertyChangedSignal("Text"):Connect(function()
                 SyncTypingState(false)
             end)
 
-            Library:Connect(Items["Input"].Instance.FocusLost, function()
+            Items["Input"].Instance.Focused:Connect(function()
+                SyncTypingState(false)
+            end)
+
+            Items["Input"].Instance.FocusLost:Connect(function()
                 SendTypingState(false, true)
             end)
 
