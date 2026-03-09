@@ -4980,6 +4980,7 @@ local Library do
             local HandlePayload
             local IsLocalMessage
             local GetRequestHeaders
+            local BuildAuthorizedUrl
 
             local function SetConnectionAppearance(Text, Color)
                 ChatSystem:SetConnectedText(Text)
@@ -5337,7 +5338,7 @@ local Library do
                 return Headers
             end
 
-            local function BuildAuthorizedUrl(Config, BaseUrl, Query)
+            BuildAuthorizedUrl = function(Config, BaseUrl, Query)
                 local FinalQuery = type(Query) == "table" and TableClone(Query) or { }
 
                 if Config and Config.Token and Config.Token ~= "" then
@@ -5463,7 +5464,38 @@ local Library do
                                     UpdateTypingText(Payload.typingUsers)
                                 end
                             else
-                                SetTypingDebug("typing poll failed", FromRGB(255, 140, 140))
+                                local PresenceEncoded = JsonEncode({
+                                    clientId = BackendState.ClientId,
+                                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                                    username = GetLocalUsername(),
+                                    typing = StringLen(ChatSystem:GetTypedMessage()) > 0,
+                                    anonymous = Toggle.Value
+                                })
+
+                                if PresenceEncoded then
+                                    local PresenceSuccess, PresenceResponseBody = DoHttpRequest({
+                                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence"),
+                                        Method = "POST",
+                                        Headers = MergeTable(GetRequestHeaders(Config), {
+                                            ["Content-Type"] = "application/json"
+                                        }),
+                                        Body = PresenceEncoded
+                                    })
+
+                                    if PresenceSuccess then
+                                        local PresencePayload = JsonDecode(PresenceResponseBody)
+                                        if PresencePayload and PresencePayload.typingUsers ~= nil then
+                                            SetTypingDebug(StringFormat("typing poll fallback ok: %d", #PresencePayload.typingUsers), FromRGB(150, 220, 255))
+                                            UpdateTypingText(PresencePayload.typingUsers)
+                                        else
+                                            SetTypingDebug("typing poll fallback empty", FromRGB(255, 210, 140))
+                                        end
+                                    else
+                                        SetTypingDebug("typing poll failed", FromRGB(255, 140, 140))
+                                    end
+                                else
+                                    SetTypingDebug("typing poll failed", FromRGB(255, 140, 140))
+                                end
                             end
                         end
 
