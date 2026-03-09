@@ -4616,6 +4616,23 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     ZIndex = 5
                 })  Items["TypingText"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["TypingDebug"] = Instances:Create("TextLabel", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(255, 170, 170),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Text = "",
+                    Visible = false,
+                    Size = UDim2New(1, -20, 0, 12),
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 10, 1, -102),
+                    BorderSizePixel = 0,
+                    TextSize = 11,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 5
+                })
                 
                 Items["SendButton"] = Instances:Create("TextButton", {
                     Parent = Items["GlobalChat"].Instance,
@@ -5092,6 +5109,18 @@ local Library do
                 Items["TypingIndicator"].Instance.Visible = Text ~= ""
             end
 
+            local function SetTypingDebug(Text, Color)
+                local Label = Items["TypingDebug"].Instance
+                local Value = tostring(Text or "")
+
+                Label.Text = Value
+                Label.Visible = Value ~= ""
+
+                if Color then
+                    Label.TextColor3 = Color
+                end
+            end
+
             local function SendTypingState(IsTyping, Force)
                 local Config = BackendState.Config
                 if not Config or BackendState.Destroyed then
@@ -5137,12 +5166,32 @@ local Library do
 
                     if Success then
                         Sent = true
+                        SetTypingDebug(StringFormat("typing send ok (%s)", IsTyping and "on" or "off"), FromRGB(150, 255, 170))
                         local Decoded = JsonDecode(ResponseBody)
                         if not BackendState.Socket then
                             HandlePayload(Decoded)
                         elseif Decoded and Decoded.typingUsers ~= nil then
                             UpdateTypingText(Decoded.typingUsers)
                         end
+                    end
+                end
+
+                if not Sent and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
+                    local Success, ResponseBody = DoHttpRequest({
+                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence"),
+                        Method = "POST",
+                        Headers = MergeTable(GetRequestHeaders(Config), {
+                            ["Content-Type"] = "application/json"
+                        }),
+                        Body = Encoded
+                    })
+
+                    if Success then
+                        Sent = true
+                        SetTypingDebug(StringFormat("typing fallback ok (%s)", IsTyping and "on" or "off"), FromRGB(150, 220, 255))
+                        HandlePayload(JsonDecode(ResponseBody))
+                    else
+                        SetTypingDebug("typing send failed", FromRGB(255, 140, 140))
                     end
                 end
 
@@ -5410,8 +5459,11 @@ local Library do
                             if Success then
                                 local Payload = JsonDecode(ResponseBody)
                                 if Payload and Payload.typingUsers ~= nil then
+                                    SetTypingDebug(StringFormat("typing poll ok: %d", #Payload.typingUsers), FromRGB(170, 220, 255))
                                     UpdateTypingText(Payload.typingUsers)
                                 end
+                            else
+                                SetTypingDebug("typing poll failed", FromRGB(255, 140, 140))
                             end
                         end
 
@@ -5465,6 +5517,32 @@ local Library do
                         end
                     end
                 end)
+            end
+
+            local function FetchInitialHistory()
+                local Config = BackendState.Config
+                if not Config or not RequestFunction or not Config.HttpUrl or Config.HttpUrl == "" then
+                    return false
+                end
+
+                local Success, ResponseBody = DoHttpRequest({
+                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages", {
+                        afterId = 0,
+                        clientId = BackendState.ClientId,
+                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                        username = GetLocalUsername(),
+                        limit = Config.MessageLimit
+                    }),
+                    Method = "GET",
+                    Headers = GetRequestHeaders(Config)
+                })
+
+                if not Success then
+                    return false
+                end
+
+                HandlePayload(JsonDecode(ResponseBody))
+                return true
             end
 
             local function SendChatMessage(Message)
@@ -5575,7 +5653,9 @@ local Library do
                 BackendState.TypingUsers = { }
                 BackendState.LastTypingSentAt = 0
                 UpdateTypingText({ })
+                SetTypingDebug("", nil)
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
+                FetchInitialHistory()
                 StartPresenceHeartbeat()
                 StartTypingHeartbeat()
                 StartTypingPolling()
