@@ -4958,6 +4958,7 @@ local Library do
             local IsLocalMessage
             local GetRequestHeaders
             local BuildAuthorizedUrl
+            local PerformSync
 
             local function SetConnectionAppearance(Text, Color)
                 ChatSystem:SetConnectedText(Text)
@@ -5093,6 +5094,52 @@ local Library do
                 Label.Visible = false
             end
 
+            PerformSync = function(FetchFullHistory, TypingOverride)
+                local Config = BackendState.Config
+                if not Config or not RequestFunction or not Config.HttpUrl or Config.HttpUrl == "" then
+                    return false
+                end
+
+                local IsTyping = TypingOverride
+                if IsTyping == nil then
+                    IsTyping = StringLen(ChatSystem:GetTypedMessage()) > 0
+                end
+
+                local AfterId = FetchFullHistory and 0 or BackendState.LastMessageId
+                local Payload = {
+                    clientId = BackendState.ClientId,
+                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                    username = GetLocalUsername(),
+                    typing = IsTyping,
+                    anonymous = Toggle.Value,
+                    afterId = AfterId,
+                    limit = (Config and Config.MessageLimit) or 50
+                }
+
+                local Encoded = JsonEncode(Payload)
+                if not Encoded then
+                    return false
+                end
+
+                local Success, ResponseBody = DoHttpRequest({
+                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/sync", Payload),
+                    Method = "POST",
+                    Headers = MergeTable(GetRequestHeaders(Config), {
+                        ["Content-Type"] = "application/json"
+                    }),
+                    Body = Encoded
+                })
+
+                if not Success then
+                    return false
+                end
+
+                HandlePayload(JsonDecode(ResponseBody))
+                BackendState.TypingActive = IsTyping
+                BackendState.LastTypingSentAt = os.clock()
+                return true
+            end
+
             local function SendTypingState(IsTyping, Force)
                 local Config = BackendState.Config
                 if not Config or BackendState.Destroyed then
@@ -5110,43 +5157,7 @@ local Library do
                     end
                 end
 
-                local Payload = {
-                    type = "typing",
-                    typing = IsTyping,
-                    username = Toggle.Value and "Anonymous" or GetLocalUsername(),
-                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                    clientId = BackendState.ClientId,
-                    anonymous = Toggle.Value
-                }
-
-                local Sent = false
-                local Encoded = JsonEncode(Payload)
-
-                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
-                    local Success, ResponseBody = DoHttpRequest({
-                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
-                            clientId = BackendState.ClientId,
-                            senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                            username = Toggle.Value and "Anonymous" or GetLocalUsername(),
-                            typing = IsTyping,
-                            anonymous = Toggle.Value
-                        }),
-                        Method = "POST",
-                        Headers = MergeTable(GetRequestHeaders(Config), {
-                            ["Content-Type"] = "application/json"
-                        }),
-                        Body = Encoded
-                    })
-
-                    if Success then
-                        Sent = true
-                        HandlePayload(JsonDecode(ResponseBody))
-                    end
-                end
-
-                if BackendState.Socket and Encoded then
-                    SocketSend(BackendState.Socket, Encoded)
-                end
+                local Sent = PerformSync(false, IsTyping)
 
                 if Sent or Force then
                     BackendState.TypingActive = IsTyping
@@ -5352,34 +5363,6 @@ local Library do
                 Library:Thread(function()
                     while not BackendState.Destroyed do
                         local Config = BackendState.Config
-
-                        if Config and RequestFunction then
-                            local Encoded = JsonEncode({
-                                clientId = BackendState.ClientId,
-                                senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                username = GetLocalUsername()
-                            })
-
-                            if Encoded then
-                                local Success, ResponseBody = DoHttpRequest({
-                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
-                                        clientId = BackendState.ClientId,
-                                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                        username = GetLocalUsername()
-                                    }),
-                                    Method = "POST",
-                                    Headers = MergeTable(GetRequestHeaders(Config), {
-                                        ["Content-Type"] = "application/json"
-                                    }),
-                                    Body = Encoded
-                                })
-
-                                if Success then
-                                    HandlePayload(JsonDecode(ResponseBody))
-                                end
-                            end
-                        end
-
                         if Config and BackendState.Socket then
                             local PingPayload = JsonEncode({ type = "ping" })
                             if PingPayload then
@@ -5403,30 +5386,7 @@ local Library do
 
                 Library:Thread(function()
                     while not BackendState.Destroyed do
-                        local Config = BackendState.Config
-
-                        if Config and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
-                            local Success, ResponseBody = DoHttpRequest({
-                                Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
-                                    clientId = BackendState.ClientId,
-                                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                    username = GetLocalUsername()
-                                }),
-                                Method = "GET",
-                                Headers = GetRequestHeaders(Config)
-                            })
-
-                            if Success then
-                                local Payload = JsonDecode(ResponseBody)
-                                if Payload and Payload.typingUsers ~= nil then
-                                    UpdateTypingText(Payload.typingUsers)
-                                else
-                                    UpdateTypingText({ })
-                                end
-                            else
-                                UpdateTypingText({ })
-                            end
-                        end
+                        PerformSync(not BackendState.InitialSyncComplete, nil)
 
                         task.wait(1)
                     end
@@ -5436,74 +5396,11 @@ local Library do
             end
 
             local function StartPolling()
-                if BackendState.Polling then
-                    return
-                end
-
-                if not RequestFunction then
-                    SetConnectionAppearance("No HTTP support", FromRGB(255, 120, 120))
-                    return
-                end
-
-                BackendState.Polling = true
-                SetConnectionAppearance("Polling...", FromRGB(255, 209, 102))
-
-                Library:Thread(function()
-                    while BackendState.Polling and not BackendState.Destroyed do
-                        local Config = BackendState.Config
-                        if not Config or not Config.HttpUrl or Config.HttpUrl == "" then
-                            SetConnectionAppearance("No backend URL", FromRGB(255, 120, 120))
-                            StopPolling()
-                            break
-                        end
-
-                        local Success, ResponseBody = DoHttpRequest({
-                            Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages", {
-                                afterId = BackendState.LastMessageId,
-                                clientId = BackendState.ClientId,
-                                senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                username = GetLocalUsername(),
-                                limit = Config.MessageLimit
-                            }),
-                            Method = "GET",
-                            Headers = GetRequestHeaders(Config)
-                        })
-
-                        if Success then
-                            HandlePayload(JsonDecode(ResponseBody))
-                            task.wait(Config.PollInterval or 3)
-                        else
-                            SetConnectionAppearance("Retrying...", FromRGB(255, 120, 120))
-                            task.wait(Config.RetryDelay or 5)
-                        end
-                    end
-                end)
+                BackendState.Polling = false
             end
 
             local function FetchInitialHistory()
-                local Config = BackendState.Config
-                if not Config or not RequestFunction or not Config.HttpUrl or Config.HttpUrl == "" then
-                    return false
-                end
-
-                local Success, ResponseBody = DoHttpRequest({
-                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages", {
-                        afterId = 0,
-                        clientId = BackendState.ClientId,
-                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                        username = GetLocalUsername(),
-                        limit = Config.MessageLimit
-                    }),
-                    Method = "GET",
-                    Headers = GetRequestHeaders(Config)
-                })
-
-                if not Success then
-                    return false
-                end
-
-                HandlePayload(JsonDecode(ResponseBody))
-                return true
+                return PerformSync(true, false)
             end
 
             local function SendChatMessage(Message)
