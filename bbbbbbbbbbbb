@@ -5126,9 +5126,9 @@ local Library do
                     Sent = true
                 end
 
-                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
+                if not Sent and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" and Encoded then
                     local Success, ResponseBody = DoHttpRequest({
-                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
+                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
                             clientId = BackendState.ClientId,
                             senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                             username = Toggle.Value and "Anonymous" or GetLocalUsername(),
@@ -5354,13 +5354,10 @@ local Library do
                         local Config = BackendState.Config
 
                         if Config and RequestFunction then
-                            local IsTyping = StringLen(ChatSystem:GetTypedMessage()) > 0
                             local Encoded = JsonEncode({
                                 clientId = BackendState.ClientId,
                                 senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                username = GetLocalUsername(),
-                                typing = IsTyping,
-                                anonymous = Toggle.Value
+                                username = GetLocalUsername()
                             })
 
                             if Encoded then
@@ -5368,9 +5365,7 @@ local Library do
                                     Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
                                         clientId = BackendState.ClientId,
                                         senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                        username = GetLocalUsername(),
-                                        typing = IsTyping,
-                                        anonymous = Toggle.Value
+                                        username = GetLocalUsername()
                                     }),
                                     Method = "POST",
                                     Headers = MergeTable(GetRequestHeaders(Config), {
@@ -5410,39 +5405,26 @@ local Library do
                     while not BackendState.Destroyed do
                         local Config = BackendState.Config
 
-                        if Config and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
-                            local PresenceEncoded = JsonEncode({
-                                clientId = BackendState.ClientId,
-                                senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                username = GetLocalUsername(),
-                                typing = StringLen(ChatSystem:GetTypedMessage()) > 0,
-                                anonymous = Toggle.Value
-                            })
-
-                            if PresenceEncoded then
-                                local Success, ResponseBody = DoHttpRequest({
-                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence", {
+                        if not BackendState.Socket and Config and RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
+                            local Success, ResponseBody = DoHttpRequest({
+                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
                                         clientId = BackendState.ClientId,
                                         senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                                        username = GetLocalUsername(),
-                                        typing = StringLen(ChatSystem:GetTypedMessage()) > 0,
-                                        anonymous = Toggle.Value
+                                        username = GetLocalUsername()
                                     }),
-                                    Method = "POST",
-                                    Headers = MergeTable(GetRequestHeaders(Config), {
-                                        ["Content-Type"] = "application/json"
-                                    }),
-                                    Body = PresenceEncoded
+                                    Method = "GET",
+                                    Headers = GetRequestHeaders(Config)
                                 })
 
-                                if Success then
-                                    local Payload = JsonDecode(ResponseBody)
-                                    if Payload and Payload.typingUsers ~= nil then
-                                        UpdateTypingText(Payload.typingUsers)
-                                    else
-                                        UpdateTypingText({ })
-                                    end
+                            if Success then
+                                local Payload = JsonDecode(ResponseBody)
+                                if Payload and Payload.typingUsers ~= nil then
+                                    UpdateTypingText(Payload.typingUsers)
+                                else
+                                    UpdateTypingText({ })
                                 end
+                            else
+                                UpdateTypingText({ })
                             end
                         end
 
