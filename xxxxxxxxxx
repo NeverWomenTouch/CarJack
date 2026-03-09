@@ -5106,11 +5106,18 @@ local Library do
                     return false
                 end
 
+                local IsTyping = TypingOverride
+                if IsTyping == nil then
+                    IsTyping = StringLen(ChatSystem:GetTypedMessage()) > 0
+                end
+
                 local AfterId = FetchFullHistory and 0 or BackendState.LastMessageId
                 local Payload = {
                     clientId = BackendState.ClientId,
                     senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                     username = GetLocalUsername(),
+                    typing = IsTyping,
+                    anonymous = Toggle.Value,
                     afterId = AfterId,
                     limit = (Config and Config.MessageLimit) or 50
                 }
@@ -5146,6 +5153,8 @@ local Library do
                 end
 
                 HandlePayload(Decoded)
+                BackendState.TypingActive = IsTyping
+                BackendState.LastTypingSentAt = os.clock()
                 return true
             end
 
@@ -5166,46 +5175,7 @@ local Library do
                     end
                 end
 
-                local Payload = {
-                    type = "typing",
-                    username = Toggle.Value and "Anonymous" or GetLocalUsername(),
-                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                    clientId = BackendState.ClientId,
-                    typing = IsTyping,
-                    anonymous = Toggle.Value
-                }
-
-                local Sent = false
-                local Encoded = JsonEncode(Payload)
-
-                if BackendState.Socket and Encoded and SocketSend(BackendState.Socket, Encoded) then
-                    Sent = true
-                end
-
-                if RequestFunction and Config.HttpUrl and Config.HttpUrl ~= "" then
-                    local Success, ResponseBody = DoHttpRequest({
-                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/typing", {
-                            clientId = BackendState.ClientId,
-                            senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                            username = Toggle.Value and "Anonymous" or GetLocalUsername(),
-                            typing = IsTyping,
-                            anonymous = Toggle.Value
-                        }),
-                        Method = "GET",
-                        Headers = GetRequestHeaders(Config)
-                    })
-
-                    if Success then
-                        Sent = true
-
-                        local Decoded = JsonDecode(ResponseBody)
-                        if Decoded and Decoded.typingUsers ~= nil then
-                            UpdateTypingText(Decoded.typingUsers)
-                        end
-                    elseif not BackendState.Socket then
-                        SetTypingDebug("typing publish failed", FromRGB(255, 140, 140))
-                    end
-                end
+                local Sent = PerformSync(false, IsTyping)
 
                 if Sent or Force then
                     BackendState.TypingActive = IsTyping
