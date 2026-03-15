@@ -4595,8 +4595,12 @@ local Library do
                 })
 
                 local function UpdateInputSize()
-                    local textH = math.max(math.floor(Items["Input"].Instance.TextBounds.Y), 18)
-                    local contentH = textH + 16
+                    local text = Items["Input"].Instance.Text
+                    local explicitLines = 1
+                    for _ in text:gmatch("\n") do explicitLines = explicitLines + 1 end
+                    local boundsLines = math.ceil(math.max(Items["Input"].Instance.TextBounds.Y, 1) / 20)
+                    local lineCount = math.max(explicitLines, boundsLines)
+                    local contentH = math.max(lineCount * 20 + 16, 35)
                     local clampedH = math.min(contentH, 96)
                     local bgH = clampedH + 12
                     Items["Input"].Instance.Size = UDim2New(1, 0, 0, contentH)
@@ -4610,6 +4614,7 @@ local Library do
                     Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(bgH + TypingOffset))
                 end
 
+                Items["Input"].Instance:GetPropertyChangedSignal("Text"):Connect(UpdateInputSize)
                 Items["Input"].Instance:GetPropertyChangedSignal("TextBounds"):Connect(UpdateInputSize)
 
                 Items["TypingBg"] = Instances:Create("Frame", {
