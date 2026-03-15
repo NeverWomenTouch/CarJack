@@ -4517,7 +4517,8 @@ local Library do
                     AnchorPoint = Vector2New(0, 1),
                     BackgroundTransparency = 1,
                     Position = UDim2New(0, 10, 1, -40),
-                    Size = UDim2New(1, -65, 0, 35),
+                    Size = UDim2New(1, -65, 0, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     BorderSizePixel = 0
                 })
                 
@@ -4527,7 +4528,8 @@ local Library do
                     AnchorPoint = Vector2New(0, 1),
                     Position = UDim2New(0, 0, 1, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(1, 0, 0, 35),
+                    Size = UDim2New(1, 0, 0, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(41, 40, 49)
                 })  Items["MessageInputBackground"]:AddToTheme({BackgroundColor3 = "Element"})
@@ -4564,19 +4566,28 @@ local Library do
                     PlaceholderColor3 = FromRGB(185, 185, 185),
                     PlaceholderText = "Type here..",
                     TextSize = 14,
-                    Size = UDim2New(1, -24, 1, 0),
+                    Size = UDim2New(1, -24, 0, 35),
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = "",
                     CursorPosition = -1,
                     BackgroundTransparency = 1,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    TextYAlignment = Enum.TextYAlignment.Center,
+                    TextYAlignment = Enum.TextYAlignment.Top,
                     Position = UDim2New(0, 12, 0, 0),
                     ClearTextOnFocus = false,
                     BorderSizePixel = 0,
                     MultiLine = true
                 })  Items["Input"]:AddToTheme({TextColor3 = "Text"})
+
+                -- Add padding inside the input box so text has breathing room
+                Instances:Create("UIPadding", {
+                    Parent = Items["Input"].Instance,
+                    Name = "\0",
+                    PaddingTop = UDimNew(0, 10),
+                    PaddingBottom = UDimNew(0, 10)
+                })
 
                 Items["TypingBg"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
@@ -4879,7 +4890,7 @@ local Library do
                     return Btn
                 end
 
-                Items["CtxReply"] = MakeCtxButton("⤺  Reply", FromRGB(220, 220, 220), 1)
+                Items["CtxReply"] = MakeCtxButton("↩  Reply", FromRGB(220, 220, 220), 1)
                 Items["CtxDelete"] = MakeCtxButton("Delete Message", FromRGB(255, 85, 85), 2)
                 Items["CtxCopy"] = MakeCtxButton("Copy Text", FromRGB(220, 220, 220), 3)
             end
@@ -6081,9 +6092,9 @@ local Library do
 
                     -- Reply button in hover bar
                     local ReplyBtn = InstanceNew("TextButton")
-                    ReplyBtn.Text = "⤺"
+                    ReplyBtn.Text = "↩"
                     ReplyBtn.FontFace = Library.Font
-                    ReplyBtn.TextSize = 14
+                    ReplyBtn.TextSize = 13
                     ReplyBtn.TextColor3 = FromRGB(200, 200, 200)
                     ReplyBtn.BackgroundTransparency = 1
                     ReplyBtn.BorderSizePixel = 0
@@ -6104,9 +6115,9 @@ local Library do
                     -- 3-dot button (local player only)
                     if IsLocalPlayer then
                         local DotsBtn = InstanceNew("TextButton")
-                        DotsBtn.Text = "⋮"
+                        DotsBtn.Text = "..."
                         DotsBtn.FontFace = Library.Font
-                        DotsBtn.TextSize = 16
+                        DotsBtn.TextSize = 11
                         DotsBtn.TextColor3 = FromRGB(200, 200, 200)
                         DotsBtn.BackgroundTransparency = 1
                         DotsBtn.BorderSizePixel = 0
@@ -6191,7 +6202,9 @@ local Library do
                     end
                 end
 
-                if LastGroup and LastGroup.GroupKey == GroupKey and LastGroup.IsAnonymous == ShouldHideIdentity and LastGroup.IsLocalPlayer == IsLocalPlayer then
+                -- Messages with a reply always start a new group so the preview is visible
+                local HasReply = ReplyTo and type(ReplyTo) == "table" and ReplyTo.id
+                if not HasReply and LastGroup and LastGroup.GroupKey == GroupKey and LastGroup.IsAnonymous == ShouldHideIdentity and LastGroup.IsLocalPlayer == IsLocalPlayer then
                     CreateBubble(LastGroup.Stack, LastGroup.Group, LastGroup.Stack)
                     task.defer(function()
                         Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Items["Messages"].Instance.AbsoluteCanvasSize.Y - Items["Messages"].Instance.AbsoluteSize.Y)})
