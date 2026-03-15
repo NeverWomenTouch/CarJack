@@ -5732,7 +5732,7 @@ local Library do
                 end
                 ActiveContextMenuData = nil
                 if ContextMenuCloseConn then
-                    ContextMenuCloseConn:Disconnect()
+                    pcall(function() ContextMenuCloseConn:Disconnect() end)
                     ContextMenuCloseConn = nil
                 end
             end
@@ -5771,7 +5771,7 @@ local Library do
 
                 -- Close when clicking outside
                 if ContextMenuCloseConn then ContextMenuCloseConn:Disconnect() end
-                ContextMenuCloseConn = Library:Connect(UserInputService.InputBegan, function(Input)
+                ContextMenuCloseConn = UserInputService.InputBegan:Connect(function(Input)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                         task.defer(function()
                             if not Library:IsMouseOverFrame(Items["ContextMenu"]) then
@@ -6115,15 +6115,26 @@ local Library do
                     -- 3-dot button (local player only)
                     if IsLocalPlayer then
                         local DotsBtn = InstanceNew("TextButton")
-                        DotsBtn.Text = "..."
-                        DotsBtn.FontFace = Library.Font
-                        DotsBtn.TextSize = 11
-                        DotsBtn.TextColor3 = FromRGB(200, 200, 200)
+                        DotsBtn.Text = ""
                         DotsBtn.BackgroundTransparency = 1
                         DotsBtn.BorderSizePixel = 0
                         DotsBtn.Size = UDim2New(0, 24, 0, 22)
                         DotsBtn.ZIndex = 31
                         DotsBtn.Parent = HoverActions
+                        -- Three stacked dot circles
+                        for DI = 1, 3 do
+                            local Dot = InstanceNew("Frame")
+                            Dot.Size = UDim2New(0, 4, 0, 4)
+                            Dot.AnchorPoint = Vector2New(0.5, 0.5)
+                            Dot.Position = UDim2New(0.5, 0, 0.5, (DI - 2) * 6)
+                            Dot.BackgroundColor3 = FromRGB(200, 200, 200)
+                            Dot.BorderSizePixel = 0
+                            Dot.ZIndex = 32
+                            Dot.Parent = DotsBtn
+                            local DC = InstanceNew("UICorner")
+                            DC.CornerRadius = UDimNew(1, 0)
+                            DC.Parent = Dot
+                        end
 
                         DotsBtn.MouseButton1Click:Connect(function()
                             ShowContextMenu({
