@@ -4517,8 +4517,7 @@ local Library do
                     AnchorPoint = Vector2New(0, 1),
                     BackgroundTransparency = 1,
                     Position = UDim2New(0, 10, 1, -40),
-                    Size = UDim2New(1, -65, 0, 0),
-                    AutomaticSize = Enum.AutomaticSize.Y,
+                    Size = UDim2New(1, -65, 0, 47),
                     BorderSizePixel = 0
                 })
                 
@@ -4528,8 +4527,7 @@ local Library do
                     AnchorPoint = Vector2New(0, 0),
                     Position = UDim2New(0, 0, 0, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(1, 0, 0, 0),
-                    AutomaticSize = Enum.AutomaticSize.Y,
+                    Size = UDim2New(1, 0, 0, 47),
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(41, 40, 49)
                 })  Items["MessageInputBackground"]:AddToTheme({BackgroundColor3 = "Element"})
@@ -4559,12 +4557,6 @@ local Library do
                     Items["MessageInputBackground"]:Tween(nil, {BackgroundColor3 = Library.Theme["Element"]})
                 end)
                 
-                Instances:Create("UIPadding", {
-                    Parent = Items["MessageInputBackground"].Instance,
-                    Name = "\0",
-                    PaddingBottom = UDimNew(0, 6)
-                })
-
                 local InputScroller = InstanceNew("ScrollingFrame")
                 InputScroller.Size = UDim2New(1, -24, 0, 35)
                 InputScroller.Position = UDim2New(0, 12, 0, 6)
@@ -4607,27 +4599,26 @@ local Library do
                 })
 
                 Items["Input"].Instance:GetPropertyChangedSignal("TextBounds"):Connect(function()
-                    local contentH = math.max(math.floor(Items["Input"].Instance.TextBounds.Y) + 16, 35)
+                    local textH = math.max(math.floor(Items["Input"].Instance.TextBounds.Y), 18)
+                    local contentH = textH + 16
                     local clampedH = math.min(contentH, 96)
+                    local bgH = clampedH + 12
                     Items["Input"].Instance.Size = UDim2New(1, 0, 0, contentH)
-                    InputScroller.CanvasSize = UDim2New(1, 0, 0, contentH)
+                    InputScroller.CanvasSize = UDim2New(0, 0, 0, contentH)
                     InputScroller.Size = UDim2New(1, -24, 0, clampedH)
                     InputScroller.CanvasPosition = Vector2New(0, math.max(0, contentH - clampedH))
-                end)
-
-                Items["MessageInput"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                    local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
-                    local Base = InputH + 52
+                    Items["MessageInputBackground"].Instance.Size = UDim2New(1, 0, 0, bgH)
+                    Items["MessageInput"].Instance.Size = UDim2New(1, -65, 0, bgH)
                     local ReplyExtra = Items["ReplyBar"] and Items["ReplyBar"].Instance.Visible and 32 or 0
-                    Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(Base + ReplyExtra))
+                    Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(bgH + 52 + ReplyExtra))
                     local TypingOffset = (Items["ReplyBar"] and Items["ReplyBar"].Instance.Visible) and 88 or 60
-                    Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + TypingOffset))
+                    Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(bgH + TypingOffset))
                 end)
 
                 Items["TypingBg"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
                     Name = "\0",
-                    Position = UDim2New(0, 8, 1, -95),
+                    Position = UDim2New(0, 8, 1, -107),
                     Size = UDim2New(1, -84, 0, 20),
                     BorderSizePixel = 0,
                     BackgroundTransparency = 1,
@@ -4739,7 +4730,7 @@ local Library do
                     MidImage = getAsset("81680855285439.png"),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ScrollBarThickness = 2,
-                    Size = UDim2New(1, -20, 1, -120),
+                    Size = UDim2New(1, -20, 1, -99),
                     Position = UDim2New(0, 10, 0, 10),
                     TopImage = getAsset("81680855285439.png"),
                     CanvasPosition = Vector2New(0, 79),
@@ -5812,9 +5803,8 @@ local Library do
             local function HideReplyBar()
                 BackendState.ReplyingTo = nil
                 Items["ReplyBar"].Instance.Visible = false
-                local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
-                local Base = InputH + 52
-                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -Base)
+                local InputH = Items["MessageInput"].Instance.Size.Y.Offset
+                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(InputH + 52))
                 Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + 60))
             end
 
@@ -5827,9 +5817,8 @@ local Library do
                 local Username = tostring(Data.username or "Unknown")
                 Items["ReplyBarText"].Instance.Text = "Replying to " .. Username
                 Items["ReplyBar"].Instance.Visible = true
-                local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
-                local Base = InputH + 84
-                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -Base)
+                local InputH = Items["MessageInput"].Instance.Size.Y.Offset
+                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(InputH + 84))
                 Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + 88))
                 task.defer(function()
                     Items["Input"].Instance:CaptureFocus()
