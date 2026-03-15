@@ -4556,21 +4556,17 @@ local Library do
                     Items["MessageInputBackground"]:ChangeItemTheme({BackgroundColor3 = "Element"})
                     Items["MessageInputBackground"]:Tween(nil, {BackgroundColor3 = Library.Theme["Element"]})
                 end)
-                
-                local InputScroller = InstanceNew("ScrollingFrame")
-                InputScroller.Size = UDim2New(1, -24, 0, 35)
-                InputScroller.Position = UDim2New(0, 12, 0, 6)
-                InputScroller.CanvasSize = UDim2New(1, 0, 0, 35)
-                InputScroller.ScrollingDirection = Enum.ScrollingDirection.Y
-                InputScroller.ScrollBarThickness = 3
-                InputScroller.ScrollBarImageColor3 = FromRGB(120, 120, 140)
-                InputScroller.BackgroundTransparency = 1
-                InputScroller.BorderSizePixel = 0
-                InputScroller.ClipsDescendants = true
-                InputScroller.Parent = Items["MessageInputBackground"].Instance
+
+                local InputClip = InstanceNew("Frame")
+                InputClip.Size = UDim2New(1, -24, 0, 35)
+                InputClip.Position = UDim2New(0, 12, 0, 6)
+                InputClip.BackgroundTransparency = 1
+                InputClip.BorderSizePixel = 0
+                InputClip.ClipsDescendants = true
+                InputClip.Parent = Items["MessageInputBackground"].Instance
 
                 Items["Input"] = Instances:Create("TextBox", {
-                    Parent = InputScroller,
+                    Parent = InputClip,
                     Name = "\0",
                     FontFace = Library.Font,
                     PlaceholderColor3 = FromRGB(185, 185, 185),
@@ -4598,22 +4594,23 @@ local Library do
                     PaddingBottom = UDimNew(0, 8)
                 })
 
-                Items["Input"].Instance:GetPropertyChangedSignal("TextBounds"):Connect(function()
+                local function UpdateInputSize()
                     local textH = math.max(math.floor(Items["Input"].Instance.TextBounds.Y), 18)
                     local contentH = textH + 16
                     local clampedH = math.min(contentH, 96)
                     local bgH = clampedH + 12
                     Items["Input"].Instance.Size = UDim2New(1, 0, 0, contentH)
-                    InputScroller.CanvasSize = UDim2New(0, 0, 0, contentH)
-                    InputScroller.Size = UDim2New(1, -24, 0, clampedH)
-                    InputScroller.CanvasPosition = Vector2New(0, math.max(0, contentH - clampedH))
+                    Items["Input"].Instance.Position = UDim2New(0, 0, 0, -(contentH - clampedH))
+                    InputClip.Size = UDim2New(1, -24, 0, clampedH)
                     Items["MessageInputBackground"].Instance.Size = UDim2New(1, 0, 0, bgH)
                     Items["MessageInput"].Instance.Size = UDim2New(1, -65, 0, bgH)
                     local ReplyExtra = Items["ReplyBar"] and Items["ReplyBar"].Instance.Visible and 32 or 0
                     Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(bgH + 52 + ReplyExtra))
                     local TypingOffset = (Items["ReplyBar"] and Items["ReplyBar"].Instance.Visible) and 88 or 60
                     Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(bgH + TypingOffset))
-                end)
+                end
+
+                Items["Input"].Instance:GetPropertyChangedSignal("TextBounds"):Connect(UpdateInputSize)
 
                 Items["TypingBg"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
