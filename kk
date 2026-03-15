@@ -143,9 +143,9 @@ local Library do
         GlobalChat = {
                 HttpUrl = "http://109.199.111.222:3000",
                 WsUrl = "ws://109.199.111.222:3000/ws",
-            Token = "gchat_2026_9f6f2f4e83a84b0dbce13f5c0fb915",
+            Token = "gchat_2026_4e7c2b9d1f8643b5a6c8d2e91ab73f0",
             PollInterval = 3,
-            MessageLimit = 50,
+            MessageLimit = 5,
             PresenceInterval = 5,
             RetryDelay = 5,
             AutoConnect = true,
@@ -4516,8 +4516,8 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     AnchorPoint = Vector2New(0, 1),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 10, 1, -40),
-                    Size = UDim2New(1, -65, 0, 35),
+                    Position = UDim2New(0, 10, 1, -10),
+                    Size = UDim2New(1, -65, 0, 54),
                     BorderSizePixel = 0
                 })
                 
@@ -4527,7 +4527,7 @@ local Library do
                     AnchorPoint = Vector2New(0, 1),
                     Position = UDim2New(0, 0, 1, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(1, 0, 0, 35),
+                    Size = UDim2New(1, 0, 0, 54),
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(41, 40, 49)
                 })  Items["MessageInputBackground"]:AddToTheme({BackgroundColor3 = "Element"})
@@ -4562,24 +4562,114 @@ local Library do
                     Name = "\0",
                     FontFace = Library.Font,
                     PlaceholderColor3 = FromRGB(185, 185, 185),
-                    PlaceholderText = "Type here..",
+                    PlaceholderText = IsMobile and "Type here.. Use the send button to send" or "Type here.. Enter sends, Shift+Enter adds a new line",
                     TextSize = 14,
-                    Size = UDim2New(1, -24, 1, 0),
+                    Size = UDim2New(1, -24, 1, -12),
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = "",
                     CursorPosition = -1,
                     BackgroundTransparency = 1,
+                    MultiLine = true,
+                    TextWrapped = true,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    Position = UDim2New(0, 12, 0, 0),
+                    TextYAlignment = Enum.TextYAlignment.Top,
+                    Position = UDim2New(0, 12, 0, 6),
                     ClearTextOnFocus = false,
                     BorderSizePixel = 0
                 })  Items["Input"]:AddToTheme({TextColor3 = "Text"})
 
+                Items["ReplyBg"] = Instances:Create("Frame", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0, 1),
+                    Position = UDim2New(0, 10, 1, -70),
+                    Size = UDim2New(1, -20, 0, 40),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(32, 31, 38),
+                    Visible = false,
+                    ZIndex = 7
+                })  Items["ReplyBg"]:AddToTheme({BackgroundColor3 = "Element"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["ReplyBg"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Items["ReplyAccent"] = Instances:Create("Frame", {
+                    Parent = Items["ReplyBg"].Instance,
+                    Name = "\0",
+                    Position = UDim2New(0, 0, 0, 0),
+                    Size = UDim2New(0, 3, 1, 0),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = Library.Theme.Accent,
+                    ZIndex = 8
+                })  Items["ReplyAccent"]:AddToTheme({BackgroundColor3 = "Accent"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["ReplyAccent"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(1, 0)
+                })
+
+                Items["ReplyLabel"] = Instances:Create("TextLabel", {
+                    Parent = Items["ReplyBg"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BorderSizePixel = 0,
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 12, 0, 5),
+                    Size = UDim2New(1, -54, 0, 12),
+                    Text = "",
+                    TextSize = 12,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 8
+                })  Items["ReplyLabel"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["ReplyPreview"] = Instances:Create("TextLabel", {
+                    Parent = Items["ReplyBg"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(180, 180, 180),
+                    BorderSizePixel = 0,
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 12, 0, 18),
+                    Size = UDim2New(1, -54, 0, 16),
+                    Text = "",
+                    TextSize = 12,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 8
+                })  Items["ReplyPreview"]:AddToTheme({TextColor3 = "Gradient"})
+
+                Items["ReplyClose"] = Instances:Create("TextButton", {
+                    Parent = Items["ReplyBg"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(54, 53, 63),
+                    AnchorPoint = Vector2New(1, 0.5),
+                    Position = UDim2New(1, -8, 0.5, 0),
+                    Size = UDim2New(0, 22, 0, 22),
+                    Text = "X",
+                    TextSize = 12,
+                    AutoButtonColor = false,
+                    ZIndex = 9
+                })  Items["ReplyClose"]:AddToTheme({BackgroundColor3 = "Hovered Element", TextColor3 = "Text"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["ReplyClose"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(1, 0)
+                })
+
                 Items["TypingBg"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
                     Name = "\0",
-                    Position = UDim2New(0, 8, 1, -95),
+                    Position = UDim2New(0, 8, 1, -118),
                     Size = UDim2New(1, -84, 0, 20),
                     BorderSizePixel = 0,
                     BackgroundTransparency = 1,
@@ -4636,7 +4726,7 @@ local Library do
                     Text = "",
                     AutoButtonColor = false,
                     AnchorPoint = Vector2New(1, 1),
-                    Position = UDim2New(1, -10, 1, -40),
+                    Position = UDim2New(1, -10, 1, -10),
                     Size = UDim2New(0, 35, 0, 35),
                     BorderSizePixel = 0,
                     TextSize = 14,
@@ -4691,10 +4781,10 @@ local Library do
                     MidImage = getAsset("81680855285439.png"),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ScrollBarThickness = 2,
-                    Size = UDim2New(1, -20, 1, -105),
+                    Size = UDim2New(1, -20, 1, -140),
                     Position = UDim2New(0, 10, 0, 10),
                     TopImage = getAsset("81680855285439.png"),
-                    CanvasPosition = Vector2New(0, 79),
+                    CanvasPosition = Vector2New(0, 0),
                     BottomImage = getAsset("81680855285439.png"),
                     BackgroundTransparency = 1
                 })  Items["Messages"]:AddToTheme({ScrollBarImageColor3 = "Accent"})
@@ -4952,13 +5042,18 @@ local Library do
                     Username = nil,
                 },
                 SeenMessages = { },
+                MessagesById = { },
                 TypingActive = false,
                 TypingUsers = { },
                 LastTypingSentAt = 0,
                 LastRenderedGroup = nil,
                 UnreadCount = 0,
                 Socket = nil,
-                SocketConnections = { }
+                SocketConnections = { },
+                ReplyTarget = nil,
+                ActiveActionMenu = nil,
+                InputFocused = false,
+                DotsAnimRunning = false
             }
 
             local OnMessagePressed = { }
@@ -4966,6 +5061,7 @@ local Library do
             local IsLocalMessage
             local GetRequestHeaders
             local BuildAuthorizedUrl
+            local CloseActiveActionMenu
 
             local function SetConnectionAppearance(Text, Color)
                 ChatSystem:SetConnectedText(Text)
@@ -5058,6 +5154,87 @@ local Library do
                 return Str
             end
 
+            local function NormalizeMessageText(Value)
+                return StringGSub(tostring(Value or ""), "\r\n?", "\n")
+            end
+
+            local function HasMessageContent(Value)
+                return StringFind(NormalizeMessageText(Value), "%S") ~= nil
+            end
+
+            local function BuildReplySnippet(Value, Limit)
+                local MessageText = NormalizeMessageText(Value)
+                MessageText = StringGSub(MessageText, "\n+", "  ")
+                MessageText = StringGSub(MessageText, "%s+", " ")
+
+                if StringLen(MessageText) <= Limit then
+                    return MessageText
+                end
+
+                return StringSub(MessageText, 1, math.max(1, Limit - 3)) .. "..."
+            end
+
+            local function GetDisplayIdentity(MessageData)
+                local IsAnonymous = MessageData and MessageData.anonymous
+                return {
+                    Username = IsAnonymous and "Anonymous" or tostring((MessageData and MessageData.username) or "Unknown"),
+                    Avatar = IsAnonymous and getAsset("80377955535798.png") or tostring((MessageData and MessageData.avatar) or Content),
+                    Anonymous = IsAnonymous and true or false
+                }
+            end
+
+            local function UpdateBottomLayout()
+                local HasReply = BackendState.ReplyTarget ~= nil
+                local HasTyping = Items["TypingBg"].Instance.Visible
+                local InputHeight = 54
+                local BottomInset = 10
+                local ReplyHeight = HasReply and 44 or 0
+                local TypingHeight = HasTyping and 24 or 0
+                local InputOffset = BottomInset + InputHeight
+
+                Items["MessageInput"].Instance.Position = UDim2New(0, 10, 1, -BottomInset)
+                Items["SendButton"].Instance.Position = UDim2New(1, -10, 1, -BottomInset)
+                Items["ReplyBg"].Instance.Position = UDim2New(0, 10, 1, -(InputOffset + 6))
+                Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputOffset + ReplyHeight + 10))
+                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(InputOffset + ReplyHeight + TypingHeight + 20))
+            end
+
+            local function ClearReplyTarget()
+                BackendState.ReplyTarget = nil
+                Items["ReplyBg"].Instance.Visible = false
+                Items["ReplyLabel"].Instance.Text = ""
+                Items["ReplyPreview"].Instance.Text = ""
+                UpdateBottomLayout()
+            end
+
+            local function SetReplyTarget(MessageData)
+                if type(MessageData) ~= "table" or not MessageData.id then
+                    return
+                end
+
+                local Identity = GetDisplayIdentity(MessageData)
+                BackendState.ReplyTarget = {
+                    id = tonumber(MessageData.id),
+                    username = Identity.Username,
+                    avatar = Identity.Avatar,
+                    message = NormalizeMessageText(MessageData.message or ""),
+                    anonymous = Identity.Anonymous
+                }
+
+                Items["ReplyLabel"].Instance.Text = StringFormat("Replying to %s", BackendState.ReplyTarget.username)
+                Items["ReplyPreview"].Instance.Text = BuildReplySnippet(BackendState.ReplyTarget.message, 68)
+                Items["ReplyBg"].Instance.Visible = true
+                UpdateBottomLayout()
+
+                task.defer(function()
+                    if not BackendState.Destroyed then
+                        Items["Input"].Instance:CaptureFocus()
+                    end
+                end)
+            end
+
+            UpdateBottomLayout()
+
             local function FormatTypingText(Users)
                 if type(Users) ~= "table" then
                     return ""
@@ -5132,6 +5309,7 @@ local Library do
                 local HasUsers = Text ~= ""
                 Items["TypingBg"].Instance.Visible = HasUsers
                 Items["TypingText"].Instance.Text = Text
+                UpdateBottomLayout()
 
                 if not HasUsers then
                     AnimateTypingDots(false)
@@ -5221,7 +5399,7 @@ local Library do
                 end
 
                 local AfterId = FromStart and 0 or BackendState.LastMessageId
-                local IsTyping = IsViewingChat() and BackendState.InputFocused and StringLen(ChatSystem:GetTypedMessage()) > 0
+                local IsTyping = IsViewingChat() and BackendState.InputFocused and HasMessageContent(ChatSystem:GetTypedMessage())
                 local Success, Body = DoHttpRequest({
                     Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages", {
                         clientId = BackendState.ClientId,
@@ -5258,7 +5436,7 @@ local Library do
 
                 Library:Thread(function()
                     while not BackendState.Destroyed do
-                        local IsTyping = IsViewingChat() and BackendState.InputFocused and StringLen(ChatSystem:GetTypedMessage()) > 0
+                        local IsTyping = IsViewingChat() and BackendState.InputFocused and HasMessageContent(ChatSystem:GetTypedMessage())
 
                         if IsTyping then
                             PublishTyping(true)
@@ -5309,15 +5487,12 @@ local Library do
                     return
                 end
 
-                local CreatedAt = tonumber(MessageData.createdAt)
-                if CreatedAt and BackendState.JoinTime and CreatedAt < BackendState.JoinTime then
+                local MessageText = NormalizeMessageText(MessageData.message or "")
+                if not HasMessageContent(MessageText) then
                     return
                 end
 
-                local MessageText = tostring(MessageData.message or "")
-                if MessageText == "" then
-                    return
-                end
+                MessageData.message = MessageText
 
                 TrackUnreadMessage(MessageData, SkipUnread)
 
@@ -5328,7 +5503,9 @@ local Library do
                     IsLocalMessage(MessageData),
                     MessageData.anonymous,
                     MessageData.createdAt,
-                    GetMessageSenderKey(MessageData, MessageData.username or "Unknown", MessageData.anonymous)
+                    GetMessageSenderKey(MessageData, MessageData.username or "Unknown", MessageData.anonymous),
+                    MessageData.id,
+                    MessageData.replyTo
                 )
             end
 
@@ -5345,7 +5522,19 @@ local Library do
                     ShowTyping(Payload.typingUsers)
                 end
 
+                if Payload.type == "error" then
+                    if Payload.error then
+                        SetConnectionAppearance(tostring(Payload.error), FromRGB(255, 120, 120))
+                    end
+                    return
+                end
+
                 if Payload.type == "typing" then
+                    return
+                end
+
+                if Payload.type == "delete" and Payload.messageId ~= nil then
+                    ChatSystem:RemoveMessage(tonumber(Payload.messageId))
                     return
                 end
 
@@ -5488,9 +5677,10 @@ local Library do
                     type = "message",
                     username = GetLocalUsername(),
                     avatar = BackendState.Profile.Avatar or tostring(Content),
-                    message = tostring(Message),
+                    message = NormalizeMessageText(Message),
                     senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                     clientId = BackendState.ClientId,
+                    replyToId = BackendState.ReplyTarget and BackendState.ReplyTarget.id or nil,
                     anonymous = Toggle.Value
                 }
 
@@ -5517,6 +5707,49 @@ local Library do
 
                 if not Success then
                     SetConnectionAppearance("Send failed", FromRGB(255, 120, 120))
+                    return false
+                end
+
+                HandlePayload(JsonDecode(ResponseBody))
+                return true
+            end
+
+            local function DeleteChatMessage(MessageId)
+                local Config = BackendState.Config
+                if not Config or not MessageId then
+                    return false
+                end
+
+                local Payload = {
+                    type = "delete",
+                    messageId = tonumber(MessageId),
+                    senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                    clientId = BackendState.ClientId
+                }
+
+                if BackendState.Socket then
+                    local Encoded = JsonEncode(Payload)
+                    if Encoded and SocketSend(BackendState.Socket, Encoded) then
+                        return true
+                    end
+                end
+
+                local Encoded = JsonEncode(Payload)
+                if not Encoded then
+                    return false
+                end
+
+                local Success, ResponseBody = DoHttpRequest({
+                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages/delete"),
+                    Method = "POST",
+                    Headers = MergeTable(GetRequestHeaders(Config), {
+                        ["Content-Type"] = "application/json"
+                    }),
+                    Body = Encoded
+                })
+
+                if not Success then
+                    SetConnectionAppearance("Delete failed", FromRGB(255, 120, 120))
                     return false
                 end
 
@@ -5585,10 +5818,10 @@ local Library do
                 BackendState.Destroyed = false
                 BackendState.Config = NormalizeGlobalChatConfig(Config)
                 BackendState.SeenMessages = { }
+                BackendState.MessagesById = { }
                 BackendState.InitialSyncComplete = false
                 BackendState.LastMessageId = 0
                 BackendState.LastRenderedGroup = nil
-                BackendState.JoinTime = os.time() * 1000
                 BackendState.TypingActive = false
                 BackendState.TypingUsers = { }
                 BackendState.LastTypingSentAt = 0
@@ -5596,7 +5829,9 @@ local Library do
                 BackendState.PollRunning = false
                 BackendState.DotsAnimRunning = false
                 BackendState.InputFocused = false
+                BackendState.ActiveActionMenu = nil
                 ShowTyping({ })
+                ClearReplyTarget()
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
                 FetchInitialHistory()
                 StartMessagePolling()
@@ -5644,24 +5879,133 @@ local Library do
                 return BackendState.Polling
             end
 
-            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous, CreatedAt, SenderKey)
+            local function CountStackEntries(Stack)
+                local Count = 0
+
+                if not Stack or not Stack.Instance then
+                    return Count
+                end
+
+                for _, Child in Stack.Instance:GetChildren() do
+                    if Child:IsA("Frame") then
+                        Count = Count + 1
+                    end
+                end
+
+                return Count
+            end
+
+            CloseActiveActionMenu = function()
+                local ActiveMenu = BackendState.ActiveActionMenu
+                if not ActiveMenu then
+                    return
+                end
+
+                if ActiveMenu.Menu and ActiveMenu.Menu.Instance then
+                    ActiveMenu.Menu.Instance.Visible = false
+                end
+
+                if not IsMobile and ActiveMenu.Actions and ActiveMenu.Actions.Instance then
+                    ActiveMenu.Actions.Instance.Visible = false
+                end
+
+                BackendState.ActiveActionMenu = nil
+            end
+
+            function ChatSystem:RemoveMessage(MessageId)
+                local NormalizedId = tonumber(MessageId)
+                local Entry = NormalizedId and BackendState.MessagesById[NormalizedId] or nil
+                if not Entry then
+                    return false
+                end
+
+                if BackendState.ActiveActionMenu and BackendState.ActiveActionMenu.Entry == Entry then
+                    CloseActiveActionMenu()
+                end
+
+                if BackendState.ReplyTarget and tonumber(BackendState.ReplyTarget.id) == NormalizedId then
+                    ClearReplyTarget()
+                end
+
+                BackendState.MessagesById[NormalizedId] = nil
+
+                if Entry.BubbleContainer and Entry.BubbleContainer.Instance then
+                    Entry.BubbleContainer.Instance:Destroy()
+                end
+
+                if Entry.Stack and CountStackEntries(Entry.Stack) == 0 and Entry.GroupFrame and Entry.GroupFrame.Instance then
+                    Entry.GroupFrame.Instance:Destroy()
+                    if BackendState.LastRenderedGroup and BackendState.LastRenderedGroup.GroupFrame == Entry.GroupFrame then
+                        BackendState.LastRenderedGroup = nil
+                    end
+                end
+
+                return true
+            end
+
+            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous, CreatedAt, SenderKey, MessageId, ReplyData)
                 local ShouldHideIdentity = IsAnonymous
 
                 if ShouldHideIdentity == nil then
                     ShouldHideIdentity = Toggle.Value
                 end
 
-                Username = ShouldHideIdentity and "Anonymous" or Username
-                Avatar = ShouldHideIdentity and getAsset("80377955535798.png") or Avatar
+                local MessageData = {
+                    id = tonumber(MessageId),
+                    avatar = ShouldHideIdentity and getAsset("80377955535798.png") or Avatar,
+                    username = ShouldHideIdentity and "Anonymous" or Username,
+                    message = NormalizeMessageText(Message),
+                    anonymous = ShouldHideIdentity and true or false,
+                    createdAt = CreatedAt,
+                    senderKey = tostring(SenderKey or Username or "Unknown"),
+                    replyTo = type(ReplyData) == "table" and ReplyData or nil,
+                    isLocal = IsLocalPlayer and true or false
+                }
+
                 local TimestampText = FormatMessageTimestamp(CreatedAt)
-                local GroupKey = tostring(SenderKey or Username or "Unknown")
+                local GroupKey = MessageData.senderKey
                 local LastGroup = BackendState.LastRenderedGroup
 
-                local function CreateBubble(Parent)
+                local function CreateMenuButton(Parent, Text, TextColor, BackgroundColor, Order)
+                    local Button = Instances:Create("TextButton", {
+                        Parent = Parent,
+                        Name = "\0",
+                        FontFace = Library.Subfont,
+                        Text = Text,
+                        TextColor3 = TextColor,
+                        TextSize = 12,
+                        AutoButtonColor = false,
+                        Size = UDim2New(1, 0, 0, 24),
+                        BackgroundColor3 = BackgroundColor,
+                        BorderSizePixel = 0,
+                        LayoutOrder = Order,
+                        ZIndex = 22
+                    })
+
+                    Instances:Create("UICorner", {
+                        Parent = Button.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 5)
+                    })
+
+                    return Button
+                end
+
+                local function CreateBubble(Parent, GroupFrame, Stack)
                     local BubbleItems = { }
 
-                    BubbleItems["RealMessage"] = Instances:Create("Frame", {
+                    BubbleItems["Container"] = Instances:Create("Frame", {
                         Parent = Parent,
+                        Name = "\0",
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2New(1, 0, 0, 0),
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        LayoutOrder = MessageData.id or 0
+                    })
+
+                    BubbleItems["RealMessage"] = Instances:Create("Frame", {
+                        Parent = BubbleItems["Container"].Instance,
                         Name = "\0",
                         BorderColor3 = FromRGB(0, 0, 0),
                         BorderSizePixel = 0,
@@ -5681,10 +6025,11 @@ local Library do
                         FontFace = Library.Font,
                         TextColor3 = FromRGB(255, 255, 255),
                         BorderColor3 = FromRGB(0, 0, 0),
-                        Text = Message,
+                        Text = MessageData.message,
                         BorderSizePixel = 0,
                         BackgroundTransparency = 1,
                         TextXAlignment = Enum.TextXAlignment.Left,
+                        TextYAlignment = Enum.TextYAlignment.Top,
                         TextWrapped = true,
                         AutomaticSize = Enum.AutomaticSize.XY,
                         TextSize = 14
@@ -5702,28 +6047,312 @@ local Library do
                     Instances:Create("UISizeConstraint", {
                         Parent = BubbleItems["RealMessage"].Instance,
                         Name = "\0",
-                        MaxSize = Vector2New(300, 140)
+                        MaxSize = Vector2New(300, math.huge)
                     })
+
+                    BubbleItems["ActionRow"] = Instances:Create("Frame", {
+                        Parent = BubbleItems["Container"].Instance,
+                        Name = "\0",
+                        AnchorPoint = Vector2New(1, 0),
+                        Position = UDim2New(1, -2, 0, 0),
+                        Size = UDim2New(0, MessageData.isLocal and 52 or 24, 0, 24),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Visible = false,
+                        ZIndex = 18
+                    })
+
+                    BubbleItems["ReplyButton"] = Instances:Create("TextButton", {
+                        Parent = BubbleItems["ActionRow"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        Text = "⤺",
+                        TextColor3 = FromRGB(255, 255, 255),
+                        TextSize = 14,
+                        AutoButtonColor = false,
+                        BackgroundColor3 = FromRGB(41, 40, 49),
+                        BorderSizePixel = 0,
+                        Position = UDim2New(0, 0, 0, 0),
+                        Size = UDim2New(0, 24, 0, 24),
+                        ZIndex = 19
+                    })  BubbleItems["ReplyButton"]:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+
+                    Instances:Create("UICorner", {
+                        Parent = BubbleItems["ReplyButton"].Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 6)
+                    })
+
+                    if MessageData.isLocal then
+                        BubbleItems["MenuButton"] = Instances:Create("TextButton", {
+                            Parent = BubbleItems["ActionRow"].Instance,
+                            Name = "\0",
+                            FontFace = Library.Font,
+                            Text = "...",
+                            TextColor3 = FromRGB(255, 255, 255),
+                            TextSize = 14,
+                            AutoButtonColor = false,
+                            BackgroundColor3 = FromRGB(41, 40, 49),
+                            BorderSizePixel = 0,
+                            Position = UDim2New(0, 28, 0, 0),
+                            Size = UDim2New(0, 24, 0, 24),
+                            ZIndex = 19
+                        })  BubbleItems["MenuButton"]:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+
+                        Instances:Create("UICorner", {
+                            Parent = BubbleItems["MenuButton"].Instance,
+                            Name = "\0",
+                            CornerRadius = UDimNew(0, 6)
+                        })
+                    end
+
+                    BubbleItems["Menu"] = Instances:Create("Frame", {
+                        Parent = BubbleItems["Container"].Instance,
+                        Name = "\0",
+                        AnchorPoint = Vector2New(1, 0),
+                        Position = UDim2New(1, -2, 0, 28),
+                        Size = UDim2New(0, 140, 0, MessageData.isLocal and 82 or 54),
+                        BackgroundColor3 = FromRGB(22, 21, 26),
+                        BorderSizePixel = 0,
+                        Visible = false,
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        ZIndex = 21
+                    })  BubbleItems["Menu"]:AddToTheme({BackgroundColor3 = "Background"})
+
+                    Instances:Create("UICorner", {
+                        Parent = BubbleItems["Menu"].Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 6)
+                    })
+
+                    Instances:Create("UIPadding", {
+                        Parent = BubbleItems["Menu"].Instance,
+                        Name = "\0",
+                        PaddingTop = UDimNew(0, 4),
+                        PaddingBottom = UDimNew(0, 4),
+                        PaddingLeft = UDimNew(0, 4),
+                        PaddingRight = UDimNew(0, 4)
+                    })
+
+                    Instances:Create("UIListLayout", {
+                        Parent = BubbleItems["Menu"].Instance,
+                        Name = "\0",
+                        Padding = UDimNew(0, 3),
+                        SortOrder = Enum.SortOrder.LayoutOrder
+                    })
+
+                    BubbleItems["MenuReply"] = CreateMenuButton(BubbleItems["Menu"].Instance, "Reply", FromRGB(255, 255, 255), FromRGB(32, 31, 38), 1)
+                    BubbleItems["MenuReply"]:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+
+                    BubbleItems["MenuCopy"] = CreateMenuButton(BubbleItems["Menu"].Instance, "Copy Text", FromRGB(255, 255, 255), FromRGB(32, 31, 38), 2)
+                    BubbleItems["MenuCopy"]:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+
+                    if MessageData.isLocal then
+                        BubbleItems["MenuDelete"] = CreateMenuButton(BubbleItems["Menu"].Instance, "Delete Message", FromRGB(255, 110, 110), FromRGB(52, 24, 24), 3)
+                    end
+
+                    local Entry = {
+                        Id = MessageData.id,
+                        Data = MessageData,
+                        Stack = Stack,
+                        GroupFrame = GroupFrame,
+                        BubbleContainer = BubbleItems["Container"],
+                        Bubble = BubbleItems["RealMessage"],
+                        Actions = BubbleItems["ActionRow"],
+                        Menu = BubbleItems["Menu"]
+                    }
+
+                    local function OpenMenu()
+                        if BackendState.ActiveActionMenu and BackendState.ActiveActionMenu.Entry ~= Entry then
+                            CloseActiveActionMenu()
+                        end
+
+                        BubbleItems["Menu"].Instance.Visible = true
+                        BubbleItems["ActionRow"].Instance.Visible = true
+                        BackendState.ActiveActionMenu = {
+                            Entry = Entry,
+                            Menu = BubbleItems["Menu"],
+                            Actions = BubbleItems["ActionRow"]
+                        }
+                    end
+
+                    local function ToggleMenu()
+                        if BackendState.ActiveActionMenu and BackendState.ActiveActionMenu.Entry == Entry then
+                            CloseActiveActionMenu()
+                            return
+                        end
+
+                        OpenMenu()
+                    end
+
+                    local function SetHoverState(Visible)
+                        if IsMobile then
+                            return
+                        end
+
+                        if BackendState.ActiveActionMenu and BackendState.ActiveActionMenu.Entry == Entry then
+                            BubbleItems["ActionRow"].Instance.Visible = true
+                            return
+                        end
+
+                        BubbleItems["ActionRow"].Instance.Visible = Visible
+                    end
+
+                    BubbleItems["ReplyButton"]:Connect("MouseButton1Down", function()
+                        CloseActiveActionMenu()
+                        SetReplyTarget(MessageData)
+                    end)
+
+                    BubbleItems["MenuReply"]:Connect("MouseButton1Down", function()
+                        CloseActiveActionMenu()
+                        SetReplyTarget(MessageData)
+                    end)
+
+                    BubbleItems["MenuCopy"]:Connect("MouseButton1Down", function()
+                        CloseActiveActionMenu()
+                        if type(setclipboard) == "function" then
+                            pcall(setclipboard, MessageData.message)
+                        end
+                    end)
+
+                    if BubbleItems["MenuDelete"] then
+                        BubbleItems["MenuDelete"]:Connect("MouseButton1Down", function()
+                            CloseActiveActionMenu()
+                            DeleteChatMessage(MessageData.id)
+                        end)
+                    end
+
+                    if BubbleItems["MenuButton"] then
+                        BubbleItems["MenuButton"]:Connect("MouseButton1Down", function()
+                            ToggleMenu()
+                        end)
+                    end
+
+                    Library:Connect(BubbleItems["Container"].Instance.MouseEnter, function()
+                        SetHoverState(true)
+                    end)
+
+                    Library:Connect(BubbleItems["Container"].Instance.MouseLeave, function()
+                        task.defer(function()
+                            if BackendState.ActiveActionMenu and BackendState.ActiveActionMenu.Entry == Entry then
+                                return
+                            end
+
+                            SetHoverState(false)
+                        end)
+                    end)
+
+                    if IsMobile then
+                        local LongPressToken = 0
+
+                        Library:Connect(BubbleItems["Container"].Instance.InputBegan, function(Input)
+                            if Input.UserInputType ~= Enum.UserInputType.Touch then
+                                return
+                            end
+
+                            LongPressToken = LongPressToken + 1
+                            local CurrentToken = LongPressToken
+
+                            task.delay(1, function()
+                                if CurrentToken ~= LongPressToken or BackendState.Destroyed then
+                                    return
+                                end
+
+                                OpenMenu()
+                            end)
+                        end)
+
+                        local function CancelLongPress(Input)
+                            if Input.UserInputType == Enum.UserInputType.Touch then
+                                LongPressToken = LongPressToken + 1
+                            end
+                        end
+
+                        Library:Connect(BubbleItems["Container"].Instance.InputEnded, CancelLongPress)
+                        Library:Connect(BubbleItems["Container"].Instance.InputChanged, CancelLongPress)
+                    end
+
+                    if MessageData.id then
+                        BackendState.MessagesById[MessageData.id] = Entry
+                    end
                 end
 
-                if LastGroup and LastGroup.GroupKey == GroupKey and LastGroup.IsAnonymous == ShouldHideIdentity and LastGroup.IsLocalPlayer == IsLocalPlayer then
-                    CreateBubble(LastGroup.Stack.Instance)
+                if not MessageData.replyTo and LastGroup and LastGroup.GroupKey == GroupKey and LastGroup.IsAnonymous == MessageData.anonymous and LastGroup.IsLocalPlayer == MessageData.isLocal then
+                    CreateBubble(LastGroup.Stack.Instance, LastGroup.GroupFrame, LastGroup.Stack)
                     task.defer(function()
                         Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Items["Messages"].Instance.AbsoluteCanvasSize.Y - Items["Messages"].Instance.AbsoluteSize.Y)})
                     end)
                     return
                 end
 
-                local SubItems = { } do
+                local SubItems = { }
+                local ReplyOffset = MessageData.replyTo and 22 or 0
+
+                do
                     SubItems["Message1"] = Instances:Create("Frame", {
                         Parent = Items["Messages"].Instance,
                         Name = "\0",
                         BackgroundTransparency = 1,
-                        Size = UDim2New(1, 0, 0, 45),
+                        Size = UDim2New(1, 0, 0, 45 + ReplyOffset),
                         BorderColor3 = FromRGB(0, 0, 0),
                         BorderSizePixel = 0,
                         AutomaticSize = Enum.AutomaticSize.Y
                     })
+
+                    if MessageData.replyTo then
+                        local ReplyIdentity = GetDisplayIdentity(MessageData.replyTo)
+                        local ReplyMarkup = StringFormat('<font color="rgb(255,255,255)">%s</font><font color="rgb(170,170,170)"> %s</font>', EscapeRichText(ReplyIdentity.Username), EscapeRichText(BuildReplySnippet(MessageData.replyTo.message or "", 42)))
+
+                        SubItems["ReplyLineVertical"] = Instances:Create("Frame", {
+                            Parent = SubItems["Message1"].Instance,
+                            Name = "\0",
+                            Position = UDim2New(0, 16, 0, 7),
+                            Size = UDim2New(0, 2, 0, 13),
+                            BorderSizePixel = 0,
+                            BackgroundColor3 = FromRGB(115, 115, 125)
+                        })  SubItems["ReplyLineVertical"]:AddToTheme({BackgroundColor3 = "Gradient"})
+
+                        SubItems["ReplyLineHorizontal"] = Instances:Create("Frame", {
+                            Parent = SubItems["Message1"].Instance,
+                            Name = "\0",
+                            Position = UDim2New(0, 16, 0, 20),
+                            Size = UDim2New(0, 16, 0, 2),
+                            BorderSizePixel = 0,
+                            BackgroundColor3 = FromRGB(115, 115, 125)
+                        })  SubItems["ReplyLineHorizontal"]:AddToTheme({BackgroundColor3 = "Gradient"})
+
+                        SubItems["ReplyAvatar"] = Instances:Create("ImageLabel", {
+                            Parent = SubItems["Message1"].Instance,
+                            Name = "\0",
+                            Image = ReplyIdentity.Avatar,
+                            BackgroundTransparency = 1,
+                            Position = UDim2New(0, 36, 0, 3),
+                            Size = UDim2New(0, 16, 0, 16),
+                            BorderSizePixel = 0
+                        })
+
+                        Instances:Create("UICorner", {
+                            Parent = SubItems["ReplyAvatar"].Instance,
+                            Name = "\0",
+                            CornerRadius = UDimNew(1, 0)
+                        })
+
+                        SubItems["ReplyText"] = Instances:Create("TextLabel", {
+                            Parent = SubItems["Message1"].Instance,
+                            Name = "\0",
+                            FontFace = Library.Subfont,
+                            TextColor3 = FromRGB(185, 185, 185),
+                            BorderSizePixel = 0,
+                            BackgroundTransparency = 1,
+                            Position = UDim2New(0, 58, 0, 2),
+                            Size = UDim2New(1, -58, 0, 18),
+                            Text = ReplyMarkup,
+                            RichText = true,
+                            TextSize = 12,
+                            TextTruncate = Enum.TextTruncate.AtEnd,
+                            TextXAlignment = Enum.TextXAlignment.Left
+                        })  SubItems["ReplyText"]:AddToTheme({TextColor3 = "Gradient"})
+                    end
 
                     SubItems["PlayerName"] = Instances:Create("TextLabel", {
                         Parent = SubItems["Message1"].Instance,
@@ -5731,10 +6360,10 @@ local Library do
                         FontFace = Library.Font,
                         TextColor3 = FromRGB(255, 255, 255),
                         BorderColor3 = FromRGB(0, 0, 0),
-                        Text = Username,
+                        Text = MessageData.username,
                         Size = UDim2New(0, 0, 0, 15),
                         BackgroundTransparency = 1,
-                        Position = UDim2New(0, 43, 0, 0),
+                        Position = UDim2New(0, 43, 0, ReplyOffset),
                         BorderSizePixel = 0,
                         AutomaticSize = Enum.AutomaticSize.X,
                         TextSize = 14,
@@ -5750,7 +6379,7 @@ local Library do
                         Text = TimestampText,
                         Size = UDim2New(0, 0, 0, 15),
                         BackgroundTransparency = 1,
-                        Position = UDim2New(0, 43, 0, 14),
+                        Position = UDim2New(0, 43, 0, 14 + ReplyOffset),
                         BorderSizePixel = 0,
                         AutomaticSize = Enum.AutomaticSize.X,
                         TextSize = 12,
@@ -5760,7 +6389,7 @@ local Library do
                     SubItems["MessageStack"] = Instances:Create("Frame", {
                         Parent = SubItems["Message1"].Instance,
                         Name = "\0",
-                        Position = UDim2New(0, 43, 0, 34),
+                        Position = UDim2New(0, 43, 0, 34 + ReplyOffset),
                         BackgroundTransparency = 1,
                         BorderColor3 = FromRGB(0, 0, 0),
                         BorderSizePixel = 0,
@@ -5780,9 +6409,9 @@ local Library do
                         Name = "\0",
                         BorderColor3 = FromRGB(0, 0, 0),
                         AnchorPoint = Vector2New(0, 0),
-                        Image = Avatar,
+                        Image = MessageData.avatar,
                         BackgroundTransparency = 1,
-                        Position = UDim2New(0, 0, 0, 0),
+                        Position = UDim2New(0, 0, 0, ReplyOffset),
                         Size = UDim2New(0, 35, 0, 35),
                         BorderSizePixel = 0
                     })
@@ -5793,14 +6422,15 @@ local Library do
                         CornerRadius = UDimNew(0, 4)
                     })
 
-                    CreateBubble(SubItems["MessageStack"].Instance)
+                    CreateBubble(SubItems["MessageStack"].Instance, SubItems["Message1"], SubItems["MessageStack"])
                 end
 
                 BackendState.LastRenderedGroup = {
                     GroupKey = GroupKey,
-                    IsAnonymous = ShouldHideIdentity,
-                    IsLocalPlayer = IsLocalPlayer,
-                    Stack = SubItems["MessageStack"]
+                    IsAnonymous = MessageData.anonymous,
+                    IsLocalPlayer = MessageData.isLocal,
+                    Stack = SubItems["MessageStack"],
+                    GroupFrame = SubItems["Message1"]
                 }
             end
 
@@ -5811,7 +6441,7 @@ local Library do
 
             local function CommitTypedMessage()
                 local TypedMessage = ChatSystem:GetTypedMessage()
-                if TypedMessage == "" then
+                if not HasMessageContent(TypedMessage) then
                     return false
                 end
 
@@ -5823,6 +6453,7 @@ local Library do
                 if Sent then
                     Items["Input"].Instance.Text = ""
                     Items["Input"].Instance.CursorPosition = -1
+                    ClearReplyTarget()
                     PublishTyping(false)
                     task.defer(function()
                         Items["Input"].Instance:CaptureFocus()
@@ -5839,27 +6470,69 @@ local Library do
             end
 
             Items["Input"].Instance:GetPropertyChangedSignal("Text"):Connect(function()
-                if StringLen(ChatSystem:GetTypedMessage()) > 0 then
+                if HasMessageContent(ChatSystem:GetTypedMessage()) then
                     PublishTyping(true)
                 end
             end)
 
             Items["Input"].Instance.Focused:Connect(function()
                 BackendState.InputFocused = true
-                if StringLen(ChatSystem:GetTypedMessage()) > 0 then
+                if HasMessageContent(ChatSystem:GetTypedMessage()) then
                     PublishTyping(true)
                 end
             end)
 
-            Items["Input"].Instance.FocusLost:Connect(function(EnterPressed)
+            Items["Input"].Instance.FocusLost:Connect(function()
                 BackendState.InputFocused = false
-                if EnterPressed then
-                    CommitTypedMessage()
+                PublishTyping(false)
+            end)
+
+            Items["ReplyClose"]:Connect("MouseButton1Down", function()
+                ClearReplyTarget()
+            end)
+
+            Library:Connect(UserInputService.InputBegan, function(Input, GameProcessed)
+                if GameProcessed then
+                    return
+                end
+
+                if BackendState.ActiveActionMenu then
+                    local ActiveMenu = BackendState.ActiveActionMenu
+                    local ClickedMenu = ActiveMenu.Menu and Library:IsMouseOverFrame(ActiveMenu.Menu)
+                    local ClickedActionRow = ActiveMenu.Actions and Library:IsMouseOverFrame(ActiveMenu.Actions)
+
+                    if not ClickedMenu and not ClickedActionRow then
+                        CloseActiveActionMenu()
+                    end
+                end
+
+                if IsMobile or not BackendState.InputFocused then
+                    return
+                end
+
+                if Input.KeyCode ~= Enum.KeyCode.Return and Input.KeyCode ~= Enum.KeyCode.KeypadEnter then
+                    return
+                end
+
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
+                    task.defer(UpdateBottomLayout)
+                    return
+                end
+
+                task.defer(function()
+                    local CurrentText = NormalizeMessageText(Items["Input"].Instance.Text)
+                    CurrentText = StringGSub(CurrentText, "\n$", "")
+                    Items["Input"].Instance.Text = CurrentText
+                    Items["Input"].Instance.CursorPosition = -1
+
+                    if not CommitTypedMessage() then
+                        return
+                    end
+
                     Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Accent})
                     task.wait(0.1)
                     Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
-                end
-                PublishTyping(false)
+                end)
             end)
 
             if MainPageItems and MainPageItems["Inactive"] then
