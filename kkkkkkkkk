@@ -4581,7 +4581,6 @@ local Library do
                     MultiLine = true
                 })  Items["Input"]:AddToTheme({TextColor3 = "Text"})
 
-                -- Add padding inside the input box so text has breathing room
                 Instances:Create("UIPadding", {
                     Parent = Items["Input"].Instance,
                     Name = "\0",
@@ -4589,10 +4588,9 @@ local Library do
                     PaddingBottom = UDimNew(0, 10)
                 })
 
-                -- Auto-resize Messages frame whenever the input box grows/shrinks
                 Items["MessageInput"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                     local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
-                    local Base = 10 + InputH + 20  -- 10 top gap + input height + 20 bottom gap
+                    local Base = InputH + 52
                     local ReplyExtra = Items["ReplyBar"] and Items["ReplyBar"].Instance.Visible and 32 or 0
                     Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(Base + ReplyExtra))
                 end)
@@ -4712,7 +4710,7 @@ local Library do
                     MidImage = getAsset("81680855285439.png"),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ScrollBarThickness = 2,
-                    Size = UDim2New(1, -20, 1, -105),
+                    Size = UDim2New(1, -20, 1, -90),
                     Position = UDim2New(0, 10, 0, 10),
                     TopImage = getAsset("81680855285439.png"),
                     CanvasPosition = Vector2New(0, 79),
@@ -4767,7 +4765,6 @@ local Library do
                     TextSize = 14
                 })
 
-                -- Reply bar (shown above input when replying)
                 Items["ReplyBar"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
                     Name = "\0",
@@ -4833,7 +4830,6 @@ local Library do
                     CornerRadius = UDimNew(1, 0)
                 })
 
-                -- Floating context menu (3-dot menu)
                 Items["ContextMenu"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
                     Name = "\0",
@@ -5502,7 +5498,6 @@ local Library do
                     ShowTyping(Payload.typingUsers)
                 end
 
-                -- Handle delete notifications
                 if type(Payload.deletedIds) == "table" then
                     for _, DelId in Payload.deletedIds do
                         local NumId = tonumber(DelId)
@@ -5677,7 +5672,6 @@ local Library do
                     if Encoded and SocketSend(BackendState.Socket, Encoded) then
                         return true
                     end
-                    -- Socket send failed — clear stale reference so next call goes straight to HTTP
                     BackendState.Socket = nil
                 end
 
@@ -5730,7 +5724,6 @@ local Library do
                 return Items["Input"].Instance.Text
             end
 
-            -- Reply bar helpers
             local ActiveContextMenuData = nil
             local ContextMenuCloseConn = nil
 
@@ -5755,7 +5748,6 @@ local Library do
                 Items["CtxDelete"].Instance.Visible = IsLocal and true or false
                 Items["CtxCopy"].Instance.Visible = true
 
-                -- Position near the trigger
                 local ChatAbsPos = Items["GlobalChat"].Instance.AbsolutePosition
                 local ChatAbsSize = Items["GlobalChat"].Instance.AbsoluteSize
                 local TrigAbsPos = TriggerInstance and TriggerInstance.AbsolutePosition or ChatAbsPos
@@ -5764,7 +5756,6 @@ local Library do
                 local LocalX = TrigAbsPos.X - ChatAbsPos.X
                 local LocalY = TrigAbsPos.Y - ChatAbsPos.Y + TrigAbsSize.Y + 4
 
-                -- Clamp so menu stays inside GlobalChat
                 local MenuW = 148
                 local MenuH = IsLocal and 90 or 60
                 if LocalX + MenuW > ChatAbsSize.X - 4 then
@@ -5777,7 +5768,6 @@ local Library do
                 Items["ContextMenu"].Instance.Position = UDim2New(0, LocalX, 0, LocalY)
                 Items["ContextMenu"].Instance.Visible = true
 
-                -- Close when clicking outside
                 if ContextMenuCloseConn then ContextMenuCloseConn:Disconnect() end
                 ContextMenuCloseConn = UserInputService.InputBegan:Connect(function(Input)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
@@ -5793,9 +5783,8 @@ local Library do
             local function HideReplyBar()
                 BackendState.ReplyingTo = nil
                 Items["ReplyBar"].Instance.Visible = false
-                -- Trigger resize via the AbsoluteSize listener
                 local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
-                local Base = 10 + InputH + 20
+                local Base = InputH + 52
                 Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -Base)
                 Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + 25))
             end
@@ -5809,18 +5798,15 @@ local Library do
                 local Username = tostring(Data.username or "Unknown")
                 Items["ReplyBarText"].Instance.Text = "Replying to " .. Username
                 Items["ReplyBar"].Instance.Visible = true
-                -- Shrink messages to make room for reply bar
                 local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
-                local Base = 10 + InputH + 20 + 32
+                local Base = InputH + 84
                 Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -Base)
                 Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + 57))
-                -- Focus input
                 task.defer(function()
                     Items["Input"].Instance:CaptureFocus()
                 end)
             end
 
-            -- Ctx button callbacks
             Items["ReplyBarClose"]:Connect("MouseButton1Click", function()
                 HideReplyBar()
             end)
@@ -5843,7 +5829,6 @@ local Library do
                 HideContextMenu()
                 if Data and Data.id then
                     ChatSystem:DeleteRenderedMessage(Data.id)
-                    -- Send delete to server
                     local Config = BackendState.Config
                     if Config and Config.HttpUrl and Config.HttpUrl ~= "" and RequestFunction then
                         Library:Thread(function()
@@ -5874,13 +5859,11 @@ local Library do
                 local Entry = BackendState.MessageFramesById[NumId]
                 if not Entry then return end
                 BackendState.MessageFramesById[NumId] = nil
-                -- Swap LastRenderedGroup if it was this group
                 if BackendState.LastRenderedGroup and BackendState.LastRenderedGroup.Group == Entry.Group then
                     BackendState.LastRenderedGroup = nil
                 end
                 pcall(function()
                     Entry.Bubble:Destroy()
-                    -- Check if the stack is now empty (only UIListLayout left)
                     local HasVisibleChildren = false
                     for _, Child in Entry.Stack:GetChildren() do
                         if not Child:IsA("UIListLayout") then
@@ -5992,7 +5975,6 @@ local Library do
                             TableInsert(BackendState.SocketConnections, CloseConnection)
                         end
 
-                        -- Immediately ping to get the connected user count
                         local PingPayload = JsonEncode({ type = "ping" })
                         if PingPayload then
                             SocketSend(Socket, PingPayload)
@@ -6031,8 +6013,16 @@ local Library do
                 local function CreateBubble(Parent, GroupFrame, StackFrame)
                     local BubbleItems = { }
 
+                    local BubbleRow = InstanceNew("Frame")
+                    BubbleRow.Size = UDim2New(1, 0, 0, 0)
+                    BubbleRow.AutomaticSize = Enum.AutomaticSize.Y
+                    BubbleRow.BackgroundTransparency = 1
+                    BubbleRow.BorderSizePixel = 0
+                    BubbleRow.ClipsDescendants = false
+                    BubbleRow.Parent = Parent
+
                     BubbleItems["RealMessage"] = Instances:Create("Frame", {
-                        Parent = Parent,
+                        Parent = BubbleRow,
                         Name = "\0",
                         BorderColor3 = FromRGB(0, 0, 0),
                         BorderSizePixel = 0,
@@ -6078,19 +6068,18 @@ local Library do
                         MaxSize = Vector2New(300, 400)
                     })
 
-                    -- Hover action bar — top-right corner INSIDE the bubble, overlay style
-                    local HoverActionsW = IsLocalPlayer and 46 or 22
+                    local HoverActionsW = IsLocalPlayer and 66 or 32
                     local HoverActions = InstanceNew("Frame")
-                    HoverActions.AnchorPoint = Vector2New(1, 0)
-                    HoverActions.Position = UDim2New(1, -2, 0, 2)
-                    HoverActions.Size = UDim2New(0, HoverActionsW, 0, 20)
-                    HoverActions.BackgroundColor3 = FromRGB(30, 29, 38)
-                    HoverActions.BackgroundTransparency = 0.15
+                    HoverActions.AnchorPoint = Vector2New(1, 0.5)
+                    HoverActions.Position = UDim2New(1, 0, 0.5, 0)
+                    HoverActions.Size = UDim2New(0, HoverActionsW, 0, 28)
+                    HoverActions.BackgroundColor3 = FromRGB(41, 40, 49)
+                    HoverActions.BackgroundTransparency = 0.05
                     HoverActions.BorderSizePixel = 0
                     HoverActions.Visible = false
                     HoverActions.ZIndex = 30
                     HoverActions.ClipsDescendants = false
-                    HoverActions.Parent = BubbleItems["RealMessage"].Instance
+                    HoverActions.Parent = BubbleRow
 
                     local HoverCorner = InstanceNew("UICorner")
                     HoverCorner.CornerRadius = UDimNew(0, 4)
@@ -6103,15 +6092,14 @@ local Library do
                     HoverLayout.VerticalAlignment = Enum.VerticalAlignment.Center
                     HoverLayout.Parent = HoverActions
 
-                    -- Reply button in hover bar
                     local ReplyBtn = InstanceNew("TextButton")
                     ReplyBtn.Text = "↩"
                     ReplyBtn.FontFace = Library.Font
-                    ReplyBtn.TextSize = 11
+                    ReplyBtn.TextSize = 13
                     ReplyBtn.TextColor3 = FromRGB(210, 210, 210)
                     ReplyBtn.BackgroundTransparency = 1
                     ReplyBtn.BorderSizePixel = 0
-                    ReplyBtn.Size = UDim2New(0, 20, 0, 20)
+                    ReplyBtn.Size = UDim2New(0, 28, 0, 28)
                     ReplyBtn.ZIndex = 31
                     ReplyBtn.Parent = HoverActions
 
@@ -6125,16 +6113,14 @@ local Library do
                         })
                     end)
 
-                    -- 3-dot button (local player only)
                     if IsLocalPlayer then
                         local DotsBtn = InstanceNew("TextButton")
                         DotsBtn.Text = ""
                         DotsBtn.BackgroundTransparency = 1
                         DotsBtn.BorderSizePixel = 0
-                        DotsBtn.Size = UDim2New(0, 20, 0, 20)
+                        DotsBtn.Size = UDim2New(0, 28, 0, 28)
                         DotsBtn.ZIndex = 31
                         DotsBtn.Parent = HoverActions
-                        -- Three stacked dot circles
                         for DI = 1, 3 do
                             local Dot = InstanceNew("Frame")
                             Dot.Size = UDim2New(0, 3, 0, 3)
@@ -6160,45 +6146,36 @@ local Library do
                         end)
                     end
 
-                    -- Track bubble by message ID
                     if MessageIdNum and GroupFrame and StackFrame then
                         BackendState.MessageFramesById[MessageIdNum] = {
-                            Bubble = BubbleItems["RealMessage"].Instance,
+                            Bubble = BubbleRow,
                             Stack = StackFrame,
                             Group = GroupFrame
                         }
                     end
 
-                    -- Desktop hover detection
                     if not IsMobile then
                         local IsHovered = false
-                        BubbleItems["RealMessage"].Instance.MouseEnter:Connect(function()
+                        local function OnHoverEnter()
                             IsHovered = true
                             HoverActions.Visible = true
-                        end)
-                        BubbleItems["RealMessage"].Instance.MouseLeave:Connect(function()
+                        end
+                        local function OnHoverLeave()
                             IsHovered = false
                             task.delay(0.12, function()
                                 if not IsHovered then
                                     HoverActions.Visible = false
                                 end
                             end)
-                        end)
-                        HoverActions.MouseEnter:Connect(function()
-                            IsHovered = true
-                            HoverActions.Visible = true
-                        end)
-                        HoverActions.MouseLeave:Connect(function()
-                            IsHovered = false
-                            task.delay(0.12, function()
-                                if not IsHovered then
-                                    HoverActions.Visible = false
-                                end
-                            end)
-                        end)
+                        end
+                        BubbleItems["RealMessage"].Instance.MouseEnter:Connect(OnHoverEnter)
+                        BubbleItems["RealMessage"].Instance.MouseLeave:Connect(OnHoverLeave)
+                        BubbleRow.MouseEnter:Connect(OnHoverEnter)
+                        BubbleRow.MouseLeave:Connect(OnHoverLeave)
+                        HoverActions.MouseEnter:Connect(OnHoverEnter)
+                        HoverActions.MouseLeave:Connect(OnHoverLeave)
                     end
 
-                    -- Mobile long-press detection
                     if IsMobile then
                         local TouchStart = nil
                         local LPThread = nil
@@ -6226,7 +6203,6 @@ local Library do
                     end
                 end
 
-                -- Messages with a reply always start a new group so the preview is visible
                 local HasReply = ReplyTo and type(ReplyTo) == "table" and ReplyTo.id
                 if not HasReply and LastGroup and LastGroup.GroupKey == GroupKey and LastGroup.IsAnonymous == ShouldHideIdentity and LastGroup.IsLocalPlayer == IsLocalPlayer then
                     CreateBubble(LastGroup.Stack, LastGroup.Group, LastGroup.Stack)
@@ -6252,7 +6228,6 @@ local Library do
                         AutomaticSize = Enum.AutomaticSize.Y
                     })
 
-                    -- Reply preview
                     if ReplyTo and type(ReplyTo) == "table" and ReplyTo.id then
                         local ReplyPreview = InstanceNew("Frame")
                         ReplyPreview.Position = UDim2New(0, 43, 0, 0)
@@ -6402,7 +6377,6 @@ local Library do
 
             local function CommitTypedMessage()
                 local TypedMessage = ChatSystem:GetTypedMessage()
-                -- Strip trailing newlines added by multiline enter
                 while StringSub(TypedMessage, -1) == "\n" do
                     TypedMessage = StringSub(TypedMessage, 1, -2)
                 end
@@ -6451,13 +6425,9 @@ local Library do
 
             Items["Input"].Instance.FocusLost:Connect(function(EnterPressed)
                 BackendState.InputFocused = false
-                -- With MultiLine=true, EnterPressed is NOT true on Enter — handled by InputBegan below
-                -- This fires when user clicks away; just stop typing indicator
                 PublishTyping(false)
             end)
 
-            -- Desktop: Enter sends, Shift+Enter adds newline (MultiLine=true lets Enter create newlines;
-            -- we intercept Enter-without-Shift to commit instead)
             local SendOnNextTextChange = false
             Library:Connect(UserInputService.InputBegan, function(Input, GameProcessed)
                 if not BackendState.InputFocused then return end
@@ -6467,17 +6437,13 @@ local Library do
                     or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
 
                 if IsMobile then
-                    -- Mobile: Enter adds newline natively; send only via button
                     return
                 end
 
                 if ShiftHeld then
-                    -- Shift+Enter: let the newline be inserted naturally
                     return
                 end
 
-                -- Plain Enter on desktop: intercept and send
-                -- The MultiLine TextBox may insert '\n' first; defer commit to clean it
                 SendOnNextTextChange = true
                 task.defer(function()
                     if not SendOnNextTextChange then return end
