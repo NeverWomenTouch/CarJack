@@ -5658,10 +5658,18 @@ local Library do
                     if Encoded and SocketSend(BackendState.Socket, Encoded) then
                         return true
                     end
+                    -- Socket send failed — clear stale reference so next call goes straight to HTTP
+                    BackendState.Socket = nil
                 end
 
                 local Encoded = JsonEncode(Payload)
                 if not Encoded then
+                    SetConnectionAppearance("Encode error", FromRGB(255, 120, 120))
+                    return false
+                end
+
+                if not RequestFunction then
+                    SetConnectionAppearance("No HTTP fn", FromRGB(255, 120, 120))
                     return false
                 end
 
@@ -5675,11 +5683,12 @@ local Library do
                 })
 
                 if not Success then
-                    SetConnectionAppearance("Send failed", FromRGB(255, 120, 120))
+                    local ErrText = type(ResponseBody) == "string" and StringSub(ResponseBody, 1, 40) or "HTTP error"
+                    SetConnectionAppearance("Send failed: " .. ErrText, FromRGB(255, 120, 120))
                     return false
                 end
 
-                HandlePayload(JsonDecode(ResponseBody))
+                pcall(function() HandlePayload(JsonDecode(ResponseBody)) end)
                 return true
             end
 
@@ -5939,14 +5948,16 @@ local Library do
 
                     if Success and Socket then
                         BackendState.Socket = Socket
-                        SetConnectionAppearance("Socket connected", FromRGB(73, 255, 109))
 
                         local MessageConnection = ConnectSocketSignal(Socket.OnMessage or Socket.MessageReceived, function(Message)
-                            HandlePayload(JsonDecode(Message))
+                            pcall(function()
+                                HandlePayload(JsonDecode(Message))
+                            end)
                         end)
 
                         local CloseConnection = ConnectSocketSignal(Socket.OnClose or Socket.Closed, function()
                             BackendState.Socket = nil
+                            SetConnectionAppearance("Disconnected", FromRGB(255, 120, 120))
                             DisconnectSocketListeners()
                         end)
 
@@ -5958,6 +5969,13 @@ local Library do
                             TableInsert(BackendState.SocketConnections, CloseConnection)
                         end
 
+                        -- Immediately ping to get the connected user count
+                        local PingPayload = JsonEncode({ type = "ping" })
+                        if PingPayload then
+                            SocketSend(Socket, PingPayload)
+                        end
+
+                        SetConnectionAppearance("Socket connected", FromRGB(73, 255, 109))
                         return true
                     end
                 end
