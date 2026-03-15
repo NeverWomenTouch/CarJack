@@ -4559,10 +4559,15 @@ local Library do
                     Items["MessageInputBackground"]:Tween(nil, {BackgroundColor3 = Library.Theme["Element"]})
                 end)
                 
+                Instances:Create("UIPadding", {
+                    Parent = Items["MessageInputBackground"].Instance,
+                    Name = "\0",
+                    PaddingBottom = UDimNew(0, 6)
+                })
+
                 local InputScroller = InstanceNew("ScrollingFrame")
-                InputScroller.Size = UDim2New(1, -24, 0, 0)
-                InputScroller.Position = UDim2New(0, 12, 0, 4)
-                InputScroller.AutomaticSize = Enum.AutomaticSize.Y
+                InputScroller.Size = UDim2New(1, -24, 0, 35)
+                InputScroller.Position = UDim2New(0, 12, 0, 6)
                 InputScroller.CanvasSize = UDim2New(0, 0, 0, 0)
                 InputScroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
                 InputScroller.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -4572,12 +4577,6 @@ local Library do
                 InputScroller.BorderSizePixel = 0
                 InputScroller.ClipsDescendants = true
                 InputScroller.Parent = Items["MessageInputBackground"].Instance
-
-                Instances:Create("UISizeConstraint", {
-                    Parent = InputScroller,
-                    Name = "\0",
-                    MaxSize = Vector2New(math.huge, 88)
-                })
 
                 Items["Input"] = Instances:Create("TextBox", {
                     Parent = InputScroller,
@@ -4608,6 +4607,11 @@ local Library do
                     PaddingTop = UDimNew(0, 8),
                     PaddingBottom = UDimNew(0, 8)
                 })
+
+                Items["Input"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    local H = math.clamp(Items["Input"].Instance.AbsoluteSize.Y, 35, 88)
+                    InputScroller.Size = UDim2New(1, -24, 0, H)
+                end)
 
                 Items["MessageInput"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                     local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
