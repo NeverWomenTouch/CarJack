@@ -4568,8 +4568,7 @@ local Library do
                 local InputScroller = InstanceNew("ScrollingFrame")
                 InputScroller.Size = UDim2New(1, -24, 0, 35)
                 InputScroller.Position = UDim2New(0, 12, 0, 6)
-                InputScroller.CanvasSize = UDim2New(0, 0, 0, 0)
-                InputScroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                InputScroller.CanvasSize = UDim2New(1, 0, 0, 35)
                 InputScroller.ScrollingDirection = Enum.ScrollingDirection.Y
                 InputScroller.ScrollBarThickness = 3
                 InputScroller.ScrollBarImageColor3 = FromRGB(120, 120, 140)
@@ -4585,8 +4584,7 @@ local Library do
                     PlaceholderColor3 = FromRGB(185, 185, 185),
                     PlaceholderText = "Type here..",
                     TextSize = 14,
-                    Size = UDim2New(1, 0, 0, 0),
-                    AutomaticSize = Enum.AutomaticSize.Y,
+                    Size = UDim2New(1, 0, 0, 35),
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = "",
@@ -4608,9 +4606,13 @@ local Library do
                     PaddingBottom = UDimNew(0, 8)
                 })
 
-                Items["Input"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                    local H = math.clamp(Items["Input"].Instance.AbsoluteSize.Y, 35, 88)
-                    InputScroller.Size = UDim2New(1, -24, 0, H)
+                Items["Input"].Instance:GetPropertyChangedSignal("TextBounds"):Connect(function()
+                    local contentH = math.max(math.floor(Items["Input"].Instance.TextBounds.Y) + 16, 35)
+                    local clampedH = math.min(contentH, 96)
+                    Items["Input"].Instance.Size = UDim2New(1, 0, 0, contentH)
+                    InputScroller.CanvasSize = UDim2New(1, 0, 0, contentH)
+                    InputScroller.Size = UDim2New(1, -24, 0, clampedH)
+                    InputScroller.CanvasPosition = Vector2New(0, math.max(0, contentH - clampedH))
                 end)
 
                 Items["MessageInput"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
