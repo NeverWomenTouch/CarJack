@@ -4589,6 +4589,14 @@ local Library do
                     PaddingBottom = UDimNew(0, 10)
                 })
 
+                -- Auto-resize Messages frame whenever the input box grows/shrinks
+                Items["MessageInput"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
+                    local Base = 10 + InputH + 20  -- 10 top gap + input height + 20 bottom gap
+                    local ReplyExtra = Items["ReplyBar"] and Items["ReplyBar"].Instance.Visible and 32 or 0
+                    Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(Base + ReplyExtra))
+                end)
+
                 Items["TypingBg"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
                     Name = "\0",
@@ -5785,9 +5793,11 @@ local Library do
             local function HideReplyBar()
                 BackendState.ReplyingTo = nil
                 Items["ReplyBar"].Instance.Visible = false
-                -- Move typing indicator + resize messages back
-                Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -95)
-                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -105)
+                -- Trigger resize via the AbsoluteSize listener
+                local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
+                local Base = 10 + InputH + 20
+                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -Base)
+                Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + 25))
             end
 
             local function SetReplyingTo(Data)
@@ -5799,9 +5809,11 @@ local Library do
                 local Username = tostring(Data.username or "Unknown")
                 Items["ReplyBarText"].Instance.Text = "Replying to " .. Username
                 Items["ReplyBar"].Instance.Visible = true
-                -- Move typing indicator up and shrink messages
-                Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -127)
-                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -133)
+                -- Shrink messages to make room for reply bar
+                local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
+                local Base = 10 + InputH + 20 + 32
+                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -Base)
+                Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + 57))
                 -- Focus input
                 task.defer(function()
                     Items["Input"].Instance:CaptureFocus()
@@ -6056,7 +6068,7 @@ local Library do
                         Name = "\0",
                         PaddingTop = UDimNew(0, 8),
                         PaddingBottom = UDimNew(0, 8),
-                        PaddingRight = UDimNew(0, 36),
+                        PaddingRight = UDimNew(0, 10),
                         PaddingLeft = UDimNew(0, 10)
                     })
 
@@ -6066,13 +6078,14 @@ local Library do
                         MaxSize = Vector2New(300, 400)
                     })
 
-                    -- Hover action bar
-                    local HoverActionsW = IsLocalPlayer and 56 or 28
+                    -- Hover action bar — top-right corner INSIDE the bubble, overlay style
+                    local HoverActionsW = IsLocalPlayer and 46 or 22
                     local HoverActions = InstanceNew("Frame")
-                    HoverActions.AnchorPoint = Vector2New(0, 0)
-                    HoverActions.Position = UDim2New(1, 2, 0, 0)
-                    HoverActions.Size = UDim2New(0, HoverActionsW, 0, 24)
-                    HoverActions.BackgroundColor3 = FromRGB(41, 40, 49)
+                    HoverActions.AnchorPoint = Vector2New(1, 0)
+                    HoverActions.Position = UDim2New(1, -2, 0, 2)
+                    HoverActions.Size = UDim2New(0, HoverActionsW, 0, 20)
+                    HoverActions.BackgroundColor3 = FromRGB(30, 29, 38)
+                    HoverActions.BackgroundTransparency = 0.15
                     HoverActions.BorderSizePixel = 0
                     HoverActions.Visible = false
                     HoverActions.ZIndex = 30
@@ -6080,12 +6093,12 @@ local Library do
                     HoverActions.Parent = BubbleItems["RealMessage"].Instance
 
                     local HoverCorner = InstanceNew("UICorner")
-                    HoverCorner.CornerRadius = UDimNew(0, 6)
+                    HoverCorner.CornerRadius = UDimNew(0, 4)
                     HoverCorner.Parent = HoverActions
 
                     local HoverLayout = InstanceNew("UIListLayout")
                     HoverLayout.FillDirection = Enum.FillDirection.Horizontal
-                    HoverLayout.Padding = UDimNew(0, 2)
+                    HoverLayout.Padding = UDimNew(0, 1)
                     HoverLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
                     HoverLayout.VerticalAlignment = Enum.VerticalAlignment.Center
                     HoverLayout.Parent = HoverActions
@@ -6094,11 +6107,11 @@ local Library do
                     local ReplyBtn = InstanceNew("TextButton")
                     ReplyBtn.Text = "↩"
                     ReplyBtn.FontFace = Library.Font
-                    ReplyBtn.TextSize = 13
-                    ReplyBtn.TextColor3 = FromRGB(200, 200, 200)
+                    ReplyBtn.TextSize = 11
+                    ReplyBtn.TextColor3 = FromRGB(210, 210, 210)
                     ReplyBtn.BackgroundTransparency = 1
                     ReplyBtn.BorderSizePixel = 0
-                    ReplyBtn.Size = UDim2New(0, 24, 0, 22)
+                    ReplyBtn.Size = UDim2New(0, 20, 0, 20)
                     ReplyBtn.ZIndex = 31
                     ReplyBtn.Parent = HoverActions
 
@@ -6118,16 +6131,16 @@ local Library do
                         DotsBtn.Text = ""
                         DotsBtn.BackgroundTransparency = 1
                         DotsBtn.BorderSizePixel = 0
-                        DotsBtn.Size = UDim2New(0, 24, 0, 22)
+                        DotsBtn.Size = UDim2New(0, 20, 0, 20)
                         DotsBtn.ZIndex = 31
                         DotsBtn.Parent = HoverActions
                         -- Three stacked dot circles
                         for DI = 1, 3 do
                             local Dot = InstanceNew("Frame")
-                            Dot.Size = UDim2New(0, 4, 0, 4)
+                            Dot.Size = UDim2New(0, 3, 0, 3)
                             Dot.AnchorPoint = Vector2New(0.5, 0.5)
-                            Dot.Position = UDim2New(0.5, 0, 0.5, (DI - 2) * 6)
-                            Dot.BackgroundColor3 = FromRGB(200, 200, 200)
+                            Dot.Position = UDim2New(0.5, 0, 0.5, (DI - 2) * 5)
+                            Dot.BackgroundColor3 = FromRGB(210, 210, 210)
                             Dot.BorderSizePixel = 0
                             Dot.ZIndex = 32
                             Dot.Parent = DotsBtn
