@@ -6027,6 +6027,16 @@ local Library do
                     return Text
                 end
 
+                local function FormatReplyPreviewText(Text)
+                    Text = tostring(Text or "")
+                    Text = StringGSub(Text, "\r\n", " ")
+                    Text = StringGSub(Text, "\n", " ")
+                    Text = StringGSub(Text, "\r", " ")
+                    Text = StringGSub(Text, "%s+", " ")
+                    Text = Text:match("^%s*(.-)%s*$") or Text
+                    return EscapeRichText(Text)
+                end
+
                 local function CreateBubble(Parent, GroupFrame, StackFrame)
                     local BubbleItems = { }
 
@@ -6323,7 +6333,7 @@ local Library do
                         RUL.Parent = ReplyPreview
 
                         local RML = InstanceNew("TextLabel")
-                        RML.Text = EscapeRichText(tostring(ReplyTo.message or ""))
+                        RML.Text = FormatReplyPreviewText(ReplyTo.message)
                         RML.RichText = false
                         RML.FontFace = Library.Subfont
                         RML.TextColor3 = FromRGB(155, 155, 155)
