@@ -4516,9 +4516,17 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     AnchorPoint = Vector2New(0, 1),
                     BackgroundTransparency = 1,
+                    ClipsDescendants = true,
                     Position = UDim2New(0, 10, 1, -40),
-                    Size = UDim2New(1, -65, 0, 47),
+                    Size = UDim2New(1, -65, 0, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     BorderSizePixel = 0
+                })
+
+                Instances:Create("UISizeConstraint", {
+                    Parent = Items["MessageInput"].Instance,
+                    Name = "\0",
+                    MaxSize = Vector2New(100000, 160)
                 })
                 
                 Items["MessageInputBackground"] = Instances:Create("Frame", {
@@ -4527,8 +4535,10 @@ local Library do
                     AnchorPoint = Vector2New(0, 0),
                     Position = UDim2New(0, 0, 0, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(1, 0, 0, 47),
+                    Size = UDim2New(1, 0, 0, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     BorderSizePixel = 0,
+                    ClipsDescendants = true,
                     BackgroundColor3 = FromRGB(41, 40, 49)
                 })  Items["MessageInputBackground"]:AddToTheme({BackgroundColor3 = "Element"})
                 
@@ -4556,23 +4566,16 @@ local Library do
                     Items["MessageInputBackground"]:ChangeItemTheme({BackgroundColor3 = "Element"})
                     Items["MessageInputBackground"]:Tween(nil, {BackgroundColor3 = Library.Theme["Element"]})
                 end)
-
-                local InputClip = InstanceNew("Frame")
-                InputClip.Size = UDim2New(1, -24, 0, 35)
-                InputClip.Position = UDim2New(0, 12, 0, 6)
-                InputClip.BackgroundTransparency = 1
-                InputClip.BorderSizePixel = 0
-                InputClip.ClipsDescendants = true
-                InputClip.Parent = Items["MessageInputBackground"].Instance
-
+                
                 Items["Input"] = Instances:Create("TextBox", {
-                    Parent = InputClip,
+                    Parent = Items["MessageInputBackground"].Instance,
                     Name = "\0",
                     FontFace = Library.Font,
                     PlaceholderColor3 = FromRGB(185, 185, 185),
                     PlaceholderText = "Type here..",
                     TextSize = 14,
-                    Size = UDim2New(1, 0, 0, 35),
+                    Size = UDim2New(1, -24, 0, 35),
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = "",
@@ -4580,47 +4583,39 @@ local Library do
                     BackgroundTransparency = 1,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     TextYAlignment = Enum.TextYAlignment.Top,
-                    Position = UDim2New(0, 0, 0, 0),
+                    TextWrapped = true,
+                    Position = UDim2New(0, 12, 0, 0),
                     ClearTextOnFocus = false,
                     BorderSizePixel = 0,
-                    MultiLine = true,
-                    TextWrapped = true
+                    MultiLine = true
                 })  Items["Input"]:AddToTheme({TextColor3 = "Text"})
+
+                Instances:Create("UISizeConstraint", {
+                    Parent = Items["Input"].Instance,
+                    Name = "\0",
+                    MaxSize = Vector2New(100000, 140)
+                })
 
                 Instances:Create("UIPadding", {
                     Parent = Items["Input"].Instance,
                     Name = "\0",
-                    PaddingTop = UDimNew(0, 8),
-                    PaddingBottom = UDimNew(0, 8)
+                    PaddingTop = UDimNew(0, 10),
+                    PaddingBottom = UDimNew(0, 10)
                 })
 
-                local function UpdateInputSize()
-                    local text = Items["Input"].Instance.Text
-                    local explicitLines = 1
-                    for _ in text:gmatch("\n") do explicitLines = explicitLines + 1 end
-                    local boundsLines = math.ceil(math.max(Items["Input"].Instance.TextBounds.Y, 1) / 20)
-                    local lineCount = math.max(explicitLines, boundsLines)
-                    local contentH = math.max(lineCount * 20 + 16, 35)
-                    local clampedH = math.min(contentH, 96)
-                    local bgH = clampedH + 12
-                    Items["Input"].Instance.Size = UDim2New(1, 0, 0, contentH)
-                    Items["Input"].Instance.Position = UDim2New(0, 0, 0, -(contentH - clampedH))
-                    InputClip.Size = UDim2New(1, -24, 0, clampedH)
-                    Items["MessageInputBackground"].Instance.Size = UDim2New(1, 0, 0, bgH)
-                    Items["MessageInput"].Instance.Size = UDim2New(1, -65, 0, bgH)
+                Items["MessageInput"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
+                    local Base = InputH + 52
                     local ReplyExtra = Items["ReplyBar"] and Items["ReplyBar"].Instance.Visible and 32 or 0
-                    Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(bgH + 52 + ReplyExtra))
+                    Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(Base + ReplyExtra))
                     local TypingOffset = (Items["ReplyBar"] and Items["ReplyBar"].Instance.Visible) and 88 or 60
-                    Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(bgH + TypingOffset))
-                end
-
-                Items["Input"].Instance:GetPropertyChangedSignal("Text"):Connect(UpdateInputSize)
-                Items["Input"].Instance:GetPropertyChangedSignal("TextBounds"):Connect(UpdateInputSize)
+                    Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + TypingOffset))
+                end)
 
                 Items["TypingBg"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
                     Name = "\0",
-                    Position = UDim2New(0, 8, 1, -107),
+                    Position = UDim2New(0, 8, 1, -95),
                     Size = UDim2New(1, -84, 0, 20),
                     BorderSizePixel = 0,
                     BackgroundTransparency = 1,
@@ -4732,7 +4727,7 @@ local Library do
                     MidImage = getAsset("81680855285439.png"),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ScrollBarThickness = 2,
-                    Size = UDim2New(1, -20, 1, -99),
+                    Size = UDim2New(1, -20, 1, -120),
                     Position = UDim2New(0, 10, 0, 10),
                     TopImage = getAsset("81680855285439.png"),
                     CanvasPosition = Vector2New(0, 79),
@@ -5805,8 +5800,9 @@ local Library do
             local function HideReplyBar()
                 BackendState.ReplyingTo = nil
                 Items["ReplyBar"].Instance.Visible = false
-                local InputH = Items["MessageInput"].Instance.Size.Y.Offset
-                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(InputH + 52))
+                local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
+                local Base = InputH + 52
+                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -Base)
                 Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + 60))
             end
 
@@ -5819,8 +5815,9 @@ local Library do
                 local Username = tostring(Data.username or "Unknown")
                 Items["ReplyBarText"].Instance.Text = "Replying to " .. Username
                 Items["ReplyBar"].Instance.Visible = true
-                local InputH = Items["MessageInput"].Instance.Size.Y.Offset
-                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -(InputH + 84))
+                local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
+                local Base = InputH + 84
+                Items["Messages"].Instance.Size = UDim2New(1, -20, 1, -Base)
                 Items["TypingBg"].Instance.Position = UDim2New(0, 8, 1, -(InputH + 88))
                 task.defer(function()
                     Items["Input"].Instance:CaptureFocus()
@@ -6046,12 +6043,10 @@ local Library do
                         Name = "\0",
                         BorderColor3 = FromRGB(0, 0, 0),
                         BorderSizePixel = 0,
-                        Size = UDim2New(1, 0, 0, 0),
-                        AutomaticSize = Enum.AutomaticSize.Y,
-                        BackgroundTransparency = 1,
+                        AutomaticSize = Enum.AutomaticSize.XY,
                         BackgroundColor3 = FromRGB(17, 16, 20),
                         ClipsDescendants = false
-                    })
+                    })  BubbleItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
 
                     Instances:Create("UICorner", {
                         Parent = BubbleItems["RealMessage"].Instance,
@@ -6071,8 +6066,7 @@ local Library do
                         BackgroundTransparency = 1,
                         TextXAlignment = Enum.TextXAlignment.Left,
                         TextWrapped = true,
-                        Size = UDim2New(1, 0, 0, 0),
-                        AutomaticSize = Enum.AutomaticSize.Y,
+                        AutomaticSize = Enum.AutomaticSize.XY,
                         TextSize = 14
                     })  BubbleItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
 
@@ -6083,6 +6077,12 @@ local Library do
                         PaddingBottom = UDimNew(0, 8),
                         PaddingRight = UDimNew(0, 10),
                         PaddingLeft = UDimNew(0, 10)
+                    })
+
+                    Instances:Create("UISizeConstraint", {
+                        Parent = BubbleItems["RealMessage"].Instance,
+                        Name = "\0",
+                        MaxSize = Vector2New(300, 400)
                     })
 
                     local HoverActionsW = 66
@@ -6207,15 +6207,12 @@ local Library do
                         local function OnHoverEnter()
                             IsHovered = true
                             HoverActions.Visible = true
-                            BubbleRow.BackgroundTransparency = 0.88
-                            BubbleRow.BackgroundColor3 = FromRGB(180, 180, 200)
                         end
                         local function OnHoverLeave()
                             IsHovered = false
                             task.delay(0.12, function()
                                 if not IsHovered then
                                     HoverActions.Visible = false
-                                    BubbleRow.BackgroundTransparency = 1
                                 end
                             end)
                         end
