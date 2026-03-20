@@ -5120,6 +5120,7 @@ local Library do
                     Avatar = tostring(Content),
                     SenderId = tostring(LocalPlayer.UserId),
                     Username = nil,
+                    GameName = nil,
                 },
                 SeenMessages = { },
                 TypingActive = false,
@@ -5166,6 +5167,25 @@ local Library do
                 end
 
                 return LocalPlayer.Name
+            end
+
+            local function GetLocalGameName()
+                if BackendState.Profile.GameName and BackendState.Profile.GameName ~= "" then
+                    return BackendState.Profile.GameName
+                end
+
+                local PlaceName = ""
+                pcall(function()
+                    local Info = MarketplaceService:GetProductInfo(game.PlaceId)
+                    PlaceName = tostring(Info and Info.Name or "")
+                end)
+
+                if PlaceName == "" then
+                    PlaceName = tostring(game.Name or "This Experience")
+                end
+
+                BackendState.Profile.GameName = PlaceName
+                return PlaceName
             end
 
             local function GetMessageSenderKey(MessageData, Username, IsAnonymous)
@@ -5683,7 +5703,10 @@ local Library do
                     senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                     clientId = BackendState.ClientId,
                     anonymous = Toggle.Value,
-                    replyTo = ReplyTo or nil
+                    replyTo = ReplyTo or nil,
+                    gameName = GetLocalGameName(),
+                    placeId = game.PlaceId,
+                    joinedAt = BackendState.JoinTime
                 }
 
                 if BackendState.Socket then
@@ -6040,7 +6063,7 @@ local Library do
                 end
 
                 local function ResolveStatCardData()
-                    local GameText = tostring(game.Name or "This Experience")
+                    local GameText = GetLocalGameName()
                     local JoinValue = CreatedAt
 
                     if type(MessageMeta) == "table" then
@@ -6395,6 +6418,7 @@ local Library do
                     StatCard.Position = UDim2New(0, 43, 0, 18 + ReplyOffsetY)
                     StatCard.Size = UDim2New(0, 230, 0, 36)
                     StatCard.BackgroundColor3 = FromRGB(41, 40, 49)
+                    StatCard.BackgroundTransparency = 0.08
                     StatCard.BorderSizePixel = 0
                     StatCard.Visible = false
                     StatCard.ZIndex = 28
@@ -6402,6 +6426,12 @@ local Library do
                     local StatCardCorner = InstanceNew("UICorner")
                     StatCardCorner.CornerRadius = UDimNew(0, 6)
                     StatCardCorner.Parent = StatCard
+
+                    local StatCardStroke = InstanceNew("UIStroke")
+                    StatCardStroke.Thickness = 1
+                    StatCardStroke.Color = FromRGB(255, 0, 255)
+                    StatCardStroke.Transparency = 0.1
+                    StatCardStroke.Parent = StatCard
 
                     local StatGame = InstanceNew("TextLabel")
                     StatGame.Parent = StatCard
