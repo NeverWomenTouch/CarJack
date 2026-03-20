@@ -481,7 +481,6 @@ local Library do
                 PremiumOnly = false
         })
 
-        -- Global Chat should always be the last tab
         GlobalChatTab.Items["Inactive"].Instance.LayoutOrder = 99999
 
         local SubTab = GlobalChatTab:AddSubTab({
@@ -1049,7 +1048,6 @@ local Library do
         end
     end
 
-    -- Custom font
     local CustomFont = { } do
         function CustomFont:New(Name, Weight, Style, Data)
             if not isfile(Data.Id) then 
@@ -5501,7 +5499,8 @@ local Library do
                     MessageData.createdAt,
                     GetMessageSenderKey(MessageData, MessageData.username or "Unknown", MessageData.anonymous),
                     MessageData.id,
-                    MessageData.replyTo
+                    MessageData.replyTo,
+                    MessageData
                 )
             end
 
@@ -6009,7 +6008,7 @@ local Library do
                 return BackendState.Polling
             end
 
-            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous, CreatedAt, SenderKey, MessageId, ReplyTo)
+            function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous, CreatedAt, SenderKey, MessageId, ReplyTo, MessageMeta)
                 local ShouldHideIdentity = IsAnonymous
 
                 if ShouldHideIdentity == nil then
@@ -6038,6 +6037,24 @@ local Library do
                     Text = StringGSub(Text, "%s+", " ")
                     Text = Text:match("^%s*(.-)%s*$") or Text
                     return EscapeRichText(Text)
+                end
+
+                local function ResolveStatCardData()
+                    local GameText = tostring(game.Name or "This Experience")
+                    local JoinValue = CreatedAt
+
+                    if type(MessageMeta) == "table" then
+                        local MetaGame = tostring(MessageMeta.gameName or MessageMeta.game or "")
+                        if MetaGame ~= "" then
+                            GameText = MetaGame
+                        elseif MessageMeta.placeId ~= nil then
+                            GameText = "Place " .. tostring(MessageMeta.placeId)
+                        end
+
+                        JoinValue = MessageMeta.joinedAt or MessageMeta.joinTime or MessageMeta.createdAt or JoinValue
+                    end
+
+                    return GameText, FormatMessageTimestamp(JoinValue)
                 end
 
                 local function CreateBubble(Parent, GroupFrame, StackFrame)
@@ -6370,6 +6387,81 @@ local Library do
                         TextSize = 14,
                         TextXAlignment = Enum.TextXAlignment.Left
                     })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
+
+                    local StatGameText, StatJoinText = ResolveStatCardData()
+                    local StatCard = InstanceNew("Frame")
+                    StatCard.Name = "\0"
+                    StatCard.Parent = SubItems["Message1"].Instance
+                    StatCard.Position = UDim2New(0, 43, 0, 18 + ReplyOffsetY)
+                    StatCard.Size = UDim2New(0, 230, 0, 36)
+                    StatCard.BackgroundColor3 = FromRGB(41, 40, 49)
+                    StatCard.BorderSizePixel = 0
+                    StatCard.Visible = false
+                    StatCard.ZIndex = 28
+
+                    local StatCardCorner = InstanceNew("UICorner")
+                    StatCardCorner.CornerRadius = UDimNew(0, 6)
+                    StatCardCorner.Parent = StatCard
+
+                    local StatGame = InstanceNew("TextLabel")
+                    StatGame.Parent = StatCard
+                    StatGame.BackgroundTransparency = 1
+                    StatGame.BorderSizePixel = 0
+                    StatGame.Position = UDim2New(0, 8, 0, 4)
+                    StatGame.Size = UDim2New(1, -16, 0, 13)
+                    StatGame.FontFace = Library.Font
+                    StatGame.Text = "Game: " .. tostring(StatGameText)
+                    StatGame.TextSize = 12
+                    StatGame.TextColor3 = FromRGB(230, 230, 230)
+                    StatGame.TextXAlignment = Enum.TextXAlignment.Left
+                    StatGame.TextTruncate = Enum.TextTruncate.AtEnd
+                    StatGame.ZIndex = 29
+
+                    local StatJoin = InstanceNew("TextLabel")
+                    StatJoin.Parent = StatCard
+                    StatJoin.BackgroundTransparency = 1
+                    StatJoin.BorderSizePixel = 0
+                    StatJoin.Position = UDim2New(0, 8, 0, 18)
+                    StatJoin.Size = UDim2New(1, -16, 0, 13)
+                    StatJoin.FontFace = Library.Subfont
+                    StatJoin.Text = "Join Time: " .. tostring(StatJoinText)
+                    StatJoin.TextSize = 11
+                    StatJoin.TextColor3 = FromRGB(180, 180, 180)
+                    StatJoin.TextXAlignment = Enum.TextXAlignment.Left
+                    StatJoin.TextTruncate = Enum.TextTruncate.AtEnd
+                    StatJoin.ZIndex = 29
+
+                    local NameHovered = false
+                    local CardHovered = false
+                    local function UpdateNameCardHover()
+                        local Visible = NameHovered or CardHovered
+                        StatCard.Visible = Visible
+                        if NameHovered then
+                            SubItems["PlayerName"].Instance.TextColor3 = FromRGB(255, 0, 255)
+                        else
+                            SubItems["PlayerName"].Instance.TextColor3 = Library.Theme.Text
+                        end
+                    end
+
+                    SubItems["PlayerName"].Instance.MouseEnter:Connect(function()
+                        NameHovered = true
+                        UpdateNameCardHover()
+                    end)
+
+                    SubItems["PlayerName"].Instance.MouseLeave:Connect(function()
+                        NameHovered = false
+                        task.defer(UpdateNameCardHover)
+                    end)
+
+                    StatCard.MouseEnter:Connect(function()
+                        CardHovered = true
+                        UpdateNameCardHover()
+                    end)
+
+                    StatCard.MouseLeave:Connect(function()
+                        CardHovered = false
+                        task.defer(UpdateNameCardHover)
+                    end)
 
                     SubItems["Timestamp"] = Instances:Create("TextLabel", {
                         Parent = SubItems["Message1"].Instance,
@@ -9235,17 +9327,13 @@ local Library do
             Icon = "rbxassetid://10723407389",
         })
 
-        -- Home tab should always be first
         HomeTab.Items["Inactive"].Instance.LayoutOrder = -1
 
-        -- Move HomeTab to front of Pages array
         local _pages = Window.Pages
         if _pages[#_pages] == HomeTab then
             table.remove(_pages, #_pages)
             table.insert(_pages, 1, HomeTab)
         end
-
-        -- Deactivate any currently active tab and activate HomeTab
         for _, _page in ipairs(Window.Pages) do
             if _page ~= HomeTab and _page.Active then
                 _page:Turn(false)
