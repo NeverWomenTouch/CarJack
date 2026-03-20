@@ -5150,10 +5150,12 @@ local Library do
             local function FormatMessageTimestamp(Value)
                 local Timestamp = tonumber(Value)
                 if not Timestamp then
-                    return OsDate("%d/%m/%Y %H:%M")
+                    local Fallback = OsDate("%I:%M %p")
+                    return StringGSub(Fallback, "^0", "")
                 end
 
-                return OsDate("%d/%m/%Y %H:%M", MathFloor(Timestamp / 1000))
+                local Formatted = OsDate("%I:%M %p", MathFloor(Timestamp / 1000))
+                return StringGSub(Formatted, "^0", "")
             end
 
             local function SetConnectedCount(Count)
@@ -5373,6 +5375,8 @@ local Library do
 
                 local SenderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
                 local Username = Toggle.Value and "Anonymous" or GetLocalUsername()
+                local GameName = GetLocalGameName()
+                local JoinedAt = BackendState.JoinTime or (os.time() * 1000)
 
                 if BackendState.Socket then
                     local Encoded = JsonEncode({
@@ -5381,7 +5385,10 @@ local Library do
                         clientId = BackendState.ClientId,
                         senderId = SenderId,
                         username = Username,
-                        anonymous = Toggle.Value
+                        anonymous = Toggle.Value,
+                        gameName = GameName,
+                        placeId = game.PlaceId,
+                        joinedAt = JoinedAt
                     })
 
                     if Encoded then
@@ -5400,7 +5407,10 @@ local Library do
                         senderId = SenderId,
                         username = Username,
                         typing = IsTyping,
-                        anonymous = Toggle.Value
+                        anonymous = Toggle.Value,
+                        gameName = GameName,
+                        placeId = game.PlaceId,
+                        joinedAt = JoinedAt
                     }),
                     Method = "GET",
                     Headers = GetRequestHeaders(Config)
@@ -5421,6 +5431,9 @@ local Library do
                         clientId = BackendState.ClientId,
                         senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
                         username = Toggle.Value and "Anonymous" or GetLocalUsername(),
+                        gameName = GetLocalGameName(),
+                        placeId = game.PlaceId,
+                        joinedAt = BackendState.JoinTime,
                         typing = IsTyping,
                         anonymous = Toggle.Value,
                         afterId = AfterId,
@@ -5987,7 +6000,10 @@ local Library do
                         token = BackendState.Config.Token,
                         clientId = BackendState.ClientId,
                         senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
-                        username = GetLocalUsername()
+                        username = GetLocalUsername(),
+                        gameName = GetLocalGameName(),
+                        placeId = game.PlaceId,
+                        joinedAt = BackendState.JoinTime
                     })
 
                     local Success, Socket = pcall(function()
@@ -6415,7 +6431,8 @@ local Library do
                     local StatCard = InstanceNew("Frame")
                     StatCard.Name = "\0"
                     StatCard.Parent = SubItems["Message1"].Instance
-                    StatCard.Position = UDim2New(0, 43, 0, 18 + ReplyOffsetY)
+                    StatCard.AnchorPoint = Vector2New(0, 1)
+                    StatCard.Position = UDim2New(0, 43, 0, ReplyOffsetY - 2)
                     StatCard.Size = UDim2New(0, 230, 0, 36)
                     StatCard.BackgroundColor3 = FromRGB(41, 40, 49)
                     StatCard.BackgroundTransparency = 0.08
