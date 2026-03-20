@@ -481,6 +481,9 @@ local Library do
                 PremiumOnly = false
         })
 
+        -- Global Chat should always be the last tab
+        GlobalChatTab.Items["Inactive"].Instance.LayoutOrder = 99999
+
         local SubTab = GlobalChatTab:AddSubTab({
                 Name = Window.GlobalChatOptions.SubTabName,
                 Columns = 1
@@ -9229,10 +9232,28 @@ local Library do
     Library.CreateHomeTab = function(self, Window, DiscordLink)
         local HomeTab = Window:MakeTab({
             Name = "Home",
+            Icon = "rbxassetid://10723407389",
         })
 
-        HomeTab.Items["Columns"]:Clean()
-        HomeTab.Items["SubPages"]:Clean()
+        -- Home tab should always be first
+        HomeTab.Items["Inactive"].Instance.LayoutOrder = -1
+
+        -- Move HomeTab to front of Pages array
+        local _pages = Window.Pages
+        if _pages[#_pages] == HomeTab then
+            table.remove(_pages, #_pages)
+            table.insert(_pages, 1, HomeTab)
+        end
+
+        -- Deactivate any currently active tab and activate HomeTab
+        for _, _page in ipairs(Window.Pages) do
+            if _page ~= HomeTab and _page.Active then
+                _page:Turn(false)
+            end
+        end
+        if not HomeTab.Active then
+            HomeTab:Turn(true)
+        end
 
         local Items = { } do
             Items["SessionInfo"] = Instances:Create("Frame", {
@@ -9325,14 +9346,14 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["CurrentPlayers"]:AddToTheme({TextColor3 = "Text"})
 
-            Items["CurrentPlayers"].Instance.Text = #Players:GetPlayers() .. " active players are playing"
+            Items["CurrentPlayers"].Instance.Text = #Players:GetPlayers() .. " players currently online"
 
             Library:Connect(Players.PlayerAdded, function(player)
-                Items["CurrentPlayers"].Instance.Text = #Players:GetPlayers() .. " active players are playing"
+                Items["CurrentPlayers"].Instance.Text = #Players:GetPlayers() .. " players currently online"
             end)
 
             Library:Connect(Players.PlayerRemoving, function(player)
-                Items["CurrentPlayers"].Instance.Text = #Players:GetPlayers() .. " active players are playing"
+                Items["CurrentPlayers"].Instance.Text = #Players:GetPlayers() .. " players currently online"
             end)
 
             Items["MaxPlayers"] = Instances:Create("Frame", {
@@ -9409,7 +9430,7 @@ local Library do
                 AnchorPoint = Vector2New(0, 0.5),
                 Image = Content,
                 Position = UDim2New(0, 10, 0.5, 0),
-                Size = UDim2New(0, 60, 0, 60),
+                Size = UDim2New(0, 44, 0, 44),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(26, 25, 31)
             })  Items["AccountAvatar"]:AddToTheme({BackgroundColor3 = "Inline"})
@@ -9419,39 +9440,55 @@ local Library do
                 Name = "\0"
             })
 
-            Items["AccountUserID"] = Instances:Create("TextLabel", {
+            Items["AccountDisplayName"] = Instances:Create("TextLabel", {
                 Parent = Items["AccountInformation"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(255, 255, 255),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = LocalPlayer.UserId,
-                Size = UDim2New(1, -93, 0, 15),
-                Position = UDim2New(0, 85, 0, 23),
+                Text = LocalPlayer.DisplayName,
+                Size = UDim2New(1, -72, 0, 16),
+                Position = UDim2New(0, 64, 0, 5),
                 BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 BorderSizePixel = 0,
-                RichText = true,
-                TextSize = 14,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["AccountUserID"]:AddToTheme({TextColor3 = "Text"})
+                TextSize = 15
+            })
+            Items["AccountDisplayName"]:AddToTheme({TextColor3 = "Text"})
 
-            Items["AccountName"] = Instances:Create("TextLabel", {
+            Items["AccountUsername"] = Instances:Create("TextLabel", {
                 Parent = Items["AccountInformation"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(255, 255, 255),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = LocalPlayer.Name,
-                Size = UDim2New(1, -93, 0, 15),
-                Position = UDim2New(0, 85, 0, 8),
+                TextTransparency = 0.4,
+                Text = "@" .. LocalPlayer.Name,
+                Size = UDim2New(1, -72, 0, 13),
+                Position = UDim2New(0, 64, 0, 22),
                 BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 BorderSizePixel = 0,
-                RichText = true,
-                TextSize = 14,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["AccountName"]:AddToTheme({TextColor3 = "Text"})
+                TextSize = 13
+            })
+            Items["AccountUsername"]:AddToTheme({TextColor3 = "Text"})
+
+            local joinDate = os.date("%b %d, %Y", os.time() - (LocalPlayer.AccountAge * 86400))
+
+            Items["AccountMeta"] = Instances:Create("TextLabel", {
+                Parent = Items["AccountInformation"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                TextTransparency = 0.5,
+                Text = "Age: " .. LocalPlayer.AccountAge .. " days | Joined: " .. joinDate,
+                Size = UDim2New(1, -72, 0, 13),
+                AnchorPoint = Vector2New(0, 1),
+                Position = UDim2New(0, 64, 1, -6),
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                BorderSizePixel = 0,
+                TextSize = 12
+            })
+            Items["AccountMeta"]:AddToTheme({TextColor3 = "Text"})
 
             Items["Discord"] = Instances:Create("Frame", {
                 Parent = HomeTab.Items["Page"].Instance,
@@ -9486,8 +9523,8 @@ local Library do
                 AnchorPoint = Vector2New(0, 0.5),
                 Image = getAsset("98752033517234.png"),
                 BackgroundTransparency = 1,
-                Position = UDim2New(0, 18, 0.5, 0),
-                Size = UDim2New(0, 64, 0, 64),
+                Position = UDim2New(0, 14, 0.5, 0),
+                Size = UDim2New(0, 42, 0, 42),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
@@ -9503,13 +9540,15 @@ local Library do
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(255, 255, 255),
                 BorderColor3 = FromRGB(0, 0, 0),
-                Text = "Are you not in our discord yet?",
-                Size = UDim2New(1, -108, 0, 15),
+                Text = "Not in our discord server yet?",
+                Size = UDim2New(1, -82, 0.5, 0),
                 BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Position = UDim2New(0, 95, 0, 25),
+                TextYAlignment = Enum.TextYAlignment.Center,
+                Position = UDim2New(0, 70, 0, 0),
                 BorderSizePixel = 0,
-                TextSize = 17,
+                TextSize = 15,
+                TextWrapped = true,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["AreYouNotInOurDiscordYet"]:AddToTheme({TextColor3 = "Text"})
 
@@ -9521,21 +9560,69 @@ local Library do
                 BorderColor3 = FromRGB(0, 0, 0),
                 Text = "",
                 AutoButtonColor = false,
-                Position = UDim2New(0, 95, 0, 50),
-                Size = UDim2New(0, 200, 0, 40),
+                Position = UDim2New(0, 70, 0.5, 4),
+                Size = UDim2New(0, 150, 0.5, -8),
                 BorderSizePixel = 0,
                 TextSize = 14,
                 BackgroundColor3 = FromRGB(17, 16, 20)
             })  Items["JoinDiscord"]:AddToTheme({BackgroundColor3 = "Background"})
 
-            Items["JoinDiscord"]:Connect("InputBegan", function(Input)
-                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-                    if DiscordLink then
-                        setclipboard(tostring(DiscordLink))
-                    end
-                end
+            Items["DiscordDescription"] = Instances:Create("TextLabel", {
+                Parent = Items["Discord"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                TextTransparency = 0.4,
+                Text = "Join to suggest features, report bugs, and connect with the community!",
+
+                Size = UDim2New(1, -235, 0.5, -8),
+                Position = UDim2New(0, 225, 0.5, 4),
+
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Center,
+
+                TextScaled = true,
+                TextWrapped = true,
+
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })  Items["DiscordDescription"]:AddToTheme({TextColor3 = "Text"})
+
+
+            Items["JoinDiscord"]:Connect("MouseEnter", function()
+                Items["JoinDiscord"]:Tween(nil, {
+                    BackgroundColor3 = FromRGB(30, 28, 36),
+                    Size = UDim2New(0, 155, 0.5, -6)
+                })
             end)
 
+            Items["JoinDiscord"]:Connect("MouseLeave", function()
+                Items["JoinDiscord"]:Tween(nil, {
+                    BackgroundColor3 = FromRGB(17, 16, 20),
+                    Size = UDim2New(0, 150, 0.5, -8)
+                })
+            end)
+
+            Items["JoinDiscord"]:Connect("InputBegan", function(Input)
+                    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                        
+                        Items["JoinDiscord"]:Tween(nil, {Size = UDim2New(0, 145, 0.5, -10)})
+                        task.wait(0.08)
+                        Items["JoinDiscord"]:Tween(nil, {Size = UDim2New(0, 150, 0.5, -8)})
+
+                        if DiscordLink then
+                            setclipboard(tostring(DiscordLink))
+                            pcall(function()
+                                Library:MakeNotification({
+                                    Name = "Discord",
+                                    Content = "Invite copied to clipboard",
+                                    Time = 3
+                                })
+                            end)
+                        end
+                    end
+                end)
             Instances:Create("UICorner", {
                 Parent = Items["JoinDiscord"].Instance,
                 Name = "\0"
@@ -9555,12 +9642,12 @@ local Library do
                 TextColor3 = FromRGB(255, 255, 255),
                 BorderColor3 = FromRGB(0, 0, 0),
                 Text = "Join discord",
-                AnchorPoint = Vector2New(0, 0.5),
+                AnchorPoint = Vector2New(0.5, 0.5),
                 BackgroundTransparency = 1,
-                Position = UDim2New(0, 0, 0.5, 0),
+                Position = UDim2New(0.5, 0, 0.5, 0),
                 Size = UDim2New(1, 0, 1, 0),
                 BorderSizePixel = 0,
-                TextSize = 18,
+                TextSize = 15,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["JoinDıscordText"]:AddToTheme({TextColor3 = "Text"})
 
@@ -9611,13 +9698,13 @@ local Library do
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(255, 255, 255),
                 BorderColor3 = FromRGB(0, 0, 0),
-                Text = getexecutorname(),
-                Size = UDim2New(1, -16, 0, 15),
+                Text = "Executor: " .. getexecutorname(),
+                Size = UDim2New(1, -28, 0, 22),
                 BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Position = UDim2New(0, 8, 0, 35),
+                Position = UDim2New(0, 8, 0, 27),
                 BorderSizePixel = 0,
-                TextSize = 33,
+                TextSize = 18,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["BigExecutorText"]:AddToTheme({TextColor3 = "Text"})
 
@@ -9627,16 +9714,23 @@ local Library do
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(255, 255, 255),
                 TextTransparency = 0.4000000059604645,
-                Text = "Which is supported for this script.",
-                Size = UDim2New(1, -16, 0, 15),
-                Position = UDim2New(0, 8, 0, 60),
+                Text = "Some features may not work properly.",
+                Size = UDim2New(1, -28, 0, 14),
+                AnchorPoint = Vector2New(0, 1),
+                Position = UDim2New(0, 8, 1, -8),
                 BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 BorderSizePixel = 0,
                 BorderColor3 = FromRGB(0, 0, 0),
-                TextSize = 14,
+                TextSize = 13,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["IsSupportedText"]:AddToTheme({TextColor3 = "Text"})
+            local exec = (identifyexecutor and identifyexecutor() or getexecutorname() or ""):lower()
+            if exec:find("xeno") or exec:find("solara") or exec:find("velocity") then
+                Items["IsSupportedText"].Instance.Text = "Some features may not work properly."
+            else
+                Items["IsSupportedText"].Instance.Text = "Fully supported executor."
+            end
         end
     end
 end
