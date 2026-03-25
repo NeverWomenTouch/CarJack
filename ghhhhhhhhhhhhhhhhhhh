@@ -2785,8 +2785,8 @@ local Library do
         end
 
         local Duration = tonumber(Data.Time) or 7
-        if Duration < 3 then
-            Duration = 3
+        if Duration < 1 then
+            Duration = 1
         end
 
         local Items = { } do
@@ -2854,7 +2854,7 @@ local Library do
                 TextWrapped = true,
                 TextXAlignment = Enum.TextXAlignment.Center,
                 AutomaticSize = Enum.AutomaticSize.Y,
-                TextSize = 12,
+                TextSize = 13,
                 ZIndex = 201,
                 LayoutOrder = 1
             })
@@ -2872,7 +2872,7 @@ local Library do
                 TextWrapped = true,
                 TextXAlignment = Enum.TextXAlignment.Center,
                 AutomaticSize = Enum.AutomaticSize.Y,
-                TextSize = 20,
+                TextSize = 22,
                 ZIndex = 201,
                 LayoutOrder = 2
             })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
@@ -2891,7 +2891,7 @@ local Library do
                 TextXAlignment = Enum.TextXAlignment.Center,
                 BorderColor3 = FromRGB(0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
-                TextSize = 14,
+                TextSize = 16,
                 ZIndex = 201,
                 LayoutOrder = 3
             })  Items["Description"]:AddToTheme({TextColor3 = "Text"})
@@ -2959,6 +2959,9 @@ local Library do
         end
         self.ActiveGlobalAnnouncement = Items
 
+        local SlideInTweenInfo = TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        local SlideOutTweenInfo = TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
         for _, Value in Items do
             if Value.Instance:IsA("Frame") then
                 Value.Instance.BackgroundTransparency = 1
@@ -2984,9 +2987,10 @@ local Library do
                 end
             end
 
-            Items["Notification"]:Tween(TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            local SlideIn = TweenService:Create(Items["Notification"].Instance, SlideInTweenInfo, {
                 Position = UDim2New(0.5, 0, 0, 18)
             })
+            SlideIn:Play()
             Items["Accent"]:Tween(TweenInfo.new(Duration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Size = UDim2New(0, 0, 1, 0)})
 
             task.delay(Duration, function()
@@ -3004,9 +3008,10 @@ local Library do
                     end
                 end
 
-                Items["Notification"]:Tween(TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                local SlideOut = TweenService:Create(Items["Notification"].Instance, SlideOutTweenInfo, {
                     Position = UDim2New(0.5, 0, 0, -140)
                 })
+                SlideOut:Play()
                 task.wait(0.35)
                 if self.ActiveGlobalAnnouncement == Items then
                     self.ActiveGlobalAnnouncement = nil
