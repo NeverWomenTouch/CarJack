@@ -6751,6 +6751,8 @@ local Library do
                     DismissJumpBanner()
                 end
 
+                local WasAtBottomBeforeRender = GetDistanceFromBottom() <= NearBottomThreshold
+
                 local function CreateBubble(Parent, GroupFrame, StackFrame)
                     local BubbleItems = { }
 
@@ -6984,10 +6986,9 @@ local Library do
 
                 local HasReply = ReplyTo and type(ReplyTo) == "table" and ReplyTo.id
                 if not HasReply and LastGroup and LastGroup.GroupKey == GroupKey and LastGroup.IsAnonymous == ShouldHideIdentity and LastGroup.IsLocalPlayer == IsLocalPlayer then
-                    local WasAtBottom = IsMessagesAtBottom()
                     CreateBubble(LastGroup.Stack, LastGroup.Group, LastGroup.Stack)
                     task.defer(function()
-                        if WasAtBottom then
+                        if WasAtBottomBeforeRender then
                             ScrollMessagesToBottom()
                         else
                             RegisterScrolledUpMessage()
@@ -7275,6 +7276,14 @@ local Library do
                     CreateBubble(SubItems["MessageStack"].Instance, SubItems["Message1"].Instance, SubItems["MessageStack"].Instance)  -- raw Instances passed directly
                 end
 
+                task.defer(function()
+                    if WasAtBottomBeforeRender then
+                        ScrollMessagesToBottom()
+                    else
+                        RegisterScrolledUpMessage()
+                    end
+                end)
+
                 BackendState.LastRenderedGroup = {
                     GroupKey = GroupKey,
                     IsAnonymous = ShouldHideIdentity,
@@ -7283,15 +7292,6 @@ local Library do
                     Group = SubItems["Message1"].Instance
                 }
             end
-
-            Items["Messages"]:Connect("ChildAdded", function()
-                wait() -- wait so we ensure the child is added
-                if IsMessagesAtBottom() then
-                    ScrollMessagesToBottom()
-                else
-                    RegisterScrolledUpMessage()
-                end
-            end)
 
             Items["JumpToLatest"]:Connect("MouseButton1Click", function()
                 ScrollMessagesToBottom()
