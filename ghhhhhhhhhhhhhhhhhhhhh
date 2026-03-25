@@ -5514,6 +5514,7 @@ local Library do
                 PlaceIdFilter = (Data and Data.PlaceIdFilter) and tonumber(Data.PlaceIdFilter) or nil,
                 TimedOutUsers = { },
                 TimeoutIconsBySenderId = { },
+                ChatLockedUntil = nil,
                 ScrolledUpNewCount = 0,
                 ScrolledUpSinceTime = nil,
                 MessageBottomDistance = 0,
@@ -5525,6 +5526,7 @@ local Library do
             local IsLocalMessage
             local GetRequestHeaders
             local BuildAuthorizedUrl
+            local UpdateRestrictionBanner
 
             local function SetConnectionAppearance(Text, Color)
                 ChatSystem:SetConnectedText(Text)
@@ -6002,6 +6004,22 @@ local Library do
                     return
                 end
 
+                if type(Payload.chatLock) == "table" then
+                    BackendState.ChatLockedUntil = tonumber(Payload.chatLock.expiresAt) or nil
+                    if UpdateRestrictionBanner then
+                        UpdateRestrictionBanner()
+                    end
+                elseif Payload.type == "chat_lock" then
+                    BackendState.ChatLockedUntil = nil
+                    if UpdateRestrictionBanner then
+                        UpdateRestrictionBanner()
+                    end
+                end
+
+                if Payload.type == "chat_lock" then
+                    return
+                end
+
                 if Payload.type == "delete" then
                     local NumId = tonumber(Payload.id)
                     if NumId and not BackendState.ProcessedDeletes[NumId] then
@@ -6155,6 +6173,14 @@ local Library do
                     return false
                 end
 
+                local LockedUntil = tonumber(BackendState.ChatLockedUntil)
+                if LockedUntil and LockedUntil > (os.time() * 1000) then
+                    if UpdateRestrictionBanner then
+                        UpdateRestrictionBanner()
+                    end
+                    return false
+                end
+
                 local Payload = {
                     type = "message",
                     username = GetLocalUsername(),
@@ -6198,6 +6224,13 @@ local Library do
                 })
 
                 if not Success then
+                    local Parsed = JsonDecode(ResponseBody)
+                    if type(Parsed) == "table" and type(Parsed.chatLock) == "table" then
+                        BackendState.ChatLockedUntil = tonumber(Parsed.chatLock.expiresAt) or nil
+                        if UpdateRestrictionBanner then
+                            UpdateRestrictionBanner()
+                        end
+                    end
                     local ErrText = type(ResponseBody) == "string" and StringSub(ResponseBody, 1, 40) or "HTTP error"
                     SetConnectionAppearance("Send failed: " .. ErrText, FromRGB(255, 120, 120))
                     return false
@@ -6722,45 +6755,64 @@ local Library do
                     local LocalSidStr = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
                     local CountdownThread = nil
 
-                    local function StartCountdown(ExpiresAtMs)
-                        if CountdownThread then
-                            task.cancel(CountdownThread)
-                            CountdownThread = nil
+                    local function FormatRestrictionTime(Remaining)
+                        local Hours = math.floor(Remaining / 3600)
+                        local Minutes = math.floor((Remaining % 3600) / 60)
+                        local Seconds = Remaining % 60
+                        if Hours > 0 then
+                            return string.format("%dh %02dm %02ds", Hours, Minutes, Seconds)
                         end
-                        CountdownThread = task.spawn(function()
-                            while not BackendState.Destroyed do
-                                local Remaining = math.max(0, math.floor((ExpiresAtMs - os.time() * 1000) / 1000))
-                                if Remaining <= 0 then
-                                    if Items["TimeoutBanner"] then
-                                        Items["TimeoutBanner"].Instance.Visible = false
-                                    end
-                                    if Items["TimeoutCircle"] then
-                                        Items["TimeoutCircle"].Instance.Visible = false
-                                    end
-                                    if Items["ConnectedText"] then
-                                        Items["ConnectedText"].Instance.Visible = true
-                                    end
-                                    if Items["ConnectedCircle"] then
-                                        Items["ConnectedCircle"].Instance.Visible = true
-                                    end
-                                    break
-                                end
-                                local Hours   = math.floor(Remaining / 3600)
-                                local Minutes = math.floor((Remaining % 3600) / 60)
-                                local Seconds = Remaining % 60
-                                local Fmt
-                                if Hours > 0 then
-                                    Fmt = string.format("%dh %02dm %02ds", Hours, Minutes, Seconds)
-                                else
-                                    Fmt = string.format("%dm %02ds", Minutes, Seconds)
-                                end
-                                if Items["TimeoutBanner"] then
-                                    Items["TimeoutBanner"].Instance.Text = "You're timed out for: " .. Fmt
-                                end
-                                task.wait(1)
-                            end
-                        end)
+                        return string.format("%dm %02ds", Minutes, Seconds)
                     end
+
+                    UpdateRestrictionBanner = function()
+                        local NowMs = os.time() * 1000
+                        local LocalTimeoutExpires = tonumber(BackendState.TimedOutUsers[LocalSidStr] or 0) or 0
+                        local ChatLockExpires = tonumber(BackendState.ChatLockedUntil or 0) or 0
+
+                        if LocalTimeoutExpires > 0 and LocalTimeoutExpires <= NowMs then
+                            BackendState.TimedOutUsers[LocalSidStr] = nil
+                            LocalTimeoutExpires = 0
+                        end
+
+                        if ChatLockExpires > 0 and ChatLockExpires <= NowMs then
+                            BackendState.ChatLockedUntil = nil
+                            ChatLockExpires = 0
+                        end
+
+                        local BannerText = nil
+                        if LocalTimeoutExpires > NowMs then
+                            BannerText = "You're timed out for: " .. FormatRestrictionTime(math.max(0, math.floor((LocalTimeoutExpires - NowMs) / 1000)))
+                        elseif ChatLockExpires > NowMs then
+                            BannerText = "Chat is currently locked for: " .. FormatRestrictionTime(math.max(0, math.floor((ChatLockExpires - NowMs) / 1000)))
+                        end
+
+                        local ShowBanner = BannerText ~= nil
+                        if Items["TimeoutBanner"] then
+                            Items["TimeoutBanner"].Instance.Visible = ShowBanner
+                            if ShowBanner then
+                                Items["TimeoutBanner"].Instance.Text = BannerText
+                            end
+                        end
+                        if Items["TimeoutCircle"] then
+                            Items["TimeoutCircle"].Instance.Visible = ShowBanner
+                        end
+                        if Items["ConnectedText"] then
+                            Items["ConnectedText"].Instance.Visible = not ShowBanner
+                        end
+                        if Items["ConnectedCircle"] then
+                            Items["ConnectedCircle"].Instance.Visible = not ShowBanner
+                        end
+                    end
+
+                    CountdownThread = task.spawn(function()
+                        while not BackendState.Destroyed do
+                            if UpdateRestrictionBanner then
+                                UpdateRestrictionBanner()
+                            end
+                            task.wait(1)
+                        end
+                    end)
 
                     while not BackendState.Destroyed do
                         local Cfg = BackendState.Config
@@ -6774,16 +6826,12 @@ local Library do
                                 local TData = JsonDecode(Body)
                                 if type(TData) == "table" and type(TData.timedOut) == "table" then
                                     local NewTimedOut = { }
-                                    local LocalExpiresAt = nil
                                     for _, Entry in TData.timedOut do
                                         if type(Entry) == "table" then
                                             local Sid = tostring(Entry.senderId or "")
                                             local Exp = tonumber(Entry.expiresAt) or 0
                                             if Sid ~= "" then
                                                 NewTimedOut[Sid] = Exp
-                                                if Sid == LocalSidStr then
-                                                    LocalExpiresAt = Exp
-                                                end
                                             end
                                         end
                                     end
@@ -6795,19 +6843,13 @@ local Library do
                                         end
                                     end
                                     BackendState.TimedOutUsers = NewTimedOut
-                                    -- Show/hide local timeout banner
-                                    if LocalExpiresAt then
-                                        if Items["ConnectedText"] then Items["ConnectedText"].Instance.Visible = false end
-                                        if Items["ConnectedCircle"] then Items["ConnectedCircle"].Instance.Visible = false end
-                                        if Items["TimeoutBanner"] then Items["TimeoutBanner"].Instance.Visible = true end
-                                        if Items["TimeoutCircle"] then Items["TimeoutCircle"].Instance.Visible = true end
-                                        StartCountdown(LocalExpiresAt)
+                                    if type(TData.chatLock) == "table" then
+                                        BackendState.ChatLockedUntil = tonumber(TData.chatLock.expiresAt) or nil
                                     else
-                                        if CountdownThread then task.cancel(CountdownThread) CountdownThread = nil end
-                                        if Items["TimeoutBanner"] then Items["TimeoutBanner"].Instance.Visible = false end
-                                        if Items["TimeoutCircle"] then Items["TimeoutCircle"].Instance.Visible = false end
-                                        if Items["ConnectedText"] then Items["ConnectedText"].Instance.Visible = true end
-                                        if Items["ConnectedCircle"] then Items["ConnectedCircle"].Instance.Visible = true end
+                                        BackendState.ChatLockedUntil = nil
+                                    end
+                                    if UpdateRestrictionBanner then
+                                        UpdateRestrictionBanner()
                                     end
                                 end
                             end
@@ -7754,6 +7796,18 @@ local Library do
 
                 local Config = BackendState.Config or Library.GlobalChat
                 local SlowMode = tonumber(Config and Config.SlowModeTimer) or 1
+                local LockedUntil = tonumber(BackendState.ChatLockedUntil)
+                if LockedUntil and LockedUntil > (os.time() * 1000) then
+                    Items["SendButton"].Instance.BackgroundColor3 = FromRGB(255, 80, 80)
+                    task.delay(0.4, function()
+                        Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
+                    end)
+                    if UpdateRestrictionBanner then
+                        UpdateRestrictionBanner()
+                    end
+                    return false
+                end
+
                 if SlowMode > 0 and not IsLocalAdmin() then
                     local Elapsed = os.clock() - BackendState.LastMessageSentAt
                     if Elapsed < SlowMode then
