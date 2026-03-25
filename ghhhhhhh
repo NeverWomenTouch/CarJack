@@ -4834,8 +4834,8 @@ local Library do
                     BackgroundColor3 = FromRGB(41, 40, 49),
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
-                    AnchorPoint = Vector2New(0.5, 1),
-                    Position = UDim2New(0.5, 0, 1, -55),
+                    AnchorPoint = Vector2New(0.5, 0),
+                    Position = UDim2New(0.5, 0, 0, 12),
                     Size = UDim2New(0, 220, 0, 30),
                     AutomaticSize = Enum.AutomaticSize.X,
                     ClipsDescendants = false,
@@ -5256,6 +5256,7 @@ local Library do
                 TimeoutIconsBySenderId = { },
                 ScrolledUpNewCount = 0,
                 ScrolledUpSinceTime = nil,
+                MessageBottomDistance = 0,
             }
 
             local OnMessagePressed = { }
@@ -6640,16 +6641,30 @@ local Library do
                     return GameText, FormatMessageTimestamp(JoinValue)
                 end
 
-                local JumpBannerShownPosition = UDim2New(0.5, 0, 1, -55)
-                local JumpBannerHiddenPosition = UDim2New(0.5, 0, 1, -43)
+                local JumpBannerShownPosition = UDim2New(0.5, 0, 0, 12)
+                local JumpBannerHiddenPosition = UDim2New(0.5, 0, 0, -8)
+                local NearBottomThreshold = 140
 
-                local function IsMessagesAtBottom()
+                local function GetBottomCanvasPosition()
                     local Scroll = Items["Messages"] and Items["Messages"].Instance
                     if not Scroll then
-                        return true
+                        return 0
                     end
 
-                    return (Scroll.AbsoluteCanvasSize.Y - Scroll.CanvasPosition.Y - Scroll.AbsoluteSize.Y) < 48
+                    return math.max(0, Scroll.AbsoluteCanvasSize.Y - Scroll.AbsoluteSize.Y)
+                end
+
+                local function GetDistanceFromBottom()
+                    local Scroll = Items["Messages"] and Items["Messages"].Instance
+                    if not Scroll then
+                        return 0
+                    end
+
+                    return math.max(0, GetBottomCanvasPosition() - Scroll.CanvasPosition.Y)
+                end
+
+                local function IsMessagesAtBottom()
+                    return (BackendState.MessageBottomDistance or 0) <= NearBottomThreshold
                 end
 
                 local function UpdateJumpBannerText()
@@ -6729,7 +6744,10 @@ local Library do
                         return
                     end
 
-                    Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Scroll.AbsoluteCanvasSize.Y - Scroll.AbsoluteSize.Y)})
+                    local TargetY = GetBottomCanvasPosition()
+                    Scroll.CanvasPosition = Vector2New(0, TargetY)
+                    Items["Messages"]:Tween(TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CanvasPosition = Vector2New(0, TargetY)})
+                    BackendState.MessageBottomDistance = 0
                     DismissJumpBanner()
                 end
 
@@ -7268,9 +7286,8 @@ local Library do
 
             Items["Messages"]:Connect("ChildAdded", function()
                 wait() -- wait so we ensure the child is added
-                local Scroll = Items["Messages"].Instance
                 if IsMessagesAtBottom() then
-                    Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Scroll.AbsoluteCanvasSize.Y - Scroll.AbsoluteSize.Y)})
+                    ScrollMessagesToBottom()
                 else
                     RegisterScrolledUpMessage()
                 end
@@ -7282,9 +7299,14 @@ local Library do
 
             -- Detect manual scroll to bottom
             Items["Messages"].Instance:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+                BackendState.MessageBottomDistance = GetDistanceFromBottom()
                 if IsMessagesAtBottom() then
                     DismissJumpBanner()
                 end
+            end)
+
+            task.defer(function()
+                BackendState.MessageBottomDistance = GetDistanceFromBottom()
             end)
 
             local function CommitTypedMessage()
