@@ -5675,12 +5675,19 @@ local Library do
                     return
                 end
 
-                local MessageText = FilterMessageText(tostring(MessageData.message or ""), tostring(MessageData.senderId or ""))
+                local IsExternalMessage = MessageData.external and true or false
+                local MessageText = IsExternalMessage
+                    and tostring(MessageData.message or "")
+                    or FilterMessageText(tostring(MessageData.message or ""), tostring(MessageData.senderId or ""))
                 if MessageText == "" then
                     return
                 end
 
                 TrackUnreadMessage(MessageData, SkipUnread)
+
+                local SenderKey = IsExternalMessage
+                    and ("external:" .. tostring(MessageData.id or MessageData.createdAt or os.time()))
+                    or GetMessageSenderKey(MessageData, MessageData.username or "Unknown", MessageData.anonymous)
 
                 ChatSystem:SendMessage(
                     MessageData.avatar or Content,
@@ -5689,7 +5696,7 @@ local Library do
                     IsLocalMessage(MessageData),
                     MessageData.anonymous,
                     MessageData.createdAt,
-                    GetMessageSenderKey(MessageData, MessageData.username or "Unknown", MessageData.anonymous),
+                    SenderKey,
                     MessageData.id,
                     MessageData.replyTo,
                     MessageData
@@ -6791,8 +6798,15 @@ local Library do
                 local LastGroup = BackendState.LastRenderedGroup
                 local MessageIdNum = tonumber(MessageId)
                 local RawMessage = tostring(Message)
+                local IsExternalMessage = type(MessageMeta) == "table" and MessageMeta.external == true
 
                 local function FormatRichMessage(Text)
+                    if IsExternalMessage then
+                        local Escaped = EscapeRichText(Text)
+                        Escaped = StringGSub(Escaped, "\n", "<br/>")
+                        return '<font color="#FFD54A" size="18"><b>EXTERNAL MESSAGE:</b></font><br/><font color="#FFF1A6" size="17">' .. Escaped .. '</font>'
+                    end
+
                     Text = EscapeRichText(Text)
                     Text = StringGSub(Text, "\n", "<br/>")
                     return Text
@@ -6846,10 +6860,13 @@ local Library do
                         BorderColor3 = FromRGB(0, 0, 0),
                         BorderSizePixel = 0,
                         AutomaticSize = Enum.AutomaticSize.XY,
-                        BackgroundColor3 = FromRGB(17, 16, 20),
-                        BackgroundTransparency = 1,
+                        BackgroundColor3 = IsExternalMessage and FromRGB(92, 70, 0) or FromRGB(17, 16, 20),
+                        BackgroundTransparency = IsExternalMessage and 0.1 or 1,
                         ClipsDescendants = false
-                    })  BubbleItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
+                    })
+                    if not IsExternalMessage then
+                        BubbleItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
+                    end
 
                     Instances:Create("UICorner", {
                         Parent = BubbleItems["RealMessage"].Instance,
@@ -6857,11 +6874,21 @@ local Library do
                         CornerRadius = UDimNew(0, 4)
                     })
 
+                    if IsExternalMessage then
+                        Instances:Create("UIStroke", {
+                            Parent = BubbleItems["RealMessage"].Instance,
+                            Name = "\0",
+                            Color = FromRGB(255, 213, 74),
+                            Thickness = 1.5,
+                            Transparency = 0.1
+                        })
+                    end
+
                     BubbleItems["MessageText"] = Instances:Create("TextLabel", {
                         Parent = BubbleItems["RealMessage"].Instance,
                         Name = "\0",
                         FontFace = Library.Font,
-                        TextColor3 = FromRGB(255, 255, 255),
+                        TextColor3 = IsExternalMessage and FromRGB(255, 241, 166) or FromRGB(255, 255, 255),
                         BorderColor3 = FromRGB(0, 0, 0),
                         Text = FormatRichMessage(RawMessage),
                         RichText = true,
@@ -6870,16 +6897,19 @@ local Library do
                         TextXAlignment = Enum.TextXAlignment.Left,
                         TextWrapped = true,
                         AutomaticSize = Enum.AutomaticSize.XY,
-                        TextSize = 14
-                    })  BubbleItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
+                        TextSize = IsExternalMessage and 18 or 14
+                    })
+                    if not IsExternalMessage then
+                        BubbleItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
+                    end
 
                     Instances:Create("UIPadding", {
                         Parent = BubbleItems["RealMessage"].Instance,
                         Name = "\0",
-                        PaddingTop = UDimNew(0, 8),
-                        PaddingBottom = UDimNew(0, 8),
-                        PaddingRight = UDimNew(0, 10),
-                        PaddingLeft = UDimNew(0, 10)
+                        PaddingTop = UDimNew(0, IsExternalMessage and 10 or 8),
+                        PaddingBottom = UDimNew(0, IsExternalMessage and 10 or 8),
+                        PaddingRight = UDimNew(0, IsExternalMessage and 12 or 10),
+                        PaddingLeft = UDimNew(0, IsExternalMessage and 12 or 10)
                     })
 
                     Instances:Create("UISizeConstraint", {
