@@ -5147,6 +5147,7 @@ local Library do
                 FilterWords = { },
                 PlaceIdFilter = (Data and Data.PlaceIdFilter) and tonumber(Data.PlaceIdFilter) or nil,
                 TimedOutUsers = { },
+                TimeoutIconsBySenderId = { },
             }
 
             local OnMessagePressed = { }
@@ -5867,7 +5868,9 @@ local Library do
                     Items["CtxTimeout"].Instance.Visible = TimeoutVisible
                     if TimeoutVisible then
                         local IsTimedOut = BackendState.TimedOutUsers and BackendState.TimedOutUsers[Data.senderId]
-                        Items["CtxTimeout"].Instance.Text = IsTimedOut and "Remove Timeout" or "Timeout User"
+                        if Items["CtxTimeoutLabel"] then
+                            Items["CtxTimeoutLabel"].Instance.Text = IsTimedOut and "Remove Timeout" or "Timeout User"
+                        end
                     end
                 end
 
@@ -5982,24 +5985,13 @@ local Library do
             Items["CtxTimeout"] = Instances:Create("TextButton", {
                 Parent = Items["ContextMenu"].Instance,
                 Name = "\0",
-                Text = "Timeout User",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 165, 0),
-                TextSize = 13,
+                Text = "",
                 Size = UDim2New(1, 0, 0, 30),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
-                TextXAlignment = Enum.TextXAlignment.Left,
                 ZIndex = 111,
                 LayoutOrder = 4,
                 Visible = false,
-            })
-            Instances:Create("UIPadding", {
-                Parent = Items["CtxTimeout"].Instance,
-                Name = "\0",
-                PaddingLeft = UDimNew(0, 32),
-                PaddingTop = UDimNew(0, 2),
-                PaddingBottom = UDimNew(0, 2)
             })
             Instances:Create("ImageLabel", {
                 Parent = Items["CtxTimeout"].Instance,
@@ -6009,6 +6001,20 @@ local Library do
                 Size = UDim2New(0, 16, 0, 16),
                 Position = UDim2New(0, 10, 0.5, -8),
                 ScaleType = Enum.ScaleType.Fit,
+                ZIndex = 112,
+            })
+            Items["CtxTimeoutLabel"] = Instances:Create("TextLabel", {
+                Parent = Items["CtxTimeout"].Instance,
+                Name = "\0",
+                Text = "Timeout User",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 165, 0),
+                TextSize = 13,
+                Size = UDim2New(1, -32, 1, 0),
+                Position = UDim2New(0, 32, 0, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Left,
                 ZIndex = 112,
             })
             Items["CtxTimeout"].Instance.MouseEnter:Connect(function()
@@ -6095,7 +6101,11 @@ local Library do
                     Items["TimeoutPicker"].Instance.Visible = false
                     Items["TimeoutPicker"].TargetData = nil
                     if not PickData or not PickData.senderId or PickData.senderId == "" then return end
-                    BackendState.TimedOutUsers[tostring(PickData.senderId)] = true
+                    local TgtId = tostring(PickData.senderId)
+                    BackendState.TimedOutUsers[TgtId] = true
+                    for _, IconRef in ipairs(BackendState.TimeoutIconsBySenderId[TgtId] or {}) do
+                        pcall(function() IconRef.Visible = true end)
+                    end
                     local Config = BackendState.Config
                     if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then return end
                     Library:Thread(function()
@@ -6151,7 +6161,11 @@ local Library do
                 if not Data or not Data.senderId or Data.senderId == "" then return end
                 -- If already timed out, remove the timeout instead of showing picker
                 if BackendState.TimedOutUsers and BackendState.TimedOutUsers[Data.senderId] then
-                    BackendState.TimedOutUsers[Data.senderId] = nil
+                    local TgtId2 = tostring(Data.senderId)
+                    BackendState.TimedOutUsers[TgtId2] = nil
+                    for _, IconRef in ipairs(BackendState.TimeoutIconsBySenderId[TgtId2] or {}) do
+                        pcall(function() IconRef.Visible = false end)
+                    end
                     local Config = BackendState.Config
                     if Config and Config.HttpUrl and Config.HttpUrl ~= "" and RequestFunction then
                         Library:Thread(function()
@@ -6734,8 +6748,23 @@ local Library do
                         RML.Parent = ReplyPreview
                     end
 
+                    local PlayerNameRow = InstanceNew("Frame")
+                    PlayerNameRow.BackgroundTransparency = 1
+                    PlayerNameRow.BorderSizePixel = 0
+                    PlayerNameRow.Position = UDim2New(0, 43, 0, ReplyOffsetY)
+                    PlayerNameRow.Size = UDim2New(0, 0, 0, 15)
+                    PlayerNameRow.AutomaticSize = Enum.AutomaticSize.X
+                    PlayerNameRow.ClipsDescendants = false
+                    PlayerNameRow.Parent = SubItems["Message1"].Instance
+                    local PlayerNameRowLayout = InstanceNew("UIListLayout")
+                    PlayerNameRowLayout.FillDirection = Enum.FillDirection.Horizontal
+                    PlayerNameRowLayout.Padding = UDimNew(0, 4)
+                    PlayerNameRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+                    PlayerNameRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                    PlayerNameRowLayout.Parent = PlayerNameRow
+
                     SubItems["PlayerName"] = Instances:Create("TextLabel", {
-                        Parent = SubItems["Message1"].Instance,
+                        Parent = PlayerNameRow,
                         Name = "\0",
                         FontFace = Library.Font,
                         TextColor3 = FromRGB(255, 255, 255),
@@ -6743,12 +6772,32 @@ local Library do
                         Text = Username,
                         Size = UDim2New(0, 0, 0, 15),
                         BackgroundTransparency = 1,
-                        Position = UDim2New(0, 43, 0, ReplyOffsetY),
                         BorderSizePixel = 0,
                         AutomaticSize = Enum.AutomaticSize.X,
                         TextSize = 14,
-                        TextXAlignment = Enum.TextXAlignment.Left
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        LayoutOrder = 1,
                     })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
+
+                    local MsgSenderId = tostring(MessageMeta and MessageMeta.senderId or "")
+                    local TimeoutIconLabel = InstanceNew("ImageLabel")
+                    TimeoutIconLabel.Image = "rbxassetid://115708152231784"
+                    TimeoutIconLabel.BackgroundTransparency = 1
+                    TimeoutIconLabel.BorderSizePixel = 0
+                    TimeoutIconLabel.Size = UDim2New(0, 12, 0, 12)
+                    TimeoutIconLabel.ScaleType = Enum.ScaleType.Fit
+                    TimeoutIconLabel.ZIndex = 5
+                    TimeoutIconLabel.LayoutOrder = 2
+                    TimeoutIconLabel.Visible = MsgSenderId ~= "" and BackendState.TimedOutUsers and BackendState.TimedOutUsers[MsgSenderId] and true or false
+                    TimeoutIconLabel.Parent = PlayerNameRow
+                    SubItems["TimeoutIcon"] = TimeoutIconLabel
+                    SubItems["TimeoutIconSenderId"] = MsgSenderId
+                    if MsgSenderId ~= "" then
+                        if not BackendState.TimeoutIconsBySenderId[MsgSenderId] then
+                            BackendState.TimeoutIconsBySenderId[MsgSenderId] = { }
+                        end
+                        table.insert(BackendState.TimeoutIconsBySenderId[MsgSenderId], TimeoutIconLabel)
+                    end
 
                     local StatGameText, StatJoinText = ResolveStatCardData()
                     local StatCard = InstanceNew("Frame")
