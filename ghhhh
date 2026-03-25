@@ -5239,15 +5239,16 @@ local Library do
             local function FilterMessageText(Text, SenderId)
                 if IsAdminSender(SenderId) then return Text end
                 if #BackendState.FilterWords == 0 then return Text end
-                local Stripped = Text:lower():gsub("[%W_]", "")
+                local Result = Text
                 for _, Word in BackendState.FilterWords do
                     if type(Word) == "string" and Word ~= "" then
-                        if Stripped:find(Word, 1, true) then
-                            return "###"
-                        end
+                        local Pattern = Word:gsub("[%(%)%.%%%+%-%*%?%[%^%$]", "%%%1")
+                        Result = Result:gsub("(" .. Pattern .. ")", function(Match)
+                            return string.rep("#", #Match)
+                        end)
                     end
                 end
-                return Text
+                return Result
             end
 
             local function IsViewingChat()
@@ -6780,6 +6781,18 @@ local Library do
                     })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
 
                     local MsgSenderId = tostring(MessageMeta and MessageMeta.senderId or "")
+                    local IsAdminMsg = IsAdminSender(MsgSenderId)
+                    local StaffIconLabel = InstanceNew("ImageLabel")
+                    StaffIconLabel.Image = "rbxassetid://98152660301946"
+                    StaffIconLabel.BackgroundTransparency = 1
+                    StaffIconLabel.BorderSizePixel = 0
+                    StaffIconLabel.Size = UDim2New(0, 12, 0, 12)
+                    StaffIconLabel.ScaleType = Enum.ScaleType.Fit
+                    StaffIconLabel.ZIndex = 5
+                    StaffIconLabel.LayoutOrder = 2
+                    StaffIconLabel.Visible = IsAdminMsg
+                    StaffIconLabel.Parent = PlayerNameRow
+
                     local TimeoutIconLabel = InstanceNew("ImageLabel")
                     TimeoutIconLabel.Image = "rbxassetid://115708152231784"
                     TimeoutIconLabel.BackgroundTransparency = 1
@@ -6787,7 +6800,7 @@ local Library do
                     TimeoutIconLabel.Size = UDim2New(0, 12, 0, 12)
                     TimeoutIconLabel.ScaleType = Enum.ScaleType.Fit
                     TimeoutIconLabel.ZIndex = 5
-                    TimeoutIconLabel.LayoutOrder = 2
+                    TimeoutIconLabel.LayoutOrder = 3
                     TimeoutIconLabel.Visible = MsgSenderId ~= "" and BackendState.TimedOutUsers and BackendState.TimedOutUsers[MsgSenderId] and true or false
                     TimeoutIconLabel.Parent = PlayerNameRow
                     SubItems["TimeoutIcon"] = TimeoutIconLabel
