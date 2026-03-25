@@ -6663,6 +6663,11 @@ local Library do
                     return math.max(0, GetBottomCanvasPosition() - Scroll.CanvasPosition.Y)
                 end
 
+                local function RefreshBottomDistance()
+                    BackendState.MessageBottomDistance = GetDistanceFromBottom()
+                    return BackendState.MessageBottomDistance
+                end
+
                 local function IsMessagesAtBottom()
                     return (BackendState.MessageBottomDistance or 0) <= NearBottomThreshold
                 end
@@ -6744,9 +6749,32 @@ local Library do
                         return
                     end
 
-                    local TargetY = GetBottomCanvasPosition()
-                    Scroll.CanvasPosition = Vector2New(0, TargetY)
+                    local function ApplyBottomPosition()
+                        local TargetY = GetBottomCanvasPosition()
+                        Scroll.CanvasPosition = Vector2New(0, TargetY)
+                        return TargetY
+                    end
+
+                    local TargetY = ApplyBottomPosition()
                     Items["Messages"]:Tween(TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CanvasPosition = Vector2New(0, TargetY)})
+                    task.defer(function()
+                        if Scroll and Scroll.Parent then
+                            ApplyBottomPosition()
+                            RefreshBottomDistance()
+                        end
+                    end)
+                    task.delay(0.05, function()
+                        if Scroll and Scroll.Parent then
+                            ApplyBottomPosition()
+                            RefreshBottomDistance()
+                        end
+                    end)
+                    task.delay(0.15, function()
+                        if Scroll and Scroll.Parent then
+                            ApplyBottomPosition()
+                            RefreshBottomDistance()
+                        end
+                    end)
                     BackendState.MessageBottomDistance = 0
                     DismissJumpBanner()
                 end
@@ -7299,14 +7327,26 @@ local Library do
 
             -- Detect manual scroll to bottom
             Items["Messages"].Instance:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-                BackendState.MessageBottomDistance = GetDistanceFromBottom()
+                RefreshBottomDistance()
                 if IsMessagesAtBottom() then
                     DismissJumpBanner()
                 end
             end)
 
+            Library:Connect(RunService.RenderStepped, function()
+                local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
+                if not Btn then
+                    return
+                end
+
+                RefreshBottomDistance()
+                if Btn.Visible and IsMessagesAtBottom() then
+                    DismissJumpBanner()
+                end
+            end)
+
             task.defer(function()
-                BackendState.MessageBottomDistance = GetDistanceFromBottom()
+                RefreshBottomDistance()
             end)
 
             local function CommitTypedMessage()
