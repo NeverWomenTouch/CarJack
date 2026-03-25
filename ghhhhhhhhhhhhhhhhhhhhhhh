@@ -74,6 +74,7 @@ local Library do
     local TweenService = cloneref(game:GetService("TweenService"))
     local MarketplaceService = cloneref(game:GetService("MarketplaceService"))
     local Lighting = cloneref(game:GetService("Lighting"))
+    local TeleportService = cloneref(game:GetService("TeleportService"))
 
     local gethui = gethui or function()
         return CoreGui
@@ -3018,6 +3019,267 @@ local Library do
                 end
                 Items["Notification"]:Clean()
             end)
+        end)
+    end
+
+    Library.MakeUpdateNotification = function(self, Data)
+        Data = Data or { }
+
+        if self.ActiveUpdateNotification and self.ActiveUpdateNotification.Close then
+            pcall(function()
+                self.ActiveUpdateNotification.Close(true)
+            end)
+            self.ActiveUpdateNotification = nil
+        end
+
+        local PanelHeight = IsMobile and 320 or 360
+        local Closed = false
+        local Items = { } do
+            Items["Notification"] = Instances:Create("Frame", {
+                Parent = self.AnnouncementHolder.Instance,
+                Name = "\0",
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
+                AnchorPoint = Vector2New(0.5, 0),
+                Position = UDim2New(0.5, 0, 0, -PanelHeight - 40),
+                Size = UDim2New(1, -24, 0, PanelHeight),
+                BackgroundColor3 = FromRGB(17, 16, 20),
+                ClipsDescendants = true,
+                ZIndex = 210
+            })  Items["Notification"]:AddToTheme({BackgroundColor3 = "Background"})
+
+            Instances:Create("UISizeConstraint", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                MaxSize = Vector2New(640, 420),
+                MinSize = Vector2New(300, 280)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 10)
+            })
+
+            Items["Stroke"] = Instances:Create("UIStroke", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                Color = FromRGB(36, 33, 42),
+                Transparency = 0.08,
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })  Items["Stroke"]:AddToTheme({Color = "Border"})
+
+            Items["Badge"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 214, 120),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = "UPDATE AVAILABLE",
+                Position = UDim2New(0, 16, 0, 14),
+                Size = UDim2New(1, -32, 0, 14),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextSize = 12,
+                ZIndex = 211
+            })
+
+            Items["Title"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = tostring(Data.Name or "ExpressHub Update"),
+                Position = UDim2New(0, 16, 0, 32),
+                Size = UDim2New(1, -32, 0, 24),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                TextSize = 22,
+                ZIndex = 211
+            })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["Subtitle"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                TextTransparency = 0.25,
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = "Rejoin and re-execute the script after joining back to apply this update.",
+                Position = UDim2New(0, 16, 0, 64),
+                Size = UDim2New(1, -32, 0, 32),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                TextSize = 14,
+                ZIndex = 211
+            })  Items["Subtitle"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["LogHolder"] = Instances:Create("ScrollingFrame", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                Position = UDim2New(0, 16, 0, 112),
+                Size = UDim2New(1, -32, 1, -176),
+                BackgroundColor3 = FromRGB(26, 25, 31),
+                BorderSizePixel = 0,
+                BackgroundTransparency = 0.15,
+                CanvasSize = UDim2New(0, 0, 0, 0),
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                ScrollBarThickness = 4,
+                ZIndex = 211
+            })  Items["LogHolder"]:AddToTheme({BackgroundColor3 = "Inline"})
+
+            Instances:Create("UICorner", {
+                Parent = Items["LogHolder"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 8)
+            })
+
+            Instances:Create("UIPadding", {
+                Parent = Items["LogHolder"].Instance,
+                Name = "\0",
+                PaddingTop = UDimNew(0, 10),
+                PaddingBottom = UDimNew(0, 10),
+                PaddingRight = UDimNew(0, 10),
+                PaddingLeft = UDimNew(0, 10)
+            })
+
+            Items["LogText"] = Instances:Create("TextLabel", {
+                Parent = Items["LogHolder"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                TextTransparency = 0.08,
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = tostring(Data.Content or ""),
+                Size = UDim2New(1, -4, 0, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                TextSize = 15,
+                ZIndex = 212
+            })  Items["LogText"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["RejoinButton"] = Instances:Create("TextButton", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                Text = "Rejoin",
+                Position = UDim2New(0, 16, 1, -52),
+                Size = UDim2New(0.5, -22, 0, 36),
+                BorderSizePixel = 0,
+                AutoButtonColor = false,
+                BackgroundColor3 = Library.Theme.Accent,
+                ZIndex = 212
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["RejoinButton"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 8)
+            })
+
+            Items["CloseButton"] = Instances:Create("TextButton", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                Text = "Close",
+                Position = UDim2New(0.5, 6, 1, -52),
+                Size = UDim2New(0.5, -22, 0, 36),
+                BorderSizePixel = 0,
+                AutoButtonColor = false,
+                BackgroundColor3 = FromRGB(45, 45, 55),
+                ZIndex = 212
+            })  Items["CloseButton"]:AddToTheme({BackgroundColor3 = "Element"})
+
+            Instances:Create("UICorner", {
+                Parent = Items["CloseButton"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 8)
+            })
+        end
+
+        local function CloseUpdateNotification(Instant)
+            if Closed then
+                return
+            end
+            Closed = true
+
+            if Instant then
+                if self.ActiveUpdateNotification and self.ActiveUpdateNotification.Notification == Items["Notification"] then
+                    self.ActiveUpdateNotification = nil
+                end
+                Items["Notification"]:Clean()
+                return
+            end
+
+            for _, Key in next, {"Notification", "LogHolder", "RejoinButton", "CloseButton"} do
+                Items[Key]:Tween(nil, {BackgroundTransparency = 1})
+            end
+            for _, Key in next, {"Badge", "Title", "Subtitle", "LogText"} do
+                Items[Key]:Tween(nil, {TextTransparency = 1})
+            end
+            Items["Stroke"]:Tween(nil, {Transparency = 1})
+            local SlideOut = TweenService:Create(Items["Notification"].Instance, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Position = UDim2New(0.5, 0, 0, -PanelHeight - 40)
+            })
+            SlideOut:Play()
+            task.wait(0.32)
+            if self.ActiveUpdateNotification and self.ActiveUpdateNotification.Notification == Items["Notification"] then
+                self.ActiveUpdateNotification = nil
+            end
+            Items["Notification"]:Clean()
+        end
+
+        self.ActiveUpdateNotification = {
+            Notification = Items["Notification"],
+            Close = CloseUpdateNotification
+        }
+
+        for _, Key in next, {"Notification", "LogHolder", "RejoinButton", "CloseButton"} do
+            Items[Key].Instance.BackgroundTransparency = 1
+        end
+        for _, Key in next, {"Badge", "Title", "Subtitle", "LogText"} do
+            Items[Key].Instance.TextTransparency = 1
+        end
+        Items["Stroke"].Instance.Transparency = 1
+
+        Items["CloseButton"].Instance.MouseButton1Click:Connect(function()
+            CloseUpdateNotification(false)
+        end)
+
+        Items["RejoinButton"].Instance.MouseButton1Click:Connect(function()
+            pcall(function()
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end)
+        end)
+
+        Library:Thread(function()
+            for _, Key in next, {"Notification", "LogHolder", "RejoinButton", "CloseButton"} do
+                Items[Key]:Tween(nil, {BackgroundTransparency = 0})
+            end
+            Items["Badge"]:Tween(nil, {TextTransparency = 0.1})
+            Items["Title"]:Tween(nil, {TextTransparency = 0})
+            Items["Subtitle"]:Tween(nil, {TextTransparency = 0.25})
+            Items["LogText"]:Tween(nil, {TextTransparency = 0.08})
+            Items["Stroke"]:Tween(nil, {Transparency = 0.08})
+
+            local SlideIn = TweenService:Create(Items["Notification"].Instance, TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                Position = UDim2New(0.5, 0, 0, 18)
+            })
+            SlideIn:Play()
         end)
     end
 
@@ -6037,6 +6299,20 @@ local Library do
                         Name = tostring(Payload.announcement.title or "ExpressHub"),
                         Content = tostring(Payload.announcement.content or ""),
                         Time = tonumber(Payload.announcement.duration) or 7
+                    })
+                    return
+                end
+
+                if Payload.type == "update_notify" and type(Payload.updateNotify) == "table" then
+                    local TargetGameId = tostring(Payload.updateNotify.targetGameId or "")
+                    local LocalGameId = tostring(game.GameId or "")
+                    if TargetGameId ~= "" and TargetGameId ~= LocalGameId then
+                        return
+                    end
+
+                    Library:MakeUpdateNotification({
+                        Name = tostring(Payload.updateNotify.title or "ExpressHub Update"),
+                        Content = tostring(Payload.updateNotify.content or "")
                     })
                     return
                 end
