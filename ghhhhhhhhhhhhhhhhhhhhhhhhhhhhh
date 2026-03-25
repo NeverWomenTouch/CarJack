@@ -6673,7 +6673,7 @@ local Library do
                 end
 
                 local LockedUntil = tonumber(BackendState.ChatLockedUntil)
-                if BackendState.ChatLockedPermanent or (LockedUntil and LockedUntil > (os.time() * 1000)) then
+                if (BackendState.ChatLockedPermanent or (LockedUntil and LockedUntil > (os.time() * 1000))) and not IsLocalAdmin() then
                     if UpdateRestrictionBanner then
                         UpdateRestrictionBanner()
                     end
@@ -7365,10 +7365,12 @@ local Library do
                         local BannerText = nil
                         if LocalTimeoutExpires > NowMs then
                             BannerText = "You're timed out for: " .. FormatRestrictionTime(math.max(0, math.floor((LocalTimeoutExpires - NowMs) / 1000)))
-                        elseif ChatLockPermanent then
-                            BannerText = "Chat is currently locked."
-                        elseif ChatLockExpires > NowMs then
-                            BannerText = "Chat is currently locked for: " .. FormatRestrictionTime(math.max(0, math.floor((ChatLockExpires - NowMs) / 1000)))
+                        elseif not IsLocalAdmin() then
+                            if ChatLockPermanent then
+                                BannerText = "Chat is currently locked."
+                            elseif ChatLockExpires > NowMs then
+                                BannerText = "Chat is currently locked for: " .. FormatRestrictionTime(math.max(0, math.floor((ChatLockExpires - NowMs) / 1000)))
+                            end
                         end
 
                         local ShowBanner = BannerText ~= nil
@@ -8418,7 +8420,7 @@ local Library do
                 local Config = BackendState.Config or Library.GlobalChat
                 local SlowMode = tonumber(Config and Config.SlowModeTimer) or 1
                 local LockedUntil = tonumber(BackendState.ChatLockedUntil)
-                if BackendState.ChatLockedPermanent or (LockedUntil and LockedUntil > (os.time() * 1000)) then
+                if (BackendState.ChatLockedPermanent or (LockedUntil and LockedUntil > (os.time() * 1000))) and not IsLocalAdmin() then
                     Items["SendButton"].Instance.BackgroundColor3 = FromRGB(255, 80, 80)
                     task.delay(0.4, function()
                         Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
