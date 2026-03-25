@@ -3243,7 +3243,13 @@ local Library do
             self.ActiveUpdateNotification = nil
         end
 
-        local PanelHeight = IsMobile and 380 or 460
+        local MobilePanelHeight = MathClamp(Camera.ViewportSize.Y - 34, 320, 430)
+        local PanelHeight = IsMobile and MobilePanelHeight or 460
+        local ContentInset = IsMobile and 12 or 16
+        local BottomInset = IsMobile and 12 or 16
+        local ButtonHeight = IsMobile and 44 or 42
+        local ButtonGap = IsMobile and 8 or 12
+        local ButtonStackHeight = IsMobile and ((ButtonHeight * 2) + ButtonGap) or ButtonHeight
         local Closed = false
         local Items = { } do
             Items["Notification"] = Instances:Create("Frame", {
@@ -3253,7 +3259,7 @@ local Library do
                 BorderSizePixel = 0,
                 AnchorPoint = Vector2New(0.5, 0),
                 Position = UDim2New(0.5, 0, 0, -PanelHeight - 40),
-                Size = UDim2New(1, -24, 0, PanelHeight),
+                Size = UDim2New(1, IsMobile and -12 or -24, 0, PanelHeight),
                 BackgroundColor3 = FromRGB(17, 16, 20),
                 ClipsDescendants = true,
                 ZIndex = 210
@@ -3262,8 +3268,8 @@ local Library do
             Instances:Create("UISizeConstraint", {
                 Parent = Items["Notification"].Instance,
                 Name = "\0",
-                MaxSize = Vector2New(640, 420),
-                MinSize = Vector2New(300, 280)
+                MaxSize = Vector2New(IsMobile and 520 or 640, IsMobile and 430 or 460),
+                MinSize = Vector2New(IsMobile and 220 or 300, IsMobile and 300 or 280)
             })
 
             Instances:Create("UICorner", {
@@ -3283,14 +3289,14 @@ local Library do
             Items["LogHolder"] = Instances:Create("ScrollingFrame", {
                 Parent = Items["Notification"].Instance,
                 Name = "\0",
-                Position = UDim2New(0, 16, 0, 16),
-                Size = UDim2New(1, -32, 1, -84),
+                Position = UDim2New(0, ContentInset, 0, ContentInset),
+                Size = UDim2New(1, -(ContentInset * 2), 1, -(ContentInset + ButtonStackHeight + BottomInset + 10)),
                 BackgroundColor3 = FromRGB(26, 25, 31),
                 BorderSizePixel = 0,
                 BackgroundTransparency = 0.15,
                 CanvasSize = UDim2New(0, 0, 0, 0),
                 AutomaticCanvasSize = Enum.AutomaticSize.Y,
-                ScrollBarThickness = 4,
+                ScrollBarThickness = IsMobile and 3 or 4,
                 ZIndex = 211
             })  Items["LogHolder"]:AddToTheme({BackgroundColor3 = "Inline"})
 
@@ -3303,10 +3309,10 @@ local Library do
             Instances:Create("UIPadding", {
                 Parent = Items["LogHolder"].Instance,
                 Name = "\0",
-                PaddingTop = UDimNew(0, 10),
-                PaddingBottom = UDimNew(0, 10),
-                PaddingRight = UDimNew(0, 10),
-                PaddingLeft = UDimNew(0, 10)
+                PaddingTop = UDimNew(0, IsMobile and 8 or 10),
+                PaddingBottom = UDimNew(0, IsMobile and 8 or 10),
+                PaddingRight = UDimNew(0, IsMobile and 8 or 10),
+                PaddingLeft = UDimNew(0, IsMobile and 8 or 10)
             })
 
             Items["LogContent"] = Instances:Create("Frame", {
@@ -3336,12 +3342,12 @@ local Library do
                 FontFace = Library.Subfont,
                 TextColor3 = FromRGB(255, 255, 255),
                 Text = "Rejoin",
-                Position = UDim2New(0, 16, 1, -58),
-                Size = UDim2New(0.5, -22, 0, 42),
+                Position = IsMobile and UDim2New(0, ContentInset, 1, -(BottomInset + ButtonHeight + ButtonGap + ButtonHeight)) or UDim2New(0, 16, 1, -58),
+                Size = IsMobile and UDim2New(1, -(ContentInset * 2), 0, ButtonHeight) or UDim2New(0.5, -22, 0, ButtonHeight),
                 BorderSizePixel = 0,
                 AutoButtonColor = false,
                 BackgroundColor3 = Library.Theme.Accent,
-                TextSize = 16,
+                TextSize = IsMobile and 17 or 16,
                 ZIndex = 212
             })
 
@@ -3366,12 +3372,12 @@ local Library do
                 FontFace = Library.Subfont,
                 TextColor3 = FromRGB(255, 255, 255),
                 Text = "Close",
-                Position = UDim2New(0.5, 6, 1, -58),
-                Size = UDim2New(0.5, -22, 0, 42),
+                Position = IsMobile and UDim2New(0, ContentInset, 1, -(BottomInset + ButtonHeight)) or UDim2New(0.5, 6, 1, -58),
+                Size = IsMobile and UDim2New(1, -(ContentInset * 2), 0, ButtonHeight) or UDim2New(0.5, -22, 0, ButtonHeight),
                 BorderSizePixel = 0,
                 AutoButtonColor = false,
                 BackgroundColor3 = FromRGB(45, 45, 55),
-                TextSize = 16,
+                TextSize = IsMobile and 17 or 16,
                 ZIndex = 212
             })  Items["CloseButton"]:AddToTheme({BackgroundColor3 = "Element"})
 
@@ -5974,6 +5980,8 @@ local Library do
                 PlaceIdFilter = (Data and Data.PlaceIdFilter) and tonumber(Data.PlaceIdFilter) or nil,
                 TimedOutUsers = { },
                 TimeoutIconsBySenderId = { },
+                UwuLockedUsers = { },
+                UwuLockIndicatorsBySenderId = { },
                 ChatLockedUntil = nil,
                 ChatLockedPermanent = false,
                 ScrolledUpNewCount = 0,
@@ -6771,6 +6779,14 @@ local Library do
                         end
                     end
                 end
+                if Items["CtxUwulock"] then
+                    local UwuVisible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "") and true or false
+                    Items["CtxUwulock"].Instance.Visible = UwuVisible
+                    if UwuVisible and Items["CtxUwulockLabel"] then
+                        local IsUwuLocked = BackendState.UwuLockedUsers and BackendState.UwuLockedUsers[Data.senderId]
+                        Items["CtxUwulockLabel"].Instance.Text = IsUwuLocked and "Unuwulock User" or "Uwulock User"
+                    end
+                end
 
                 local ChatAbsPos = Items["GlobalChat"].Instance.AbsolutePosition
                 local ChatAbsSize = Items["GlobalChat"].Instance.AbsoluteSize
@@ -6783,7 +6799,8 @@ local Library do
                 local MenuW = 148
                 local DeleteVisible = IsLocal or AdminLocal
                 local TimeoutVisible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "")
-                local MenuH = 60 + (DeleteVisible and 30 or 0) + (TimeoutVisible and 30 or 0)
+                local UwulockVisible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "")
+                local MenuH = 60 + (DeleteVisible and 30 or 0) + (TimeoutVisible and 30 or 0) + (UwulockVisible and 30 or 0)
                 if LocalX + MenuW > ChatAbsSize.X - 4 then
                     LocalX = ChatAbsSize.X - MenuW - 4
                 end
@@ -6921,6 +6938,53 @@ local Library do
             end)
             Items["CtxTimeout"].Instance.MouseLeave:Connect(function()
                 Items["CtxTimeout"].Instance.BackgroundTransparency = 1
+            end)
+
+            Items["CtxUwulock"] = Instances:Create("TextButton", {
+                Parent = Items["ContextMenu"].Instance,
+                Name = "\0",
+                Text = "",
+                Size = UDim2New(1, 0, 0, 30),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ZIndex = 111,
+                LayoutOrder = 5,
+                Visible = false,
+            })
+            Instances:Create("TextLabel", {
+                Parent = Items["CtxUwulock"].Instance,
+                Name = "\0",
+                Text = "uwu",
+                FontFace = Library.Subfont,
+                TextColor3 = FromRGB(255, 125, 193),
+                TextSize = 13,
+                Size = UDim2New(0, 24, 1, 0),
+                Position = UDim2New(0, 10, 0, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 112,
+            })
+            Items["CtxUwulockLabel"] = Instances:Create("TextLabel", {
+                Parent = Items["CtxUwulock"].Instance,
+                Name = "\0",
+                Text = "Uwulock User",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 125, 193),
+                TextSize = 13,
+                Size = UDim2New(1, -40, 1, 0),
+                Position = UDim2New(0, 34, 0, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 112,
+            })
+            Items["CtxUwulock"].Instance.MouseEnter:Connect(function()
+                Items["CtxUwulock"].Instance.BackgroundTransparency = 0.7
+                Items["CtxUwulock"].Instance.BackgroundColor3 = Library.Theme["Hovered Element"]
+            end)
+            Items["CtxUwulock"].Instance.MouseLeave:Connect(function()
+                Items["CtxUwulock"].Instance.BackgroundTransparency = 1
             end)
 
             -- Timeout duration picker frame
@@ -7098,6 +7162,35 @@ local Library do
                 Items["TimeoutPicker"].Instance.Visible = true
             end)
 
+            Items["CtxUwulock"]:Connect("MouseButton1Click", function()
+                local Data = ActiveContextMenuData
+                HideContextMenu()
+                if not Data or not Data.senderId or Data.senderId == "" then return end
+
+                local TargetSenderId = tostring(Data.senderId)
+                local EnableLock = not (BackendState.UwuLockedUsers and BackendState.UwuLockedUsers[TargetSenderId])
+                BackendState.UwuLockedUsers[TargetSenderId] = EnableLock and true or nil
+                for _, IndicatorRef in ipairs(BackendState.UwuLockIndicatorsBySenderId[TargetSenderId] or {}) do
+                    pcall(function() IndicatorRef.Visible = EnableLock end)
+                end
+
+                local Config = BackendState.Config
+                if Config and Config.HttpUrl and Config.HttpUrl ~= "" and RequestFunction then
+                    Library:Thread(function()
+                        DoHttpRequest({
+                            Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/admin/uwulock"),
+                            Method = "POST",
+                            Headers = MergeTable(GetRequestHeaders(Config), { ["Content-Type"] = "application/json" }),
+                            Body = JsonEncode({
+                                adminSenderId = tostring(LocalPlayer.UserId),
+                                targetSenderId = TargetSenderId,
+                                enabled = EnableLock
+                            })
+                        })
+                    end)
+                end
+            end)
+
             function ChatSystem:DeleteRenderedMessage(MessageId)
                 local NumId = tonumber(MessageId)
                 if not NumId then return end
@@ -7177,6 +7270,8 @@ local Library do
                 BackendState.InputFocused = false
                 BackendState.ReplyingTo = nil
                 BackendState.MessageFramesById = { }
+                BackendState.UwuLockedUsers = { }
+                BackendState.UwuLockIndicatorsBySenderId = { }
                 BackendState.ProcessedDeletes = { }
                 ShowTyping({ })
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
@@ -7228,7 +7323,7 @@ local Library do
                 StartPresenceHeartbeat()
                 StartTypingThread()
 
-                -- Poll server for timed-out users so all clients see timeout icons
+                -- Poll server for moderation state so all clients see timeout and uwulock markers
                 Library:Thread(function()
                     local LocalSidStr = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
                     local CountdownThread = nil
@@ -7307,12 +7402,21 @@ local Library do
                                 local TData = JsonDecode(Body)
                                 if type(TData) == "table" and type(TData.timedOut) == "table" then
                                     local NewTimedOut = { }
+                                    local NewUwuLocked = { }
                                     for _, Entry in TData.timedOut do
                                         if type(Entry) == "table" then
                                             local Sid = tostring(Entry.senderId or "")
                                             local Exp = tonumber(Entry.expiresAt) or 0
                                             if Sid ~= "" then
                                                 NewTimedOut[Sid] = Exp
+                                            end
+                                        end
+                                    end
+                                    if type(TData.uwuLocked) == "table" then
+                                        for _, SenderId in TData.uwuLocked do
+                                            local Sid = tostring(SenderId or "")
+                                            if Sid ~= "" then
+                                                NewUwuLocked[Sid] = true
                                             end
                                         end
                                     end
@@ -7323,7 +7427,14 @@ local Library do
                                             pcall(function() IconRef.Visible = ShouldShow end)
                                         end
                                     end
+                                    for Sid, Indicators in BackendState.UwuLockIndicatorsBySenderId do
+                                        local ShouldShow = NewUwuLocked[Sid] and true or false
+                                        for _, IndicatorRef in ipairs(Indicators) do
+                                            pcall(function() IndicatorRef.Visible = ShouldShow end)
+                                        end
+                                    end
                                     BackendState.TimedOutUsers = NewTimedOut
+                                    BackendState.UwuLockedUsers = NewUwuLocked
                                     if type(TData.chatLock) == "table" then
                                         BackendState.ChatLockedUntil = tonumber(TData.chatLock.expiresAt) or nil
                                         BackendState.ChatLockedPermanent = TData.chatLock.permanent == true
@@ -8109,6 +8220,26 @@ local Library do
                                 BackendState.TimeoutIconsBySenderId[MsgSenderId] = { }
                             end
                             table.insert(BackendState.TimeoutIconsBySenderId[MsgSenderId], TimeoutIconLabel)
+                        end
+
+                        local UwuLockBadge = InstanceNew("TextLabel")
+                        UwuLockBadge.BackgroundTransparency = 1
+                        UwuLockBadge.BorderSizePixel = 0
+                        UwuLockBadge.Size = UDim2New(0, 24, 0, 12)
+                        UwuLockBadge.FontFace = Library.Subfont
+                        UwuLockBadge.Text = "uwu"
+                        UwuLockBadge.TextSize = 11
+                        UwuLockBadge.TextColor3 = FromRGB(255, 125, 193)
+                        UwuLockBadge.TextXAlignment = Enum.TextXAlignment.Left
+                        UwuLockBadge.ZIndex = 5
+                        UwuLockBadge.LayoutOrder = 4
+                        UwuLockBadge.Visible = MsgSenderId ~= "" and BackendState.UwuLockedUsers and BackendState.UwuLockedUsers[MsgSenderId] and true or false
+                        UwuLockBadge.Parent = PlayerNameRow
+                        if MsgSenderId ~= "" then
+                            if not BackendState.UwuLockIndicatorsBySenderId[MsgSenderId] then
+                                BackendState.UwuLockIndicatorsBySenderId[MsgSenderId] = { }
+                            end
+                            table.insert(BackendState.UwuLockIndicatorsBySenderId[MsgSenderId], UwuLockBadge)
                         end
 
                         local StatGameText, StatJoinText = ResolveStatCardData()
