@@ -1131,6 +1131,18 @@ local Library do
         PaddingLeft = UDimNew(0, 12)
     })
 
+    Library.AnnouncementHolder = Instances:Create("Frame", {
+        Parent = Library.Holder.Instance,
+        Name = "\0",
+        BorderColor3 = FromRGB(0, 0, 0),
+        AnchorPoint = Vector2New(0.5, 0),
+        BackgroundTransparency = 1,
+        Position = UDim2New(0.5, 0, 0, 0),
+        Size = UDim2New(1, 0, 0, 0),
+        BorderSizePixel = 0,
+        BackgroundColor3 = FromRGB(255, 255, 255)
+    })
+
     Library.Unload = function(self)
         for _, Callback in self.CleanupCallbacks do
             self:SafeCall(Callback)
@@ -2758,6 +2770,206 @@ local Library do
                 task.wait(0.5)
                 Items["Notification"]:Clean()
             end
+        end)
+    end
+
+    Library.MakeGlobalAnnouncement = function(self, Data)
+        Data = Data or { }
+
+        if self.ActiveGlobalAnnouncement and self.ActiveGlobalAnnouncement.Notification then
+            pcall(function()
+                self.ActiveGlobalAnnouncement.Notification:Clean()
+            end)
+            self.ActiveGlobalAnnouncement = nil
+        end
+
+        local Duration = tonumber(Data.Time) or 7
+        if Duration < 3 then
+            Duration = 3
+        end
+
+        local Items = { } do
+            Items["Notification"] = Instances:Create("Frame", {
+                Parent = self.AnnouncementHolder.Instance,
+                Name = "\0",
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
+                AnchorPoint = Vector2New(0.5, 0),
+                Position = UDim2New(0.5, 0, 0, -82),
+                Size = UDim2New(0, 420, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundColor3 = FromRGB(17, 16, 20),
+                ClipsDescendants = true,
+                ZIndex = 200
+            })  Items["Notification"]:AddToTheme({BackgroundColor3 = "Background"})
+
+            Instances:Create("UIPadding", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                PaddingTop = UDimNew(0, 12),
+                PaddingBottom = UDimNew(0, 12),
+                PaddingRight = UDimNew(0, 14),
+                PaddingLeft = UDimNew(0, 14)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 8)
+            })
+
+            Items["Stroke"] = Instances:Create("UIStroke", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                Color = FromRGB(36, 33, 42),
+                Transparency = 0.15,
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })  Items["Stroke"]:AddToTheme({Color = "Border"})
+
+            Items["Title"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = tostring(Data.Name or "ExpressHub"),
+                Size = UDim2New(1, 0, 0, 20),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                TextSize = 18,
+                ZIndex = 201
+            })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["Description"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                TextTransparency = 0.35,
+                Text = tostring(Data.Content or ""),
+                TextWrapped = true,
+                Size = UDim2New(1, 0, 0, 18),
+                Position = UDim2New(0, 0, 0, 24),
+                BorderSizePixel = 0,
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                BorderColor3 = FromRGB(0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                TextSize = 14,
+                ZIndex = 201
+            })  Items["Description"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["Liner"] = Instances:Create("Frame", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                Position = UDim2New(0, 0, 1, -6),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Size = UDim2New(1, 0, 0, 6),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(26, 25, 31),
+                ZIndex = 201
+            })  Items["Liner"]:AddToTheme({BackgroundColor3 = "Inline"})
+
+            Instances:Create("UIGradient", {
+                Parent = Items["Liner"].Instance,
+                Name = "\0",
+                Rotation = 90,
+                Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(218, 218, 218))}
+            }):AddToTheme({Color = function()
+                return RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, Library.Theme["Gradient"])}
+            end})
+
+            Instances:Create("UICorner", {
+                Parent = Items["Liner"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 6)
+            })
+
+            Items["Accent"] = Instances:Create("Frame", {
+                Parent = Items["Liner"].Instance,
+                Name = "\0",
+                BorderColor3 = FromRGB(0, 0, 0),
+                Size = UDim2New(1, 0, 1, 0),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(246, 178, 255),
+                ZIndex = 202
+            })  Items["Accent"]:AddToTheme({BackgroundColor3 = "Accent"})
+
+            Instances:Create("UIGradient", {
+                Parent = Items["Accent"].Instance,
+                Name = "\0",
+                Rotation = 90,
+                Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(218, 218, 218))}
+            }):AddToTheme({Color = function()
+                return RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, Library.Theme["Gradient"])}
+            end})
+
+            Instances:Create("UICorner", {
+                Parent = Items["Accent"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 6)
+            })
+        end
+
+        local AnnouncementHeight = MathMax(70, Items["Title"].Instance.TextBounds.Y + Items["Description"].Instance.TextBounds.Y + 34)
+        Items["Notification"].Instance.Size = UDim2New(0, 420, 0, AnnouncementHeight)
+        self.ActiveGlobalAnnouncement = Items
+
+        for _, Value in Items do
+            if Value.Instance:IsA("Frame") then
+                Value.Instance.BackgroundTransparency = 1
+            elseif Value.Instance:IsA("TextLabel") then
+                Value.Instance.TextTransparency = 1
+            elseif Value.Instance:IsA("UIStroke") then
+                Value.Instance.Transparency = 1
+            end
+        end
+
+        Library:Thread(function()
+            for _, Value in Items do
+                if Value.Instance:IsA("Frame") then
+                    Value:Tween(nil, {BackgroundTransparency = 0})
+                elseif Value.Instance:IsA("TextLabel") and Value == Items["Description"] then
+                    Value:Tween(nil, {TextTransparency = 0.35})
+                elseif Value.Instance:IsA("TextLabel") then
+                    Value:Tween(nil, {TextTransparency = 0})
+                elseif Value.Instance:IsA("UIStroke") then
+                    Value:Tween(nil, {Transparency = 0.15})
+                end
+            end
+
+            Items["Notification"]:Tween(TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = UDim2New(0.5, 0, 0, 16)
+            })
+            Items["Accent"]:Tween(TweenInfo.new(Duration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Size = UDim2New(0, 0, 1, 0)})
+
+            task.delay(Duration, function()
+                if self.ActiveGlobalAnnouncement ~= Items then
+                    return
+                end
+
+                for _, Value in Items do
+                    if Value.Instance:IsA("Frame") then
+                        Value:Tween(nil, {BackgroundTransparency = 1})
+                    elseif Value.Instance:IsA("TextLabel") then
+                        Value:Tween(nil, {TextTransparency = 1})
+                    elseif Value.Instance:IsA("UIStroke") then
+                        Value:Tween(nil, {Transparency = 1})
+                    end
+                end
+
+                Items["Notification"]:Tween(TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                    Position = UDim2New(0.5, 0, 0, -82)
+                })
+                task.wait(0.35)
+                if self.ActiveGlobalAnnouncement == Items then
+                    self.ActiveGlobalAnnouncement = nil
+                end
+                Items["Notification"]:Clean()
+            end)
         end)
     end
 
@@ -5748,6 +5960,15 @@ local Library do
                         BackendState.ProcessedDeletes[NumId] = true
                         ChatSystem:DeleteRenderedMessage(NumId)
                     end
+                    return
+                end
+
+                if Payload.type == "announcement" and type(Payload.announcement) == "table" then
+                    Library:MakeGlobalAnnouncement({
+                        Name = tostring(Payload.announcement.title or "ExpressHub"),
+                        Content = tostring(Payload.announcement.content or ""),
+                        Time = tonumber(Payload.announcement.duration) or 7
+                    })
                     return
                 end
 
