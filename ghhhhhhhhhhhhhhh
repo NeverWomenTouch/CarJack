@@ -6804,7 +6804,7 @@ local Library do
                     if IsExternalMessage then
                         local Escaped = EscapeRichText(Text)
                         Escaped = StringGSub(Escaped, "\n", "<br/>")
-                        return '<font color="#FFD54A" size="18"><b>EXTERNAL MESSAGE:</b></font><br/><font color="#FFF1A6" size="17">' .. Escaped .. '</font>'
+                        return Escaped
                     end
 
                     Text = EscapeRichText(Text)
@@ -6859,7 +6859,8 @@ local Library do
                         Name = "\0",
                         BorderColor3 = FromRGB(0, 0, 0),
                         BorderSizePixel = 0,
-                        AutomaticSize = Enum.AutomaticSize.XY,
+                        AutomaticSize = IsExternalMessage and Enum.AutomaticSize.Y or Enum.AutomaticSize.XY,
+                        Size = IsExternalMessage and UDim2New(1, 0, 0, 0) or UDim2New(0, 0, 0, 0),
                         BackgroundColor3 = IsExternalMessage and FromRGB(92, 70, 0) or FromRGB(17, 16, 20),
                         BackgroundTransparency = IsExternalMessage and 0.1 or 1,
                         ClipsDescendants = false
@@ -6882,6 +6883,53 @@ local Library do
                             Thickness = 1.5,
                             Transparency = 0.1
                         })
+
+                        local ExternalLayout = InstanceNew("UIListLayout")
+                        ExternalLayout.FillDirection = Enum.FillDirection.Vertical
+                        ExternalLayout.Padding = UDimNew(0, 6)
+                        ExternalLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+                        ExternalLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                        ExternalLayout.Parent = BubbleItems["RealMessage"].Instance
+
+                        local ExternalHeader = InstanceNew("Frame")
+                        ExternalHeader.BackgroundTransparency = 1
+                        ExternalHeader.BorderSizePixel = 0
+                        ExternalHeader.Size = UDim2New(1, 0, 0, 0)
+                        ExternalHeader.AutomaticSize = Enum.AutomaticSize.Y
+                        ExternalHeader.LayoutOrder = 1
+                        ExternalHeader.Parent = BubbleItems["RealMessage"].Instance
+
+                        local ExternalHeaderLayout = InstanceNew("UIListLayout")
+                        ExternalHeaderLayout.FillDirection = Enum.FillDirection.Vertical
+                        ExternalHeaderLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+                        ExternalHeaderLayout.Padding = UDimNew(0, 2)
+                        ExternalHeaderLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                        ExternalHeaderLayout.Parent = ExternalHeader
+
+                        local ExternalBadge = InstanceNew("TextLabel")
+                        ExternalBadge.BackgroundTransparency = 1
+                        ExternalBadge.BorderSizePixel = 0
+                        ExternalBadge.Size = UDim2New(1, 0, 0, 18)
+                        ExternalBadge.FontFace = Library.Font
+                        ExternalBadge.Text = "EXTERNAL NOTICE"
+                        ExternalBadge.TextColor3 = FromRGB(255, 213, 74)
+                        ExternalBadge.TextSize = 18
+                        ExternalBadge.TextXAlignment = Enum.TextXAlignment.Center
+                        ExternalBadge.LayoutOrder = 1
+                        ExternalBadge.Parent = ExternalHeader
+
+                        local ExternalTimestamp = InstanceNew("TextLabel")
+                        ExternalTimestamp.BackgroundTransparency = 1
+                        ExternalTimestamp.BorderSizePixel = 0
+                        ExternalTimestamp.Size = UDim2New(1, 0, 0, 14)
+                        ExternalTimestamp.FontFace = Library.Subfont
+                        ExternalTimestamp.Text = TimestampText
+                        ExternalTimestamp.TextColor3 = FromRGB(255, 240, 176)
+                        ExternalTimestamp.TextTransparency = 0.22
+                        ExternalTimestamp.TextSize = 11
+                        ExternalTimestamp.TextXAlignment = Enum.TextXAlignment.Center
+                        ExternalTimestamp.LayoutOrder = 2
+                        ExternalTimestamp.Parent = ExternalHeader
                     end
 
                     BubbleItems["MessageText"] = Instances:Create("TextLabel", {
@@ -6891,13 +6939,15 @@ local Library do
                         TextColor3 = IsExternalMessage and FromRGB(255, 241, 166) or FromRGB(255, 255, 255),
                         BorderColor3 = FromRGB(0, 0, 0),
                         Text = FormatRichMessage(RawMessage),
-                        RichText = true,
+                        RichText = not IsExternalMessage,
                         BorderSizePixel = 0,
                         BackgroundTransparency = 1,
-                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextXAlignment = IsExternalMessage and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left,
                         TextWrapped = true,
-                        AutomaticSize = Enum.AutomaticSize.XY,
-                        TextSize = IsExternalMessage and 18 or 14
+                        AutomaticSize = IsExternalMessage and Enum.AutomaticSize.Y or Enum.AutomaticSize.XY,
+                        Size = IsExternalMessage and UDim2New(1, 0, 0, 0) or UDim2New(0, 0, 0, 0),
+                        TextSize = IsExternalMessage and 18 or 14,
+                        LayoutOrder = IsExternalMessage and 2 or 0
                     })
                     if not IsExternalMessage then
                         BubbleItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
@@ -6915,118 +6965,121 @@ local Library do
                     Instances:Create("UISizeConstraint", {
                         Parent = BubbleItems["RealMessage"].Instance,
                         Name = "\0",
-                        MaxSize = Vector2New(300, 400)
+                        MaxSize = IsExternalMessage and Vector2New(420, 500) or Vector2New(300, 400)
                     })
 
-                    local HoverActionsW = 66
-                    local HoverActions = InstanceNew("Frame")
-                    HoverActions.AnchorPoint = Vector2New(1, 0)
-                    HoverActions.Position = UDim2New(1, 0, 0, 2)
-                    HoverActions.Size = UDim2New(0, HoverActionsW, 0, 28)
-                    HoverActions.BackgroundColor3 = FromRGB(41, 40, 49)
-                    HoverActions.BackgroundTransparency = 0.05
-                    HoverActions.BorderSizePixel = 0
-                    HoverActions.Visible = false
-                    HoverActions.ZIndex = 30
-                    HoverActions.ClipsDescendants = false
-                    HoverActions.Parent = BubbleRow
+                    local HoverActions = nil
+                    if not IsExternalMessage then
+                        local HoverActionsW = 66
+                        HoverActions = InstanceNew("Frame")
+                        HoverActions.AnchorPoint = Vector2New(1, 0)
+                        HoverActions.Position = UDim2New(1, 0, 0, 2)
+                        HoverActions.Size = UDim2New(0, HoverActionsW, 0, 28)
+                        HoverActions.BackgroundColor3 = FromRGB(41, 40, 49)
+                        HoverActions.BackgroundTransparency = 0.05
+                        HoverActions.BorderSizePixel = 0
+                        HoverActions.Visible = false
+                        HoverActions.ZIndex = 30
+                        HoverActions.ClipsDescendants = false
+                        HoverActions.Parent = BubbleRow
 
-                    local HoverCorner = InstanceNew("UICorner")
-                    HoverCorner.CornerRadius = UDimNew(0, 4)
-                    HoverCorner.Parent = HoverActions
+                        local HoverCorner = InstanceNew("UICorner")
+                        HoverCorner.CornerRadius = UDimNew(0, 4)
+                        HoverCorner.Parent = HoverActions
 
-                    local HoverLayout = InstanceNew("UIListLayout")
-                    HoverLayout.FillDirection = Enum.FillDirection.Horizontal
-                    HoverLayout.Padding = UDimNew(0, 1)
-                    HoverLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-                    HoverLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-                    HoverLayout.Parent = HoverActions
+                        local HoverLayout = InstanceNew("UIListLayout")
+                        HoverLayout.FillDirection = Enum.FillDirection.Horizontal
+                        HoverLayout.Padding = UDimNew(0, 1)
+                        HoverLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+                        HoverLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+                        HoverLayout.Parent = HoverActions
 
-                    local ReplyBtn = InstanceNew("TextButton")
-                    ReplyBtn.Text = "↩"
-                    ReplyBtn.FontFace = Library.Font
-                    ReplyBtn.TextSize = 13
-                    ReplyBtn.TextColor3 = FromRGB(210, 210, 210)
-                    ReplyBtn.BackgroundTransparency = 1
-                    ReplyBtn.BorderSizePixel = 0
-                    ReplyBtn.Size = UDim2New(0, 28, 0, 28)
-                    ReplyBtn.ZIndex = 31
-                    ReplyBtn.Parent = HoverActions
+                        local ReplyBtn = InstanceNew("TextButton")
+                        ReplyBtn.Text = "↩"
+                        ReplyBtn.FontFace = Library.Font
+                        ReplyBtn.TextSize = 13
+                        ReplyBtn.TextColor3 = FromRGB(210, 210, 210)
+                        ReplyBtn.BackgroundTransparency = 1
+                        ReplyBtn.BorderSizePixel = 0
+                        ReplyBtn.Size = UDim2New(0, 28, 0, 28)
+                        ReplyBtn.ZIndex = 31
+                        ReplyBtn.Parent = HoverActions
 
-                    ReplyBtn.MouseButton1Click:Connect(function()
-                        HideContextMenu()
-                        SetReplyingTo({
-                            id = MessageIdNum,
-                            username = Username,
-                            message = RawMessage,
-                            avatar = Avatar
-                        })
-                    end)
-
-                    if IsLocalPlayer then
-                        local DotsBtn = InstanceNew("TextButton")
-                        DotsBtn.Text = ""
-                        DotsBtn.BackgroundTransparency = 1
-                        DotsBtn.BorderSizePixel = 0
-                        DotsBtn.Size = UDim2New(0, 28, 0, 28)
-                        DotsBtn.ZIndex = 31
-                        DotsBtn.Parent = HoverActions
-                        for DI = 1, 3 do
-                            local Dot = InstanceNew("Frame")
-                            Dot.Size = UDim2New(0, 3, 0, 3)
-                            Dot.AnchorPoint = Vector2New(0.5, 0.5)
-                            Dot.Position = UDim2New(0.5, 0, 0.5, (DI - 2) * 5)
-                            Dot.BackgroundColor3 = FromRGB(210, 210, 210)
-                            Dot.BorderSizePixel = 0
-                            Dot.ZIndex = 32
-                            Dot.Parent = DotsBtn
-                            local DC = InstanceNew("UICorner")
-                            DC.CornerRadius = UDimNew(1, 0)
-                            DC.Parent = Dot
-                        end
-
-                        DotsBtn.MouseButton1Click:Connect(function()
-                            ShowContextMenu({
+                        ReplyBtn.MouseButton1Click:Connect(function()
+                            HideContextMenu()
+                            SetReplyingTo({
                                 id = MessageIdNum,
                                 username = Username,
                                 message = RawMessage,
-                                avatar = Avatar,
-                                senderId = tostring(MessageMeta and MessageMeta.senderId or ""),
-                                isLocal = true
-                            }, DotsBtn)
+                                avatar = Avatar
+                            })
                         end)
-                    else
-                        local DotsBtn = InstanceNew("TextButton")
-                        DotsBtn.Text = ""
-                        DotsBtn.BackgroundTransparency = 1
-                        DotsBtn.BorderSizePixel = 0
-                        DotsBtn.Size = UDim2New(0, 28, 0, 28)
-                        DotsBtn.ZIndex = 31
-                        DotsBtn.Parent = HoverActions
-                        for DI = 1, 3 do
-                            local Dot = InstanceNew("Frame")
-                            Dot.Size = UDim2New(0, 3, 0, 3)
-                            Dot.AnchorPoint = Vector2New(0.5, 0.5)
-                            Dot.Position = UDim2New(0.5, 0, 0.5, (DI - 2) * 5)
-                            Dot.BackgroundColor3 = FromRGB(210, 210, 210)
-                            Dot.BorderSizePixel = 0
-                            Dot.ZIndex = 32
-                            Dot.Parent = DotsBtn
-                            local DC = InstanceNew("UICorner")
-                            DC.CornerRadius = UDimNew(1, 0)
-                            DC.Parent = Dot
-                        end
 
-                        DotsBtn.MouseButton1Click:Connect(function()
-                            ShowContextMenu({
-                                id = MessageIdNum,
-                                username = Username,
-                                message = RawMessage,
-                                avatar = Avatar,
-                                senderId = tostring(MessageMeta and MessageMeta.senderId or ""),
-                                isLocal = false
-                            }, DotsBtn)
-                        end)
+                        if IsLocalPlayer then
+                            local DotsBtn = InstanceNew("TextButton")
+                            DotsBtn.Text = ""
+                            DotsBtn.BackgroundTransparency = 1
+                            DotsBtn.BorderSizePixel = 0
+                            DotsBtn.Size = UDim2New(0, 28, 0, 28)
+                            DotsBtn.ZIndex = 31
+                            DotsBtn.Parent = HoverActions
+                            for DI = 1, 3 do
+                                local Dot = InstanceNew("Frame")
+                                Dot.Size = UDim2New(0, 3, 0, 3)
+                                Dot.AnchorPoint = Vector2New(0.5, 0.5)
+                                Dot.Position = UDim2New(0.5, 0, 0.5, (DI - 2) * 5)
+                                Dot.BackgroundColor3 = FromRGB(210, 210, 210)
+                                Dot.BorderSizePixel = 0
+                                Dot.ZIndex = 32
+                                Dot.Parent = DotsBtn
+                                local DC = InstanceNew("UICorner")
+                                DC.CornerRadius = UDimNew(1, 0)
+                                DC.Parent = Dot
+                            end
+
+                            DotsBtn.MouseButton1Click:Connect(function()
+                                ShowContextMenu({
+                                    id = MessageIdNum,
+                                    username = Username,
+                                    message = RawMessage,
+                                    avatar = Avatar,
+                                    senderId = tostring(MessageMeta and MessageMeta.senderId or ""),
+                                    isLocal = true
+                                }, DotsBtn)
+                            end)
+                        else
+                            local DotsBtn = InstanceNew("TextButton")
+                            DotsBtn.Text = ""
+                            DotsBtn.BackgroundTransparency = 1
+                            DotsBtn.BorderSizePixel = 0
+                            DotsBtn.Size = UDim2New(0, 28, 0, 28)
+                            DotsBtn.ZIndex = 31
+                            DotsBtn.Parent = HoverActions
+                            for DI = 1, 3 do
+                                local Dot = InstanceNew("Frame")
+                                Dot.Size = UDim2New(0, 3, 0, 3)
+                                Dot.AnchorPoint = Vector2New(0.5, 0.5)
+                                Dot.Position = UDim2New(0.5, 0, 0.5, (DI - 2) * 5)
+                                Dot.BackgroundColor3 = FromRGB(210, 210, 210)
+                                Dot.BorderSizePixel = 0
+                                Dot.ZIndex = 32
+                                Dot.Parent = DotsBtn
+                                local DC = InstanceNew("UICorner")
+                                DC.CornerRadius = UDimNew(1, 0)
+                                DC.Parent = Dot
+                            end
+
+                            DotsBtn.MouseButton1Click:Connect(function()
+                                ShowContextMenu({
+                                    id = MessageIdNum,
+                                    username = Username,
+                                    message = RawMessage,
+                                    avatar = Avatar,
+                                    senderId = tostring(MessageMeta and MessageMeta.senderId or ""),
+                                    isLocal = false
+                                }, DotsBtn)
+                            end)
+                        end
                     end
 
                     if MessageIdNum and GroupFrame and StackFrame then
@@ -7037,7 +7090,7 @@ local Library do
                         }
                     end
 
-                    if not IsMobile then
+                    if not IsExternalMessage and not IsMobile then
                         local IsHovered = false
                         local function OnHoverEnter()
                             IsHovered = true
@@ -7061,7 +7114,7 @@ local Library do
                         HoverActions.MouseLeave:Connect(OnHoverLeave)
                     end
 
-                    if IsMobile then
+                    if not IsExternalMessage and IsMobile then
                         local TouchStart = nil
                         local LPThread = nil
                         BubbleItems["RealMessage"].Instance.InputBegan:Connect(function(Input)
@@ -7180,203 +7233,223 @@ local Library do
                         RML.Parent = ReplyPreview
                     end
 
-                    local PlayerNameRow = InstanceNew("Frame")
-                    PlayerNameRow.BackgroundTransparency = 1
-                    PlayerNameRow.BorderSizePixel = 0
-                    PlayerNameRow.Position = UDim2New(0, 43, 0, ReplyOffsetY)
-                    PlayerNameRow.Size = UDim2New(0, 0, 0, 15)
-                    PlayerNameRow.AutomaticSize = Enum.AutomaticSize.X
-                    PlayerNameRow.ClipsDescendants = false
-                    PlayerNameRow.Parent = SubItems["Message1"].Instance
-                    local PlayerNameRowLayout = InstanceNew("UIListLayout")
-                    PlayerNameRowLayout.FillDirection = Enum.FillDirection.Horizontal
-                    PlayerNameRowLayout.Padding = UDimNew(0, 4)
-                    PlayerNameRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-                    PlayerNameRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
-                    PlayerNameRowLayout.Parent = PlayerNameRow
+                    if IsExternalMessage then
+                        SubItems["MessageStack"] = Instances:Create("Frame", {
+                            Parent = SubItems["Message1"].Instance,
+                            Name = "\0",
+                            Position = UDim2New(0, 0, 0, 0),
+                            BackgroundTransparency = 1,
+                            BorderColor3 = FromRGB(0, 0, 0),
+                            BorderSizePixel = 0,
+                            AutomaticSize = Enum.AutomaticSize.Y,
+                            Size = UDim2New(1, 0, 0, 0)
+                        })
 
-                    SubItems["PlayerName"] = Instances:Create("TextLabel", {
-                        Parent = PlayerNameRow,
-                        Name = "\0",
-                        FontFace = Library.Font,
-                        TextColor3 = FromRGB(255, 255, 255),
-                        BorderColor3 = FromRGB(0, 0, 0),
-                        Text = Username,
-                        Size = UDim2New(0, 0, 0, 15),
-                        BackgroundTransparency = 1,
-                        BorderSizePixel = 0,
-                        AutomaticSize = Enum.AutomaticSize.X,
-                        TextSize = 14,
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                        LayoutOrder = 1,
-                    })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
+                        Instances:Create("UIListLayout", {
+                            Parent = SubItems["MessageStack"].Instance,
+                            Name = "\0",
+                            Padding = UDimNew(0, 0),
+                            SortOrder = Enum.SortOrder.LayoutOrder
+                        })
+                    else
+                        local PlayerNameRow = InstanceNew("Frame")
+                        PlayerNameRow.BackgroundTransparency = 1
+                        PlayerNameRow.BorderSizePixel = 0
+                        PlayerNameRow.Position = UDim2New(0, 43, 0, ReplyOffsetY)
+                        PlayerNameRow.Size = UDim2New(0, 0, 0, 15)
+                        PlayerNameRow.AutomaticSize = Enum.AutomaticSize.X
+                        PlayerNameRow.ClipsDescendants = false
+                        PlayerNameRow.Parent = SubItems["Message1"].Instance
+                        local PlayerNameRowLayout = InstanceNew("UIListLayout")
+                        PlayerNameRowLayout.FillDirection = Enum.FillDirection.Horizontal
+                        PlayerNameRowLayout.Padding = UDimNew(0, 4)
+                        PlayerNameRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+                        PlayerNameRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                        PlayerNameRowLayout.Parent = PlayerNameRow
 
-                    local MsgSenderId = tostring(MessageMeta and MessageMeta.senderId or "")
-                    local IsAdminMsg = IsAdminSender(MsgSenderId)
-                    local StaffIconLabel = InstanceNew("ImageLabel")
-                    StaffIconLabel.Image = "rbxassetid://98152660301946"
-                    StaffIconLabel.BackgroundTransparency = 1
-                    StaffIconLabel.BorderSizePixel = 0
-                    StaffIconLabel.Size = UDim2New(0, 12, 0, 12)
-                    StaffIconLabel.ScaleType = Enum.ScaleType.Fit
-                    StaffIconLabel.ZIndex = 5
-                    StaffIconLabel.LayoutOrder = 2
-                    StaffIconLabel.Visible = IsAdminMsg
-                    StaffIconLabel.Parent = PlayerNameRow
+                        SubItems["PlayerName"] = Instances:Create("TextLabel", {
+                            Parent = PlayerNameRow,
+                            Name = "\0",
+                            FontFace = Library.Font,
+                            TextColor3 = FromRGB(255, 255, 255),
+                            BorderColor3 = FromRGB(0, 0, 0),
+                            Text = Username,
+                            Size = UDim2New(0, 0, 0, 15),
+                            BackgroundTransparency = 1,
+                            BorderSizePixel = 0,
+                            AutomaticSize = Enum.AutomaticSize.X,
+                            TextSize = 14,
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            LayoutOrder = 1,
+                        })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
 
-                    local TimeoutIconLabel = InstanceNew("ImageLabel")
-                    TimeoutIconLabel.Image = "rbxassetid://115708152231784"
-                    TimeoutIconLabel.BackgroundTransparency = 1
-                    TimeoutIconLabel.BorderSizePixel = 0
-                    TimeoutIconLabel.Size = UDim2New(0, 12, 0, 12)
-                    TimeoutIconLabel.ScaleType = Enum.ScaleType.Fit
-                    TimeoutIconLabel.ZIndex = 5
-                    TimeoutIconLabel.LayoutOrder = 3
-                    TimeoutIconLabel.Visible = MsgSenderId ~= "" and BackendState.TimedOutUsers and BackendState.TimedOutUsers[MsgSenderId] and true or false
-                    TimeoutIconLabel.Parent = PlayerNameRow
-                    SubItems["TimeoutIcon"] = TimeoutIconLabel
-                    SubItems["TimeoutIconSenderId"] = MsgSenderId
-                    if MsgSenderId ~= "" then
-                        if not BackendState.TimeoutIconsBySenderId[MsgSenderId] then
-                            BackendState.TimeoutIconsBySenderId[MsgSenderId] = { }
+                        local MsgSenderId = tostring(MessageMeta and MessageMeta.senderId or "")
+                        local IsAdminMsg = IsAdminSender(MsgSenderId)
+                        local StaffIconLabel = InstanceNew("ImageLabel")
+                        StaffIconLabel.Image = "rbxassetid://98152660301946"
+                        StaffIconLabel.BackgroundTransparency = 1
+                        StaffIconLabel.BorderSizePixel = 0
+                        StaffIconLabel.Size = UDim2New(0, 12, 0, 12)
+                        StaffIconLabel.ScaleType = Enum.ScaleType.Fit
+                        StaffIconLabel.ZIndex = 5
+                        StaffIconLabel.LayoutOrder = 2
+                        StaffIconLabel.Visible = IsAdminMsg
+                        StaffIconLabel.Parent = PlayerNameRow
+
+                        local TimeoutIconLabel = InstanceNew("ImageLabel")
+                        TimeoutIconLabel.Image = "rbxassetid://115708152231784"
+                        TimeoutIconLabel.BackgroundTransparency = 1
+                        TimeoutIconLabel.BorderSizePixel = 0
+                        TimeoutIconLabel.Size = UDim2New(0, 12, 0, 12)
+                        TimeoutIconLabel.ScaleType = Enum.ScaleType.Fit
+                        TimeoutIconLabel.ZIndex = 5
+                        TimeoutIconLabel.LayoutOrder = 3
+                        TimeoutIconLabel.Visible = MsgSenderId ~= "" and BackendState.TimedOutUsers and BackendState.TimedOutUsers[MsgSenderId] and true or false
+                        TimeoutIconLabel.Parent = PlayerNameRow
+                        SubItems["TimeoutIcon"] = TimeoutIconLabel
+                        SubItems["TimeoutIconSenderId"] = MsgSenderId
+                        if MsgSenderId ~= "" then
+                            if not BackendState.TimeoutIconsBySenderId[MsgSenderId] then
+                                BackendState.TimeoutIconsBySenderId[MsgSenderId] = { }
+                            end
+                            table.insert(BackendState.TimeoutIconsBySenderId[MsgSenderId], TimeoutIconLabel)
                         end
-                        table.insert(BackendState.TimeoutIconsBySenderId[MsgSenderId], TimeoutIconLabel)
-                    end
 
-                    local StatGameText, StatJoinText = ResolveStatCardData()
-                    local StatCard = InstanceNew("Frame")
-                    StatCard.Name = "\0"
-                    StatCard.Parent = SubItems["Message1"].Instance
-                    StatCard.AnchorPoint = Vector2New(0, 1)
-                    StatCard.Position = UDim2New(0, 43, 0, ReplyOffsetY - 2)
-                    StatCard.Size = UDim2New(0, 230, 0, 36)
-                    StatCard.BackgroundColor3 = FromRGB(41, 40, 49)
-                    StatCard.BackgroundTransparency = 0.08
-                    StatCard.BorderSizePixel = 0
-                    StatCard.Visible = false
-                    StatCard.ZIndex = 28
+                        local StatGameText, StatJoinText = ResolveStatCardData()
+                        local StatCard = InstanceNew("Frame")
+                        StatCard.Name = "\0"
+                        StatCard.Parent = SubItems["Message1"].Instance
+                        StatCard.AnchorPoint = Vector2New(0, 1)
+                        StatCard.Position = UDim2New(0, 43, 0, ReplyOffsetY - 2)
+                        StatCard.Size = UDim2New(0, 230, 0, 36)
+                        StatCard.BackgroundColor3 = FromRGB(41, 40, 49)
+                        StatCard.BackgroundTransparency = 0.08
+                        StatCard.BorderSizePixel = 0
+                        StatCard.Visible = false
+                        StatCard.ZIndex = 28
 
-                    local StatCardCorner = InstanceNew("UICorner")
-                    StatCardCorner.CornerRadius = UDimNew(0, 6)
-                    StatCardCorner.Parent = StatCard
+                        local StatCardCorner = InstanceNew("UICorner")
+                        StatCardCorner.CornerRadius = UDimNew(0, 6)
+                        StatCardCorner.Parent = StatCard
 
-                    local StatCardStroke = InstanceNew("UIStroke")
-                    StatCardStroke.Thickness = 1
-                    StatCardStroke.Color = FromRGB(255, 0, 255)
-                    StatCardStroke.Transparency = 0.1
-                    StatCardStroke.Parent = StatCard
+                        local StatCardStroke = InstanceNew("UIStroke")
+                        StatCardStroke.Thickness = 1
+                        StatCardStroke.Color = FromRGB(255, 0, 255)
+                        StatCardStroke.Transparency = 0.1
+                        StatCardStroke.Parent = StatCard
 
-                    local StatGame = InstanceNew("TextLabel")
-                    StatGame.Parent = StatCard
-                    StatGame.BackgroundTransparency = 1
-                    StatGame.BorderSizePixel = 0
-                    StatGame.Position = UDim2New(0, 8, 0, 4)
-                    StatGame.Size = UDim2New(1, -16, 0, 13)
-                    StatGame.FontFace = Library.Font
-                    StatGame.Text = "Game: " .. tostring(StatGameText)
-                    StatGame.TextSize = 12
-                    StatGame.TextColor3 = FromRGB(230, 230, 230)
-                    StatGame.TextXAlignment = Enum.TextXAlignment.Left
-                    StatGame.TextTruncate = Enum.TextTruncate.AtEnd
-                    StatGame.ZIndex = 29
+                        local StatGame = InstanceNew("TextLabel")
+                        StatGame.Parent = StatCard
+                        StatGame.BackgroundTransparency = 1
+                        StatGame.BorderSizePixel = 0
+                        StatGame.Position = UDim2New(0, 8, 0, 4)
+                        StatGame.Size = UDim2New(1, -16, 0, 13)
+                        StatGame.FontFace = Library.Font
+                        StatGame.Text = "Game: " .. tostring(StatGameText)
+                        StatGame.TextSize = 12
+                        StatGame.TextColor3 = FromRGB(230, 230, 230)
+                        StatGame.TextXAlignment = Enum.TextXAlignment.Left
+                        StatGame.TextTruncate = Enum.TextTruncate.AtEnd
+                        StatGame.ZIndex = 29
 
-                    local StatJoin = InstanceNew("TextLabel")
-                    StatJoin.Parent = StatCard
-                    StatJoin.BackgroundTransparency = 1
-                    StatJoin.BorderSizePixel = 0
-                    StatJoin.Position = UDim2New(0, 8, 0, 18)
-                    StatJoin.Size = UDim2New(1, -16, 0, 13)
-                    StatJoin.FontFace = Library.Subfont
-                    StatJoin.Text = "Join Time: " .. tostring(StatJoinText)
-                    StatJoin.TextSize = 11
-                    StatJoin.TextColor3 = FromRGB(180, 180, 180)
-                    StatJoin.TextXAlignment = Enum.TextXAlignment.Left
-                    StatJoin.TextTruncate = Enum.TextTruncate.AtEnd
-                    StatJoin.ZIndex = 29
+                        local StatJoin = InstanceNew("TextLabel")
+                        StatJoin.Parent = StatCard
+                        StatJoin.BackgroundTransparency = 1
+                        StatJoin.BorderSizePixel = 0
+                        StatJoin.Position = UDim2New(0, 8, 0, 18)
+                        StatJoin.Size = UDim2New(1, -16, 0, 13)
+                        StatJoin.FontFace = Library.Subfont
+                        StatJoin.Text = "Join Time: " .. tostring(StatJoinText)
+                        StatJoin.TextSize = 11
+                        StatJoin.TextColor3 = FromRGB(180, 180, 180)
+                        StatJoin.TextXAlignment = Enum.TextXAlignment.Left
+                        StatJoin.TextTruncate = Enum.TextTruncate.AtEnd
+                        StatJoin.ZIndex = 29
 
-                    local NameHovered = false
-                    local CardHovered = false
-                    local function UpdateNameCardHover()
-                        local Visible = NameHovered or CardHovered
-                        StatCard.Visible = Visible
-                        if NameHovered then
-                            SubItems["PlayerName"].Instance.TextColor3 = FromRGB(255, 0, 255)
-                        else
-                            SubItems["PlayerName"].Instance.TextColor3 = Library.Theme.Text
+                        local NameHovered = false
+                        local CardHovered = false
+                        local function UpdateNameCardHover()
+                            local Visible = NameHovered or CardHovered
+                            StatCard.Visible = Visible
+                            if NameHovered then
+                                SubItems["PlayerName"].Instance.TextColor3 = FromRGB(255, 0, 255)
+                            else
+                                SubItems["PlayerName"].Instance.TextColor3 = Library.Theme.Text
+                            end
                         end
+
+                        SubItems["PlayerName"].Instance.MouseEnter:Connect(function()
+                            NameHovered = true
+                            UpdateNameCardHover()
+                        end)
+
+                        SubItems["PlayerName"].Instance.MouseLeave:Connect(function()
+                            NameHovered = false
+                            task.defer(UpdateNameCardHover)
+                        end)
+
+                        StatCard.MouseEnter:Connect(function()
+                            CardHovered = true
+                            UpdateNameCardHover()
+                        end)
+
+                        StatCard.MouseLeave:Connect(function()
+                            CardHovered = false
+                            task.defer(UpdateNameCardHover)
+                        end)
+
+                        SubItems["Timestamp"] = Instances:Create("TextLabel", {
+                            Parent = SubItems["Message1"].Instance,
+                            Name = "\0",
+                            FontFace = Library.Subfont,
+                            TextColor3 = FromRGB(180, 180, 180),
+                            BorderColor3 = FromRGB(0, 0, 0),
+                            Text = TimestampText,
+                            Size = UDim2New(0, 0, 0, 15),
+                            BackgroundTransparency = 1,
+                            Position = UDim2New(0, 43, 0, 14 + ReplyOffsetY),
+                            BorderSizePixel = 0,
+                            AutomaticSize = Enum.AutomaticSize.X,
+                            TextSize = 12,
+                            TextXAlignment = Enum.TextXAlignment.Left
+                        })  SubItems["Timestamp"]:AddToTheme({TextColor3 = "Gradient"})
+
+                        SubItems["MessageStack"] = Instances:Create("Frame", {
+                            Parent = SubItems["Message1"].Instance,
+                            Name = "\0",
+                            Position = UDim2New(0, 43, 0, 34 + ReplyOffsetY),
+                            BackgroundTransparency = 1,
+                            BorderColor3 = FromRGB(0, 0, 0),
+                            BorderSizePixel = 0,
+                            AutomaticSize = Enum.AutomaticSize.Y,
+                            Size = UDim2New(1, -43, 0, 0)
+                        })
+
+                        Instances:Create("UIListLayout", {
+                            Parent = SubItems["MessageStack"].Instance,
+                            Name = "\0",
+                            Padding = UDimNew(0, 6),
+                            SortOrder = Enum.SortOrder.LayoutOrder
+                        })
+
+                        SubItems["Avatar"] = Instances:Create("ImageLabel", {
+                            Parent = SubItems["Message1"].Instance,
+                            Name = "\0",
+                            BorderColor3 = FromRGB(0, 0, 0),
+                            AnchorPoint = Vector2New(0, 0),
+                            Image = Avatar,
+                            BackgroundTransparency = 1,
+                            Position = UDim2New(0, 0, 0, ReplyOffsetY),
+                            Size = UDim2New(0, 35, 0, 35),
+                            BorderSizePixel = 0
+                        })
+
+                        Instances:Create("UICorner", {
+                            Parent = SubItems["Avatar"].Instance,
+                            Name = "\0",
+                            CornerRadius = UDimNew(0, 4)
+                        })
                     end
-
-                    SubItems["PlayerName"].Instance.MouseEnter:Connect(function()
-                        NameHovered = true
-                        UpdateNameCardHover()
-                    end)
-
-                    SubItems["PlayerName"].Instance.MouseLeave:Connect(function()
-                        NameHovered = false
-                        task.defer(UpdateNameCardHover)
-                    end)
-
-                    StatCard.MouseEnter:Connect(function()
-                        CardHovered = true
-                        UpdateNameCardHover()
-                    end)
-
-                    StatCard.MouseLeave:Connect(function()
-                        CardHovered = false
-                        task.defer(UpdateNameCardHover)
-                    end)
-
-                    SubItems["Timestamp"] = Instances:Create("TextLabel", {
-                        Parent = SubItems["Message1"].Instance,
-                        Name = "\0",
-                        FontFace = Library.Subfont,
-                        TextColor3 = FromRGB(180, 180, 180),
-                        BorderColor3 = FromRGB(0, 0, 0),
-                        Text = TimestampText,
-                        Size = UDim2New(0, 0, 0, 15),
-                        BackgroundTransparency = 1,
-                        Position = UDim2New(0, 43, 0, 14 + ReplyOffsetY),
-                        BorderSizePixel = 0,
-                        AutomaticSize = Enum.AutomaticSize.X,
-                        TextSize = 12,
-                        TextXAlignment = Enum.TextXAlignment.Left
-                    })  SubItems["Timestamp"]:AddToTheme({TextColor3 = "Gradient"})
-
-                    SubItems["MessageStack"] = Instances:Create("Frame", {
-                        Parent = SubItems["Message1"].Instance,
-                        Name = "\0",
-                        Position = UDim2New(0, 43, 0, 34 + ReplyOffsetY),
-                        BackgroundTransparency = 1,
-                        BorderColor3 = FromRGB(0, 0, 0),
-                        BorderSizePixel = 0,
-                        AutomaticSize = Enum.AutomaticSize.Y,
-                        Size = UDim2New(1, -43, 0, 0)
-                    })
-
-                    Instances:Create("UIListLayout", {
-                        Parent = SubItems["MessageStack"].Instance,
-                        Name = "\0",
-                        Padding = UDimNew(0, 6),
-                        SortOrder = Enum.SortOrder.LayoutOrder
-                    })
-
-                    SubItems["Avatar"] = Instances:Create("ImageLabel", {
-                        Parent = SubItems["Message1"].Instance,
-                        Name = "\0",
-                        BorderColor3 = FromRGB(0, 0, 0),
-                        AnchorPoint = Vector2New(0, 0),
-                        Image = Avatar,
-                        BackgroundTransparency = 1,
-                        Position = UDim2New(0, 0, 0, ReplyOffsetY),
-                        Size = UDim2New(0, 35, 0, 35),
-                        BorderSizePixel = 0
-                    })
-
-                    Instances:Create("UICorner", {
-                        Parent = SubItems["Avatar"].Instance,
-                        Name = "\0",
-                        CornerRadius = UDimNew(0, 4)
-                    })
 
                     CreateBubble(SubItems["MessageStack"].Instance, SubItems["Message1"].Instance, SubItems["MessageStack"].Instance)  -- raw Instances passed directly
                 end
