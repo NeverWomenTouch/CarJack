@@ -3022,6 +3022,217 @@ local Library do
         end)
     end
 
+    local function EscapeDiscordRichText(Value)
+        local Escaped = tostring(Value or "")
+        Escaped = StringGSub(Escaped, "&", "&amp;")
+        Escaped = StringGSub(Escaped, "<", "&lt;")
+        Escaped = StringGSub(Escaped, ">", "&gt;")
+        return Escaped
+    end
+
+    local function ApplyDiscordInlineFormatting(Value)
+        local Text = EscapeDiscordRichText(Value)
+
+        Text = StringGSub(Text, "%[([^%]]+)%]%(([^%)]+)%)", "%1")
+        Text = StringGSub(Text, "__%*%*%*(.-)%*%*%*__", "<u><b><i>%1</i></b></u>")
+        Text = StringGSub(Text, "%*%*%*(.-)%*%*%*", "<b><i>%1</i></b>")
+        Text = StringGSub(Text, "__%*%*(.-)%*%*__", "<u><b>%1</b></u>")
+        Text = StringGSub(Text, "__%*(.-)%*__", "<u><i>%1</i></u>")
+        Text = StringGSub(Text, "__([^_]+)__", "<u>%1</u>")
+        Text = StringGSub(Text, "%*%*([^%*]+)%*%*", "<b>%1</b>")
+        Text = StringGSub(Text, "~~(.-)~~", "<s>%1</s>")
+        Text = StringGSub(Text, "`([^`]+)`", "<font color=\"rgb(232,197,71)\">%1</font>")
+        Text = StringGSub(Text, "%*([^%*]+)%*", "<i>%1</i>")
+        Text = StringGSub(Text, "_([^_]+)_", "<i>%1</i>")
+
+        return Text
+    end
+
+    local function CreateDiscordUpdateRow(Parent, Order)
+        return Instances:Create("Frame", {
+            Parent = Parent,
+            Name = "\0",
+            BorderSizePixel = 0,
+            BackgroundTransparency = 1,
+            Size = UDim2New(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            LayoutOrder = Order
+        })
+    end
+
+    local function CreateDiscordUpdateText(Parent, Order, Text, TextSize, Transparency, Indent)
+        local Row = CreateDiscordUpdateRow(Parent, Order)
+        local LeftInset = Indent or 0
+
+        local Label = Instances:Create("TextLabel", {
+            Parent = Row.Instance,
+            Name = "\0",
+            FontFace = Library.Font,
+            TextColor3 = FromRGB(255, 255, 255),
+            TextTransparency = Transparency or 0.08,
+            BorderColor3 = FromRGB(0, 0, 0),
+            Text = ApplyDiscordInlineFormatting(Text),
+            Size = UDim2New(1, -LeftInset, 0, 0),
+            Position = UDim2New(0, LeftInset, 0, 0),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            RichText = true,
+            TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            TextSize = TextSize,
+            ZIndex = 212
+        })  Label:AddToTheme({TextColor3 = "Text"})
+
+        return Row, Label
+    end
+
+    local function CreateDiscordBulletRow(Parent, Order, BulletText, Text, TextSize, Depth)
+        local Row = CreateDiscordUpdateRow(Parent, Order)
+        local Indent = 8 + (Depth * 18)
+
+        local Bullet = Instances:Create("TextLabel", {
+            Parent = Row.Instance,
+            Name = "\0",
+            FontFace = Library.Font,
+            TextColor3 = FromRGB(255, 255, 255),
+            TextTransparency = 0.16,
+            BorderSizePixel = 0,
+            BackgroundTransparency = 1,
+            Text = BulletText,
+            Size = UDim2New(0, 14, 0, 18),
+            Position = UDim2New(0, Indent, 0, 0),
+            RichText = true,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            TextSize = TextSize,
+            ZIndex = 212
+        })  Bullet:AddToTheme({TextColor3 = "Text"})
+
+        local Label = Instances:Create("TextLabel", {
+            Parent = Row.Instance,
+            Name = "\0",
+            FontFace = Library.Font,
+            TextColor3 = FromRGB(255, 255, 255),
+            TextTransparency = 0.08,
+            BorderSizePixel = 0,
+            BackgroundTransparency = 1,
+            Text = ApplyDiscordInlineFormatting(Text),
+            Size = UDim2New(1, -(Indent + 20), 0, 0),
+            Position = UDim2New(0, Indent + 18, 0, 0),
+            RichText = true,
+            TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            TextSize = TextSize,
+            ZIndex = 212
+        })  Label:AddToTheme({TextColor3 = "Text"})
+
+        return Row, Bullet, Label
+    end
+
+    local function CreateDiscordQuoteRow(Parent, Order, Text, Depth)
+        local Row = CreateDiscordUpdateRow(Parent, Order)
+        local Indent = 2 + ((Depth or 0) * 12)
+
+        local Bar = Instances:Create("Frame", {
+            Parent = Row.Instance,
+            Name = "\0",
+            BorderSizePixel = 0,
+            BackgroundColor3 = Library.Theme.Accent,
+            Size = UDim2New(0, 3, 1, 0),
+            Position = UDim2New(0, Indent, 0, 0),
+            ZIndex = 212
+        })  Bar:AddToTheme({BackgroundColor3 = "Accent"})
+
+        local Label = Instances:Create("TextLabel", {
+            Parent = Row.Instance,
+            Name = "\0",
+            FontFace = Library.Font,
+            TextColor3 = FromRGB(255, 255, 255),
+            TextTransparency = 0.16,
+            BorderSizePixel = 0,
+            BackgroundTransparency = 1,
+            Text = ApplyDiscordInlineFormatting(Text),
+            Size = UDim2New(1, -(Indent + 12), 0, 0),
+            Position = UDim2New(0, Indent + 10, 0, 0),
+            RichText = true,
+            TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            TextSize = 15,
+            ZIndex = 212
+        })  Label:AddToTheme({TextColor3 = "Text"})
+
+        return Row, Bar, Label
+    end
+
+    local function RenderDiscordUpdateContent(Parent, Content)
+        local Order = 0
+        local InMultiQuote = false
+        local Normalized = tostring(Content or "")
+        Normalized = StringGSub(Normalized, "\r\n", "\n")
+        Normalized = StringGSub(Normalized, "\r", "\n")
+
+        for Line in string.gmatch(Normalized .. "\n", "(.-)\n") do
+            local RawLine = tostring(Line or "")
+            local Trimmed = StringGSub(RawLine, "^%s+", "")
+
+            if Trimmed == "" then
+                Order += 1
+                Instances:Create("Frame", {
+                    Parent = Parent,
+                    Name = "\0",
+                    BorderSizePixel = 0,
+                    BackgroundTransparency = 1,
+                    Size = UDim2New(1, 0, 0, 6),
+                    LayoutOrder = Order
+                })
+            else
+                local MultiQuoteText = string.match(RawLine, "^>>>%s?(.*)$")
+                if MultiQuoteText then
+                    InMultiQuote = true
+                    RawLine = MultiQuoteText
+                    Trimmed = StringGSub(RawLine, "^%s+", "")
+                end
+
+                local HeadingOne = string.match(Trimmed, "^#%s+(.+)$")
+                local HeadingTwo = string.match(Trimmed, "^##%s+(.+)$")
+                local HeadingThree = string.match(Trimmed, "^###%s+(.+)$")
+                local Subtext = string.match(Trimmed, "^%-%#%s+(.+)$")
+                local QuoteText = string.match(Trimmed, "^>%s?(.*)$")
+                local BulletSpaces, BulletValue = string.match(RawLine, "^(%s*)[-*]%s+(.+)$")
+                local NumberSpaces, NumberBullet, NumberValue = string.match(RawLine, "^(%s*)(%d+%.)%s+(.+)$")
+
+                Order += 1
+                if HeadingThree then
+                    CreateDiscordUpdateText(Parent, Order, HeadingThree, 18, 0.12, 0)
+                elseif HeadingTwo then
+                    CreateDiscordUpdateText(Parent, Order, HeadingTwo, 21, 0.04, 0)
+                elseif HeadingOne then
+                    CreateDiscordUpdateText(Parent, Order, HeadingOne, 26, 0, 0)
+                elseif Subtext then
+                    CreateDiscordUpdateText(Parent, Order, Subtext, 12, 0.3, 0)
+                elseif QuoteText or InMultiQuote then
+                    local QuoteContent = QuoteText or Trimmed
+                    CreateDiscordQuoteRow(Parent, Order, QuoteContent, 0)
+                elseif BulletValue then
+                    local Depth = MathFloor(StringLen(BulletSpaces) / 2)
+                    local Bullet = Depth > 0 and "◦" or "•"
+                    CreateDiscordBulletRow(Parent, Order, Bullet, BulletValue, 15, Depth)
+                elseif NumberValue then
+                    local Depth = MathFloor(StringLen(NumberSpaces) / 2)
+                    CreateDiscordBulletRow(Parent, Order, NumberBullet, NumberValue, 15, Depth)
+                else
+                    CreateDiscordUpdateText(Parent, Order, Trimmed, 15, 0.08, 0)
+                end
+            end
+        end
+    end
+
     Library.MakeUpdateNotification = function(self, Data)
         Data = Data or { }
 
@@ -3032,7 +3243,7 @@ local Library do
             self.ActiveUpdateNotification = nil
         end
 
-        local PanelHeight = IsMobile and 320 or 360
+        local PanelHeight = IsMobile and 380 or 460
         local Closed = false
         local Items = { } do
             Items["Notification"] = Instances:Create("Frame", {
@@ -3069,64 +3280,11 @@ local Library do
                 ApplyStrokeMode = Enum.ApplyStrokeMode.Border
             })  Items["Stroke"]:AddToTheme({Color = "Border"})
 
-            Items["Badge"] = Instances:Create("TextLabel", {
-                Parent = Items["Notification"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 214, 120),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = "UPDATE AVAILABLE",
-                Position = UDim2New(0, 16, 0, 14),
-                Size = UDim2New(1, -32, 0, 14),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextSize = 12,
-                ZIndex = 211
-            })
-
-            Items["Title"] = Instances:Create("TextLabel", {
-                Parent = Items["Notification"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 255, 255),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = tostring(Data.Name or "ExpressHub Update"),
-                Position = UDim2New(0, 16, 0, 32),
-                Size = UDim2New(1, -32, 0, 24),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                TextWrapped = true,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                AutomaticSize = Enum.AutomaticSize.Y,
-                TextSize = 22,
-                ZIndex = 211
-            })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
-
-            Items["Subtitle"] = Instances:Create("TextLabel", {
-                Parent = Items["Notification"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 255, 255),
-                TextTransparency = 0.25,
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = "Rejoin and re-execute the script after joining back to apply this update.",
-                Position = UDim2New(0, 16, 0, 64),
-                Size = UDim2New(1, -32, 0, 32),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                TextWrapped = true,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                AutomaticSize = Enum.AutomaticSize.Y,
-                TextSize = 14,
-                ZIndex = 211
-            })  Items["Subtitle"]:AddToTheme({TextColor3 = "Text"})
-
             Items["LogHolder"] = Instances:Create("ScrollingFrame", {
                 Parent = Items["Notification"].Instance,
                 Name = "\0",
-                Position = UDim2New(0, 16, 0, 112),
-                Size = UDim2New(1, -32, 1, -176),
+                Position = UDim2New(0, 16, 0, 16),
+                Size = UDim2New(1, -32, 1, -84),
                 BackgroundColor3 = FromRGB(26, 25, 31),
                 BorderSizePixel = 0,
                 BackgroundTransparency = 0.15,
@@ -3151,24 +3309,26 @@ local Library do
                 PaddingLeft = UDimNew(0, 10)
             })
 
-            Items["LogText"] = Instances:Create("TextLabel", {
+            Items["LogContent"] = Instances:Create("Frame", {
                 Parent = Items["LogHolder"].Instance,
                 Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 255, 255),
-                TextTransparency = 0.08,
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = tostring(Data.Content or ""),
-                Size = UDim2New(1, -4, 0, 0),
-                BackgroundTransparency = 1,
                 BorderSizePixel = 0,
-                TextWrapped = true,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextYAlignment = Enum.TextYAlignment.Top,
+                BackgroundTransparency = 1,
+                Size = UDim2New(1, -4, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
-                TextSize = 15,
                 ZIndex = 212
-            })  Items["LogText"]:AddToTheme({TextColor3 = "Text"})
+            })
+
+            Instances:Create("UIListLayout", {
+                Parent = Items["LogContent"].Instance,
+                Name = "\0",
+                FillDirection = Enum.FillDirection.Vertical,
+                HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Padding = UDimNew(0, 4)
+            })
+
+            RenderDiscordUpdateContent(Items["LogContent"].Instance, tostring(Data.Content or ""))
 
             Items["RejoinButton"] = Instances:Create("TextButton", {
                 Parent = Items["Notification"].Instance,
@@ -3211,7 +3371,30 @@ local Library do
             })
         end
 
-        local function CloseUpdateNotification(Instant)
+        local UpdateDescendants = Items["Notification"].Instance:GetDescendants()
+
+        local function TweenUpdateDescendants(TargetVisible)
+            for _, Descendant in UpdateDescendants do
+                if Descendant:IsA("TextLabel") then
+                    local GoalTransparency = TargetVisible and Descendant.TextTransparency or 1
+                    local ExistingTransparency = Descendant:GetAttribute("UpdateOriginalTextTransparency")
+                    if ExistingTransparency == nil then
+                        ExistingTransparency = Descendant.TextTransparency
+                        Descendant:SetAttribute("UpdateOriginalTextTransparency", ExistingTransparency)
+                    end
+                    Descendant.TextTransparency = TargetVisible and 1 or Descendant.TextTransparency
+                    Tween:Create(Descendant, nil, {TextTransparency = TargetVisible and ExistingTransparency or 1}, true)
+                elseif Descendant:IsA("Frame") and Descendant ~= Items["Notification"].Instance and Descendant ~= Items["LogHolder"].Instance then
+                    local ExistingTransparency = Descendant:GetAttribute("UpdateOriginalBackgroundTransparency")
+                    if ExistingTransparency == nil then
+                        ExistingTransparency = Descendant.BackgroundTransparency
+                        Descendant:SetAttribute("UpdateOriginalBackgroundTransparency", ExistingTransparency)
+                    end
+                    Descendant.BackgroundTransparency = TargetVisible and 1 or Descendant.BackgroundTransparency
+                    Tween:Create(Descendant, nil, {BackgroundTransparency = TargetVisible and ExistingTransparency or 1}, true)
+                end
+            end
+        end
             if Closed then
                 return
             end
@@ -3228,10 +3411,8 @@ local Library do
             for _, Key in next, {"Notification", "LogHolder", "RejoinButton", "CloseButton"} do
                 Items[Key]:Tween(nil, {BackgroundTransparency = 1})
             end
-            for _, Key in next, {"Badge", "Title", "Subtitle", "LogText"} do
-                Items[Key]:Tween(nil, {TextTransparency = 1})
-            end
             Items["Stroke"]:Tween(nil, {Transparency = 1})
+            TweenUpdateDescendants(false)
             local SlideOut = TweenService:Create(Items["Notification"].Instance, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
                 Position = UDim2New(0.5, 0, 0, -PanelHeight - 40)
             })
@@ -3251,10 +3432,8 @@ local Library do
         for _, Key in next, {"Notification", "LogHolder", "RejoinButton", "CloseButton"} do
             Items[Key].Instance.BackgroundTransparency = 1
         end
-        for _, Key in next, {"Badge", "Title", "Subtitle", "LogText"} do
-            Items[Key].Instance.TextTransparency = 1
-        end
         Items["Stroke"].Instance.Transparency = 1
+        TweenUpdateDescendants(true)
 
         Items["CloseButton"].Instance.MouseButton1Click:Connect(function()
             CloseUpdateNotification(false)
@@ -3270,11 +3449,8 @@ local Library do
             for _, Key in next, {"Notification", "LogHolder", "RejoinButton", "CloseButton"} do
                 Items[Key]:Tween(nil, {BackgroundTransparency = 0})
             end
-            Items["Badge"]:Tween(nil, {TextTransparency = 0.1})
-            Items["Title"]:Tween(nil, {TextTransparency = 0})
-            Items["Subtitle"]:Tween(nil, {TextTransparency = 0.25})
-            Items["LogText"]:Tween(nil, {TextTransparency = 0.08})
             Items["Stroke"]:Tween(nil, {Transparency = 0.08})
+            TweenUpdateDescendants(true)
 
             local SlideIn = TweenService:Create(Items["Notification"].Instance, TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
                 Position = UDim2New(0.5, 0, 0, 18)
