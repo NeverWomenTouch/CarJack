@@ -6593,6 +6593,190 @@ local Library do
                 return BackendState.Polling
             end
 
+            local JumpBannerShownPosition = UDim2New(0.5, 0, 0, 12)
+            local JumpBannerHiddenPosition = UDim2New(0.5, 0, 0, -8)
+            local NearBottomThreshold = 56
+            local DismissBottomThreshold = 120
+
+            local function GetBottomCanvasPosition()
+                local Scroll = Items["Messages"] and Items["Messages"].Instance
+                if not Scroll then
+                    return 0
+                end
+
+                return math.max(0, Scroll.AbsoluteCanvasSize.Y - Scroll.AbsoluteSize.Y)
+            end
+
+            local function GetDistanceFromBottom()
+                local Scroll = Items["Messages"] and Items["Messages"].Instance
+                if not Scroll then
+                    return 0
+                end
+
+                return math.max(0, GetBottomCanvasPosition() - Scroll.CanvasPosition.Y)
+            end
+
+            local function RefreshBottomDistance()
+                BackendState.MessageBottomDistance = GetDistanceFromBottom()
+                return BackendState.MessageBottomDistance
+            end
+
+            local function IsWithinBottomThreshold(Threshold)
+                return GetDistanceFromBottom() <= Threshold
+            end
+
+            local function IsMessagesAtBottom()
+                return IsWithinBottomThreshold(NearBottomThreshold)
+            end
+
+            local function IsMessagesCloseEnoughToDismiss()
+                return IsWithinBottomThreshold(DismissBottomThreshold)
+            end
+
+            local function UpdateJumpBannerText()
+                local Count = BackendState.ScrolledUpNewCount or 0
+                local Since = BackendState.ScrolledUpSinceTime
+                local Label = Count == 1 and "1 new message" or (tostring(Count) .. " new messages")
+                if Items["JumpToLatestText"] then
+                    Items["JumpToLatestText"].Instance.Text = Since and (Label .. " since " .. Since) or Label
+                end
+            end
+
+            local function ShowJumpBanner()
+                local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
+                local Arrow = Items["JumpToLatestArrow"] and Items["JumpToLatestArrow"].Instance
+                local TextInst = Items["JumpToLatestText"] and Items["JumpToLatestText"].Instance
+                if not Btn or not Arrow or not TextInst then
+                    return
+                end
+
+                UpdateJumpBannerText()
+                if not Btn.Visible then
+                    Btn.Position = JumpBannerHiddenPosition
+                    Btn.BackgroundTransparency = 1
+                    Arrow.TextTransparency = 1
+                    TextInst.TextTransparency = 1
+                    Btn.Visible = true
+                end
+
+                Items["JumpToLatest"]:Tween(TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundTransparency = 0,
+                    Position = JumpBannerShownPosition
+                })
+                TweenService:Create(Arrow, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+                TweenService:Create(TextInst, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+            end
+
+            local function RegisterScrolledUpMessage()
+                BackendState.ScrolledUpNewCount = (BackendState.ScrolledUpNewCount or 0) + 1
+                if not BackendState.ScrolledUpSinceTime then
+                    BackendState.ScrolledUpSinceTime = OsDate("%I:%M %p")
+                    BackendState.ScrolledUpSinceTime = StringGSub(BackendState.ScrolledUpSinceTime, "^0", "")
+                end
+
+                ShowJumpBanner()
+            end
+
+            local function DismissJumpBanner()
+                local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
+                local Arrow = Items["JumpToLatestArrow"] and Items["JumpToLatestArrow"].Instance
+                local TextInst = Items["JumpToLatestText"] and Items["JumpToLatestText"].Instance
+                if not Btn or not Arrow or not TextInst or not Btn.Visible then
+                    BackendState.ScrolledUpNewCount = 0
+                    BackendState.ScrolledUpSinceTime = nil
+                    return
+                end
+
+                BackendState.ScrolledUpNewCount = 0
+                BackendState.ScrolledUpSinceTime = nil
+
+                local T = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+                Items["JumpToLatest"]:Tween(T, {
+                    BackgroundTransparency = 1,
+                    Position = JumpBannerHiddenPosition
+                })
+                TweenService:Create(Arrow, T, {TextTransparency = 1}):Play()
+                TweenService:Create(TextInst, T, {TextTransparency = 1}):Play()
+                task.delay(0.22, function()
+                    if Btn and Btn.Parent then
+                        Btn.Visible = false
+                    end
+                end)
+            end
+
+            local function ScrollMessagesToBottom()
+                local Scroll = Items["Messages"] and Items["Messages"].Instance
+                if not Scroll then
+                    return
+                end
+
+                BackendState.PendingBottomScrollId = (BackendState.PendingBottomScrollId or 0) + 1
+                local ScrollRequestId = BackendState.PendingBottomScrollId
+
+                local function ApplyBottomPosition()
+                    Scroll.CanvasPosition = Vector2New(0, 1000000)
+                    local TargetY = GetBottomCanvasPosition()
+                    if Scroll.CanvasPosition.Y < TargetY then
+                        Scroll.CanvasPosition = Vector2New(0, TargetY)
+                    end
+                    return TargetY
+                end
+
+                local TargetY = ApplyBottomPosition()
+                Items["Messages"]:Tween(TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CanvasPosition = Vector2New(0, TargetY)})
+                task.spawn(function()
+                    for _ = 1, 20 do
+                        if BackendState.PendingBottomScrollId ~= ScrollRequestId then
+                            return
+                        end
+                        if not Scroll or not Scroll.Parent then
+                            return
+                        end
+
+                        ApplyBottomPosition()
+                        RefreshBottomDistance()
+                        if IsMessagesCloseEnoughToDismiss() then
+                            break
+                        end
+                        RunService.RenderStepped:Wait()
+                    end
+
+                    if BackendState.PendingBottomScrollId == ScrollRequestId then
+                        ApplyBottomPosition()
+                        RefreshBottomDistance()
+                        DismissJumpBanner()
+                    end
+                end)
+                BackendState.MessageBottomDistance = 0
+            end
+
+            Items["JumpToLatest"]:Connect("MouseButton1Click", function()
+                ScrollMessagesToBottom()
+            end)
+
+            Items["Messages"].Instance:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+                RefreshBottomDistance()
+                if IsMessagesCloseEnoughToDismiss() then
+                    DismissJumpBanner()
+                end
+            end)
+
+            Library:Connect(RunService.RenderStepped, function()
+                local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
+                if not Btn then
+                    return
+                end
+
+                RefreshBottomDistance()
+                if Btn.Visible and IsMessagesCloseEnoughToDismiss() then
+                    DismissJumpBanner()
+                end
+            end)
+
+            task.defer(function()
+                RefreshBottomDistance()
+            end)
+
             function ChatSystem:SendMessage(Avatar, Username, Message, IsLocalPlayer, IsAnonymous, CreatedAt, SenderKey, MessageId, ReplyTo, MessageMeta)
                 local ShouldHideIdentity = IsAnonymous
 
@@ -6642,160 +6826,7 @@ local Library do
                     return GameText, FormatMessageTimestamp(JoinValue)
                 end
 
-                local JumpBannerShownPosition = UDim2New(0.5, 0, 0, 12)
-                local JumpBannerHiddenPosition = UDim2New(0.5, 0, 0, -8)
-                local NearBottomThreshold = 56
-                local DismissBottomThreshold = 120
-
-                local function GetBottomCanvasPosition()
-                    local Scroll = Items["Messages"] and Items["Messages"].Instance
-                    if not Scroll then
-                        return 0
-                    end
-
-                    return math.max(0, Scroll.AbsoluteCanvasSize.Y - Scroll.AbsoluteSize.Y)
-                end
-
-                local function GetDistanceFromBottom()
-                    local Scroll = Items["Messages"] and Items["Messages"].Instance
-                    if not Scroll then
-                        return 0
-                    end
-
-                    return math.max(0, GetBottomCanvasPosition() - Scroll.CanvasPosition.Y)
-                end
-
-                local function RefreshBottomDistance()
-                    BackendState.MessageBottomDistance = GetDistanceFromBottom()
-                    return BackendState.MessageBottomDistance
-                end
-
-                local function IsWithinBottomThreshold(Threshold)
-                    return GetDistanceFromBottom() <= Threshold
-                end
-
-                local function IsMessagesAtBottom()
-                    return IsWithinBottomThreshold(NearBottomThreshold)
-                end
-
-                local function IsMessagesCloseEnoughToDismiss()
-                    return IsWithinBottomThreshold(DismissBottomThreshold)
-                end
-
-                local function UpdateJumpBannerText()
-                    local Count = BackendState.ScrolledUpNewCount or 0
-                    local Since = BackendState.ScrolledUpSinceTime
-                    local Label = Count == 1 and "1 new message" or (tostring(Count) .. " new messages")
-                    if Items["JumpToLatestText"] then
-                        Items["JumpToLatestText"].Instance.Text = Since and (Label .. " since " .. Since) or Label
-                    end
-                end
-
-                local function ShowJumpBanner()
-                    local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
-                    local Arrow = Items["JumpToLatestArrow"] and Items["JumpToLatestArrow"].Instance
-                    local TextInst = Items["JumpToLatestText"] and Items["JumpToLatestText"].Instance
-                    if not Btn or not Arrow or not TextInst then
-                        return
-                    end
-
-                    UpdateJumpBannerText()
-                    if not Btn.Visible then
-                        Btn.Position = JumpBannerHiddenPosition
-                        Btn.BackgroundTransparency = 1
-                        Arrow.TextTransparency = 1
-                        TextInst.TextTransparency = 1
-                        Btn.Visible = true
-                    end
-
-                    Items["JumpToLatest"]:Tween(TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                        BackgroundTransparency = 0,
-                        Position = JumpBannerShownPosition
-                    })
-                    TweenService:Create(Arrow, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-                    TweenService:Create(TextInst, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-                end
-
-                local function RegisterScrolledUpMessage()
-                    BackendState.ScrolledUpNewCount = (BackendState.ScrolledUpNewCount or 0) + 1
-                    if not BackendState.ScrolledUpSinceTime then
-                        BackendState.ScrolledUpSinceTime = OsDate("%I:%M %p")
-                        BackendState.ScrolledUpSinceTime = StringGSub(BackendState.ScrolledUpSinceTime, "^0", "")
-                    end
-
-                    ShowJumpBanner()
-                end
-
-                local function DismissJumpBanner()
-                    local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
-                    local Arrow = Items["JumpToLatestArrow"] and Items["JumpToLatestArrow"].Instance
-                    local TextInst = Items["JumpToLatestText"] and Items["JumpToLatestText"].Instance
-                    if not Btn or not Arrow or not TextInst or not Btn.Visible then
-                        BackendState.ScrolledUpNewCount = 0
-                        BackendState.ScrolledUpSinceTime = nil
-                        return
-                    end
-
-                    BackendState.ScrolledUpNewCount = 0
-                    BackendState.ScrolledUpSinceTime = nil
-
-                    local T = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-                    Items["JumpToLatest"]:Tween(T, {
-                        BackgroundTransparency = 1,
-                        Position = JumpBannerHiddenPosition
-                    })
-                    TweenService:Create(Arrow, T, {TextTransparency = 1}):Play()
-                    TweenService:Create(TextInst, T, {TextTransparency = 1}):Play()
-                    task.delay(0.22, function()
-                        if Btn and Btn.Parent then
-                            Btn.Visible = false
-                        end
-                    end)
-                end
-
-                local function ScrollMessagesToBottom()
-                    local Scroll = Items["Messages"] and Items["Messages"].Instance
-                    if not Scroll then
-                        return
-                    end
-
-                    BackendState.PendingBottomScrollId = (BackendState.PendingBottomScrollId or 0) + 1
-                    local ScrollRequestId = BackendState.PendingBottomScrollId
-
-                    local function ApplyBottomPosition()
-                        local TargetY = GetBottomCanvasPosition()
-                        Scroll.CanvasPosition = Vector2New(0, TargetY)
-                        return TargetY
-                    end
-
-                    local TargetY = ApplyBottomPosition()
-                    Items["Messages"]:Tween(TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CanvasPosition = Vector2New(0, TargetY)})
-                    task.spawn(function()
-                        for _ = 1, 12 do
-                            if BackendState.PendingBottomScrollId ~= ScrollRequestId then
-                                return
-                            end
-                            if not Scroll or not Scroll.Parent then
-                                return
-                            end
-
-                            ApplyBottomPosition()
-                            RefreshBottomDistance()
-                            if IsMessagesCloseEnoughToDismiss() then
-                                break
-                            end
-                            RunService.RenderStepped:Wait()
-                        end
-                        if BackendState.PendingBottomScrollId == ScrollRequestId then
-                            ApplyBottomPosition()
-                            RefreshBottomDistance()
-                            DismissJumpBanner()
-                        end
-                    end)
-                    BackendState.MessageBottomDistance = 0
-                end
-
-                local WasAtBottomBeforeRender = GetDistanceFromBottom() <= NearBottomThreshold
+                local WasAtBottomBeforeRender = IsMessagesAtBottom()
 
                 local function CreateBubble(Parent, GroupFrame, StackFrame)
                     local BubbleItems = { }
@@ -7336,34 +7367,6 @@ local Library do
                     Group = SubItems["Message1"].Instance
                 }
             end
-
-            Items["JumpToLatest"]:Connect("MouseButton1Click", function()
-                ScrollMessagesToBottom()
-            end)
-
-            -- Detect manual scroll to bottom
-            Items["Messages"].Instance:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-                RefreshBottomDistance()
-                if IsMessagesCloseEnoughToDismiss() then
-                    DismissJumpBanner()
-                end
-            end)
-
-            Library:Connect(RunService.RenderStepped, function()
-                local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
-                if not Btn then
-                    return
-                end
-
-                RefreshBottomDistance()
-                if Btn.Visible and IsMessagesCloseEnoughToDismiss() then
-                    DismissJumpBanner()
-                end
-            end)
-
-            task.defer(function()
-                RefreshBottomDistance()
-            end)
 
             local function CommitTypedMessage()
                 local TypedMessage = ChatSystem:GetTypedMessage()
