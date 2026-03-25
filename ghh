@@ -495,29 +495,10 @@ local Library do
         local ChatSystem = SubTab:GlobalChat()
         ChatSystem:SetConnectedText(Window.GlobalChatOptions.InitialStatusText)
 
-        -- Game-specific chat sub-tab
-        local GameTabName = tostring(game.Name or "Game Chat")
-        pcall(function()
-            local Info = MarketplaceService:GetProductInfo(game.PlaceId)
-            if Info and Info.Name and Info.Name ~= "" then
-                GameTabName = tostring(Info.Name)
-            end
-        end)
-
-        local GameSubTab = GlobalChatTab:AddSubTab({
-            Name = GameTabName,
-            Columns = 1
-        })
-
-        local GameChatSystem = GameSubTab:GlobalChat({ PlaceIdFilter = game.PlaceId })
-        GameChatSystem:SetConnectedText("Connecting...")
-
         Window.AutoGlobalChat = {
             Page = GlobalChatTab,
             SubTab = SubTab,
             ChatSystem = ChatSystem,
-            GameSubTab = GameSubTab,
-            GameChatSystem = GameChatSystem
         }
 
         return ChatSystem
@@ -5165,6 +5146,7 @@ local Library do
                 LastMessageSentAt = 0,
                 FilterWords = { },
                 PlaceIdFilter = (Data and Data.PlaceIdFilter) and tonumber(Data.PlaceIdFilter) or nil,
+                TimedOutUsers = { },
             }
 
             local OnMessagePressed = { }
@@ -5881,7 +5863,12 @@ local Library do
                 Items["CtxDelete"].Instance.Visible = (IsLocal or AdminLocal) and true or false
                 Items["CtxCopy"].Instance.Visible = true
                 if Items["CtxTimeout"] then
-                    Items["CtxTimeout"].Instance.Visible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "") and true or false
+                    local TimeoutVisible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "") and true or false
+                    Items["CtxTimeout"].Instance.Visible = TimeoutVisible
+                    if TimeoutVisible then
+                        local IsTimedOut = BackendState.TimedOutUsers and BackendState.TimedOutUsers[Data.senderId]
+                        Items["CtxTimeout"].Instance.Text = IsTimedOut and "Remove Timeout" or "Timeout User"
+                    end
                 end
 
                 local ChatAbsPos = Items["GlobalChat"].Instance.AbsolutePosition
@@ -5995,7 +5982,7 @@ local Library do
             Items["CtxTimeout"] = Instances:Create("TextButton", {
                 Parent = Items["ContextMenu"].Instance,
                 Name = "\0",
-                Text = "⏱  Timeout User",
+                Text = "Timeout User",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(255, 165, 0),
                 TextSize = 13,
@@ -6010,9 +5997,19 @@ local Library do
             Instances:Create("UIPadding", {
                 Parent = Items["CtxTimeout"].Instance,
                 Name = "\0",
-                PaddingLeft = UDimNew(0, 10),
+                PaddingLeft = UDimNew(0, 32),
                 PaddingTop = UDimNew(0, 2),
                 PaddingBottom = UDimNew(0, 2)
+            })
+            Instances:Create("ImageLabel", {
+                Parent = Items["CtxTimeout"].Instance,
+                Name = "\0",
+                Image = "rbxassetid://115708152231784",
+                BackgroundTransparency = 1,
+                Size = UDim2New(0, 16, 0, 16),
+                Position = UDim2New(0, 10, 0.5, -8),
+                ScaleType = Enum.ScaleType.Fit,
+                ZIndex = 112,
             })
             Items["CtxTimeout"].Instance.MouseEnter:Connect(function()
                 Items["CtxTimeout"].Instance.BackgroundTransparency = 0.7
@@ -6067,7 +6064,7 @@ local Library do
                 local DurBtn = Instances:Create("TextButton", {
                     Parent = Items["TimeoutPicker"].Instance,
                     Name = "\0",
-                    Text = "  \u{23F1}  " .. Dur.Label,
+                    Text = "  " .. Dur.Label,
                     FontFace = Library.Font,
                     TextColor3 = FromRGB(255, 165, 0),
                     TextSize = 13,
@@ -6098,6 +6095,7 @@ local Library do
                     Items["TimeoutPicker"].Instance.Visible = false
                     Items["TimeoutPicker"].TargetData = nil
                     if not PickData or not PickData.senderId or PickData.senderId == "" then return end
+                    BackendState.TimedOutUsers[tostring(PickData.senderId)] = true
                     local Config = BackendState.Config
                     if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then return end
                     Library:Thread(function()
@@ -6118,7 +6116,7 @@ local Library do
             local ToCancelBtn = Instances:Create("TextButton", {
                 Parent = Items["TimeoutPicker"].Instance,
                 Name = "\0",
-                Text = "  \u{2715}  Cancel",
+                Text = "  Cancel",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(180, 180, 180),
                 TextSize = 13,
@@ -6151,6 +6149,26 @@ local Library do
                 local MenuPos = Items["ContextMenu"].Instance.Position
                 HideContextMenu()
                 if not Data or not Data.senderId or Data.senderId == "" then return end
+                -- If already timed out, remove the timeout instead of showing picker
+                if BackendState.TimedOutUsers and BackendState.TimedOutUsers[Data.senderId] then
+                    BackendState.TimedOutUsers[Data.senderId] = nil
+                    local Config = BackendState.Config
+                    if Config and Config.HttpUrl and Config.HttpUrl ~= "" and RequestFunction then
+                        Library:Thread(function()
+                            DoHttpRequest({
+                                Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/admin/timeout"),
+                                Method = "POST",
+                                Headers = MergeTable(GetRequestHeaders(Config), { ["Content-Type"] = "application/json" }),
+                                Body = JsonEncode({
+                                    adminSenderId = tostring(LocalPlayer.UserId),
+                                    targetSenderId = tostring(Data.senderId),
+                                    durationMs = 0
+                                })
+                            })
+                        end)
+                    end
+                    return
+                end
                 Items["TimeoutPicker"].TargetData = Data
                 local ChatAbsSize = Items["GlobalChat"].Instance.AbsoluteSize
                 local LocalX = MenuPos.X.Offset
