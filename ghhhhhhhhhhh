@@ -5257,6 +5257,7 @@ local Library do
                 ScrolledUpNewCount = 0,
                 ScrolledUpSinceTime = nil,
                 MessageBottomDistance = 0,
+                PendingBottomScrollId = 0,
             }
 
             local OnMessagePressed = { }
@@ -6644,6 +6645,7 @@ local Library do
                 local JumpBannerShownPosition = UDim2New(0.5, 0, 0, 12)
                 local JumpBannerHiddenPosition = UDim2New(0.5, 0, 0, -8)
                 local NearBottomThreshold = 56
+                local DismissBottomThreshold = 120
 
                 local function GetBottomCanvasPosition()
                     local Scroll = Items["Messages"] and Items["Messages"].Instance
@@ -6668,8 +6670,16 @@ local Library do
                     return BackendState.MessageBottomDistance
                 end
 
+                local function IsWithinBottomThreshold(Threshold)
+                    return GetDistanceFromBottom() <= Threshold
+                end
+
                 local function IsMessagesAtBottom()
-                    return (BackendState.MessageBottomDistance or 0) <= NearBottomThreshold
+                    return IsWithinBottomThreshold(NearBottomThreshold)
+                end
+
+                local function IsMessagesCloseEnoughToDismiss()
+                    return IsWithinBottomThreshold(DismissBottomThreshold)
                 end
 
                 local function UpdateJumpBannerText()
@@ -6749,6 +6759,9 @@ local Library do
                         return
                     end
 
+                    BackendState.PendingBottomScrollId = (BackendState.PendingBottomScrollId or 0) + 1
+                    local ScrollRequestId = BackendState.PendingBottomScrollId
+
                     local function ApplyBottomPosition()
                         local TargetY = GetBottomCanvasPosition()
                         Scroll.CanvasPosition = Vector2New(0, TargetY)
@@ -6757,26 +6770,29 @@ local Library do
 
                     local TargetY = ApplyBottomPosition()
                     Items["Messages"]:Tween(TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CanvasPosition = Vector2New(0, TargetY)})
-                    task.defer(function()
-                        if Scroll and Scroll.Parent then
+                    task.spawn(function()
+                        for _ = 1, 12 do
+                            if BackendState.PendingBottomScrollId ~= ScrollRequestId then
+                                return
+                            end
+                            if not Scroll or not Scroll.Parent then
+                                return
+                            end
+
                             ApplyBottomPosition()
                             RefreshBottomDistance()
+                            if IsMessagesCloseEnoughToDismiss() then
+                                break
+                            end
+                            RunService.RenderStepped:Wait()
                         end
-                    end)
-                    task.delay(0.05, function()
-                        if Scroll and Scroll.Parent then
+                        if BackendState.PendingBottomScrollId == ScrollRequestId then
                             ApplyBottomPosition()
                             RefreshBottomDistance()
-                        end
-                    end)
-                    task.delay(0.15, function()
-                        if Scroll and Scroll.Parent then
-                            ApplyBottomPosition()
-                            RefreshBottomDistance()
+                            DismissJumpBanner()
                         end
                     end)
                     BackendState.MessageBottomDistance = 0
-                    DismissJumpBanner()
                 end
 
                 local WasAtBottomBeforeRender = GetDistanceFromBottom() <= NearBottomThreshold
@@ -7328,7 +7344,7 @@ local Library do
             -- Detect manual scroll to bottom
             Items["Messages"].Instance:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
                 RefreshBottomDistance()
-                if IsMessagesAtBottom() then
+                if IsMessagesCloseEnoughToDismiss() then
                     DismissJumpBanner()
                 end
             end)
@@ -7340,7 +7356,7 @@ local Library do
                 end
 
                 RefreshBottomDistance()
-                if Btn.Visible and IsMessagesAtBottom() then
+                if Btn.Visible and IsMessagesCloseEnoughToDismiss() then
                     DismissJumpBanner()
                 end
             end)
