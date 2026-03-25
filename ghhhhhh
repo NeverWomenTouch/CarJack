@@ -4793,6 +4793,112 @@ local Library do
                     TextSize = 14
                 })
 
+                Items["TimeoutCircle"] = Instances:Create("Frame", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0, 1),
+                    Position = UDim2New(0, 10, 1, -15),
+                    Size = UDim2New(0, 10, 0, 10),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(255, 60, 60),
+                    Visible = false,
+                    ZIndex = 6
+                })
+                Instances:Create("UICorner", {
+                    Parent = Items["TimeoutCircle"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(1, 0)
+                })
+                Items["TimeoutBanner"] = Instances:Create("TextLabel", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 80, 80),
+                    Text = "You're timed out for: --:--",
+                    AnchorPoint = Vector2New(0, 1),
+                    Size = UDim2New(0, 0, 0, 15),
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 30, 1, -13),
+                    BorderSizePixel = 0,
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    TextSize = 14,
+                    Visible = false,
+                    ZIndex = 6
+                })
+
+                -- Jump-to-latest banner (Discord-style)
+                Items["JumpToLatest"] = Instances:Create("TextButton", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    Text = "",
+                    BackgroundColor3 = FromRGB(41, 40, 49),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    AnchorPoint = Vector2New(0.5, 1),
+                    Position = UDim2New(0.5, 0, 1, -55),
+                    Size = UDim2New(0, 220, 0, 30),
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    ClipsDescendants = false,
+                    Visible = false,
+                    ZIndex = 20,
+                })
+                Items["JumpToLatest"]:AddToTheme({BackgroundColor3 = "Element"})
+                Instances:Create("UICorner", {
+                    Parent = Items["JumpToLatest"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 8)
+                })
+                Instances:Create("UIStroke", {
+                    Parent = Items["JumpToLatest"].Instance,
+                    Name = "\0",
+                    Thickness = 1,
+                    Color = FromRGB(255, 0, 255),
+                    Transparency = 0.5,
+                })
+                Instances:Create("UIPadding", {
+                    Parent = Items["JumpToLatest"].Instance,
+                    Name = "\0",
+                    PaddingLeft = UDimNew(0, 10),
+                    PaddingRight = UDimNew(0, 10),
+                })
+                local JumpLayout = InstanceNew("UIListLayout")
+                JumpLayout.FillDirection = Enum.FillDirection.Horizontal
+                JumpLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+                JumpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+                JumpLayout.Padding = UDimNew(0, 6)
+                JumpLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                JumpLayout.Parent = Items["JumpToLatest"].Instance
+                -- Arrow icon
+                Items["JumpToLatestArrow"] = Instances:Create("TextLabel", {
+                    Parent = Items["JumpToLatest"].Instance,
+                    Name = "\0",
+                    Text = "↓",
+                    FontFace = Library.Font,
+                    TextSize = 14,
+                    TextColor3 = FromRGB(255, 0, 255),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Size = UDim2New(0, 14, 1, 0),
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    ZIndex = 21,
+                    LayoutOrder = 1,
+                })
+                -- Main label
+                Items["JumpToLatestText"] = Instances:Create("TextLabel", {
+                    Parent = Items["JumpToLatest"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(220, 220, 220),
+                    Text = "Jump to latest",
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Size = UDim2New(0, 0, 1, 0),
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    TextSize = 13,
+                    ZIndex = 21,
+                    LayoutOrder = 2,
+                })
+
                 Items["ReplyBar"] = Instances:Create("Frame", {
                     Parent = Items["GlobalChat"].Instance,
                     Name = "\0",
@@ -5148,6 +5254,8 @@ local Library do
                 PlaceIdFilter = (Data and Data.PlaceIdFilter) and tonumber(Data.PlaceIdFilter) or nil,
                 TimedOutUsers = { },
                 TimeoutIconsBySenderId = { },
+                ScrolledUpNewCount = 0,
+                ScrolledUpSinceTime = nil,
             }
 
             local OnMessagePressed = { }
@@ -6059,12 +6167,13 @@ local Library do
             Items["TimeoutPicker"].TargetData = nil
 
             local TimeoutDurations = {
-                { Label = "5 Minutes",  Seconds = 300,    LayoutOrder = 1 },
-                { Label = "30 Minutes", Seconds = 1800,   LayoutOrder = 2 },
-                { Label = "1 Hour",     Seconds = 3600,   LayoutOrder = 3 },
-                { Label = "1 Day",      Seconds = 86400,  LayoutOrder = 4 },
-                { Label = "3 Days",     Seconds = 259200, LayoutOrder = 5 },
-                { Label = "1 Week",     Seconds = 604800, LayoutOrder = 6 },
+                { Label = "1 Minute",   Seconds = 60,     LayoutOrder = 1 },
+                { Label = "5 Minutes",  Seconds = 300,    LayoutOrder = 2 },
+                { Label = "30 Minutes", Seconds = 1800,   LayoutOrder = 3 },
+                { Label = "1 Hour",     Seconds = 3600,   LayoutOrder = 4 },
+                { Label = "3 Hours",    Seconds = 10800,  LayoutOrder = 5 },
+                { Label = "6 Hours",    Seconds = 21600,  LayoutOrder = 6 },
+                { Label = "1 Day",      Seconds = 86400,  LayoutOrder = 7 },
             }
 
             for _, Dur in TimeoutDurations do
@@ -6332,6 +6441,49 @@ local Library do
 
                 -- Poll server for timed-out users so all clients see timeout icons
                 Library:Thread(function()
+                    local LocalSidStr = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
+                    local CountdownThread = nil
+
+                    local function StartCountdown(ExpiresAtMs)
+                        if CountdownThread then
+                            task.cancel(CountdownThread)
+                            CountdownThread = nil
+                        end
+                        CountdownThread = task.spawn(function()
+                            while not BackendState.Destroyed do
+                                local Remaining = math.max(0, math.floor((ExpiresAtMs - os.time() * 1000) / 1000))
+                                if Remaining <= 0 then
+                                    if Items["TimeoutBanner"] then
+                                        Items["TimeoutBanner"].Instance.Visible = false
+                                    end
+                                    if Items["TimeoutCircle"] then
+                                        Items["TimeoutCircle"].Instance.Visible = false
+                                    end
+                                    if Items["ConnectedText"] then
+                                        Items["ConnectedText"].Instance.Visible = true
+                                    end
+                                    if Items["ConnectedCircle"] then
+                                        Items["ConnectedCircle"].Instance.Visible = true
+                                    end
+                                    break
+                                end
+                                local Hours   = math.floor(Remaining / 3600)
+                                local Minutes = math.floor((Remaining % 3600) / 60)
+                                local Seconds = Remaining % 60
+                                local Fmt
+                                if Hours > 0 then
+                                    Fmt = string.format("%dh %02dm %02ds", Hours, Minutes, Seconds)
+                                else
+                                    Fmt = string.format("%dm %02ds", Minutes, Seconds)
+                                end
+                                if Items["TimeoutBanner"] then
+                                    Items["TimeoutBanner"].Instance.Text = "You're timed out for: " .. Fmt
+                                end
+                                task.wait(1)
+                            end
+                        end)
+                    end
+
                     while not BackendState.Destroyed do
                         local Cfg = BackendState.Config
                         if Cfg and Cfg.HttpUrl and Cfg.HttpUrl ~= "" and RequestFunction then
@@ -6344,10 +6496,20 @@ local Library do
                                 local TData = JsonDecode(Body)
                                 if type(TData) == "table" and type(TData.timedOut) == "table" then
                                     local NewTimedOut = { }
-                                    for _, Sid in TData.timedOut do
-                                        NewTimedOut[tostring(Sid)] = true
+                                    local LocalExpiresAt = nil
+                                    for _, Entry in TData.timedOut do
+                                        if type(Entry) == "table" then
+                                            local Sid = tostring(Entry.senderId or "")
+                                            local Exp = tonumber(Entry.expiresAt) or 0
+                                            if Sid ~= "" then
+                                                NewTimedOut[Sid] = Exp
+                                                if Sid == LocalSidStr then
+                                                    LocalExpiresAt = Exp
+                                                end
+                                            end
+                                        end
                                     end
-                                    -- Update icons for any changes
+                                    -- Update timeout icons on messages
                                     for Sid, Icons in BackendState.TimeoutIconsBySenderId do
                                         local ShouldShow = NewTimedOut[Sid] and true or false
                                         for _, IconRef in ipairs(Icons) do
@@ -6355,11 +6517,26 @@ local Library do
                                         end
                                     end
                                     BackendState.TimedOutUsers = NewTimedOut
+                                    -- Show/hide local timeout banner
+                                    if LocalExpiresAt then
+                                        if Items["ConnectedText"] then Items["ConnectedText"].Instance.Visible = false end
+                                        if Items["ConnectedCircle"] then Items["ConnectedCircle"].Instance.Visible = false end
+                                        if Items["TimeoutBanner"] then Items["TimeoutBanner"].Instance.Visible = true end
+                                        if Items["TimeoutCircle"] then Items["TimeoutCircle"].Instance.Visible = true end
+                                        StartCountdown(LocalExpiresAt)
+                                    else
+                                        if CountdownThread then task.cancel(CountdownThread) CountdownThread = nil end
+                                        if Items["TimeoutBanner"] then Items["TimeoutBanner"].Instance.Visible = false end
+                                        if Items["TimeoutCircle"] then Items["TimeoutCircle"].Instance.Visible = false end
+                                        if Items["ConnectedText"] then Items["ConnectedText"].Instance.Visible = true end
+                                        if Items["ConnectedCircle"] then Items["ConnectedCircle"].Instance.Visible = true end
+                                    end
                                 end
                             end
                         end
                         task.wait(10)
                     end
+                    if CountdownThread then task.cancel(CountdownThread) end
                 end)
 
                 if BackendState.Config.WsUrl and WebSocketFunction then
@@ -6461,6 +6638,99 @@ local Library do
                     end
 
                     return GameText, FormatMessageTimestamp(JoinValue)
+                end
+
+                local JumpBannerShownPosition = UDim2New(0.5, 0, 1, -55)
+                local JumpBannerHiddenPosition = UDim2New(0.5, 0, 1, -43)
+
+                local function IsMessagesAtBottom()
+                    local Scroll = Items["Messages"] and Items["Messages"].Instance
+                    if not Scroll then
+                        return true
+                    end
+
+                    return (Scroll.AbsoluteCanvasSize.Y - Scroll.CanvasPosition.Y - Scroll.AbsoluteSize.Y) < 48
+                end
+
+                local function UpdateJumpBannerText()
+                    local Count = BackendState.ScrolledUpNewCount or 0
+                    local Since = BackendState.ScrolledUpSinceTime
+                    local Label = Count == 1 and "1 new message" or (tostring(Count) .. " new messages")
+                    if Items["JumpToLatestText"] then
+                        Items["JumpToLatestText"].Instance.Text = Since and (Label .. " since " .. Since) or Label
+                    end
+                end
+
+                local function ShowJumpBanner()
+                    local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
+                    local Arrow = Items["JumpToLatestArrow"] and Items["JumpToLatestArrow"].Instance
+                    local TextInst = Items["JumpToLatestText"] and Items["JumpToLatestText"].Instance
+                    if not Btn or not Arrow or not TextInst then
+                        return
+                    end
+
+                    UpdateJumpBannerText()
+                    if not Btn.Visible then
+                        Btn.Position = JumpBannerHiddenPosition
+                        Btn.BackgroundTransparency = 1
+                        Arrow.TextTransparency = 1
+                        TextInst.TextTransparency = 1
+                        Btn.Visible = true
+                    end
+
+                    Items["JumpToLatest"]:Tween(TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundTransparency = 0,
+                        Position = JumpBannerShownPosition
+                    })
+                    TweenService:Create(Arrow, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+                    TweenService:Create(TextInst, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+                end
+
+                local function RegisterScrolledUpMessage()
+                    BackendState.ScrolledUpNewCount = (BackendState.ScrolledUpNewCount or 0) + 1
+                    if not BackendState.ScrolledUpSinceTime then
+                        BackendState.ScrolledUpSinceTime = OsDate("%I:%M %p")
+                        BackendState.ScrolledUpSinceTime = StringGSub(BackendState.ScrolledUpSinceTime, "^0", "")
+                    end
+
+                    ShowJumpBanner()
+                end
+
+                local function DismissJumpBanner()
+                    local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
+                    local Arrow = Items["JumpToLatestArrow"] and Items["JumpToLatestArrow"].Instance
+                    local TextInst = Items["JumpToLatestText"] and Items["JumpToLatestText"].Instance
+                    if not Btn or not Arrow or not TextInst or not Btn.Visible then
+                        BackendState.ScrolledUpNewCount = 0
+                        BackendState.ScrolledUpSinceTime = nil
+                        return
+                    end
+
+                    BackendState.ScrolledUpNewCount = 0
+                    BackendState.ScrolledUpSinceTime = nil
+
+                    local T = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+                    Items["JumpToLatest"]:Tween(T, {
+                        BackgroundTransparency = 1,
+                        Position = JumpBannerHiddenPosition
+                    })
+                    TweenService:Create(Arrow, T, {TextTransparency = 1}):Play()
+                    TweenService:Create(TextInst, T, {TextTransparency = 1}):Play()
+                    task.delay(0.22, function()
+                        if Btn and Btn.Parent then
+                            Btn.Visible = false
+                        end
+                    end)
+                end
+
+                local function ScrollMessagesToBottom()
+                    local Scroll = Items["Messages"] and Items["Messages"].Instance
+                    if not Scroll then
+                        return
+                    end
+
+                    Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Scroll.AbsoluteCanvasSize.Y - Scroll.AbsoluteSize.Y)})
+                    DismissJumpBanner()
                 end
 
                 local function CreateBubble(Parent, GroupFrame, StackFrame)
@@ -6696,9 +6966,14 @@ local Library do
 
                 local HasReply = ReplyTo and type(ReplyTo) == "table" and ReplyTo.id
                 if not HasReply and LastGroup and LastGroup.GroupKey == GroupKey and LastGroup.IsAnonymous == ShouldHideIdentity and LastGroup.IsLocalPlayer == IsLocalPlayer then
+                    local WasAtBottom = IsMessagesAtBottom()
                     CreateBubble(LastGroup.Stack, LastGroup.Group, LastGroup.Stack)
                     task.defer(function()
-                        Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Items["Messages"].Instance.AbsoluteCanvasSize.Y - Items["Messages"].Instance.AbsoluteSize.Y)})
+                        if WasAtBottom then
+                            Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Items["Messages"].Instance.AbsoluteCanvasSize.Y - Items["Messages"].Instance.AbsoluteSize.Y)})
+                        else
+                            RegisterScrolledUpMessage()
+                        end
                     end)
                     return
                 end
@@ -6993,7 +7268,23 @@ local Library do
 
             Items["Messages"]:Connect("ChildAdded", function()
                 wait() -- wait so we ensure the child is added
-                Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Items["Messages"].Instance.AbsoluteCanvasSize.Y - Items["Messages"].Instance.AbsoluteSize.Y)})
+                local Scroll = Items["Messages"].Instance
+                if IsMessagesAtBottom() then
+                    Items["Messages"]:Tween(nil, {CanvasPosition = Vector2New(0, Scroll.AbsoluteCanvasSize.Y - Scroll.AbsoluteSize.Y)})
+                else
+                    RegisterScrolledUpMessage()
+                end
+            end)
+
+            Items["JumpToLatest"]:Connect("MouseButton1Click", function()
+                ScrollMessagesToBottom()
+            end)
+
+            -- Detect manual scroll to bottom
+            Items["Messages"].Instance:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+                if IsMessagesAtBottom() then
+                    DismissJumpBanner()
+                end
             end)
 
             local function CommitTypedMessage()
