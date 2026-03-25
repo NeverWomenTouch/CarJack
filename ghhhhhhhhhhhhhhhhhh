@@ -1138,9 +1138,10 @@ local Library do
         AnchorPoint = Vector2New(0.5, 0),
         BackgroundTransparency = 1,
         Position = UDim2New(0.5, 0, 0, 0),
-        Size = UDim2New(1, 0, 0, 0),
+        Size = UDim2New(1, 0, 1, 0),
         BorderSizePixel = 0,
-        BackgroundColor3 = FromRGB(255, 255, 255)
+        BackgroundColor3 = FromRGB(255, 255, 255),
+        ClipsDescendants = false
     })
 
     Library.Unload = function(self)
@@ -2795,13 +2796,20 @@ local Library do
                 BorderColor3 = FromRGB(0, 0, 0),
                 BorderSizePixel = 0,
                 AnchorPoint = Vector2New(0.5, 0),
-                Position = UDim2New(0.5, 0, 0, -82),
-                Size = UDim2New(0, 420, 0, 0),
+                Position = UDim2New(0.5, 0, 0, -140),
+                Size = UDim2New(1, -24, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
                 BackgroundColor3 = FromRGB(17, 16, 20),
                 ClipsDescendants = true,
                 ZIndex = 200
             })  Items["Notification"]:AddToTheme({BackgroundColor3 = "Background"})
+
+            Instances:Create("UISizeConstraint", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                MaxSize = Vector2New(560, 220),
+                MinSize = Vector2New(260, 0)
+            })
 
             Instances:Create("UIPadding", {
                 Parent = Items["Notification"].Instance,
@@ -2822,9 +2830,34 @@ local Library do
                 Parent = Items["Notification"].Instance,
                 Name = "\0",
                 Color = FromRGB(36, 33, 42),
-                Transparency = 0.15,
+                Transparency = 0.08,
                 ApplyStrokeMode = Enum.ApplyStrokeMode.Border
             })  Items["Stroke"]:AddToTheme({Color = "Border"})
+
+            Items["Layout"] = InstanceNew("UIListLayout")
+            Items["Layout"].FillDirection = Enum.FillDirection.Vertical
+            Items["Layout"].HorizontalAlignment = Enum.HorizontalAlignment.Center
+            Items["Layout"].SortOrder = Enum.SortOrder.LayoutOrder
+            Items["Layout"].Padding = UDimNew(0, 8)
+            Items["Layout"].Parent = Items["Notification"].Instance
+
+            Items["Badge"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 214, 120),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = "GLOBAL ANNOUNCEMENT",
+                Size = UDim2New(1, 0, 0, 14),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                TextSize = 12,
+                ZIndex = 201,
+                LayoutOrder = 1
+            })
 
             Items["Title"] = Instances:Create("TextLabel", {
                 Parent = Items["Notification"].Instance,
@@ -2839,8 +2872,9 @@ local Library do
                 TextWrapped = true,
                 TextXAlignment = Enum.TextXAlignment.Center,
                 AutomaticSize = Enum.AutomaticSize.Y,
-                TextSize = 18,
-                ZIndex = 201
+                TextSize = 20,
+                ZIndex = 201,
+                LayoutOrder = 2
             })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
 
             Items["Description"] = Instances:Create("TextLabel", {
@@ -2848,29 +2882,39 @@ local Library do
                 Name = "\0",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(255, 255, 255),
-                TextTransparency = 0.35,
+                TextTransparency = 0.28,
                 Text = tostring(Data.Content or ""),
                 TextWrapped = true,
                 Size = UDim2New(1, 0, 0, 18),
-                Position = UDim2New(0, 0, 0, 24),
                 BorderSizePixel = 0,
                 BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Center,
                 BorderColor3 = FromRGB(0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
                 TextSize = 14,
-                ZIndex = 201
+                ZIndex = 201,
+                LayoutOrder = 3
             })  Items["Description"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["Spacer"] = Instances:Create("Frame", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
+                Size = UDim2New(1, 0, 0, 2),
+                BackgroundTransparency = 1,
+                LayoutOrder = 4
+            })
 
             Items["Liner"] = Instances:Create("Frame", {
                 Parent = Items["Notification"].Instance,
                 Name = "\0",
-                Position = UDim2New(0, 0, 1, -6),
                 BorderColor3 = FromRGB(0, 0, 0),
                 Size = UDim2New(1, 0, 0, 6),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(26, 25, 31),
-                ZIndex = 201
+                ZIndex = 201,
+                LayoutOrder = 5
             })  Items["Liner"]:AddToTheme({BackgroundColor3 = "Inline"})
 
             Instances:Create("UIGradient", {
@@ -2913,9 +2957,6 @@ local Library do
                 CornerRadius = UDimNew(0, 6)
             })
         end
-
-        local AnnouncementHeight = MathMax(70, Items["Title"].Instance.TextBounds.Y + Items["Description"].Instance.TextBounds.Y + 34)
-        Items["Notification"].Instance.Size = UDim2New(0, 420, 0, AnnouncementHeight)
         self.ActiveGlobalAnnouncement = Items
 
         for _, Value in Items do
@@ -2932,17 +2973,19 @@ local Library do
             for _, Value in Items do
                 if Value.Instance:IsA("Frame") then
                     Value:Tween(nil, {BackgroundTransparency = 0})
+                elseif Value == Items["Badge"] then
+                    Value:Tween(nil, {TextTransparency = 0.12})
                 elseif Value.Instance:IsA("TextLabel") and Value == Items["Description"] then
-                    Value:Tween(nil, {TextTransparency = 0.35})
+                    Value:Tween(nil, {TextTransparency = 0.28})
                 elseif Value.Instance:IsA("TextLabel") then
                     Value:Tween(nil, {TextTransparency = 0})
                 elseif Value.Instance:IsA("UIStroke") then
-                    Value:Tween(nil, {Transparency = 0.15})
+                    Value:Tween(nil, {Transparency = 0.08})
                 end
             end
 
             Items["Notification"]:Tween(TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = UDim2New(0.5, 0, 0, 16)
+                Position = UDim2New(0.5, 0, 0, 18)
             })
             Items["Accent"]:Tween(TweenInfo.new(Duration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Size = UDim2New(0, 0, 1, 0)})
 
@@ -2962,7 +3005,7 @@ local Library do
                 end
 
                 Items["Notification"]:Tween(TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-                    Position = UDim2New(0.5, 0, 0, -82)
+                    Position = UDim2New(0.5, 0, 0, -140)
                 })
                 task.wait(0.35)
                 if self.ActiveGlobalAnnouncement == Items then
