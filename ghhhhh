@@ -6330,6 +6330,38 @@ local Library do
                 StartPresenceHeartbeat()
                 StartTypingThread()
 
+                -- Poll server for timed-out users so all clients see timeout icons
+                Library:Thread(function()
+                    while not BackendState.Destroyed do
+                        local Cfg = BackendState.Config
+                        if Cfg and Cfg.HttpUrl and Cfg.HttpUrl ~= "" and RequestFunction then
+                            local Ok, Body = DoHttpRequest({
+                                Url = BuildAuthorizedUrl(Cfg, Cfg.HttpUrl .. "/admin/timeouts"),
+                                Method = "GET",
+                                Headers = GetRequestHeaders(Cfg)
+                            })
+                            if Ok and type(Body) == "string" then
+                                local TData = JsonDecode(Body)
+                                if type(TData) == "table" and type(TData.timedOut) == "table" then
+                                    local NewTimedOut = { }
+                                    for _, Sid in TData.timedOut do
+                                        NewTimedOut[tostring(Sid)] = true
+                                    end
+                                    -- Update icons for any changes
+                                    for Sid, Icons in BackendState.TimeoutIconsBySenderId do
+                                        local ShouldShow = NewTimedOut[Sid] and true or false
+                                        for _, IconRef in ipairs(Icons) do
+                                            pcall(function() IconRef.Visible = ShouldShow end)
+                                        end
+                                    end
+                                    BackendState.TimedOutUsers = NewTimedOut
+                                end
+                            end
+                        end
+                        task.wait(10)
+                    end
+                end)
+
                 if BackendState.Config.WsUrl and WebSocketFunction then
                     local SocketUrl = BuildUrl(BackendState.Config.WsUrl, {
                         token = BackendState.Config.Token,
