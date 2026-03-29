@@ -8874,7 +8874,7 @@ local Library do
                     Name = "\0",
                     AnchorPoint = Vector2New(1, 0),
                     Position = UDim2New(1, -12, 0, 12),
-                    Size = UDim2New(0, 38, 0, 38),
+                    Size = UDim2New(0, 40, 0, 40),
                     BackgroundColor3 = FromRGB(41, 40, 49),
                     BorderSizePixel = 0,
                     AutoButtonColor = false,
@@ -8887,12 +8887,20 @@ local Library do
                     CornerRadius = UDimNew(0, 6)
                 })
 
+                Instances:Create("UIStroke", {
+                    Parent = Items["MailButton"].Instance,
+                    Name = "\0",
+                    Thickness = 1.1,
+                    Color = FromRGB(255, 255, 255),
+                    Transparency = 0.45
+                })
+
                 Items["MailButtonIcon"] = Instances:Create("ImageLabel", {
                     Parent = Items["MailButton"].Instance,
                     Name = "\0",
                     AnchorPoint = Vector2New(0.5, 0.5),
                     Position = UDim2New(0.5, 0, 0.5, 0),
-                    Size = UDim2New(0, 24, 0, 24),
+                    Size = UDim2New(0, 28, 0, 28),
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
                     Image = "rbxassetid://114794191334819",
@@ -9014,8 +9022,32 @@ local Library do
                     CornerRadius = UDimNew(0, 6)
                 })
 
-                Items["SuggestionInput"] = Instances:Create("TextBox", {
+                Items["SuggestionInputScroll"] = Instances:Create("ScrollingFrame", {
                     Parent = Items["SuggestionBg"].Instance,
+                    Name = "\0",
+                    Active = true,
+                    AutomaticCanvasSize = Enum.AutomaticSize.None,
+                    BorderSizePixel = 0,
+                    CanvasSize = UDim2New(0, 0, 0, 0),
+                    ScrollBarImageColor3 = FromRGB(255, 0, 255),
+                    MidImage = getAsset("81680855285439.png"),
+                    TopImage = getAsset("81680855285439.png"),
+                    BottomImage = getAsset("81680855285439.png"),
+                    ScrollBarThickness = 2,
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 12, 0, 10),
+                    Size = UDim2New(1, -24, 1, -42),
+                    CanvasPosition = Vector2New(0, 0)
+                })  Items["SuggestionInputScroll"]:AddToTheme({ScrollBarImageColor3 = "Accent"})
+
+                Instances:Create("UIPadding", {
+                    Parent = Items["SuggestionInputScroll"].Instance,
+                    Name = "\0",
+                    PaddingRight = UDimNew(0, 4)
+                })
+
+                Items["SuggestionInput"] = Instances:Create("TextBox", {
+                    Parent = Items["SuggestionInputScroll"].Instance,
                     Name = "\0",
                     FontFace = Library.Font,
                     PlaceholderText = "Type here your suggestion feature or something that needs to be fixed or updated.",
@@ -9029,8 +9061,9 @@ local Library do
                     TextColor3 = FromRGB(255, 255, 255),
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
-                    Position = UDim2New(0, 12, 0, 10),
-                    Size = UDim2New(1, -24, 1, -42),
+                    Position = UDim2New(0, 0, 0, 0),
+                    Size = UDim2New(1, -6, 0, 138),
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     TextSize = 14
                 })  Items["SuggestionInput"]:AddToTheme({TextColor3 = "Text"})
 
@@ -9422,6 +9455,23 @@ local Library do
                 Items["CounterLabel"].Instance.TextColor3 = Used >= MaxLength and FromRGB(255, 112, 112) or FromRGB(170, 170, 185)
             end
 
+            local function UpdateSuggestionInputScroll(ScrollToBottom)
+                local ViewHeight = Items["SuggestionInputScroll"].Instance.AbsoluteWindowSize.Y
+                if ViewHeight <= 0 then
+                    ViewHeight = Items["SuggestionInputScroll"].Instance.AbsoluteSize.Y
+                end
+
+                local TextHeight = math.max(138, Items["SuggestionInput"].Instance.TextBounds.Y + 18)
+                Items["SuggestionInput"].Instance.Size = UDim2New(1, -6, 0, TextHeight)
+                Items["SuggestionInputScroll"].Instance.CanvasSize = UDim2New(0, 0, 0, TextHeight)
+
+                if ScrollToBottom and TextHeight > ViewHeight then
+                    Items["SuggestionInputScroll"].Instance.CanvasPosition = Vector2New(0, TextHeight - ViewHeight)
+                elseif TextHeight <= ViewHeight then
+                    Items["SuggestionInputScroll"].Instance.CanvasPosition = Vector2New(0, 0)
+                end
+            end
+
             local function ResetDraft(KeepGameTitle)
                 Draft.GameTitle = KeepGameTitle and Draft.GameTitle or GetResolvedGameName()
                 Draft.Content = ""
@@ -9430,6 +9480,7 @@ local Library do
                 Items["SuggestionInput"].Instance.Text = ""
                 SetSelectedType(Draft.Type)
                 UpdateCounter()
+                UpdateSuggestionInputScroll(false)
             end
 
             local function SwitchToChatPage()
@@ -9727,6 +9778,11 @@ local Library do
 
             Items["SuggestionInput"].Instance:GetPropertyChangedSignal("Text"):Connect(function()
                 UpdateCounter()
+                UpdateSuggestionInputScroll(true)
+            end)
+
+            Items["SuggestionInputScroll"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                UpdateSuggestionInputScroll(false)
             end)
 
             Items["CancelButton"]:Connect("InputBegan", function(Input)
@@ -9753,6 +9809,7 @@ local Library do
             end
 
             ResetDraft(false)
+            UpdateSuggestionInputScroll(false)
 
             Library:Thread(function()
                 while not SuggestionDestroyed do
