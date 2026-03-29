@@ -155,11 +155,17 @@ local Library do
             AutoCreate = true,
             TabName = "Global Chat",
             SubTabName = "Chat",
+            SuggestionSubTabName = "Suggestions",
             InitialStatusText = "Connecting...",
             SlowModeTimer = 1,
+            SuggestionMinLength = 5,
+            SuggestionMaxLength = 300,
+            SuggestionMailboxLimit = 20,
             AdminIds = { 4298535268, 7660640471 },
             FilterEnabled = true,
             FilterUrl = "https://raw.githubusercontent.com/dano0011/orion-moded/main/bll",
+            MessagesCountDeletionInterval = 30,
+            AnonymousMode = true,
         },
 
         MenuKeybind = tostring(Enum.KeyCode.Z),
@@ -490,18 +496,30 @@ local Library do
 
         GlobalChatTab.Items["Inactive"].Instance.LayoutOrder = 99999
 
-        local SubTab = GlobalChatTab:AddSubTab({
+        local ChatSubTab = GlobalChatTab:AddSubTab({
                 Name = Window.GlobalChatOptions.SubTabName,
                 Columns = 1
         })
 
-        local ChatSystem = SubTab:GlobalChat()
+        local SuggestionSubTab = GlobalChatTab:AddSubTab({
+                Name = Window.GlobalChatOptions.SuggestionSubTabName or "Suggestions",
+                Columns = 1
+        })
+
+        local ChatSystem = ChatSubTab:GlobalChat()
         ChatSystem:SetConnectedText(Window.GlobalChatOptions.InitialStatusText)
+        local SuggestionSystem = SuggestionSubTab:GlobalChatSuggestions({
+            ChatPage = ChatSubTab,
+            ChatSystem = ChatSystem,
+            Config = Window.GlobalChatOptions
+        })
 
         Window.AutoGlobalChat = {
             Page = GlobalChatTab,
-            SubTab = SubTab,
+            SubTab = ChatSubTab,
+            SuggestionSubTab = SuggestionSubTab,
             ChatSystem = ChatSystem,
+            SuggestionSystem = SuggestionSystem,
         }
 
         return ChatSystem
@@ -4000,6 +4018,7 @@ local Library do
 
             Library:Connect(UserInputService.InputBegan, function(Input)
                 if tostring(Input.KeyCode) == Library.MenuKeybind or tostring(Input.UserInputType) == Library.MenuKeybind then
+                    if UserInputService:GetFocusedTextBox() then return end
                     Window:SetOpen(not Window.IsOpen)
                    
                     if Window.IsOpen then
@@ -5917,6 +5936,15 @@ local Library do
 
             Items["Toggle"]:Connect("InputBegan", function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    local AnonEnabled = BackendState.Config and BackendState.Config.AnonymousMode
+                    if AnonEnabled == false then
+                        Library:MakeNotification({
+                            Name = "Anonymous Mode",
+                            Content = "Anonymous mode is currently disabled.",
+                            Time = 3
+                        })
+                        return
+                    end
                     Toggle:Set(not Toggle.Value)
                 end
             end)
@@ -6111,7 +6139,16 @@ local Library do
                 local Result = Text
                 for _, Word in BackendState.FilterWords do
                     if type(Word) == "string" and Word ~= "" then
-                        local Pattern = Word:gsub("[%(%)%.%%%+%-%*%?%[%^%$]", "%%%1")
+                        local Parts = {}
+                        for i = 1, #Word do
+                            local Orig = Word:sub(i, i)
+                            if Orig:match("%a") then
+                                Parts[#Parts + 1] = "[" .. Orig:upper() .. Orig:lower() .. "]"
+                            else
+                                Parts[#Parts + 1] = Orig:gsub("[%(%)%.%%%+%-%*%?%[%^%$]", "%%%1")
+                            end
+                        end
+                        local Pattern = table.concat(Parts, "[^%a%d]*")
                         Result = Result:gsub("(" .. Pattern .. ")", function(Match)
                             return string.rep("#", #Match)
                         end)
@@ -6421,6 +6458,22 @@ local Library do
                 return false
             end
 
+            local function TrimRenderedMessages()
+                local RawLimit = BackendState.Config and BackendState.Config.MessagesCountDeletionInterval
+                if RawLimit == nil or RawLimit == false then return end
+                local Limit = tonumber(RawLimit) or 30
+                local Ids = {}
+                for Id in BackendState.MessageFramesById do
+                    Ids[#Ids + 1] = Id
+                end
+                if #Ids <= Limit then return end
+                table.sort(Ids)
+                local ToRemove = #Ids - Limit
+                for i = 1, ToRemove do
+                    ChatSystem:DeleteRenderedMessage(Ids[i])
+                end
+            end
+
             local function RenderIncomingMessage(MessageData, SkipUnread)
                 if type(MessageData) ~= "table" then
                     return
@@ -6460,6 +6513,7 @@ local Library do
                     MessageData.replyTo,
                     MessageData
                 )
+                TrimRenderedMessages()
             end
 
             HandlePayload = function(Payload)
@@ -6515,7 +6569,29 @@ local Library do
                     end
                 end
 
+                if type(Payload.slowModeTimer) == "number" then
+                    BackendState.Config.SlowModeTimer = Payload.slowModeTimer
+                end
+
+                if type(Payload.anonymousMode) == "boolean" then
+                    BackendState.Config.AnonymousMode = Payload.anonymousMode
+                end
+
                 if Payload.type == "chat_lock" then
+                    return
+                end
+
+                if Payload.type == "slow_mode" then
+                    if type(Payload.seconds) == "number" then
+                        BackendState.Config.SlowModeTimer = Payload.seconds
+                    end
+                    return
+                end
+
+                if Payload.type == "anonymous_mode" then
+                    if type(Payload.enabled) == "boolean" then
+                        BackendState.Config.AnonymousMode = Payload.enabled
+                    end
                     return
                 end
 
@@ -7320,15 +7396,24 @@ local Library do
 
                 if BackendState.Config.FilterEnabled and #BackendState.FilterWords == 0 then
                     Library:Thread(function()
+                        local CacheFile = Library.Folders.Assets .. "/filterwords.json"
+                        if isfile(CacheFile) then
+                            local Cached = JsonDecode(readfile(CacheFile))
+                            if type(Cached) == "table" and type(Cached.flags) == "table" and #Cached.flags > 0 then
+                                BackendState.FilterWords = Cached.flags
+                                return
+                            end
+                        end
                         local Ok, Body = DoHttpRequest({
                             Url = BackendState.Config.FilterUrl or "",
                             Method = "GET",
-                            Headers = { ["User-Agent"] = "Roblox", ["Cache-Control"] = "no-cache" }
+                            Headers = { ["User-Agent"] = "Roblox" }
                         })
                         if Ok and type(Body) == "string" then
                             local Decoded = JsonDecode(Body)
                             if type(Decoded) == "table" and type(Decoded.flags) == "table" then
                                 BackendState.FilterWords = Decoded.flags
+                                pcall(writefile, CacheFile, Body)
                             end
                         end
                     end)
@@ -8590,6 +8675,1086 @@ local Library do
             end)
 
             return ChatSystem
+        end
+
+        Library.Pages.GlobalChatSuggestions = function(self, Data)
+            Data = Data or { }
+
+            local SuggestionSystem = {
+                Window = self.Window,
+                Page = self,
+            }
+
+            if SuggestionSystem.Page.Columns ~= 1 then
+                error("GlobalChatSuggestions can only be in one column (Edit Columns property to 1)")
+            end
+
+            local SuggestionConfig = NormalizeGlobalChatConfig(Data.Config or Library.GlobalChat)
+            local Draft = {
+                GameTitle = "",
+                Content = "",
+                Type = "suggestion",
+            }
+            local SuggestionItems = { }
+            local SuggestionRows = { }
+            local SuggestionDestroyed = false
+            local SuccessPayload = nil
+
+            local function GetSuggestionHeaders(Config)
+                local Headers = {
+                    ["Accept"] = "application/json",
+                }
+
+                if Config.Token and Config.Token ~= "" then
+                    Headers["x-chat-token"] = Config.Token
+                end
+
+                return Headers
+            end
+
+            local function BuildSuggestionAuthorizedUrl(Config, BaseUrl, Query)
+                local FinalQuery = type(Query) == "table" and TableClone(Query) or { }
+
+                if Config and Config.Token and Config.Token ~= "" then
+                    FinalQuery.token = Config.Token
+                end
+
+                return BuildUrl(BaseUrl, FinalQuery)
+            end
+
+            local function GetResolvedGameName()
+                local PlaceName = ""
+
+                pcall(function()
+                    local Info = MarketplaceService:GetProductInfo(game.PlaceId)
+                    PlaceName = tostring(Info and Info.Name or "")
+                end)
+
+                if PlaceName == "" then
+                    PlaceName = tostring(game.Name or "This Experience")
+                end
+
+                return PlaceName
+            end
+
+            local function GetExecutorName()
+                local Executor = identifyexecutor and identifyexecutor() or nil
+                if type(Executor) == "string" and Executor ~= "" then
+                    return Executor
+                end
+
+                return "Unknown"
+            end
+
+            local function GetSuggestionTypeLabel(Value)
+                if Value == "patched_broken_feature" then
+                    return "Patched/Broken Feature"
+                elseif Value == "both" then
+                    return "Both"
+                end
+
+                return "Suggestion"
+            end
+
+            local function GetStatusLabel(Value)
+                if Value == "approved" then
+                    return "Approved"
+                elseif Value == "rejected" then
+                    return "Rejected"
+                end
+
+                return "Under Review"
+            end
+
+            local function GetStatusColor(Value)
+                if Value == "approved" then
+                    return FromRGB(90, 214, 128)
+                elseif Value == "rejected" then
+                    return FromRGB(255, 102, 102)
+                end
+
+                return FromRGB(255, 209, 102)
+            end
+
+            local function GetStatusIcon(Value)
+                if Value == "approved" then
+                    return "rbxassetid://136434898133814"
+                elseif Value == "rejected" then
+                    return "rbxassetid://88572064423642"
+                end
+
+                return ""
+            end
+
+            local function TruncatePreview(Text, Limit)
+                local Clean = tostring(Text or "")
+                Clean = StringGSub(Clean, "%s+", " ")
+                if StringLen(Clean) <= Limit then
+                    return Clean
+                end
+
+                return StringSub(Clean, 1, math.max(1, Limit - 3)) .. "..."
+            end
+
+            local function ClearSuggestionRows()
+                for _, Entry in SuggestionRows do
+                    if Entry and Entry.Instance then
+                        Entry:Clean()
+                    end
+                end
+
+                SuggestionRows = { }
+            end
+
+            local function SetOverlayVisible(Overlay, Panel, Bool)
+                Overlay.Instance.Visible = Bool
+                Panel.Instance.Visible = Bool
+
+                if Bool then
+                    Overlay.Instance.BackgroundTransparency = 1
+                    Panel.Instance.BackgroundTransparency = 1
+                    Panel.Instance.Position = UDim2New(0.5, 0, 0.5, 20)
+                    Overlay:Tween(TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.22})
+                    Panel:Tween(TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                        BackgroundTransparency = 0,
+                        Position = UDim2New(0.5, 0, 0.5, 0)
+                    })
+                else
+                    Overlay.Instance.Visible = false
+                    Panel.Instance.Visible = false
+                end
+            end
+
+            local Items = { } do
+                Items["Root"] = Instances:Create("Frame", {
+                    Parent = SuggestionSystem.Page.ColumnsData[1].Instance,
+                    Name = "\0",
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Size = UDim2New(1, 0, 1, 0),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(26, 25, 31)
+                })  Items["Root"]:AddToTheme({BackgroundColor3 = "Inline"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["Root"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Items["HeaderTitle"] = Instances:Create("TextLabel", {
+                    Parent = Items["Root"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    Text = "Suggestion Submission",
+                    Position = UDim2New(0, 14, 0, 14),
+                    Size = UDim2New(1, -70, 0, 24),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextSize = 16,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })  Items["HeaderTitle"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["HeaderHint"] = Instances:Create("TextLabel", {
+                    Parent = Items["Root"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(180, 180, 190),
+                    Text = "Send a suggestion or bug report straight to staff review.",
+                    Position = UDim2New(0, 14, 0, 38),
+                    Size = UDim2New(1, -90, 0, 18),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextSize = 12,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })  Items["HeaderHint"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["MailButton"] = Instances:Create("ImageButton", {
+                    Parent = Items["Root"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(1, 0),
+                    Position = UDim2New(1, -12, 0, 12),
+                    Size = UDim2New(0, 34, 0, 34),
+                    BackgroundColor3 = FromRGB(41, 40, 49),
+                    BorderSizePixel = 0,
+                    AutoButtonColor = false,
+                    Image = "rbxassetid://114794191334819"
+                })  Items["MailButton"]:AddToTheme({BackgroundColor3 = "Element", ImageColor3 = "Text"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["MailButton"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Items["FormScroller"] = Instances:Create("ScrollingFrame", {
+                    Parent = Items["Root"].Instance,
+                    Name = "\0",
+                    Active = true,
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                    BorderSizePixel = 0,
+                    CanvasSize = UDim2New(0, 0, 0, 0),
+                    ScrollBarImageColor3 = FromRGB(255, 0, 255),
+                    MidImage = getAsset("81680855285439.png"),
+                    TopImage = getAsset("81680855285439.png"),
+                    BottomImage = getAsset("81680855285439.png"),
+                    ScrollBarThickness = 2,
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 12, 0, 66),
+                    Size = UDim2New(1, -24, 1, -140)
+                })  Items["FormScroller"]:AddToTheme({ScrollBarImageColor3 = "Accent"})
+
+                Instances:Create("UIPadding", {
+                    Parent = Items["FormScroller"].Instance,
+                    Name = "\0",
+                    PaddingBottom = UDimNew(0, 6),
+                    PaddingRight = UDimNew(0, 4)
+                })
+
+                Instances:Create("UIListLayout", {
+                    Parent = Items["FormScroller"].Instance,
+                    Name = "\0",
+                    Padding = UDimNew(0, 10),
+                    SortOrder = Enum.SortOrder.LayoutOrder
+                })
+
+                local function MakeLabel(Text)
+                    return Instances:Create("TextLabel", {
+                        Parent = Items["FormScroller"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        Text = Text,
+                        Size = UDim2New(1, -2, 0, 18),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextSize = 13,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        LayoutOrder = #Items["FormScroller"].Instance:GetChildren() + 1
+                    })
+                end
+
+                Items["GameLabel"] = MakeLabel("Game Title")  Items["GameLabel"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["GameTitleBg"] = Instances:Create("Frame", {
+                    Parent = Items["FormScroller"].Instance,
+                    Name = "\0",
+                    Size = UDim2New(1, -2, 0, 46),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(41, 40, 49),
+                    LayoutOrder = 2
+                })  Items["GameTitleBg"]:AddToTheme({BackgroundColor3 = "Element"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["GameTitleBg"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Items["GameTitleInput"] = Instances:Create("TextBox", {
+                    Parent = Items["GameTitleBg"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    PlaceholderText = "Game title",
+                    PlaceholderColor3 = FromRGB(175, 175, 175),
+                    Text = "",
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Position = UDim2New(0, 12, 0, 0),
+                    Size = UDim2New(1, -24, 1, 0),
+                    ClearTextOnFocus = false,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextSize = 14
+                })  Items["GameTitleInput"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["GameHint"] = Instances:Create("TextLabel", {
+                    Parent = Items["FormScroller"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(170, 170, 185),
+                    Text = "Auto-filled from your current game. Replace it if you are suggesting something for a different game.",
+                    Size = UDim2New(1, -2, 0, 28),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextWrapped = true,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Top,
+                    TextSize = 12,
+                    LayoutOrder = 3
+                })  Items["GameHint"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["SuggestionLabel"] = MakeLabel("Suggestion Details")  Items["SuggestionLabel"].Instance.LayoutOrder = 4  Items["SuggestionLabel"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["SuggestionBg"] = Instances:Create("Frame", {
+                    Parent = Items["FormScroller"].Instance,
+                    Name = "\0",
+                    Size = UDim2New(1, -2, 0, 190),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(41, 40, 49),
+                    LayoutOrder = 5
+                })  Items["SuggestionBg"]:AddToTheme({BackgroundColor3 = "Element"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["SuggestionBg"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Items["SuggestionInput"] = Instances:Create("TextBox", {
+                    Parent = Items["SuggestionBg"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    PlaceholderText = "Type here your suggestion feature or something that needs to be fixed or updated.",
+                    PlaceholderColor3 = FromRGB(175, 175, 175),
+                    Text = "",
+                    MultiLine = true,
+                    ClearTextOnFocus = false,
+                    TextWrapped = true,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Top,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Position = UDim2New(0, 12, 0, 10),
+                    Size = UDim2New(1, -24, 1, -42),
+                    TextSize = 14
+                })  Items["SuggestionInput"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["CounterLabel"] = Instances:Create("TextLabel", {
+                    Parent = Items["SuggestionBg"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(170, 170, 185),
+                    Text = "Good idea 0/300",
+                    AnchorPoint = Vector2New(1, 1),
+                    Position = UDim2New(1, -12, 1, -10),
+                    Size = UDim2New(0, 0, 0, 16),
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextSize = 12,
+                    TextXAlignment = Enum.TextXAlignment.Right
+                })
+
+                Items["TypeLabel"] = MakeLabel("What are you suggesting for?")  Items["TypeLabel"].Instance.LayoutOrder = 6  Items["TypeLabel"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["TypeHolder"] = Instances:Create("Frame", {
+                    Parent = Items["FormScroller"].Instance,
+                    Name = "\0",
+                    Size = UDim2New(1, -2, 0, 118),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    LayoutOrder = 7
+                })
+
+                Instances:Create("UIListLayout", {
+                    Parent = Items["TypeHolder"].Instance,
+                    Name = "\0",
+                    Padding = UDimNew(0, 8),
+                    SortOrder = Enum.SortOrder.LayoutOrder
+                })
+
+                local function MakeTypeButton(Key, Label)
+                    local Button = Instances:Create("TextButton", {
+                        Parent = Items["TypeHolder"].Instance,
+                        Name = "\0",
+                        Text = "",
+                        Size = UDim2New(1, 0, 0, 34),
+                        BackgroundColor3 = FromRGB(41, 40, 49),
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false
+                    })  Button:AddToTheme({BackgroundColor3 = "Element"})
+
+                    Instances:Create("UICorner", {
+                        Parent = Button.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 6)
+                    })
+
+                    local DotBg = Instances:Create("Frame", {
+                        Parent = Button.Instance,
+                        Name = "\0",
+                        Position = UDim2New(0, 10, 0.5, -7),
+                        Size = UDim2New(0, 14, 0, 14),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = FromRGB(20, 20, 24)
+                    })
+
+                    Instances:Create("UICorner", {
+                        Parent = DotBg.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(1, 0)
+                    })
+
+                    local Dot = Instances:Create("Frame", {
+                        Parent = DotBg.Instance,
+                        Name = "\0",
+                        AnchorPoint = Vector2New(0.5, 0.5),
+                        Position = UDim2New(0.5, 0, 0.5, 0),
+                        Size = UDim2New(0, 8, 0, 8),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Library.Theme.Accent,
+                        Visible = false
+                    })  Dot:AddToTheme({BackgroundColor3 = "Accent"})
+
+                    Instances:Create("UICorner", {
+                        Parent = Dot.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(1, 0)
+                    })
+
+                    local Text = Instances:Create("TextLabel", {
+                        Parent = Button.Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        Text = Label,
+                        Position = UDim2New(0, 34, 0, 0),
+                        Size = UDim2New(1, -42, 1, 0),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextSize = 13,
+                        TextXAlignment = Enum.TextXAlignment.Left
+                    })  Text:AddToTheme({TextColor3 = "Text"})
+
+                    return {
+                        Key = Key,
+                        Button = Button,
+                        Dot = Dot,
+                    }
+                end
+
+                SuggestionItems["TypeButtons"] = {
+                    MakeTypeButton("suggestion", "Suggestion"),
+                    MakeTypeButton("patched_broken_feature", "Patched/Broken Feature"),
+                    MakeTypeButton("both", "Both"),
+                }
+
+                Items["ActionBar"] = Instances:Create("Frame", {
+                    Parent = Items["Root"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0, 1),
+                    Position = UDim2New(0, 12, 1, -12),
+                    Size = UDim2New(1, -24, 0, 46),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                })
+
+                local ActionLayout = InstanceNew("UIListLayout")
+                ActionLayout.FillDirection = Enum.FillDirection.Horizontal
+                ActionLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+                ActionLayout.Padding = UDimNew(0, 10)
+                ActionLayout.Parent = Items["ActionBar"].Instance
+
+                local function MakeActionButton(Name, Color, Order)
+                    local Button = Instances:Create("TextButton", {
+                        Parent = Items["ActionBar"].Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        Text = Name,
+                        Size = UDim2New(0, 122, 0, 42),
+                        BackgroundColor3 = Color,
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                        LayoutOrder = Order,
+                        TextSize = 14
+                    })
+
+                    Instances:Create("UICorner", {
+                        Parent = Button.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 6)
+                    })
+
+                    return Button
+                end
+
+                Items["CancelButton"] = MakeActionButton("Cancel", FromRGB(166, 74, 74), 1)
+                Items["SubmitButton"] = MakeActionButton("Submit", FromRGB(72, 176, 108), 2)
+
+                Items["MailboxOverlay"] = Instances:Create("Frame", {
+                    Parent = Items["Root"].Instance,
+                    Name = "\0",
+                    Size = UDim2New(1, 0, 1, 0),
+                    BackgroundColor3 = FromRGB(8, 8, 10),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 60
+                })
+
+                Items["MailboxPanel"] = Instances:Create("Frame", {
+                    Parent = Items["MailboxOverlay"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, 0, 0.5, 0),
+                    Size = UDim2New(1, -48, 1, -56),
+                    BackgroundColor3 = FromRGB(26, 25, 31),
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 61
+                })  Items["MailboxPanel"]:AddToTheme({BackgroundColor3 = "Inline"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["MailboxPanel"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 8)
+                })
+
+                Items["MailboxTitle"] = Instances:Create("TextLabel", {
+                    Parent = Items["MailboxPanel"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    Text = "Submitted Suggestions",
+                    Position = UDim2New(0, 14, 0, 14),
+                    Size = UDim2New(1, -52, 0, 20),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextSize = 15,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 62
+                })  Items["MailboxTitle"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["MailboxClose"] = Instances:Create("TextButton", {
+                    Parent = Items["MailboxPanel"].Instance,
+                    Name = "\0",
+                    Text = "X",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BackgroundColor3 = FromRGB(41, 40, 49),
+                    BorderSizePixel = 0,
+                    Size = UDim2New(0, 28, 0, 28),
+                    Position = UDim2New(1, -38, 0, 10),
+                    ZIndex = 62,
+                    AutoButtonColor = false,
+                    TextSize = 13
+                })  Items["MailboxClose"]:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["MailboxClose"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Items["MailboxEmpty"] = Instances:Create("TextLabel", {
+                    Parent = Items["MailboxPanel"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(185, 185, 195),
+                    Text = "No suggestions submitted yet.",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, 0, 0.5, 10),
+                    Size = UDim2New(1, -40, 0, 18),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextSize = 13,
+                    Visible = false,
+                    ZIndex = 62
+                })
+
+                Items["MailboxScroller"] = Instances:Create("ScrollingFrame", {
+                    Parent = Items["MailboxPanel"].Instance,
+                    Name = "\0",
+                    Active = true,
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                    BorderSizePixel = 0,
+                    CanvasSize = UDim2New(0, 0, 0, 0),
+                    ScrollBarThickness = 2,
+                    ScrollBarImageColor3 = FromRGB(255, 0, 255),
+                    MidImage = getAsset("81680855285439.png"),
+                    TopImage = getAsset("81680855285439.png"),
+                    BottomImage = getAsset("81680855285439.png"),
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 12, 0, 52),
+                    Size = UDim2New(1, -24, 1, -64),
+                    ZIndex = 62
+                })  Items["MailboxScroller"]:AddToTheme({ScrollBarImageColor3 = "Accent"})
+
+                Instances:Create("UIListLayout", {
+                    Parent = Items["MailboxScroller"].Instance,
+                    Name = "\0",
+                    Padding = UDimNew(0, 10),
+                    SortOrder = Enum.SortOrder.LayoutOrder
+                })
+
+                Instances:Create("UIPadding", {
+                    Parent = Items["MailboxScroller"].Instance,
+                    Name = "\0",
+                    PaddingBottom = UDimNew(0, 10),
+                    PaddingRight = UDimNew(0, 6)
+                })
+
+                Items["SuccessOverlay"] = Instances:Create("Frame", {
+                    Parent = Items["Root"].Instance,
+                    Name = "\0",
+                    Size = UDim2New(1, 0, 1, 0),
+                    BackgroundColor3 = FromRGB(8, 8, 10),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 80
+                })
+
+                Items["SuccessPanel"] = Instances:Create("Frame", {
+                    Parent = Items["SuccessOverlay"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, 0, 0.5, 0),
+                    Size = UDim2New(1, -84, 1, -110),
+                    BackgroundColor3 = FromRGB(26, 25, 31),
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 81
+                })  Items["SuccessPanel"]:AddToTheme({BackgroundColor3 = "Inline"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["SuccessPanel"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 8)
+                })
+
+                Items["SuccessIcon"] = Instances:Create("ImageLabel", {
+                    Parent = Items["SuccessPanel"].Instance,
+                    Name = "\0",
+                    Image = "rbxassetid://136434898133814",
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0.5, -28, 0, 18),
+                    Size = UDim2New(0, 56, 0, 56),
+                    BorderSizePixel = 0,
+                    ZIndex = 82
+                })
+
+                Items["SuccessTitle"] = Instances:Create("TextLabel", {
+                    Parent = Items["SuccessPanel"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    Text = "Your suggestion has been submitted and will be reviewed by our staff team.",
+                    Position = UDim2New(0, 18, 0, 84),
+                    Size = UDim2New(1, -36, 0, 42),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextWrapped = true,
+                    TextSize = 16,
+                    ZIndex = 82
+                })  Items["SuccessTitle"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["SuccessDetails"] = Instances:Create("TextLabel", {
+                    Parent = Items["SuccessPanel"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(210, 210, 220),
+                    Text = "",
+                    Position = UDim2New(0, 18, 0, 136),
+                    Size = UDim2New(1, -36, 1, -196),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextWrapped = true,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Top,
+                    RichText = false,
+                    TextSize = 13,
+                    ZIndex = 82
+                })  Items["SuccessDetails"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["SuccessDone"] = Instances:Create("TextButton", {
+                    Parent = Items["SuccessPanel"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(1, 1),
+                    Position = UDim2New(1, -18, 1, -18),
+                    Size = UDim2New(0, 122, 0, 40),
+                    FontFace = Library.Font,
+                    Text = "Back to Chat",
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BackgroundColor3 = FromRGB(72, 176, 108),
+                    BorderSizePixel = 0,
+                    AutoButtonColor = false,
+                    TextSize = 14,
+                    ZIndex = 82
+                })
+
+                Instances:Create("UICorner", {
+                    Parent = Items["SuccessDone"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+            end
+
+            local function SetSelectedType(Value)
+                Draft.Type = Value
+
+                for _, Entry in SuggestionItems["TypeButtons"] do
+                    local IsSelected = Entry.Key == Value
+                    Entry.Dot.Instance.Visible = IsSelected
+                    Entry.Button:Tween(nil, {
+                        BackgroundColor3 = IsSelected and Library.Theme["Hovered Element"] or Library.Theme["Element"]
+                    })
+                end
+            end
+
+            local function UpdateCounter()
+                local MaxLength = tonumber(SuggestionConfig.SuggestionMaxLength) or 300
+                local Text = tostring(Items["SuggestionInput"].Instance.Text or "")
+                if StringLen(Text) > MaxLength then
+                    Text = StringSub(Text, 1, MaxLength)
+                    Items["SuggestionInput"].Instance.Text = Text
+                end
+
+                Draft.Content = Text
+                local Used = StringLen(Text)
+                Items["CounterLabel"].Instance.Text = StringFormat("Good idea %d/%d", Used, MaxLength)
+                Items["CounterLabel"].Instance.TextColor3 = Used >= MaxLength and FromRGB(255, 112, 112) or FromRGB(170, 170, 185)
+            end
+
+            local function ResetDraft(KeepGameTitle)
+                Draft.GameTitle = KeepGameTitle and Draft.GameTitle or GetResolvedGameName()
+                Draft.Content = ""
+                Draft.Type = "suggestion"
+                Items["GameTitleInput"].Instance.Text = Draft.GameTitle
+                Items["SuggestionInput"].Instance.Text = ""
+                SetSelectedType(Draft.Type)
+                UpdateCounter()
+            end
+
+            local function SwitchToChatPage()
+                if Data.ChatPage and type(Data.ChatPage.Turn) == "function" then
+                    for _, Value in Data.ChatPage.Page.SubPages do
+                        Value:Turn(Value == Data.ChatPage)
+                    end
+                end
+            end
+
+            local function RenderSuggestionEntries(Entries)
+                ClearSuggestionRows()
+                Items["MailboxEmpty"].Instance.Visible = #Entries == 0
+
+                for _, Entry in Entries do
+                    local Row = Instances:Create("Frame", {
+                        Parent = Items["MailboxScroller"].Instance,
+                        Name = "\0",
+                        Size = UDim2New(1, -2, 0, 92),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = FromRGB(41, 40, 49),
+                        ZIndex = 63
+                    })  Row:AddToTheme({BackgroundColor3 = "Element"})
+
+                    Instances:Create("UICorner", {
+                        Parent = Row.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 6)
+                    })
+
+                    local Status = tostring(Entry.status or "under_review")
+                    local IconId = GetStatusIcon(Status)
+
+                    local StatusIcon = Instances:Create("ImageLabel", {
+                        Parent = Row.Instance,
+                        Name = "\0",
+                        Image = IconId,
+                        BackgroundTransparency = 1,
+                        Position = UDim2New(0, 12, 1, -28),
+                        Size = UDim2New(0, 16, 0, 16),
+                        Visible = IconId ~= "",
+                        BorderSizePixel = 0,
+                        ZIndex = 64
+                    })
+
+                    local Title = Instances:Create("TextLabel", {
+                        Parent = Row.Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        Text = tostring(Entry.gameTitle or "Unknown Game"),
+                        Position = UDim2New(0, 12, 0, 10),
+                        Size = UDim2New(1, -24, 0, 18),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        ZIndex = 64
+                    })  Title:AddToTheme({TextColor3 = "Text"})
+
+                    local Preview = Instances:Create("TextLabel", {
+                        Parent = Row.Instance,
+                        Name = "\0",
+                        FontFace = Library.Subfont,
+                        TextColor3 = FromRGB(185, 185, 195),
+                        Text = TruncatePreview(Entry.content, 120),
+                        Position = UDim2New(0, 12, 0, 32),
+                        Size = UDim2New(1, -24, 0, 34),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextWrapped = true,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextYAlignment = Enum.TextYAlignment.Top,
+                        TextSize = 12,
+                        ZIndex = 64
+                    })  Preview:AddToTheme({TextColor3 = "Text"})
+
+                    local StatusText = Instances:Create("TextLabel", {
+                        Parent = Row.Instance,
+                        Name = "\0",
+                        FontFace = Library.Subfont,
+                        TextColor3 = GetStatusColor(Status),
+                        Text = GetStatusLabel(Status),
+                        Position = UDim2New(0, IconId ~= "" and 34 or 12, 1, -30),
+                        Size = UDim2New(1, -46, 0, 16),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextSize = 12,
+                        ZIndex = 64
+                    })
+
+                    local TypeText = Instances:Create("TextLabel", {
+                        Parent = Row.Instance,
+                        Name = "\0",
+                        FontFace = Library.Subfont,
+                        TextColor3 = FromRGB(170, 170, 185),
+                        Text = GetSuggestionTypeLabel(tostring(Entry.type or "suggestion")),
+                        AnchorPoint = Vector2New(1, 1),
+                        Position = UDim2New(1, -12, 1, -12),
+                        Size = UDim2New(0, 0, 0, 16),
+                        AutomaticSize = Enum.AutomaticSize.X,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextSize = 11,
+                        TextXAlignment = Enum.TextXAlignment.Right,
+                        ZIndex = 64
+                    })
+
+                    TableInsert(SuggestionRows, Row)
+                end
+            end
+
+            function SuggestionSystem:RefreshSuggestions()
+                local Config = SuggestionConfig
+                if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then
+                    return false
+                end
+
+                local Ok, Body = DoHttpRequest({
+                    Url = BuildSuggestionAuthorizedUrl(Config, Config.HttpUrl .. "/library/suggestions", {
+                        senderId = tostring(LocalPlayer.UserId),
+                        limit = tonumber(Config.SuggestionMailboxLimit) or 20,
+                    }),
+                    Method = "GET",
+                    Headers = GetSuggestionHeaders(Config),
+                })
+
+                if not Ok or type(Body) ~= "string" then
+                    return false
+                end
+
+                local Decoded = JsonDecode(Body)
+                if type(Decoded) ~= "table" or type(Decoded.suggestions) ~= "table" then
+                    return false
+                end
+
+                RenderSuggestionEntries(Decoded.suggestions)
+                return true
+            end
+
+            local function OpenMailbox(Bool)
+                SetOverlayVisible(Items["MailboxOverlay"], Items["MailboxPanel"], Bool)
+                if Bool then
+                    SuggestionSystem:RefreshSuggestions()
+                end
+            end
+
+            local function OpenSuccessOverlay(Bool)
+                SetOverlayVisible(Items["SuccessOverlay"], Items["SuccessPanel"], Bool)
+            end
+
+            local function BuildSuccessDetails(Suggestion)
+                local SubmittedAt = OsDate("%Y-%m-%d %I:%M:%S %p", math.floor((tonumber(Suggestion.createdAt) or os.time() * 1000) / 1000))
+                return TableConcat({
+                    "User ID: " .. tostring(Suggestion.senderId or LocalPlayer.UserId),
+                    "Display Name: " .. tostring(Suggestion.displayName or LocalPlayer.DisplayName),
+                    "@Username: @" .. tostring(Suggestion.username or LocalPlayer.Name),
+                    "Game Title: " .. tostring(Suggestion.gameTitle or "Unknown Game"),
+                    "Suggestion Type: " .. GetSuggestionTypeLabel(tostring(Suggestion.type or "suggestion")),
+                    "Suggestion Details: " .. tostring(Suggestion.content or ""),
+                    "Executor: " .. tostring(Suggestion.executor or "Unknown"),
+                    "Submitted At: " .. SubmittedAt,
+                }, "\n\n")
+            end
+
+            local function SubmitSuggestion()
+                local GameTitle = (Items["GameTitleInput"].Instance.Text or ""):match("^%s*(.-)%s*$") or ""
+                local ContentText = (Items["SuggestionInput"].Instance.Text or ""):match("^%s*(.-)%s*$") or ""
+                local Minimum = tonumber(SuggestionConfig.SuggestionMinLength) or 5
+
+                if GameTitle == "" then
+                    Library:MakeNotification({
+                        Name = "Suggestion Error",
+                        Content = "Game title is required.",
+                        Time = 3
+                    })
+                    return
+                end
+
+                if StringLen(ContentText) < Minimum then
+                    Library:MakeNotification({
+                        Name = "Suggestion Error",
+                        Content = StringFormat("Suggestion details must be at least %d characters.", Minimum),
+                        Time = 3
+                    })
+                    return
+                end
+
+                if Draft.Type == "" then
+                    Library:MakeNotification({
+                        Name = "Suggestion Error",
+                        Content = "Choose one suggestion type before submitting.",
+                        Time = 3
+                    })
+                    return
+                end
+
+                local Payload = {
+                    senderId = tostring(LocalPlayer.UserId),
+                    username = tostring(LocalPlayer.Name),
+                    displayName = tostring(LocalPlayer.DisplayName),
+                    gameTitle = GameTitle,
+                    gameName = GetResolvedGameName(),
+                    placeId = game.PlaceId,
+                    type = Draft.Type,
+                    content = ContentText,
+                    executor = GetExecutorName(),
+                }
+
+                local Config = SuggestionConfig
+                if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then
+                    Library:MakeNotification({
+                        Name = "Suggestion Error",
+                        Content = "Suggestion backend is not configured.",
+                        Time = 3
+                    })
+                    return
+                end
+
+                Items["SubmitButton"].Instance.Text = "Submitting..."
+                local Encoded = JsonEncode(Payload)
+                if not Encoded then
+                    Items["SubmitButton"].Instance.Text = "Submit"
+                    return
+                end
+
+                local Ok, Body = DoHttpRequest({
+                    Url = BuildSuggestionAuthorizedUrl(Config, Config.HttpUrl .. "/library/suggestions"),
+                    Method = "POST",
+                    Headers = MergeTable(GetSuggestionHeaders(Config), {
+                        ["Content-Type"] = "application/json",
+                    }),
+                    Body = Encoded,
+                })
+
+                Items["SubmitButton"].Instance.Text = "Submit"
+
+                if not Ok or type(Body) ~= "string" then
+                    Library:MakeNotification({
+                        Name = "Suggestion Error",
+                        Content = tostring(Body or "Failed to submit suggestion."),
+                        Time = 4
+                    })
+                    return
+                end
+
+                local Decoded = JsonDecode(Body)
+                if type(Decoded) ~= "table" or Decoded.ok ~= true or type(Decoded.suggestion) ~= "table" then
+                    Library:MakeNotification({
+                        Name = "Suggestion Error",
+                        Content = tostring((Decoded and Decoded.error) or "Failed to submit suggestion."),
+                        Time = 4
+                    })
+                    return
+                end
+
+                SuccessPayload = Decoded.suggestion
+                Items["SuccessDetails"].Instance.Text = BuildSuccessDetails(SuccessPayload)
+                SuggestionSystem:RefreshSuggestions()
+                ResetDraft(false)
+                OpenSuccessOverlay(true)
+            end
+
+            Items["MailButton"]:Connect("InputBegan", function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    OpenMailbox(true)
+                end
+            end)
+
+            Items["MailboxClose"]:Connect("InputBegan", function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    OpenMailbox(false)
+                end
+            end)
+
+            Items["SuccessDone"]:Connect("InputBegan", function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    OpenSuccessOverlay(false)
+                    SwitchToChatPage()
+                end
+            end)
+
+            for _, Entry in SuggestionItems["TypeButtons"] do
+                Entry.Button:Connect("InputBegan", function(Input)
+                    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                        SetSelectedType(Entry.Key)
+                    end
+                end)
+            end
+
+            Items["GameTitleInput"].Instance:GetPropertyChangedSignal("Text"):Connect(function()
+                Draft.GameTitle = Items["GameTitleInput"].Instance.Text
+            end)
+
+            Items["SuggestionInput"].Instance:GetPropertyChangedSignal("Text"):Connect(function()
+                UpdateCounter()
+            end)
+
+            Items["CancelButton"]:Connect("InputBegan", function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    ResetDraft(false)
+                    SwitchToChatPage()
+                end
+            end)
+
+            Items["SubmitButton"]:Connect("InputBegan", function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    SubmitSuggestion()
+                end
+            end)
+
+            if SuggestionSystem.Page and SuggestionSystem.Page.Items and SuggestionSystem.Page.Items["Inactive"] then
+                Library:Connect(SuggestionSystem.Page.Items["Inactive"].Instance.InputBegan, function(Input)
+                    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                        task.defer(function()
+                            SuggestionSystem:RefreshSuggestions()
+                        end)
+                    end
+                end)
+            end
+
+            ResetDraft(false)
+
+            Library:Thread(function()
+                while not SuggestionDestroyed do
+                    task.wait(20)
+                    pcall(function()
+                        SuggestionSystem:RefreshSuggestions()
+                    end)
+                end
+            end)
+
+            Library:RegisterCleanupCallback(function()
+                SuggestionDestroyed = true
+            end)
+
+            return SuggestionSystem
         end
 
         Library.Pages.AddSection = function(self, Data)
