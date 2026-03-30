@@ -5992,7 +5992,7 @@ local Library do
             Items["Toggle"]:Connect("InputBegan", function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                     local AnonEnabled = BackendState.Config and BackendState.Config.AnonymousMode
-                    if AnonEnabled == false then
+                    if AnonEnabled == false and not Toggle.Value then
                         Library:MakeNotification({
                             Name = "Anonymous Mode",
                             Content = "Anonymous mode is currently disabled.",
@@ -6104,6 +6104,7 @@ local Library do
                 ScrolledUpSinceTime = nil,
                 MessageBottomDistance = 0,
                 PendingBottomScrollId = 0,
+                Hwid = "",
             }
 
             local OnMessagePressed = { }
@@ -6175,13 +6176,22 @@ local Library do
             end
 
             local function IsAdminSender(SenderId)
-                local Config = BackendState.Config or Library.GlobalChat
-                if type(Config.AdminIds) ~= "table" then return false end
                 local NumId = tonumber(SenderId)
                 if not NumId then return false end
-                for _, AdminId in Config.AdminIds do
-                    if tonumber(AdminId) == NumId then return true end
+
+                local Config = BackendState.Config or Library.GlobalChat
+                if type(Config.AdminIds) == "table" then
+                    for _, AdminId in Config.AdminIds do
+                        if tonumber(AdminId) == NumId then return true end
+                    end
                 end
+
+                if type(BackendState.ServerAdminIds) == "table" then
+                    for _, AdminId in BackendState.ServerAdminIds do
+                        if tonumber(AdminId) == NumId then return true end
+                    end
+                end
+
                 return false
             end
 
@@ -6440,7 +6450,8 @@ local Library do
                         typing = IsTyping,
                         anonymous = Toggle.Value,
                         afterId = AfterId,
-                        limit = FetchLimit
+                        limit = FetchLimit,
+                        hwid = BackendState.Hwid
                     }),
                     Method = "GET",
                     Headers = GetRequestHeaders(Config)
@@ -6675,6 +6686,9 @@ local Library do
 
                 if type(Payload.anonymousMode) == "boolean" then
                     BackendState.Config.AnonymousMode = Payload.anonymousMode
+                    if Payload.anonymousMode == false and Toggle.Value then
+                        Toggle:Set(false)
+                    end
                 end
 
                 if Payload.type == "chat_lock" then
@@ -6691,8 +6705,69 @@ local Library do
                 if Payload.type == "anonymous_mode" then
                     if type(Payload.enabled) == "boolean" then
                         BackendState.Config.AnonymousMode = Payload.enabled
+                        if Payload.enabled == false and Toggle.Value then
+                            Toggle:Set(false)
+                        end
                     end
                     return
+                end
+
+                if Payload.type == "admin_update" then
+                    if type(Payload.adminIds) == "table" then
+                        BackendState.ServerAdminIds = Payload.adminIds
+                    end
+                    return
+                end
+
+                if type(Payload.hwidBan) == "table" and Payload.hwidBan.banned then
+                    task.defer(function()
+                        pcall(function()
+                            LocalPlayer:Kick(tostring(Payload.hwidBan.message or "Banned From ExpressHub"))
+                        end)
+                    end)
+                    return
+                end
+
+                if Payload.type == "hwid_ban" and Payload.banned then
+                    local TargetSenderId = tostring(Payload.targetSenderId or "")
+                    local LocalSenderId = tostring(LocalPlayer.UserId or "")
+                    if TargetSenderId ~= "" and TargetSenderId == LocalSenderId then
+                        task.defer(function()
+                            pcall(function()
+                                LocalPlayer:Kick(tostring(Payload.message or "Banned From ExpressHub"))
+                            end)
+                        end)
+                    end
+                    return
+                end
+
+                if Payload.type == "force_update" then
+                    local TargetGameId = tostring(Payload.targetGameId or "")
+                    if not DoesUpdateTargetMatch(TargetGameId) then
+                        return
+                    end
+
+                    local DelaySeconds = tonumber(Payload.delaySeconds) or 5
+                    if DelaySeconds < 1 then DelaySeconds = 1 end
+
+                    Library:MakeGlobalAnnouncement({
+                        Name = "ExpressHub",
+                        Content = "Force update in " .. tostring(DelaySeconds) .. "s — rejoining...",
+                        Time = DelaySeconds
+                    })
+
+                    task.delay(DelaySeconds, function()
+                        if BackendState.Destroyed then return end
+                        pcall(function()
+                            QueueUpdateRejoinScript()
+                            game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+                        end)
+                    end)
+                    return
+                end
+
+                if type(Payload.adminIds) == "table" then
+                    BackendState.ServerAdminIds = Payload.adminIds
                 end
 
                 if Payload.type == "delete" then
@@ -7514,6 +7589,11 @@ local Library do
                 BackendState.UwuLockedUsers = { }
                 BackendState.UwuLockIndicatorsBySenderId = { }
                 BackendState.ProcessedDeletes = { }
+                BackendState.ServerAdminIds = { }
+                BackendState.Hwid = ""
+                pcall(function()
+                    BackendState.Hwid = game:GetService("RbxAnalyticsService"):GetClientId() or ""
+                end)
                 ShowTyping({ })
                 SetConnectionAppearance("Connecting...", FromRGB(255, 209, 102))
 
@@ -7713,7 +7793,8 @@ local Library do
                         username = GetLocalUsername(),
                         gameName = GetLocalGameName(),
                         placeId = game.PlaceId,
-                        joinedAt = BackendState.JoinTime
+                        joinedAt = BackendState.JoinTime,
+                        hwid = BackendState.Hwid
                     })
 
                     local Success, Socket = pcall(function()
@@ -9741,7 +9822,7 @@ local Library do
                     Parent = SuggestionPageItems["Inactive"].Instance,
                     Name = "\0",
                     AnchorPoint = Vector2New(1, 0),
-                    Position = UDim2New(1, -4, 0, 2),
+                    Position = UDim2New(1, 2, 0, -2),
                     Size = UDim2New(0, 16, 0, 14),
                     Visible = false,
                     BorderSizePixel = 0,
@@ -9920,7 +10001,7 @@ local Library do
                     local CanCancel = Status == "under_review"
                     local TitleWidthOffset = CanCancel and 94 or 24
 
-                    local IconSize = Status == "rejected" and 18 or 16
+                    local IconSize = Status == "rejected" and 22 or 16
                     local StatusIcon = Instances:Create("ImageLabel", {
                         Parent = Row.Instance,
                         Name = "\0",
@@ -9972,7 +10053,7 @@ local Library do
                         FontFace = Library.Subfont,
                         TextColor3 = GetStatusColor(Status),
                         Text = GetStatusLabel(Status),
-                        Position = UDim2New(0, IconId ~= "" and (Status == "rejected" and 36 or 34) or 12, 1, -26),
+                        Position = UDim2New(0, IconId ~= "" and (Status == "rejected" and 40 or 34) or 12, 1, -26),
                         Size = UDim2New(0, 120, 0, 16),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
