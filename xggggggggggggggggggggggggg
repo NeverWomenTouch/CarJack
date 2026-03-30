@@ -6930,7 +6930,9 @@ local Library do
                     local PollId = tostring(PollData.id or "")
                     local PollTitle = tostring(PollData.title or "Poll")
                     local PollOptions = type(PollData.options) == "table" and PollData.options or {}
-                    local EndsAt = tonumber(PollData.endsAt) or (tick() * 1000 + 60000)
+                    -- Use local tick for countdown to avoid server/client clock drift
+                    local PollTotalSeconds = (tonumber(PollData.timerMinutes) or 1) * 60
+                    local PollStartTick = tick()
                     local OptionPctRefs = {}
 
                     local PollFrame = Instances:Create("Frame", {
@@ -6951,7 +6953,7 @@ local Library do
                     Instances:Create("UISizeConstraint", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
-                        MaxSize = Vector2New(600, 800),
+                        MaxSize = Vector2New(560, 800),
                         MinSize = Vector2New(260, 0)
                     })
 
@@ -6970,40 +6972,41 @@ local Library do
                         CornerRadius = UDimNew(0, 8)
                     })
 
-                    Instances:Create("UIStroke", {
+                    local PollStroke = Instances:Create("UIStroke", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
-                        Color = FromRGB(80, 140, 255),
-                        Transparency = 0.5,
+                        Color = FromRGB(36, 33, 42),
+                        Transparency = 0.08,
                         ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                     })
+                    PollStroke:AddToTheme({Color = "Border"})
 
                     local PollLayout = InstanceNew("UIListLayout")
                     PollLayout.FillDirection = Enum.FillDirection.Vertical
                     PollLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
                     PollLayout.SortOrder = Enum.SortOrder.LayoutOrder
-                    PollLayout.Padding = UDimNew(0, 7)
+                    PollLayout.Padding = UDimNew(0, 8)
                     PollLayout.Parent = PollFrame.Instance
 
-                    -- Header: badge left, countdown right
-                    local HeaderFrame = Instances:Create("Frame", {
+                    -- Badge row: "POLL" left, timer right
+                    local BadgeRow = Instances:Create("Frame", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
                         BorderSizePixel = 0,
                         BackgroundTransparency = 1,
-                        Size = UDim2New(1, 0, 0, 18),
+                        Size = UDim2New(1, 0, 0, 14),
                         ZIndex = 201,
                         LayoutOrder = 1
                     })
 
                     Instances:Create("TextLabel", {
-                        Parent = HeaderFrame.Instance,
+                        Parent = BadgeRow.Instance,
                         Name = "\0",
                         FontFace = Library.Font,
-                        TextColor3 = FromRGB(100, 180, 255),
+                        TextColor3 = FromRGB(255, 214, 120),
                         BorderColor3 = FromRGB(0, 0, 0),
-                        Text = "📊 POLL",
-                        Size = UDim2New(0.6, 0, 1, 0),
+                        Text = "POLL",
+                        Size = UDim2New(0.5, 0, 1, 0),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
                         TextXAlignment = Enum.TextXAlignment.Left,
@@ -7012,14 +7015,15 @@ local Library do
                     })
 
                     local TimerInst = Instances:Create("TextLabel", {
-                        Parent = HeaderFrame.Instance,
+                        Parent = BadgeRow.Instance,
                         Name = "\0",
                         FontFace = Library.Font,
-                        TextColor3 = FromRGB(255, 200, 100),
+                        TextColor3 = FromRGB(255, 214, 120),
+                        TextTransparency = 0.28,
                         BorderColor3 = FromRGB(0, 0, 0),
                         Text = "...",
-                        Size = UDim2New(0.4, 0, 1, 0),
-                        Position = UDim2New(0.6, 0, 0, 0),
+                        Size = UDim2New(0.5, 0, 1, 0),
+                        Position = UDim2New(0.5, 0, 0, 0),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
                         TextXAlignment = Enum.TextXAlignment.Right,
@@ -7041,7 +7045,7 @@ local Library do
                         TextWrapped = true,
                         TextXAlignment = Enum.TextXAlignment.Center,
                         AutomaticSize = Enum.AutomaticSize.Y,
-                        TextSize = 17,
+                        TextSize = 18,
                         ZIndex = 201,
                         LayoutOrder = 2
                     })
@@ -7072,7 +7076,7 @@ local Library do
                             Name = "\0",
                             BorderSizePixel = 0,
                             Size = UDim2New(1, 0, 0, 30),
-                            BackgroundColor3 = FromRGB(30, 28, 36),
+                            BackgroundColor3 = FromRGB(26, 25, 31),
                             ZIndex = 201,
                             LayoutOrder = BtnIndex,
                             ClipsDescendants = true
@@ -7085,16 +7089,25 @@ local Library do
                             CornerRadius = UDimNew(0, 6)
                         })
 
-                        -- Percentage fill bar (shown after voting / poll end)
+                        Instances:Create("UIStroke", {
+                            Parent = Container.Instance,
+                            Name = "\0",
+                            Color = FromRGB(36, 33, 42),
+                            Transparency = 0.4,
+                            ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                        }):AddToTheme({Color = "Border"})
+
+                        -- Accent fill bar (grows after voting / poll end)
                         local PctBar = Instances:Create("Frame", {
                             Parent = Container.Instance,
                             Name = "\0",
                             BorderSizePixel = 0,
-                            BackgroundColor3 = FromRGB(50, 100, 200),
-                            BackgroundTransparency = 0.65,
+                            BackgroundColor3 = FromRGB(246, 178, 255),
+                            BackgroundTransparency = 0.72,
                             Size = UDim2New(0, 0, 1, 0),
                             ZIndex = 201
                         })
+                        PctBar:AddToTheme({BackgroundColor3 = "Accent"})
 
                         Instances:Create("UICorner", {
                             Parent = PctBar.Instance,
@@ -7106,7 +7119,8 @@ local Library do
                             Parent = Container.Instance,
                             Name = "\0",
                             FontFace = Library.Font,
-                            TextColor3 = FromRGB(220, 220, 220),
+                            TextColor3 = FromRGB(255, 255, 255),
+                            TextTransparency = 0.1,
                             BorderColor3 = FromRGB(0, 0, 0),
                             Text = BtnText,
                             AutoButtonColor = false,
@@ -7122,7 +7136,7 @@ local Library do
                         Instances:Create("UIPadding", {
                             Parent = Btn.Instance,
                             Name = "\0",
-                            PaddingLeft = UDimNew(0, 8)
+                            PaddingLeft = UDimNew(0, 10)
                         })
 
                         OptionPctRefs[BtnIndex] = {
@@ -7131,6 +7145,15 @@ local Library do
                             PctBar = PctBar,
                             OrigText = BtnText
                         }
+
+                        Btn:OnHover(function()
+                            if BackendState.ActivePoll and BackendState.ActivePoll.HasVoted then return end
+                            Container:Tween(nil, {BackgroundColor3 = Library.Theme["Hovered Element"] or FromRGB(34, 33, 41)})
+                        end)
+
+                        Btn:OnHoverLeave(function()
+                            Container:Tween(nil, {BackgroundColor3 = Library.Theme["Inline"] or FromRGB(26, 25, 31)})
+                        end)
 
                         Btn.Instance.MouseButton1Click:Connect(function()
                             if not BackendState.ActivePoll then return end
@@ -7141,7 +7164,6 @@ local Library do
                             local Config = BackendState.Config
                             if not Config or not Config.HttpUrl then return end
 
-                            -- Optimistic: mark voted before HTTP so poll_update handler picks it up
                             BackendState.ActivePoll.HasVoted = true
 
                             local VoteBody = JsonEncode({
@@ -7181,13 +7203,13 @@ local Library do
                         MakeVoteButton(i, OptText)
                     end
 
-                    -- Post-vote label (hidden until voted or poll ends)
+                    -- Post-vote / close hint label
                     local PostVoteLabel = Instances:Create("TextLabel", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
                         FontFace = Library.Font,
-                        TextColor3 = FromRGB(180, 180, 180),
-                        TextTransparency = 0.2,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        TextTransparency = 0.4,
                         BorderColor3 = FromRGB(0, 0, 0),
                         Text = "If you don't want to vote, you can close this poll.",
                         TextWrapped = true,
@@ -7203,39 +7225,103 @@ local Library do
                     })
                     PostVoteLabel:AddToTheme({TextColor3 = "Text"})
 
-                    -- Bottom row: Don't Vote button
-                    local BottomRow = Instances:Create("Frame", {
+                    -- Spacer
+                    Instances:Create("Frame", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
                         BorderSizePixel = 0,
+                        Size = UDim2New(1, 0, 0, 2),
                         BackgroundTransparency = 1,
-                        Size = UDim2New(1, 0, 0, 26),
-                        ZIndex = 201,
                         LayoutOrder = 5
                     })
 
+                    -- Accent liner bar (matches announcement style)
+                    local PollLiner = Instances:Create("Frame", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Size = UDim2New(1, 0, 0, 6),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = FromRGB(26, 25, 31),
+                        ZIndex = 201,
+                        LayoutOrder = 6
+                    })
+                    PollLiner:AddToTheme({BackgroundColor3 = "Inline"})
+
+                    Instances:Create("UIGradient", {
+                        Parent = PollLiner.Instance,
+                        Name = "\0",
+                        Rotation = 90,
+                        Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(218, 218, 218))}
+                    }):AddToTheme({Color = function()
+                        return RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, Library.Theme["Gradient"])}
+                    end})
+
+                    Instances:Create("UICorner", {
+                        Parent = PollLiner.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 6)
+                    })
+
+                    local PollAccent = Instances:Create("Frame", {
+                        Parent = PollLiner.Instance,
+                        Name = "\0",
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Size = UDim2New(1, 0, 1, 0),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = FromRGB(246, 178, 255),
+                        ZIndex = 202
+                    })
+                    PollAccent:AddToTheme({BackgroundColor3 = "Accent"})
+
+                    Instances:Create("UIGradient", {
+                        Parent = PollAccent.Instance,
+                        Name = "\0",
+                        Rotation = 90,
+                        Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(218, 218, 218))}
+                    }):AddToTheme({Color = function()
+                        return RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, Library.Theme["Gradient"])}
+                    end})
+
+                    Instances:Create("UICorner", {
+                        Parent = PollAccent.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 6)
+                    })
+
+                    -- Don't Vote button (below liner, outside layout — anchored bottom-left)
                     local DontVoteBtn = Instances:Create("TextButton", {
-                        Parent = BottomRow.Instance,
+                        Parent = PollFrame.Instance,
                         Name = "\0",
                         FontFace = Library.Font,
-                        TextColor3 = FromRGB(180, 180, 180),
+                        TextColor3 = FromRGB(255, 255, 255),
+                        TextTransparency = 0.4,
                         BorderColor3 = FromRGB(0, 0, 0),
                         Text = "Don't Vote",
                         AutoButtonColor = false,
-                        Size = UDim2New(0, 86, 1, 0),
-                        Position = UDim2New(0, 0, 0, 0),
+                        Size = UDim2New(0, 80, 0, 20),
+                        AnchorPoint = Vector2New(0, 0),
                         BorderSizePixel = 0,
                         TextSize = 12,
-                        BackgroundColor3 = FromRGB(38, 36, 44),
-                        ZIndex = 202
+                        BackgroundColor3 = FromRGB(26, 25, 31),
+                        ZIndex = 202,
+                        LayoutOrder = 7
                     })
-                    DontVoteBtn:AddToTheme({BackgroundColor3 = "Inline"})
+                    DontVoteBtn:AddToTheme({BackgroundColor3 = "Inline", TextColor3 = "Text"})
 
                     Instances:Create("UICorner", {
                         Parent = DontVoteBtn.Instance,
                         Name = "\0",
                         CornerRadius = UDimNew(0, 5)
                     })
+
+                    DontVoteBtn:OnHover(function()
+                        DontVoteBtn:Tween(nil, {TextTransparency = 0.1})
+                    end)
+
+                    DontVoteBtn:OnHoverLeave(function()
+                        DontVoteBtn:Tween(nil, {TextTransparency = 0.4})
+                    end)
 
                     local Closed = false
                     local function ClosePoll()
@@ -7257,23 +7343,54 @@ local Library do
                     BackendState.ActivePoll = {
                         PollId = PollId,
                         HasVoted = false,
-                        EndsAt = EndsAt,
+                        TotalSeconds = PollTotalSeconds,
+                        StartTick = PollStartTick,
                         OptionPctRefs = OptionPctRefs,
                         PostVoteLabel = PostVoteLabel,
                         TimerLabel = TimerInst,
+                        PollAccent = PollAccent,
                         ClosePoll = ClosePoll
                     }
 
                     Library:Thread(function()
+                        -- All items start transparent for fade-in
+                        PollFrame.Instance.BackgroundTransparency = 1
+                        PollStroke.Instance.Transparency = 1
+                        for _, Desc in PollFrame.Instance:GetDescendants() do
+                            if Desc:IsA("TextLabel") or Desc:IsA("TextButton") then
+                                Desc.TextTransparency = 1
+                            elseif Desc:IsA("UIStroke") then
+                                Desc.Transparency = 1
+                            end
+                        end
+
+                        PollFrame:Tween(nil, {BackgroundTransparency = 0})
+                        PollStroke:Tween(nil, {Transparency = 0.08})
+
                         TweenService:Create(PollFrame.Instance, TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
                             Position = UDim2New(0.5, 0, 0, 18)
                         }):Play()
+
+                        -- Shrink accent bar over poll duration
+                        PollAccent:Tween(TweenInfo.new(PollTotalSeconds, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Size = UDim2New(0, 0, 1, 0)})
+
+                        task.wait(0.1)
+                        for _, Desc in PollFrame.Instance:GetDescendants() do
+                            if Desc:IsA("TextLabel") then
+                                TweenService:Create(Desc, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = Desc.TextTransparency > 0.5 and 0.4 or 0.1}):Play()
+                            elseif Desc:IsA("TextButton") then
+                                TweenService:Create(Desc, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0.1}):Play()
+                            elseif Desc:IsA("UIStroke") then
+                                TweenService:Create(Desc, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.4}):Play()
+                            end
+                        end
 
                         Library:Thread(function()
                             while not BackendState.Destroyed do
                                 local APoll = BackendState.ActivePoll
                                 if not APoll or APoll.PollId ~= PollId then break end
-                                local Remaining = math.max(0, math.floor((APoll.EndsAt - tick() * 1000) / 1000))
+                                local Elapsed = tick() - APoll.StartTick
+                                local Remaining = math.max(0, math.floor(APoll.TotalSeconds - Elapsed))
                                 local Hours = math.floor(Remaining / 3600)
                                 local Mins = math.floor((Remaining % 3600) / 60)
                                 local Secs = Remaining % 60
@@ -9277,8 +9394,6 @@ local Library do
                         SubItems["Message1"].Instance.BackgroundColor3 = FromRGB(255, 170, 0)
                         SubItems["Message1"].Instance.BackgroundTransparency = 0.82
 
-                        -- Color the reply accent line gold so the reply section
-                        -- is visually part of the highlight
                         if SubItems["MentionReplyAccent"] then
                             SubItems["MentionReplyAccent"].BackgroundColor3 = FromRGB(255, 185, 0)
                         end
@@ -9287,7 +9402,7 @@ local Library do
                         MentionBar.Name = "\0"
                         MentionBar.AnchorPoint = Vector2New(0, 0)
                         MentionBar.Position = UDim2New(0, 0, 0, 0)
-                        MentionBar.Size = UDim2New(0, 3, 0, 0)  -- height set below after layout
+                        MentionBar.Size = UDim2New(0, 3, 0, 0)
                         MentionBar.BackgroundColor3 = FromRGB(255, 185, 0)
                         MentionBar.BackgroundTransparency = 0
                         MentionBar.BorderSizePixel = 0
@@ -9298,8 +9413,6 @@ local Library do
                         MentionBarCorner.CornerRadius = UDimNew(0, 2)
                         MentionBarCorner.Parent = MentionBar
 
-                        -- AutomaticSize.Y parent causes scale-Y children to resolve
-                        -- to zero height, so use AbsoluteSize after layout settles
                         local Conn
                         Conn = SubItems["Message1"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                             MentionBar.Size = UDim2New(0, 3, 0, SubItems["Message1"].Instance.AbsoluteSize.Y)
@@ -9597,8 +9710,6 @@ local Library do
                     local Suggestions = {}
                     local QueryLower = StringLower(Query)
 
-                    -- @everyone: only shown when the user has typed at least "ev" as a prefix
-                    -- (never on a bare @ with empty query)
                     if IsLocalAdmin()
                         and #QueryLower >= 1
                         and StringFind("everyone", QueryLower, 1, true) == 1
@@ -9609,7 +9720,6 @@ local Library do
                         })
                     end
 
-                    -- Recent chatters first (newest at top, index 1 = most recent)
                     local Seen = {}
                     for _, Chatter in BackendState.RecentChatters do
                         if #Suggestions >= 6 then break end
@@ -9620,8 +9730,6 @@ local Library do
                         end
                     end
 
-                    -- If typing a non-empty keyword, fall through to all-known chatters
-                    -- for anyone not already listed
                     if #QueryLower >= 1 then
                         for Sid, Chatter in BackendState.AllKnownChatters do
                             if #Suggestions >= 6 then break end
@@ -9649,7 +9757,6 @@ local Library do
                         local After = (CursorPos and CursorPos > 0) and StringSub(Text, CursorPos) or ""
                         local NewBefore = Before:gsub("@[%w_]*$", "@" .. NameText .. " ")
                         HideMentionOverlay()
-                        -- Set InputFocused immediately so the Enter key handler works right away
                         BackendState.InputFocused = true
                         InputBox.Text = NewBefore .. After
                         InputBox.CursorPosition = StringLen(NewBefore) + 1
@@ -9665,7 +9772,6 @@ local Library do
 
                 Items["Input"].Instance:GetPropertyChangedSignal("Text"):Connect(UpdateMentionOverlay)
                 Items["Input"].Instance:GetPropertyChangedSignal("CursorPosition"):Connect(UpdateMentionOverlay)
-                -- Re-show overlay when user focuses back into the input box
                 Items["Input"].Instance.Focused:Connect(UpdateMentionOverlay)
                 Items["Input"].Instance.FocusLost:Connect(function()
                     task.delay(0.12, HideMentionOverlay)
