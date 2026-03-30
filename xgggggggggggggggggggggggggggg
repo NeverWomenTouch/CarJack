@@ -9817,10 +9817,25 @@ local Library do
             local MailboxOpen = false
             local ReviewUnreadCount = 0
             local KnownSuggestionStatuses = { }
-            local InitialSuggestionSyncDone = false
+            local SeenSuggestionStatuses = { }
             local PendingCancelSuggestion = nil
             local DefaultMailIcon = "rbxassetid://136371270317895"
             local ReviewMailIcon = "rbxassetid://93740348829800"
+            local SuggestionSeenCacheFile = Library.Folders.Configs .. "/suggestion_seen_" .. tostring(LocalPlayer.UserId) .. ".json"
+
+            do
+                if isfile(SuggestionSeenCacheFile) then
+                    local Cached = JsonDecode(readfile(SuggestionSeenCacheFile))
+                    if type(Cached) == "table" then
+                        for EntryId, EntryStatus in Cached do
+                            local NumericId = tonumber(EntryId)
+                            if NumericId then
+                                SeenSuggestionStatuses[NumericId] = tostring(EntryStatus or "under_review")
+                            end
+                        end
+                    end
+                end
+            end
 
             local function GetSuggestionHeaders(Config)
                 local Headers = {
@@ -10724,7 +10739,7 @@ local Library do
                     Parent = SuggestionPageItems["Inactive"].Instance,
                     Name = "\0",
                     AnchorPoint = Vector2New(1, 1),
-                    Position = UDim2New(1, -2, 1, -2),
+                    Position = UDim2New(1, 0, 1, 0),
                     Size = UDim2New(0, 16, 0, 14),
                     Visible = false,
                     BorderSizePixel = 0,
@@ -10783,6 +10798,19 @@ local Library do
             local function ClearReviewUnreadBadges()
                 ReviewUnreadCount = 0
                 UpdateReviewUnreadBadges()
+            end
+
+            local function SaveSeenSuggestionStatuses()
+                local Encoded = JsonEncode(SeenSuggestionStatuses)
+                if Encoded then
+                    writefile(SuggestionSeenCacheFile, Encoded)
+                end
+            end
+
+            local function MarkCurrentSuggestionsSeen()
+                SeenSuggestionStatuses = TableClone(KnownSuggestionStatuses)
+                SaveSeenSuggestionStatuses()
+                ClearReviewUnreadBadges()
             end
 
             local function SetSelectedType(Value)
@@ -10866,20 +10894,27 @@ local Library do
                 Items["MailboxEmpty"].Instance.Visible = #Entries == 0
 
                 local SeenStatuses = { }
+                local UnreadCount = 0
 
                 for _, Entry in Entries do
                     local EntryId = tonumber(Entry.id) or 0
                     local EntryStatus = tostring(Entry.status or "under_review")
-                    local PreviousStatus = KnownSuggestionStatuses[EntryId]
                     SeenStatuses[EntryId] = EntryStatus
 
-                    if InitialSuggestionSyncDone and not MailboxOpen and EntryStatus ~= "under_review" and PreviousStatus ~= EntryStatus then
-                        ReviewUnreadCount = ReviewUnreadCount + 1
+                    if EntryStatus ~= "under_review" and SeenSuggestionStatuses[EntryId] ~= EntryStatus then
+                        UnreadCount = UnreadCount + 1
                     end
                 end
 
                 KnownSuggestionStatuses = SeenStatuses
-                InitialSuggestionSyncDone = true
+                ReviewUnreadCount = UnreadCount
+
+                if SuggestionSystem.Page and SuggestionSystem.Page.Active then
+                    SeenSuggestionStatuses = TableClone(KnownSuggestionStatuses)
+                    SaveSeenSuggestionStatuses()
+                    ReviewUnreadCount = 0
+                end
+
                 UpdateReviewUnreadBadges()
 
                 for _, Entry in Entries do
@@ -11061,7 +11096,6 @@ local Library do
                 SetOverlayVisible(Items["MailboxOverlay"], Items["MailboxPanel"], Bool)
                 if Bool then
                     SuggestionSystem:RefreshSuggestions()
-                    ClearReviewUnreadBadges()
                 end
             end
 
@@ -11313,7 +11347,9 @@ local Library do
                 Library:Connect(SuggestionSystem.Page.Items["Inactive"].Instance.InputBegan, function(Input)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                         task.defer(function()
-                            SuggestionSystem:RefreshSuggestions()
+                            if SuggestionSystem:RefreshSuggestions() then
+                                MarkCurrentSuggestionsSeen()
+                            end
                         end)
                     end
                 end)
