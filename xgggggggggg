@@ -6549,6 +6549,56 @@ local Library do
                 end
             end
 
+            local RenderQueue = { }
+            local RenderQueueRunning = false
+            local RENDER_BATCH_SIZE = 4
+            local RENDER_BATCH_DELAY = 0.06
+
+            local function ProcessRenderQueue()
+                if RenderQueueRunning then return end
+                RenderQueueRunning = true
+
+                task.defer(function()
+                    while #RenderQueue > 0 do
+                        local Batch = math.min(RENDER_BATCH_SIZE, #RenderQueue)
+                        for _ = 1, Batch do
+                            local Entry = table.remove(RenderQueue, 1)
+                            if Entry then
+                                local MessageData = Entry.Data
+                                local SkipUnread = Entry.SkipUnread
+                                local IsExternalMessage = MessageData.external and true or false
+                                local MessageText = IsExternalMessage
+                                    and tostring(MessageData.message or "")
+                                    or FilterMessageText(tostring(MessageData.message or ""), tostring(MessageData.senderId or ""))
+                                if MessageText ~= "" then
+                                    TrackUnreadMessage(MessageData, SkipUnread)
+                                    local SenderKey = IsExternalMessage
+                                        and ("external:" .. tostring(MessageData.id or MessageData.createdAt or os.time()))
+                                        or GetMessageSenderKey(MessageData, MessageData.username or "Unknown", MessageData.anonymous)
+                                    ChatSystem:SendMessage(
+                                        MessageData.avatar or Content,
+                                        MessageData.username or "Unknown",
+                                        MessageText,
+                                        IsLocalMessage(MessageData),
+                                        MessageData.anonymous,
+                                        MessageData.createdAt,
+                                        SenderKey,
+                                        MessageData.id,
+                                        MessageData.replyTo,
+                                        MessageData
+                                    )
+                                    TrimRenderedMessages()
+                                end
+                            end
+                        end
+                        if #RenderQueue > 0 then
+                            task.wait(RENDER_BATCH_DELAY)
+                        end
+                    end
+                    RenderQueueRunning = false
+                end)
+            end
+
             local function RenderIncomingMessage(MessageData, SkipUnread)
                 if type(MessageData) ~= "table" then
                     return
@@ -6562,33 +6612,8 @@ local Library do
                     return
                 end
 
-                local IsExternalMessage = MessageData.external and true or false
-                local MessageText = IsExternalMessage
-                    and tostring(MessageData.message or "")
-                    or FilterMessageText(tostring(MessageData.message or ""), tostring(MessageData.senderId or ""))
-                if MessageText == "" then
-                    return
-                end
-
-                TrackUnreadMessage(MessageData, SkipUnread)
-
-                local SenderKey = IsExternalMessage
-                    and ("external:" .. tostring(MessageData.id or MessageData.createdAt or os.time()))
-                    or GetMessageSenderKey(MessageData, MessageData.username or "Unknown", MessageData.anonymous)
-
-                ChatSystem:SendMessage(
-                    MessageData.avatar or Content,
-                    MessageData.username or "Unknown",
-                    MessageText,
-                    IsLocalMessage(MessageData),
-                    MessageData.anonymous,
-                    MessageData.createdAt,
-                    SenderKey,
-                    MessageData.id,
-                    MessageData.replyTo,
-                    MessageData
-                )
-                TrimRenderedMessages()
+                TableInsert(RenderQueue, { Data = MessageData, SkipUnread = SkipUnread })
+                ProcessRenderQueue()
             end
 
             HandlePayload = function(Payload)
@@ -8835,8 +8860,8 @@ local Library do
                 return BuildUrl(BaseUrl, FinalQuery)
             end
 
-            local function GetResolvedGameName()
-                return ResolvePlaceName()
+            local function GetResolvedGameName(Callback)
+                return ResolvePlaceName(Callback)
             end
 
             local function GetExecutorName()
@@ -9819,9 +9844,21 @@ local Library do
             end
 
             local function ResetDraft(KeepGameTitle)
-                Draft.GameTitle = KeepGameTitle and Draft.GameTitle or GetResolvedGameName()
                 Draft.Content = ""
                 Draft.Type = ""
+                if KeepGameTitle then
+                    Draft.GameTitle = Draft.GameTitle
+                else
+                    Draft.GameTitle = GetResolvedGameName(function(ResolvedName)
+                        if Draft.GameTitle == "Ugc" or Draft.GameTitle == "" then
+                            Draft.GameTitle = ResolvedName
+                            Items["GameTitleInput"].Instance.Text = ResolvedName
+                        end
+                    end)
+                    if Draft.GameTitle == "" then
+                        Draft.GameTitle = "This Experience"
+                    end
+                end
                 Items["GameTitleInput"].Instance.Text = Draft.GameTitle
                 Items["SuggestionInput"].Instance.Text = ""
                 SetSelectedType(Draft.Type)
@@ -9836,6 +9873,8 @@ local Library do
                     end
                 end
             end
+
+            local OpenCancelConfirm
 
             local function RenderSuggestionEntries(Entries)
                 ClearSuggestionRows()
@@ -10042,7 +10081,7 @@ local Library do
                 SetOverlayVisible(Items["SuccessOverlay"], Items["SuccessPanel"], Bool)
             end
 
-            local function OpenCancelConfirm(Bool, Suggestion)
+            OpenCancelConfirm = function(Bool, Suggestion)
                 PendingCancelSuggestion = Bool and Suggestion or nil
                 SetOverlayVisible(Items["ConfirmCancelOverlay"], Items["ConfirmCancelPanel"], Bool)
             end
