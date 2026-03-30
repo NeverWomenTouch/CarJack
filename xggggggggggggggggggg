@@ -6225,11 +6225,11 @@ local Library do
                 BackendState.AllKnownChatters[Sid] = Entry
             end
 
-            local function MessageMentionsLocalUser(Text)
+            local function MessageMentionsLocalUser(Text, SenderIdStr)
                 local LocalName = StringLower(GetLocalUsername())
                 local TextL = StringLower(tostring(Text))
                 if StringFind(TextL, "@" .. LocalName, 1, true) then return true end
-                if StringFind(TextL, "@everyone", 1, true) then return true end
+                if IsAdminSender(SenderIdStr) and StringFind(TextL, "@everyone", 1, true) then return true end
                 return false
             end
 
@@ -6341,9 +6341,10 @@ local Library do
                 end
 
                 local MsgText = tostring(type(MessageData) == "table" and MessageData.message or "")
+                local MsgSenderId = tostring(type(MessageData) == "table" and MessageData.senderId or "")
                 local ReplyUsername = type(MessageData) == "table" and type(MessageData.replyTo) == "table"
                     and tostring(MessageData.replyTo.username or "") or ""
-                local IsMention = MessageMentionsLocalUser(MsgText)
+                local IsMention = MessageMentionsLocalUser(MsgText, MsgSenderId)
                     or StringLower(ReplyUsername) == StringLower(GetLocalUsername())
 
                 BackendState.UnreadCount = (tonumber(BackendState.UnreadCount) or 0) + 1
@@ -8137,7 +8138,8 @@ local Library do
                 local LocalUserLower = StringLower(GetLocalUsername())
                 local RawLower = StringLower(RawMessage)
                 local IsMentionedByName = not IsLocalPlayer and StringFind(RawLower, "@" .. LocalUserLower, 1, true) ~= nil
-                local IsMentionedByEveryone = not IsLocalPlayer and StringFind(RawLower, "@everyone", 1, true) ~= nil
+                local MsgSenderIdStr = tostring(MessageMeta and MessageMeta.senderId or "")
+                local IsMentionedByEveryone = not IsLocalPlayer and IsAdminSender(MsgSenderIdStr) and StringFind(RawLower, "@everyone", 1, true) ~= nil
                 local IsReplyToMe = not IsLocalPlayer and type(ReplyTo) == "table" and ReplyTo.id ~= nil
                     and StringLower(tostring(ReplyTo.username or "")) == LocalUserLower
                 local IsMentionHighlight = not IsExternalMessage
