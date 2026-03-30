@@ -6106,6 +6106,8 @@ local Library do
                 MessageBottomDistance = 0,
                 PendingBottomScrollId = 0,
                 Hwid = "",
+                RecentChatters = {},
+                HasMentionUnread = false,
             }
 
             local OnMessagePressed = { }
@@ -6200,6 +6202,32 @@ local Library do
                 return IsAdminSender(LocalPlayer.UserId)
             end
 
+            local function UpdateRecentChatters(Username, SenderId, AvatarImg)
+                if not Username or Username == "Anonymous" or Username == "" then return end
+                local Sid = tostring(SenderId or "")
+                for i = #BackendState.RecentChatters, 1, -1 do
+                    if BackendState.RecentChatters[i].senderId == Sid then
+                        TableRemove(BackendState.RecentChatters, i)
+                    end
+                end
+                TableInsert(BackendState.RecentChatters, 1, {
+                    username = tostring(Username),
+                    senderId = Sid,
+                    avatar = tostring(AvatarImg or "")
+                })
+                while #BackendState.RecentChatters > 20 do
+                    TableRemove(BackendState.RecentChatters)
+                end
+            end
+
+            local function MessageMentionsLocalUser(Text)
+                local LocalName = StringLower(GetLocalUsername())
+                local TextL = StringLower(tostring(Text))
+                if StringFind(TextL, "@" .. LocalName, 1, true) then return true end
+                if StringFind(TextL, "@everyone", 1, true) then return true end
+                return false
+            end
+
             local function RebuildFilterPatterns()
                 BackendState.FilterPatterns = { }
 
@@ -6264,6 +6292,10 @@ local Library do
                 end
 
                 BackendState.UnreadCount = 0
+                BackendState.HasMentionUnread = false
+                if UnreadBadge then
+                    UnreadBadge.Instance.BackgroundColor3 = FromRGB(240, 50, 50)
+                end
                 UpdateUnreadBadge()
             end
 
@@ -6272,7 +6304,19 @@ local Library do
                     return
                 end
 
+                local MsgText = tostring(type(MessageData) == "table" and MessageData.message or "")
+                local ReplyUsername = type(MessageData) == "table" and type(MessageData.replyTo) == "table"
+                    and tostring(MessageData.replyTo.username or "") or ""
+                local IsMention = MessageMentionsLocalUser(MsgText)
+                    or StringLower(ReplyUsername) == StringLower(GetLocalUsername())
+
                 BackendState.UnreadCount = (tonumber(BackendState.UnreadCount) or 0) + 1
+                if IsMention and not BackendState.HasMentionUnread then
+                    BackendState.HasMentionUnread = true
+                    if UnreadBadge then
+                        UnreadBadge.Instance.BackgroundColor3 = FromRGB(255, 185, 0)
+                    end
+                end
                 UpdateUnreadBadge()
             end
 
@@ -8041,6 +8085,15 @@ local Library do
                 local RawMessage = tostring(Message)
                 local IsExternalMessage = type(MessageMeta) == "table" and MessageMeta.external == true
 
+                local LocalUserLower = StringLower(GetLocalUsername())
+                local RawLower = StringLower(RawMessage)
+                local IsMentionedByName = not IsLocalPlayer and StringFind(RawLower, "@" .. LocalUserLower, 1, true) ~= nil
+                local IsMentionedByEveryone = not IsLocalPlayer and StringFind(RawLower, "@everyone", 1, true) ~= nil
+                local IsReplyToMe = not IsLocalPlayer and type(ReplyTo) == "table" and ReplyTo.id ~= nil
+                    and StringLower(tostring(ReplyTo.username or "")) == LocalUserLower
+                local IsMentionHighlight = not IsExternalMessage
+                    and (IsMentionedByName or IsMentionedByEveryone or IsReplyToMe)
+
                 local function FormatRichMessage(Text)
                     if IsExternalMessage then
                         local Escaped = EscapeRichText(Text)
@@ -8104,11 +8157,11 @@ local Library do
                         Size = IsExternalMessage and UDim2New(1, -28, 0, 0) or UDim2New(0, 0, 0, 0),
                         AnchorPoint = IsExternalMessage and Vector2New(0.5, 0) or Vector2New(0, 0),
                         Position = IsExternalMessage and UDim2New(0.5, 0, 0, 0) or UDim2New(0, 0, 0, 0),
-                        BackgroundColor3 = IsExternalMessage and FromRGB(92, 70, 0) or FromRGB(17, 16, 20),
-                        BackgroundTransparency = IsExternalMessage and 0.1 or 1,
+                        BackgroundColor3 = IsExternalMessage and FromRGB(92, 70, 0) or (IsMentionHighlight and FromRGB(255, 170, 0) or FromRGB(17, 16, 20)),
+                        BackgroundTransparency = IsExternalMessage and 0.1 or (IsMentionHighlight and 0.82 or 1),
                         ClipsDescendants = false
                     })
-                    if not IsExternalMessage then
+                    if not IsExternalMessage and not IsMentionHighlight then
                         BubbleItems["RealMessage"]:AddToTheme({BackgroundColor3 = "Background"})
                     end
 
@@ -8117,6 +8170,16 @@ local Library do
                         Name = "\0",
                         CornerRadius = UDimNew(0, 4)
                     })
+
+                    if IsMentionHighlight then
+                        Instances:Create("UIStroke", {
+                            Parent = BubbleItems["RealMessage"].Instance,
+                            Name = "\0",
+                            Color = FromRGB(255, 200, 50),
+                            Thickness = 1,
+                            Transparency = 0.3
+                        })
+                    end
 
                     if IsExternalMessage then
                         Instances:Create("UIStroke", {
@@ -8400,6 +8463,9 @@ local Library do
                             RegisterScrolledUpMessage()
                         end
                     end)
+                    if not IsLocalPlayer and not ShouldHideIdentity then
+                        UpdateRecentChatters(Username, SenderKey, Avatar)
+                    end
                     return
                 end
 
@@ -8730,6 +8796,10 @@ local Library do
                     end
                 end)
 
+                if not IsLocalPlayer and not ShouldHideIdentity then
+                    UpdateRecentChatters(Username, SenderKey, Avatar)
+                end
+
                 BackendState.LastRenderedGroup = {
                     GroupKey = GroupKey,
                     IsAnonymous = ShouldHideIdentity,
@@ -8878,6 +8948,176 @@ local Library do
                 task.wait(0.1)
                 Items["SendButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
             end)
+
+            do
+                local MentionOverlayFrame = InstanceNew("Frame")
+                MentionOverlayFrame.Name = "\0"
+                MentionOverlayFrame.AnchorPoint = Vector2New(0, 1)
+                MentionOverlayFrame.Position = UDim2New(0, 10, 1, -44)
+                MentionOverlayFrame.Size = UDim2New(1, -65, 0, 0)
+                MentionOverlayFrame.AutomaticSize = Enum.AutomaticSize.Y
+                MentionOverlayFrame.BackgroundColor3 = FromRGB(41, 40, 49)
+                MentionOverlayFrame.BackgroundTransparency = 0.05
+                MentionOverlayFrame.BorderSizePixel = 0
+                MentionOverlayFrame.Visible = false
+                MentionOverlayFrame.ZIndex = 50
+                MentionOverlayFrame.Parent = Items["GlobalChat"].Instance
+
+                local OverlayCorner = InstanceNew("UICorner")
+                OverlayCorner.CornerRadius = UDimNew(0, 6)
+                OverlayCorner.Parent = MentionOverlayFrame
+
+                local OverlayStroke = InstanceNew("UIStroke")
+                OverlayStroke.Color = FromRGB(80, 80, 100)
+                OverlayStroke.Thickness = 1
+                OverlayStroke.Transparency = 0.3
+                OverlayStroke.Parent = MentionOverlayFrame
+
+                local OverlayLayout = InstanceNew("UIListLayout")
+                OverlayLayout.FillDirection = Enum.FillDirection.Vertical
+                OverlayLayout.Padding = UDimNew(0, 0)
+                OverlayLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                OverlayLayout.Parent = MentionOverlayFrame
+
+                local MentionRows = {}
+                for i = 1, 6 do
+                    local Row = InstanceNew("TextButton")
+                    Row.Text = ""
+                    Row.BackgroundColor3 = FromRGB(255, 255, 255)
+                    Row.BackgroundTransparency = 1
+                    Row.BorderSizePixel = 0
+                    Row.Size = UDim2New(1, 0, 0, 32)
+                    Row.LayoutOrder = i
+                    Row.ZIndex = 51
+                    Row.Visible = false
+                    Row.Parent = MentionOverlayFrame
+
+                    local RowCorner = InstanceNew("UICorner")
+                    RowCorner.CornerRadius = UDimNew(0, 6)
+                    RowCorner.Parent = Row
+
+                    local RowAvatar = InstanceNew("ImageLabel")
+                    RowAvatar.BackgroundTransparency = 1
+                    RowAvatar.BorderSizePixel = 0
+                    RowAvatar.AnchorPoint = Vector2New(0, 0.5)
+                    RowAvatar.Position = UDim2New(0, 8, 0.5, 0)
+                    RowAvatar.Size = UDim2New(0, 20, 0, 20)
+                    RowAvatar.ZIndex = 52
+                    RowAvatar.Parent = Row
+
+                    local RowAvatarCorner = InstanceNew("UICorner")
+                    RowAvatarCorner.CornerRadius = UDimNew(1, 0)
+                    RowAvatarCorner.Parent = RowAvatar
+
+                    local RowName = InstanceNew("TextLabel")
+                    RowName.BackgroundTransparency = 1
+                    RowName.BorderSizePixel = 0
+                    RowName.Position = UDim2New(0, 36, 0, 0)
+                    RowName.Size = UDim2New(1, -44, 1, 0)
+                    RowName.FontFace = Library.Font
+                    RowName.Text = ""
+                    RowName.TextColor3 = FromRGB(220, 220, 230)
+                    RowName.TextSize = 13
+                    RowName.TextXAlignment = Enum.TextXAlignment.Left
+                    RowName.ZIndex = 52
+                    RowName.Parent = Row
+
+                    MentionRows[i] = { Button = Row, Avatar = RowAvatar, Name = RowName }
+                end
+
+                local function HideMentionOverlay()
+                    MentionOverlayFrame.Visible = false
+                end
+
+                local function ShowMentionOverlay(Suggestions)
+                    if #Suggestions == 0 then
+                        HideMentionOverlay()
+                        return
+                    end
+                    local InputH = Items["MessageInput"].Instance.AbsoluteSize.Y
+                    MentionOverlayFrame.Position = UDim2New(0, 10, 1, -44 - InputH)
+                    for i, Row in MentionRows do
+                        local Sug = Suggestions[i]
+                        if Sug then
+                            Row.Button.Visible = true
+                            if Sug.isEveryone then
+                                Row.Avatar.Image = "rbxassetid://4254642440"
+                                Row.Name.Text = "@everyone"
+                                Row.Name.TextColor3 = FromRGB(255, 200, 50)
+                            else
+                                Row.Avatar.Image = tostring(Sug.avatar or "")
+                                Row.Name.Text = "@" .. tostring(Sug.username)
+                                Row.Name.TextColor3 = FromRGB(220, 220, 230)
+                            end
+                        else
+                            Row.Button.Visible = false
+                        end
+                    end
+                    MentionOverlayFrame.Visible = true
+                end
+
+                local function GetMentionQuery(Text, CursorPos)
+                    local SearchText = (CursorPos and CursorPos > 0) and StringSub(Text, 1, CursorPos - 1) or Text
+                    return SearchText:match("@([%w_]*)$")
+                end
+
+                local function UpdateMentionOverlay()
+                    if not BackendState.InputFocused then
+                        HideMentionOverlay()
+                        return
+                    end
+                    local InputBox = Items["Input"].Instance
+                    local Text = InputBox.Text
+                    local CursorPos = InputBox.CursorPosition
+                    local Query = GetMentionQuery(Text, CursorPos)
+                    if Query == nil then
+                        HideMentionOverlay()
+                        return
+                    end
+                    local Suggestions = {}
+                    local QueryLower = StringLower(Query)
+                    if IsLocalAdmin() and (#QueryLower == 0 or StringFind("everyone", QueryLower, 1, true) == 1) then
+                        TableInsert(Suggestions, { username = "everyone", senderId = "everyone", avatar = "", isEveryone = true })
+                    end
+                    for _, Chatter in BackendState.RecentChatters do
+                        if #Suggestions >= 6 then break end
+                        local UserLower = StringLower(Chatter.username)
+                        if QueryLower == "" or StringFind(UserLower, QueryLower, 1, true) == 1 then
+                            TableInsert(Suggestions, Chatter)
+                        end
+                    end
+                    ShowMentionOverlay(Suggestions)
+                end
+
+                for i, Row in MentionRows do
+                    Row.Button.MouseButton1Click:Connect(function()
+                        local NameText = StringSub(Row.Name.Text, 2)
+                        if NameText == "" then return end
+                        local InputBox = Items["Input"].Instance
+                        local Text = InputBox.Text
+                        local CursorPos = InputBox.CursorPosition
+                        local Before = (CursorPos and CursorPos > 0) and StringSub(Text, 1, CursorPos - 1) or Text
+                        local After = (CursorPos and CursorPos > 0) and StringSub(Text, CursorPos) or ""
+                        local NewBefore = Before:gsub("@[%w_]*$", "@" .. NameText .. " ")
+                        InputBox.Text = NewBefore .. After
+                        InputBox.CursorPosition = StringLen(NewBefore) + 1
+                        HideMentionOverlay()
+                        task.defer(function() InputBox:CaptureFocus() end)
+                    end)
+                    Row.Button.MouseEnter:Connect(function()
+                        Row.Button.BackgroundTransparency = 0.7
+                    end)
+                    Row.Button.MouseLeave:Connect(function()
+                        Row.Button.BackgroundTransparency = 1
+                    end)
+                end
+
+                Items["Input"].Instance:GetPropertyChangedSignal("Text"):Connect(UpdateMentionOverlay)
+                Items["Input"].Instance:GetPropertyChangedSignal("CursorPosition"):Connect(UpdateMentionOverlay)
+                Items["Input"].Instance.FocusLost:Connect(function()
+                    task.delay(0.12, HideMentionOverlay)
+                end)
+            end
 
             local ShouldAutoConnect = (Data and Data.AutoConnect ~= nil) and Data.AutoConnect or Library.GlobalChat.AutoConnect
             if ShouldAutoConnect then
