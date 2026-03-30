@@ -11427,6 +11427,59 @@ local Library do
                 Items = { }
             }
 
+            -- Lazily create ColumnsData when AddSection is called directly on a Tab
+            if not Section.Page.ColumnsData then
+                Section.Page.ColumnsData = { }
+                local ColumnsParent = Section.Page.Items["Columns"] and Section.Page.Items["Columns"].Instance
+
+                if ColumnsParent then
+                    Instances:Create("UIListLayout", {
+                        Parent = ColumnsParent,
+                        Name = "\0",
+                        FillDirection = Enum.FillDirection.Horizontal,
+                        HorizontalFlex = Enum.UIFlexAlignment.Fill,
+                        Padding = UDimNew(0, 4),
+                        SortOrder = Enum.SortOrder.LayoutOrder
+                    })
+
+                    local Columns = Section.Page.Columns or 2
+                    for ColIdx = 1, Columns do
+                        local NewColumn = Instances:Create("ScrollingFrame", {
+                            Parent = ColumnsParent,
+                            Name = "\0",
+                            ScrollBarImageColor3 = FromRGB(0, 0, 0),
+                            Active = true,
+                            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                            ScrollBarThickness = 0,
+                            BackgroundTransparency = 1,
+                            Size = UDim2New(1, 0, 1, 0),
+                            BackgroundColor3 = FromRGB(255, 255, 255),
+                            BorderColor3 = FromRGB(0, 0, 0),
+                            BorderSizePixel = 0,
+                            CanvasSize = UDim2New(0, 0, 0, 0)
+                        })
+
+                        Instances:Create("UIPadding", {
+                            Parent = NewColumn.Instance,
+                            Name = "\0",
+                            PaddingTop = UDimNew(0, 5),
+                            PaddingBottom = UDimNew(0, 5),
+                            PaddingRight = UDimNew(0, 5),
+                            PaddingLeft = UDimNew(0, 5)
+                        })
+
+                        Instances:Create("UIListLayout", {
+                            Parent = NewColumn.Instance,
+                            Name = "\0",
+                            Padding = UDimNew(0, 15),
+                            SortOrder = Enum.SortOrder.LayoutOrder
+                        })
+
+                        Section.Page.ColumnsData[ColIdx] = NewColumn
+                    end
+                end
+            end
+
             local Items = { } do 
                 Items["Section"] = Instances:Create("Frame", {
                     Parent = Section.Page.ColumnsData[Section.Side].Instance,
