@@ -8542,6 +8542,7 @@ local Library do
                         AccentLine.BorderSizePixel = 0
                         AccentLine.ZIndex = 3
                         AccentLine.Parent = ReplyPreview
+                        SubItems["MentionReplyAccent"] = AccentLine
 
                         if ReplyTo.avatar and tostring(ReplyTo.avatar) ~= "" then
                             local RAv = InstanceNew("ImageLabel")
@@ -8830,13 +8831,19 @@ local Library do
 
                     if IsMentionHighlight then
                         SubItems["Message1"].Instance.BackgroundColor3 = FromRGB(255, 170, 0)
-                        SubItems["Message1"].Instance.BackgroundTransparency = 0.88
+                        SubItems["Message1"].Instance.BackgroundTransparency = 0.82
+
+                        -- Color the reply accent line gold so the reply section
+                        -- is visually part of the highlight
+                        if SubItems["MentionReplyAccent"] then
+                            SubItems["MentionReplyAccent"].BackgroundColor3 = FromRGB(255, 185, 0)
+                        end
 
                         local MentionBar = InstanceNew("Frame")
                         MentionBar.Name = "\0"
                         MentionBar.AnchorPoint = Vector2New(0, 0)
                         MentionBar.Position = UDim2New(0, 0, 0, 0)
-                        MentionBar.Size = UDim2New(0, 3, 1, 0)
+                        MentionBar.Size = UDim2New(0, 3, 0, 0)  -- height set below after layout
                         MentionBar.BackgroundColor3 = FromRGB(255, 185, 0)
                         MentionBar.BackgroundTransparency = 0
                         MentionBar.BorderSizePixel = 0
@@ -8846,6 +8853,14 @@ local Library do
                         local MentionBarCorner = InstanceNew("UICorner")
                         MentionBarCorner.CornerRadius = UDimNew(0, 2)
                         MentionBarCorner.Parent = MentionBar
+
+                        -- AutomaticSize.Y parent causes scale-Y children to resolve
+                        -- to zero height, so use AbsoluteSize after layout settles
+                        local Conn
+                        Conn = SubItems["Message1"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                            MentionBar.Size = UDim2New(0, 3, 0, SubItems["Message1"].Instance.AbsoluteSize.Y)
+                            Conn:Disconnect()
+                        end)
                     end
                 end
 
