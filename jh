@@ -1432,6 +1432,60 @@ local Library do
         Element:Refresh(ReturnList)
     end
 
+    Library.AutoloadMetaPath = Library.Folders.Configs .. "/_autoload.json"
+
+    Library.LoadAutoloadMeta = function(self)
+        if isfile(Library.AutoloadMetaPath) then
+            local Ok, Decoded = pcall(function()
+                return HttpService:JSONDecode(readfile(Library.AutoloadMetaPath))
+            end)
+            if Ok and type(Decoded) == "table" then
+                return Decoded
+            end
+        end
+        return {}
+    end
+
+    Library.SaveAutoloadMeta = function(self, Meta)
+        local Ok, Encoded = pcall(function()
+            return HttpService:JSONEncode(Meta)
+        end)
+        if Ok then
+            writefile(Library.AutoloadMetaPath, Encoded)
+        end
+    end
+
+    Library.SetAutoload = function(self, ConfigNameStr, Enabled)
+        local Meta = Library:LoadAutoloadMeta()
+        if Enabled then
+            Meta[ConfigNameStr] = os.time()
+        else
+            Meta[ConfigNameStr] = nil
+        end
+        Library:SaveAutoloadMeta(Meta)
+    end
+
+    Library.IsAutoloadEnabled = function(self, ConfigNameStr)
+        local Meta = Library:LoadAutoloadMeta()
+        return Meta[ConfigNameStr] ~= nil
+    end
+
+    Library.GetAutoloadConfig = function(self)
+        local Meta = Library:LoadAutoloadMeta()
+        local BestName = nil
+        local BestTime = 0
+        for Name, Timestamp in Meta do
+            if type(Timestamp) == "number" and Timestamp > BestTime then
+                local FilePath = Library.Folders.Configs .. "/" .. Name .. ".json"
+                if isfile(FilePath) then
+                    BestName = Name
+                    BestTime = Timestamp
+                end
+            end
+        end
+        return BestName
+    end
+
     Library.IsMouseOverFrame = function(self, Frame)
         Frame = Frame.Instance
         local MousePosition = Vector2New(Mouse.X, Mouse.Y)
@@ -6206,7 +6260,6 @@ local Library do
             local function UpdateRecentChatters(Username, SenderId, AvatarImg)
                 if not Username or Username == "Anonymous" or Username == "" then return end
                 local Sid = tostring(SenderId or "")
-                -- Remove any existing entry for this sender to re-insert at front
                 for i = #BackendState.RecentChatters, 1, -1 do
                     if BackendState.RecentChatters[i].senderId == Sid then
                         TableRemove(BackendState.RecentChatters, i)
@@ -6221,7 +6274,6 @@ local Library do
                 while #BackendState.RecentChatters > 20 do
                     TableRemove(BackendState.RecentChatters)
                 end
-                -- Also register in the broader lookup map
                 BackendState.AllKnownChatters[Sid] = Entry
             end
 
@@ -6930,7 +6982,6 @@ local Library do
                     local PollId = tostring(PollData.id or "")
                     local PollTitle = tostring(PollData.title or "Poll")
                     local PollOptions = type(PollData.options) == "table" and PollData.options or {}
-                    -- Use local tick for countdown to avoid server/client clock drift
                     local PollTotalSeconds = (tonumber(PollData.timerMinutes) or 1) * 60
                     local PollStartTick = tick()
                     local OptionPctRefs = {}
@@ -6988,7 +7039,6 @@ local Library do
                     PollLayout.Padding = UDimNew(0, 8)
                     PollLayout.Parent = PollFrame.Instance
 
-                    -- Badge row: "POLL" left, timer right
                     local BadgeRow = Instances:Create("Frame", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
@@ -7031,7 +7081,6 @@ local Library do
                         ZIndex = 201
                     })
 
-                    -- Poll title
                     local TitleLabel = Instances:Create("TextLabel", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
@@ -7051,7 +7100,6 @@ local Library do
                     })
                     TitleLabel:AddToTheme({TextColor3 = "Text"})
 
-                    -- Options holder
                     local OptionsHolder = Instances:Create("Frame", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
@@ -7096,8 +7144,6 @@ local Library do
                             Transparency = 0.4,
                             ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                         }):AddToTheme({Color = "Border"})
-
-                        -- Accent fill bar (grows after voting / poll end)
                         local PctBar = Instances:Create("Frame", {
                             Parent = Container.Instance,
                             Name = "\0",
@@ -7203,7 +7249,6 @@ local Library do
                         MakeVoteButton(i, OptText)
                     end
 
-                    -- Post-vote / close hint label
                     local PostVoteLabel = Instances:Create("TextLabel", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
@@ -7225,7 +7270,6 @@ local Library do
                     })
                     PostVoteLabel:AddToTheme({TextColor3 = "Text"})
 
-                    -- Spacer
                     Instances:Create("Frame", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
@@ -7235,7 +7279,6 @@ local Library do
                         LayoutOrder = 5
                     })
 
-                    -- Accent liner bar (matches announcement style)
                     local PollLiner = Instances:Create("Frame", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
@@ -7289,7 +7332,6 @@ local Library do
                         CornerRadius = UDimNew(0, 6)
                     })
 
-                    -- Don't Vote button (below liner, outside layout — anchored bottom-left)
                     local DontVoteBtn = Instances:Create("TextButton", {
                         Parent = PollFrame.Instance,
                         Name = "\0",
@@ -7297,7 +7339,7 @@ local Library do
                         TextColor3 = FromRGB(255, 255, 255),
                         TextTransparency = 0.4,
                         BorderColor3 = FromRGB(0, 0, 0),
-                        Text = "Don't Vote",
+                        Text = "Close",
                         AutoButtonColor = false,
                         Size = UDim2New(0, 80, 0, 20),
                         AnchorPoint = Vector2New(0, 0),
@@ -7353,7 +7395,6 @@ local Library do
                     }
 
                     Library:Thread(function()
-                        -- All items start transparent for fade-in
                         PollFrame.Instance.BackgroundTransparency = 1
                         PollStroke.Instance.Transparency = 1
                         for _, Desc in PollFrame.Instance:GetDescendants() do
@@ -7371,7 +7412,6 @@ local Library do
                             Position = UDim2New(0.5, 0, 0, 18)
                         }):Play()
 
-                        -- Shrink accent bar over poll duration
                         PollAccent:Tween(TweenInfo.new(PollTotalSeconds, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Size = UDim2New(0, 0, 1, 0)})
 
                         task.wait(0.1)
@@ -10112,7 +10152,7 @@ local Library do
                     })
                 end
 
-                Items["GameLabel"] = MakeLabel("Game Title")  Items["GameLabel"]:AddToTheme({TextColor3 = "Text"})
+                Items["GameLabel"] = MakeLabel("Game Title")  Items["GameLabel"].Instance.LayoutOrder = 1  Items["GameLabel"]:AddToTheme({TextColor3 = "Text"})
 
                 Items["GameTitleBg"] = Instances:Create("Frame", {
                     Parent = Items["FormScroller"].Instance,
@@ -13832,6 +13872,7 @@ local Library do
 
         local ConfigName
         local ConfigSelected
+        local AutoloadEnabled = false
 
         local ConfigsDropdown = ConfigsSection:AddDropdown({
             Name = "Configs",
@@ -13853,6 +13894,15 @@ local Library do
             end
         })
 
+        ConfigsSection:AddToggle({
+            Name = "Autoload",
+            Flag = "ConfigAutoload",
+            Default = false,
+            Callback = function(Value)
+                AutoloadEnabled = Value
+            end
+        })
+
         ConfigsSection:AddButton({
             Name = "Create",
             Callback = function()
@@ -13868,6 +13918,7 @@ local Library do
                     else
                         local success, err = pcall(function()
                             writefile(Library.Folders.Configs .. "/" .. ConfigName .. ".json", Library:GetConfig())
+                            Library:SetAutoload(ConfigName, AutoloadEnabled)
                             Library:RefreshConfigsList(ConfigsDropdown)
         
                             Library:MakeNotification({
@@ -13888,6 +13939,7 @@ local Library do
                 if ConfigSelected then
                     if isfile(Library.Folders.Configs .. "/" .. ConfigSelected..".json") then
                         delfile(Library.Folders.Configs .. "/" .. ConfigSelected..".json")
+                        Library:SetAutoload(ConfigSelected, false)
 
                         ConfigsDropdown:Remove(ConfigSelected)
                         ConfigsDropdown:SetText("--")
@@ -13936,6 +13988,7 @@ local Library do
             Callback = function()
                 if ConfigSelected and isfile(Library.Folders.Configs .. "/" .. ConfigSelected .. ".json") then
                     writefile(Library.Folders.Configs .. "/" .. ConfigSelected .. ".json", Library:GetConfig())
+                    Library:SetAutoload(ConfigSelected, AutoloadEnabled)
 
                     Library:MakeNotification({
                         Name = "Success!",
@@ -13958,8 +14011,23 @@ local Library do
                 })
             end
         })
-
         Library:RefreshConfigsList(ConfigsDropdown)
+        Library:SafeCall(function()
+            local AutoloadName = Library:GetAutoloadConfig()
+            if AutoloadName then
+                local FilePath = Library.Folders.Configs .. "/" .. AutoloadName .. ".json"
+                if isfile(FilePath) then
+                    local Success, Error = Library:LoadConfig(readfile(FilePath))
+                    if Success then
+                        Library:MakeNotification({
+                            Name = "Autoload",
+                            Content = "Loaded config " .. AutoloadName .. " automatically",
+                            Time = 3
+                        })
+                    end
+                end
+            end
+        end)
     end
 
     Library.CreateSettingsSection = function(self, Tab)
