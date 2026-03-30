@@ -6631,6 +6631,37 @@ local Library do
                 end)
             end
 
+            local LastPruneTime = 0
+
+            local function PruneBackendTables()
+                local Now = os.clock()
+                if Now - LastPruneTime < 120 then
+                    return
+                end
+                LastPruneTime = Now
+
+                local Floor = BackendState.LastMessageId - 500
+                if Floor <= 0 then
+                    return
+                end
+
+                local NewSeen = {}
+                for Id, Val in BackendState.SeenMessages do
+                    if Id >= Floor then
+                        NewSeen[Id] = Val
+                    end
+                end
+                BackendState.SeenMessages = NewSeen
+
+                local NewDeletes = {}
+                for Id, Val in BackendState.ProcessedDeletes do
+                    if Id >= Floor then
+                        NewDeletes[Id] = Val
+                    end
+                end
+                BackendState.ProcessedDeletes = NewDeletes
+            end
+
             local function TrackMessageId(MessageData)
                 local MessageId = tonumber(MessageData.id)
                 if not MessageId then
@@ -7636,6 +7667,7 @@ local Library do
 
                 Library:Thread(function()
                     while not BackendState.Destroyed and BackendState.RunId == ActiveRunId and BackendState.Polling do
+                        PruneBackendTables()
                         local Config = BackendState.Config
                         local PollInterval = tonumber(Config and Config.PollInterval) or 3
                         local RetryDelay = tonumber(Config and Config.RetryDelay) or PollInterval
@@ -8210,6 +8242,12 @@ local Library do
                     BackendState.LastRenderedGroup = nil
                 end
                 pcall(function()
+                    if Entry.Connections then
+                        for _, Conn in Entry.Connections do
+                            pcall(function() Conn:Disconnect() end)
+                        end
+                        Entry.Connections = nil
+                    end
                     Entry.Bubble:Destroy()
                     local HasVisibleChildren = false
                     for _, Child in Entry.Stack:GetChildren() do
@@ -8916,6 +8954,7 @@ local Library do
                         MaxSize = IsExternalMessage and Vector2New(420, 500) or Vector2New(300, 400)
                     })
 
+                    local BubbleConnections = {}
                     local HoverActions = nil
                     if not IsExternalMessage then
                         local HoverActionsW = 66
@@ -8953,7 +8992,7 @@ local Library do
                         ReplyBtn.ZIndex = 31
                         ReplyBtn.Parent = HoverActions
 
-                        ReplyBtn.MouseButton1Click:Connect(function()
+                        BubbleConnections[#BubbleConnections + 1] = ReplyBtn.MouseButton1Click:Connect(function()
                             HideContextMenu()
                             SetReplyingTo({
                                 id = MessageIdNum,
@@ -8985,7 +9024,7 @@ local Library do
                                 DC.Parent = Dot
                             end
 
-                            DotsBtn.MouseButton1Click:Connect(function()
+                            BubbleConnections[#BubbleConnections + 1] = DotsBtn.MouseButton1Click:Connect(function()
                                 ShowContextMenu({
                                     id = MessageIdNum,
                                     username = Username,
@@ -9017,7 +9056,7 @@ local Library do
                                 DC.Parent = Dot
                             end
 
-                            DotsBtn.MouseButton1Click:Connect(function()
+                            BubbleConnections[#BubbleConnections + 1] = DotsBtn.MouseButton1Click:Connect(function()
                                 ShowContextMenu({
                                     id = MessageIdNum,
                                     username = Username,
@@ -9039,7 +9078,8 @@ local Library do
                         BackendState.MessageFramesById[MessageIdNum] = {
                             Bubble = BubbleRow,
                             Stack = StackFrame,
-                            Group = GroupFrame
+                            Group = GroupFrame,
+                            Connections = BubbleConnections
                         }
                     end
 
@@ -9059,18 +9099,18 @@ local Library do
                                 end
                             end)
                         end
-                        BubbleItems["RealMessage"].Instance.MouseEnter:Connect(OnHoverEnter)
-                        BubbleItems["RealMessage"].Instance.MouseLeave:Connect(OnHoverLeave)
-                        BubbleRow.MouseEnter:Connect(OnHoverEnter)
-                        BubbleRow.MouseLeave:Connect(OnHoverLeave)
-                        HoverActions.MouseEnter:Connect(OnHoverEnter)
-                        HoverActions.MouseLeave:Connect(OnHoverLeave)
+                        BubbleConnections[#BubbleConnections + 1] = BubbleItems["RealMessage"].Instance.MouseEnter:Connect(OnHoverEnter)
+                        BubbleConnections[#BubbleConnections + 1] = BubbleItems["RealMessage"].Instance.MouseLeave:Connect(OnHoverLeave)
+                        BubbleConnections[#BubbleConnections + 1] = BubbleRow.MouseEnter:Connect(OnHoverEnter)
+                        BubbleConnections[#BubbleConnections + 1] = BubbleRow.MouseLeave:Connect(OnHoverLeave)
+                        BubbleConnections[#BubbleConnections + 1] = HoverActions.MouseEnter:Connect(OnHoverEnter)
+                        BubbleConnections[#BubbleConnections + 1] = HoverActions.MouseLeave:Connect(OnHoverLeave)
                     end
 
                     if not IsExternalMessage and IsMobile then
                         local TouchStart = nil
                         local LPThread = nil
-                        BubbleItems["RealMessage"].Instance.InputBegan:Connect(function(Input)
+                        BubbleConnections[#BubbleConnections + 1] = BubbleItems["RealMessage"].Instance.InputBegan:Connect(function(Input)
                             if Input.UserInputType == Enum.UserInputType.Touch then
                                 TouchStart = os.clock()
                                 if LPThread then task.cancel(LPThread) end
@@ -9086,7 +9126,7 @@ local Library do
                                 end)
                             end
                         end)
-                        BubbleItems["RealMessage"].Instance.InputEnded:Connect(function(Input)
+                        BubbleConnections[#BubbleConnections + 1] = BubbleItems["RealMessage"].Instance.InputEnded:Connect(function(Input)
                             if Input.UserInputType == Enum.UserInputType.Touch then
                                 TouchStart = nil
                                 if LPThread then task.cancel(LPThread) LPThread = nil end
