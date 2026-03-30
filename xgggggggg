@@ -9348,6 +9348,52 @@ local Library do
                 Items["CancelButton"] = MakeActionButton("Cancel", FromRGB(166, 74, 74), UDim2New(0, 0, 0, 0), Vector2New(0, 0))
                 Items["SubmitButton"] = MakeActionButton("Submit", FromRGB(72, 176, 108), UDim2New(1, 0, 0, 0), Vector2New(1, 0))
 
+                Items["MailButton"]:OnHover(function()
+                    Items["MailButton"]:Tween(TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundColor3 = Library.Theme["Hovered Element"]
+                    })
+                    Items["MailButtonIcon"]:Tween(TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        Size = UDim2New(0, 35, 0, 35)
+                    })
+                end)
+
+                Items["MailButton"]:OnHoverLeave(function()
+                    Items["MailButton"]:Tween(TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundColor3 = Library.Theme["Element"]
+                    })
+                    Items["MailButtonIcon"]:Tween(TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        Size = UDim2New(0, 32, 0, 32)
+                    })
+                end)
+
+                Items["CancelButton"]:OnHover(function()
+                    Items["CancelButton"]:Tween(TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundColor3 = FromRGB(188, 86, 86),
+                        Size = UDim2New(0, 126, 0, 42)
+                    })
+                end)
+
+                Items["CancelButton"]:OnHoverLeave(function()
+                    Items["CancelButton"]:Tween(TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundColor3 = FromRGB(166, 74, 74),
+                        Size = UDim2New(0, 122, 0, 42)
+                    })
+                end)
+
+                Items["SubmitButton"]:OnHover(function()
+                    Items["SubmitButton"]:Tween(TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundColor3 = FromRGB(84, 194, 121),
+                        Size = UDim2New(0, 126, 0, 42)
+                    })
+                end)
+
+                Items["SubmitButton"]:OnHoverLeave(function()
+                    Items["SubmitButton"]:Tween(TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundColor3 = FromRGB(72, 176, 108),
+                        Size = UDim2New(0, 122, 0, 42)
+                    })
+                end)
+
                 Items["MailboxOverlay"] = Instances:Create("Frame", {
                     Parent = Items["Root"].Instance,
                     Name = "\0",
@@ -9830,16 +9876,14 @@ local Library do
                     local Status = tostring(Entry.status or "under_review")
                     local IconId = GetStatusIcon(Status)
                     local CanCancel = Status == "under_review"
-                    local PreviewXOffset = CanCancel and 82 or 12
-                    local PreviewWidthOffset = CanCancel and 206 or 136
+                    local TitleWidthOffset = CanCancel and 94 or 24
 
                     local StatusIcon = Instances:Create("ImageLabel", {
                         Parent = Row.Instance,
                         Name = "\0",
                         Image = IconId,
                         BackgroundTransparency = 1,
-                        AnchorPoint = Vector2New(1, 0),
-                        Position = UDim2New(1, -100, 0, 32),
+                        Position = UDim2New(0, 12, 1, -28),
                         Size = UDim2New(0, 16, 0, 16),
                         Visible = IconId ~= "",
                         BorderSizePixel = 0,
@@ -9853,7 +9897,7 @@ local Library do
                         TextColor3 = FromRGB(255, 255, 255),
                         Text = tostring(Entry.gameTitle or "Unknown Game"),
                         Position = UDim2New(0, 12, 0, 10),
-                        Size = UDim2New(1, -24, 0, 18),
+                        Size = UDim2New(1, -TitleWidthOffset, 0, 18),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
                         TextSize = 14,
@@ -9867,8 +9911,8 @@ local Library do
                         FontFace = Library.Subfont,
                         TextColor3 = FromRGB(185, 185, 195),
                         Text = TruncatePreview(Entry.content, 120),
-                        Position = UDim2New(0, PreviewXOffset, 0, 32),
-                        Size = UDim2New(1, -PreviewWidthOffset, 0, 34),
+                        Position = UDim2New(0, 12, 0, 32),
+                        Size = UDim2New(1, -24, 0, 34),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
                         TextWrapped = true,
@@ -9884,12 +9928,11 @@ local Library do
                         FontFace = Library.Subfont,
                         TextColor3 = GetStatusColor(Status),
                         Text = GetStatusLabel(Status),
-                        AnchorPoint = Vector2New(1, 0),
-                        Position = UDim2New(1, -12, 0, 32),
-                        Size = UDim2New(0, 84, 0, 16),
+                        Position = UDim2New(0, IconId ~= "" and 34 or 12, 1, -30),
+                        Size = UDim2New(0, 120, 0, 16),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
-                        TextXAlignment = Enum.TextXAlignment.Right,
+                        TextXAlignment = Enum.TextXAlignment.Left,
                         TextSize = 12,
                         ZIndex = 64
                     })
@@ -9900,7 +9943,8 @@ local Library do
                         FontFace = Library.Font,
                         TextColor3 = FromRGB(255, 255, 255),
                         Text = "Cancel",
-                        Position = UDim2New(0, 12, 0, 32),
+                        AnchorPoint = Vector2New(1, 0),
+                        Position = UDim2New(1, -12, 0, 10),
                         Size = UDim2New(0, 58, 0, 20),
                         BackgroundColor3 = FromRGB(182, 72, 72),
                         BorderSizePixel = 0,
@@ -9920,6 +9964,20 @@ local Library do
                         if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                             OpenCancelConfirm(true, Entry)
                         end
+                    end)
+
+                    CancelPreviewButton:OnHover(function()
+                        CancelPreviewButton:Tween(TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = FromRGB(202, 86, 86),
+                            Size = UDim2New(0, 62, 0, 20)
+                        })
+                    end)
+
+                    CancelPreviewButton:OnHoverLeave(function()
+                        CancelPreviewButton:Tween(TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = FromRGB(182, 72, 72),
+                            Size = UDim2New(0, 58, 0, 20)
+                        })
                     end)
 
                     local TypeText = Instances:Create("TextLabel", {
