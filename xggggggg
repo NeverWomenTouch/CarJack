@@ -291,6 +291,51 @@ local Library do
         return Result
     end
 
+    local CachedPlaceName = tostring(game.Name or "This Experience")
+    local PlaceNameLookupStarted = false
+    local PlaceNameResolved = false
+    local PlaceNameCallbacks = { }
+
+    local function ResolvePlaceName(Callback)
+        if type(Callback) == "function" then
+            if PlaceNameResolved then
+                pcall(Callback, CachedPlaceName)
+            else
+                TableInsert(PlaceNameCallbacks, Callback)
+            end
+        end
+
+        if PlaceNameLookupStarted then
+            return CachedPlaceName
+        end
+
+        PlaceNameLookupStarted = true
+
+        task.defer(function()
+            local ResolvedName = CachedPlaceName
+
+            pcall(function()
+                local Info = MarketplaceService:GetProductInfo(game.PlaceId)
+                local Name = tostring(Info and Info.Name or "")
+                if Name ~= "" then
+                    ResolvedName = Name
+                end
+            end)
+
+            CachedPlaceName = ResolvedName ~= "" and ResolvedName or tostring(game.Name or "This Experience")
+            PlaceNameResolved = true
+
+            local Callbacks = PlaceNameCallbacks
+            PlaceNameCallbacks = { }
+
+            for _, PendingCallback in Callbacks do
+                pcall(PendingCallback, CachedPlaceName)
+            end
+        end)
+
+        return CachedPlaceName
+    end
+
     local function BuildUrl(BaseUrl, Query)
         if type(Query) ~= "table" then
             return BaseUrl
@@ -3804,7 +3849,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     TextColor3 = FromRGB(255, 255, 255),
                     TextTransparency = 0.4000000059604645,
-                    Text = MarketplaceService:GetProductInfo(game.PlaceId).Name,
+                    Text = ResolvePlaceName(),
                     Size = UDim2New(1, -64, 0, 15),
                     BorderSizePixel = 0,
                     BackgroundTransparency = 1,
@@ -3814,6 +3859,12 @@ local Library do
                     TextSize = 12,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Game"]:AddToTheme({TextColor3 = "Text"})
+
+                ResolvePlaceName(function(Name)
+                    if Items["Game"] and Items["Game"].Instance and Items["Game"].Instance.Parent then
+                        Items["Game"].Instance.Text = tostring(Name or "This Experience")
+                    end
+                end)
 
                 Items["Pages"] = Instances:Create("ScrollingFrame", {
                     Parent = Items["Side"].Instance,
@@ -3871,6 +3922,10 @@ local Library do
                 Window.ResizeHandle = ResizeHandle
 
                 Library:Connect(RunService.RenderStepped, function()
+                    if not Window.IsOpen or Window.IsMinimized or not Window.ResizeHandle.Instance.Visible then
+                        return
+                    end
+
                     ResizeHandle.Instance.Position = UDim2New(0, Items["MainFrame"].Instance.AbsolutePosition.X + Items["MainFrame"].Instance.AbsoluteSize.X / 1 - 60, 0, Items["MainFrame"].Instance.AbsolutePosition.Y + Items["MainFrame"].Instance.AbsoluteSize.Y / 1 - 60)
                 end)
 
@@ -6026,13 +6081,18 @@ local Library do
                 LastTypingSentAt = 0,
                 LastRenderedGroup = nil,
                 UnreadCount = 0,
+                RunId = 0,
                 Socket = nil,
                 SocketConnections = { },
                 ReplyingTo = nil,
                 MessageFramesById = { },
+                RenderedMessageOrder = { },
+                RenderedMessageOrderStart = 1,
+                RenderedMessageCount = 0,
                 ProcessedDeletes = { },
                 LastMessageSentAt = 0,
                 FilterWords = { },
+                FilterPatterns = { },
                 PlaceIdFilter = (Data and Data.PlaceIdFilter) and tonumber(Data.PlaceIdFilter) or nil,
                 TimedOutUsers = { },
                 TimeoutIconsBySenderId = { },
@@ -6088,18 +6148,14 @@ local Library do
                     return BackendState.Profile.GameName
                 end
 
-                local PlaceName = ""
-                pcall(function()
-                    local Info = MarketplaceService:GetProductInfo(game.PlaceId)
-                    PlaceName = tostring(Info and Info.Name or "")
+                local PlaceName = ResolvePlaceName(function(Name)
+                    if not BackendState.Destroyed then
+                        BackendState.Profile.GameName = tostring(Name or "This Experience")
+                    end
                 end)
 
-                if PlaceName == "" then
-                    PlaceName = tostring(game.Name or "This Experience")
-                end
-
-                BackendState.Profile.GameName = PlaceName
-                return PlaceName
+                BackendState.Profile.GameName = tostring(PlaceName or "This Experience")
+                return BackendState.Profile.GameName
             end
 
             local function GetMessageSenderKey(MessageData, Username, IsAnonymous)
@@ -6133,26 +6189,38 @@ local Library do
                 return IsAdminSender(LocalPlayer.UserId)
             end
 
+            local function RebuildFilterPatterns()
+                BackendState.FilterPatterns = { }
+
+                for _, Word in BackendState.FilterWords do
+                    if type(Word) == "string" and Word ~= "" then
+                        local Parts = { }
+
+                        for Index = 1, #Word do
+                            local Original = Word:sub(Index, Index)
+                            if Original:match("%a") then
+                                Parts[#Parts + 1] = "[" .. Original:upper() .. Original:lower() .. "]"
+                            else
+                                Parts[#Parts + 1] = Original:gsub("[%(%)%.%%%+%-%*%?%[%^%$]", "%%%1")
+                            end
+                        end
+
+                        BackendState.FilterPatterns[#BackendState.FilterPatterns + 1] = "(" .. table.concat(Parts, "[^%a%d]*") .. ")"
+                    end
+                end
+            end
+
             local function FilterMessageText(Text, SenderId)
                 if IsAdminSender(SenderId) then return Text end
                 if #BackendState.FilterWords == 0 then return Text end
                 local Result = Text
-                for _, Word in BackendState.FilterWords do
-                    if type(Word) == "string" and Word ~= "" then
-                        local Parts = {}
-                        for i = 1, #Word do
-                            local Orig = Word:sub(i, i)
-                            if Orig:match("%a") then
-                                Parts[#Parts + 1] = "[" .. Orig:upper() .. Orig:lower() .. "]"
-                            else
-                                Parts[#Parts + 1] = Orig:gsub("[%(%)%.%%%+%-%*%?%[%^%$]", "%%%1")
-                            end
-                        end
-                        local Pattern = table.concat(Parts, "[^%a%d]*")
-                        Result = Result:gsub("(" .. Pattern .. ")", function(Match)
-                            return string.rep("#", #Match)
-                        end)
-                    end
+                if #BackendState.FilterPatterns == 0 then
+                    RebuildFilterPatterns()
+                end
+                for _, Pattern in BackendState.FilterPatterns do
+                    Result = Result:gsub(Pattern, function(Match)
+                        return string.rep("#", #Match)
+                    end)
                 end
                 return Result
             end
@@ -6290,22 +6358,6 @@ local Library do
 
                 BackendState.DotsAnimRunning = true
                 AnimateTypingDots(true)
-
-                Library:Thread(function()
-                    while not BackendState.Destroyed and BackendState.DotsAnimRunning do
-                        local Current = FormatTypingText(BackendState.TypingUsers)
-                        if Current == "" then
-                            Items["TypingBg"].Instance.Visible = false
-                            Items["TypingText"].Instance.Text = ""
-                            AnimateTypingDots(false)
-                            break
-                        end
-                        Items["TypingText"].Instance.Text = Current
-                        Items["TypingBg"].Instance.Visible = true
-                        task.wait(0.1)
-                    end
-                    BackendState.DotsAnimRunning = false
-                end)
             end
 
             local function PublishTyping(IsTyping)
@@ -6413,9 +6465,10 @@ local Library do
                 end
 
                 BackendState.TypingThreadRunning = true
+                local ActiveRunId = BackendState.RunId
 
                 Library:Thread(function()
-                    while not BackendState.Destroyed do
+                    while not BackendState.Destroyed and BackendState.RunId == ActiveRunId do
                         local IsTyping = IsViewingChat() and BackendState.InputFocused and StringLen(ChatSystem:GetTypedMessage()) > 0
 
                         if IsTyping then
@@ -6427,7 +6480,9 @@ local Library do
                         task.wait(0.6)
                     end
 
-                    BackendState.TypingThreadRunning = false
+                    if BackendState.RunId == ActiveRunId then
+                        BackendState.TypingThreadRunning = false
+                    end
                 end)
             end
 
@@ -6462,15 +6517,35 @@ local Library do
                 local RawLimit = BackendState.Config and BackendState.Config.MessagesCountDeletionInterval
                 if RawLimit == nil or RawLimit == false then return end
                 local Limit = tonumber(RawLimit) or 30
-                local Ids = {}
-                for Id in BackendState.MessageFramesById do
-                    Ids[#Ids + 1] = Id
+                if (tonumber(BackendState.RenderedMessageCount) or 0) <= Limit then
+                    return
                 end
-                if #Ids <= Limit then return end
-                table.sort(Ids)
-                local ToRemove = #Ids - Limit
-                for i = 1, ToRemove do
-                    ChatSystem:DeleteRenderedMessage(Ids[i])
+
+                local Order = BackendState.RenderedMessageOrder
+                local StartIndex = BackendState.RenderedMessageOrderStart or 1
+
+                while (tonumber(BackendState.RenderedMessageCount) or 0) > Limit do
+                    local OldestId = Order[StartIndex]
+                    Order[StartIndex] = nil
+                    StartIndex = StartIndex + 1
+                    BackendState.RenderedMessageOrderStart = StartIndex
+
+                    if OldestId ~= nil then
+                        ChatSystem:DeleteRenderedMessage(OldestId)
+                    end
+
+                    if StartIndex > 100 and StartIndex > (#Order / 2) then
+                        local Compacted = { }
+
+                        for Index = StartIndex, #Order do
+                            Compacted[#Compacted + 1] = Order[Index]
+                        end
+
+                        BackendState.RenderedMessageOrder = Compacted
+                        BackendState.RenderedMessageOrderStart = 1
+                        Order = Compacted
+                        StartIndex = 1
+                    end
                 end
             end
 
@@ -6730,9 +6805,10 @@ local Library do
                 end
 
                 BackendState.HeartbeatRunning = true
+                local ActiveRunId = BackendState.RunId
 
                 Library:Thread(function()
-                    while not BackendState.Destroyed do
+                    while not BackendState.Destroyed and BackendState.RunId == ActiveRunId do
                         local Config = BackendState.Config
                         if Config and BackendState.Socket then
                             local PingPayload = JsonEncode({ type = "ping" })
@@ -6741,10 +6817,13 @@ local Library do
                             end
                         end
 
-                        task.wait((Config and Config.PresenceInterval) or 15)
+                        local Interval = tonumber(Config and Config.PresenceInterval) or 15
+                        task.wait(math.max(1, Interval))
                     end
 
-                    BackendState.HeartbeatRunning = false
+                    if BackendState.RunId == ActiveRunId then
+                        BackendState.HeartbeatRunning = false
+                    end
                 end)
             end
 
@@ -6754,14 +6833,27 @@ local Library do
                 end
 
                 BackendState.PollRunning = true
+                BackendState.Polling = true
+                local ActiveRunId = BackendState.RunId
 
                 Library:Thread(function()
-                    while not BackendState.Destroyed do
-                        FetchMessages(not BackendState.InitialSyncComplete)
-                        task.wait(1)
+                    while not BackendState.Destroyed and BackendState.RunId == ActiveRunId and BackendState.Polling do
+                        local Config = BackendState.Config
+                        local PollInterval = tonumber(Config and Config.PollInterval) or 3
+                        local RetryDelay = tonumber(Config and Config.RetryDelay) or PollInterval
+
+                        if BackendState.Socket and BackendState.InitialSyncComplete then
+                            task.wait(math.max(1, PollInterval))
+                        else
+                            local Ok = FetchMessages(not BackendState.InitialSyncComplete)
+                            task.wait(math.max(1, Ok and PollInterval or RetryDelay))
+                        end
                     end
 
-                    BackendState.PollRunning = false
+                    if BackendState.RunId == ActiveRunId then
+                        BackendState.PollRunning = false
+                        BackendState.Polling = false
+                    end
                 end)
             end
 
@@ -7315,6 +7407,7 @@ local Library do
                 local Entry = BackendState.MessageFramesById[NumId]
                 if not Entry then return end
                 BackendState.MessageFramesById[NumId] = nil
+                BackendState.RenderedMessageCount = math.max(0, (tonumber(BackendState.RenderedMessageCount) or 0) - 1)
                 if BackendState.LastRenderedGroup and BackendState.LastRenderedGroup.Group == Entry.Group then
                     BackendState.LastRenderedGroup = nil
                 end
@@ -7352,6 +7445,7 @@ local Library do
             end
 
             function ChatSystem:DisconnectBackend()
+                BackendState.RunId = (tonumber(BackendState.RunId) or 0) + 1
                 BackendState.Destroyed = true
                 StopPolling()
                 NotifyPresenceDisconnect()
@@ -7384,10 +7478,14 @@ local Library do
                 BackendState.LastTypingSentAt = 0
                 BackendState.TypingThreadRunning = false
                 BackendState.PollRunning = false
+                BackendState.Polling = false
                 BackendState.DotsAnimRunning = false
                 BackendState.InputFocused = false
                 BackendState.ReplyingTo = nil
                 BackendState.MessageFramesById = { }
+                BackendState.RenderedMessageOrder = { }
+                BackendState.RenderedMessageOrderStart = 1
+                BackendState.RenderedMessageCount = 0
                 BackendState.UwuLockedUsers = { }
                 BackendState.UwuLockIndicatorsBySenderId = { }
                 BackendState.ProcessedDeletes = { }
@@ -7401,6 +7499,7 @@ local Library do
                             local Cached = JsonDecode(readfile(CacheFile))
                             if type(Cached) == "table" and type(Cached.flags) == "table" and #Cached.flags > 0 then
                                 BackendState.FilterWords = Cached.flags
+                                RebuildFilterPatterns()
                                 return
                             end
                         end
@@ -7413,6 +7512,7 @@ local Library do
                             local Decoded = JsonDecode(Body)
                             if type(Decoded) == "table" and type(Decoded.flags) == "table" then
                                 BackendState.FilterWords = Decoded.flags
+                                RebuildFilterPatterns()
                                 pcall(writefile, CacheFile, Body)
                             end
                         end
@@ -7420,8 +7520,9 @@ local Library do
                 end
 
                 if BackendState.PlaceIdFilter then
+                    local ActiveRunId = BackendState.RunId
                     Library:Thread(function()
-                        while not BackendState.Destroyed do
+                        while not BackendState.Destroyed and BackendState.RunId == ActiveRunId do
                             local Cfg = BackendState.Config
                             if Cfg and Cfg.HttpUrl and Cfg.HttpUrl ~= "" and RequestFunction then
                                 local Ok, Body = DoHttpRequest({
@@ -7449,6 +7550,7 @@ local Library do
                 StartTypingThread()
 
                 Library:Thread(function()
+                    local ActiveRunId = BackendState.RunId
                     local LocalSidStr = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
                     local CountdownThread = nil
 
@@ -7508,7 +7610,7 @@ local Library do
                     end
 
                     CountdownThread = task.spawn(function()
-                        while not BackendState.Destroyed do
+                        while not BackendState.Destroyed and BackendState.RunId == ActiveRunId do
                             if UpdateRestrictionBanner then
                                 UpdateRestrictionBanner()
                             end
@@ -7516,7 +7618,7 @@ local Library do
                         end
                     end)
 
-                    while not BackendState.Destroyed do
+                    while not BackendState.Destroyed and BackendState.RunId == ActiveRunId do
                         local Cfg = BackendState.Config
                         if Cfg and Cfg.HttpUrl and Cfg.HttpUrl ~= "" and RequestFunction then
                             local Ok, Body = DoHttpRequest({
@@ -7800,7 +7902,7 @@ local Library do
 
             Library:Connect(RunService.RenderStepped, function()
                 local Btn = Items["JumpToLatest"] and Items["JumpToLatest"].Instance
-                if not Btn then
+                if not Btn or not Btn.Visible then
                     return
                 end
 
@@ -8115,6 +8217,11 @@ local Library do
                     end
 
                     if MessageIdNum and GroupFrame and StackFrame then
+                        if not BackendState.MessageFramesById[MessageIdNum] then
+                            BackendState.RenderedMessageCount = (tonumber(BackendState.RenderedMessageCount) or 0) + 1
+                            BackendState.RenderedMessageOrder[#BackendState.RenderedMessageOrder + 1] = MessageIdNum
+                        end
+
                         BackendState.MessageFramesById[MessageIdNum] = {
                             Bubble = BubbleRow,
                             Stack = StackFrame,
@@ -8702,6 +8809,7 @@ local Library do
             local MailboxOpen = false
             local ReviewUnreadCount = 0
             local KnownSuggestionStatuses = { }
+            local PendingCancelSuggestion = nil
             local DefaultMailIcon = "rbxassetid://136371270317895"
             local ReviewMailIcon = "rbxassetid://93740348829800"
 
@@ -8728,18 +8836,7 @@ local Library do
             end
 
             local function GetResolvedGameName()
-                local PlaceName = ""
-
-                pcall(function()
-                    local Info = MarketplaceService:GetProductInfo(game.PlaceId)
-                    PlaceName = tostring(Info and Info.Name or "")
-                end)
-
-                if PlaceName == "" then
-                    PlaceName = tostring(game.Name or "This Experience")
-                end
-
-                return PlaceName
+                return ResolvePlaceName()
             end
 
             local function GetExecutorName()
@@ -8905,7 +9002,7 @@ local Library do
                     Name = "\0",
                     AnchorPoint = Vector2New(0.5, 0.5),
                     Position = UDim2New(0.5, 0, 0.5, 0),
-                    Size = UDim2New(0, 28, 0, 28),
+                    Size = UDim2New(0, 32, 0, 32),
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
                     Image = DefaultMailIcon,
@@ -9223,24 +9320,19 @@ local Library do
                     BorderSizePixel = 0,
                 })
 
-                local ActionLayout = InstanceNew("UIListLayout")
-                ActionLayout.FillDirection = Enum.FillDirection.Horizontal
-                ActionLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-                ActionLayout.Padding = UDimNew(0, 10)
-                ActionLayout.Parent = Items["ActionBar"].Instance
-
-                local function MakeActionButton(Name, Color, Order)
+                local function MakeActionButton(Name, Color, Position, AnchorPoint)
                     local Button = Instances:Create("TextButton", {
                         Parent = Items["ActionBar"].Instance,
                         Name = "\0",
                         FontFace = Library.Font,
                         TextColor3 = FromRGB(255, 255, 255),
                         Text = Name,
+                        AnchorPoint = AnchorPoint or Vector2New(0, 0),
+                        Position = Position,
                         Size = UDim2New(0, 122, 0, 42),
                         BackgroundColor3 = Color,
                         BorderSizePixel = 0,
                         AutoButtonColor = false,
-                        LayoutOrder = Order,
                         TextSize = 14
                     })
 
@@ -9253,8 +9345,8 @@ local Library do
                     return Button
                 end
 
-                Items["CancelButton"] = MakeActionButton("Cancel", FromRGB(166, 74, 74), 1)
-                Items["SubmitButton"] = MakeActionButton("Submit", FromRGB(72, 176, 108), 2)
+                Items["CancelButton"] = MakeActionButton("Cancel", FromRGB(166, 74, 74), UDim2New(0, 0, 0, 0), Vector2New(0, 0))
+                Items["SubmitButton"] = MakeActionButton("Submit", FromRGB(72, 176, 108), UDim2New(1, 0, 0, 0), Vector2New(1, 0))
 
                 Items["MailboxOverlay"] = Instances:Create("Frame", {
                     Parent = Items["Root"].Instance,
@@ -9463,6 +9555,110 @@ local Library do
                     Name = "\0",
                     CornerRadius = UDimNew(0, 6)
                 })
+
+                Items["ConfirmCancelOverlay"] = Instances:Create("Frame", {
+                    Parent = Items["MailboxPanel"].Instance,
+                    Name = "\0",
+                    Size = UDim2New(1, 0, 1, 0),
+                    BackgroundColor3 = FromRGB(8, 8, 10),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 70
+                })
+
+                Items["ConfirmCancelPanel"] = Instances:Create("Frame", {
+                    Parent = Items["ConfirmCancelOverlay"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, 0, 0.5, 0),
+                    Size = UDim2New(1, -120, 0, 180),
+                    BackgroundColor3 = FromRGB(26, 25, 31),
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 71
+                })  Items["ConfirmCancelPanel"]:AddToTheme({BackgroundColor3 = "Inline"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["ConfirmCancelPanel"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 8)
+                })
+
+                Items["ConfirmCancelTitle"] = Instances:Create("TextLabel", {
+                    Parent = Items["ConfirmCancelPanel"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    Text = "Cancel suggestion?",
+                    Position = UDim2New(0, 16, 0, 18),
+                    Size = UDim2New(1, -32, 0, 22),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextSize = 16,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 72
+                })  Items["ConfirmCancelTitle"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["ConfirmCancelBody"] = Instances:Create("TextLabel", {
+                    Parent = Items["ConfirmCancelPanel"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(205, 205, 215),
+                    Text = "Are you sure you want to cancel this suggestion? This will also remove its Discord review message.",
+                    Position = UDim2New(0, 16, 0, 52),
+                    Size = UDim2New(1, -32, 0, 54),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextWrapped = true,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Top,
+                    TextSize = 13,
+                    ZIndex = 72
+                })  Items["ConfirmCancelBody"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["ConfirmCancelNo"] = Instances:Create("TextButton", {
+                    Parent = Items["ConfirmCancelPanel"].Instance,
+                    Name = "\0",
+                    Position = UDim2New(0, 16, 1, -56),
+                    Size = UDim2New(0, 96, 0, 36),
+                    FontFace = Library.Font,
+                    Text = "No",
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BackgroundColor3 = FromRGB(70, 70, 82),
+                    BorderSizePixel = 0,
+                    AutoButtonColor = false,
+                    TextSize = 14,
+                    ZIndex = 72
+                })
+
+                Instances:Create("UICorner", {
+                    Parent = Items["ConfirmCancelNo"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Items["ConfirmCancelYes"] = Instances:Create("TextButton", {
+                    Parent = Items["ConfirmCancelPanel"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(1, 0),
+                    Position = UDim2New(1, -16, 1, -56),
+                    Size = UDim2New(0, 126, 0, 36),
+                    FontFace = Library.Font,
+                    Text = "Yes, Cancel",
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BackgroundColor3 = FromRGB(182, 72, 72),
+                    BorderSizePixel = 0,
+                    AutoButtonColor = false,
+                    TextSize = 14,
+                    ZIndex = 72
+                })
+
+                Instances:Create("UICorner", {
+                    Parent = Items["ConfirmCancelYes"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
             end
 
             local MainPage = SuggestionSystem.Page and SuggestionSystem.Page.Page
@@ -9633,13 +9829,17 @@ local Library do
 
                     local Status = tostring(Entry.status or "under_review")
                     local IconId = GetStatusIcon(Status)
+                    local CanCancel = Status == "under_review"
+                    local PreviewXOffset = CanCancel and 82 or 12
+                    local PreviewWidthOffset = CanCancel and 206 or 136
 
                     local StatusIcon = Instances:Create("ImageLabel", {
                         Parent = Row.Instance,
                         Name = "\0",
                         Image = IconId,
                         BackgroundTransparency = 1,
-                        Position = UDim2New(0, 12, 1, -28),
+                        AnchorPoint = Vector2New(1, 0),
+                        Position = UDim2New(1, -100, 0, 32),
                         Size = UDim2New(0, 16, 0, 16),
                         Visible = IconId ~= "",
                         BorderSizePixel = 0,
@@ -9667,8 +9867,8 @@ local Library do
                         FontFace = Library.Subfont,
                         TextColor3 = FromRGB(185, 185, 195),
                         Text = TruncatePreview(Entry.content, 120),
-                        Position = UDim2New(0, 12, 0, 32),
-                        Size = UDim2New(1, -24, 0, 34),
+                        Position = UDim2New(0, PreviewXOffset, 0, 32),
+                        Size = UDim2New(1, -PreviewWidthOffset, 0, 34),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
                         TextWrapped = true,
@@ -9684,14 +9884,43 @@ local Library do
                         FontFace = Library.Subfont,
                         TextColor3 = GetStatusColor(Status),
                         Text = GetStatusLabel(Status),
-                        Position = UDim2New(0, IconId ~= "" and 34 or 12, 1, -30),
-                        Size = UDim2New(1, -46, 0, 16),
+                        AnchorPoint = Vector2New(1, 0),
+                        Position = UDim2New(1, -12, 0, 32),
+                        Size = UDim2New(0, 84, 0, 16),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
-                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextXAlignment = Enum.TextXAlignment.Right,
                         TextSize = 12,
                         ZIndex = 64
                     })
+
+                    local CancelPreviewButton = Instances:Create("TextButton", {
+                        Parent = Row.Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        Text = "Cancel",
+                        Position = UDim2New(0, 12, 0, 32),
+                        Size = UDim2New(0, 58, 0, 20),
+                        BackgroundColor3 = FromRGB(182, 72, 72),
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                        Visible = CanCancel,
+                        TextSize = 12,
+                        ZIndex = 64
+                    })
+
+                    Instances:Create("UICorner", {
+                        Parent = CancelPreviewButton.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 5)
+                    })
+
+                    CancelPreviewButton:Connect("InputBegan", function(Input)
+                        if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                            OpenCancelConfirm(true, Entry)
+                        end
+                    end)
 
                     local TypeText = Instances:Create("TextLabel", {
                         Parent = Row.Instance,
@@ -9753,6 +9982,63 @@ local Library do
 
             local function OpenSuccessOverlay(Bool)
                 SetOverlayVisible(Items["SuccessOverlay"], Items["SuccessPanel"], Bool)
+            end
+
+            local function OpenCancelConfirm(Bool, Suggestion)
+                PendingCancelSuggestion = Bool and Suggestion or nil
+                SetOverlayVisible(Items["ConfirmCancelOverlay"], Items["ConfirmCancelPanel"], Bool)
+            end
+
+            local function FormatCooldownNotice(RetryAfterMs)
+                local TotalSeconds = math.max(0, math.floor((tonumber(RetryAfterMs) or 0) / 1000))
+                local Minutes = math.floor(TotalSeconds / 60)
+                local Seconds = TotalSeconds % 60
+                return StringFormat("You must wait %d minute%s, %d second%s before submitting another suggestion.", Minutes, Minutes == 1 and "" or "s", Seconds, Seconds == 1 and "" or "s")
+            end
+
+            local function CancelSuggestion(Entry)
+                local SuggestionId = tonumber(Entry and Entry.id)
+                if not SuggestionId then
+                    return
+                end
+
+                local Config = SuggestionConfig
+                if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then
+                    Library:MakeNotification({
+                        Name = "Suggestion Error",
+                        Content = "Suggestion backend is not configured.",
+                        Time = 3
+                    })
+                    return
+                end
+
+                Items["ConfirmCancelYes"].Instance.Text = "Cancelling..."
+                local Ok, Body = DoHttpRequest({
+                    Url = BuildSuggestionAuthorizedUrl(Config, Config.HttpUrl .. "/library/suggestions/" .. tostring(SuggestionId), {
+                        senderId = tostring(LocalPlayer.UserId),
+                    }),
+                    Method = "DELETE",
+                    Headers = GetSuggestionHeaders(Config),
+                })
+                Items["ConfirmCancelYes"].Instance.Text = "Yes, Cancel"
+
+                local Decoded = type(Body) == "string" and JsonDecode(Body) or nil
+                if not Ok then
+                    Library:MakeNotification({
+                        Name = "Suggestion Error",
+                        Content = tostring((Decoded and Decoded.error) or Body or "Failed to cancel suggestion."),
+                        Time = 4
+                    })
+                    return
+                end
+
+                OpenCancelConfirm(false)
+                SuggestionSystem:RefreshSuggestions()
+                Library:MakeNotification({
+                    Name = "Suggestion Cancelled",
+                    Content = "Your suggestion was canceled successfully.",
+                    Time = 3
+                })
             end
 
             local function BuildSuccessDetails(Suggestion)
@@ -9841,16 +10127,22 @@ local Library do
 
                 Items["SubmitButton"].Instance.Text = "Submit"
 
-                if not Ok or type(Body) ~= "string" then
+                local Decoded = type(Body) == "string" and JsonDecode(Body) or nil
+
+                if not Ok then
+                    local ErrorText = tostring((Decoded and Decoded.error) or Body or "Failed to submit suggestion.")
+                    if type(Decoded) == "table" and tonumber(Decoded.retryAfterMs) then
+                        ErrorText = FormatCooldownNotice(Decoded.retryAfterMs)
+                    end
+
                     Library:MakeNotification({
                         Name = "Suggestion Error",
-                        Content = tostring(Body or "Failed to submit suggestion."),
+                        Content = ErrorText,
                         Time = 4
                     })
                     return
                 end
 
-                local Decoded = JsonDecode(Body)
                 if type(Decoded) ~= "table" or Decoded.ok ~= true or type(Decoded.suggestion) ~= "table" then
                     Library:MakeNotification({
                         Name = "Suggestion Error",
@@ -9876,6 +10168,18 @@ local Library do
             Items["MailboxClose"]:Connect("InputBegan", function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                     OpenMailbox(false)
+                end
+            end)
+
+            Items["ConfirmCancelNo"]:Connect("InputBegan", function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    OpenCancelConfirm(false)
+                end
+            end)
+
+            Items["ConfirmCancelYes"]:Connect("InputBegan", function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    CancelSuggestion(PendingCancelSuggestion)
                 end
             end)
 
