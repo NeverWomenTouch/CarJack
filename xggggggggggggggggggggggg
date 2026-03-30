@@ -6916,6 +6916,450 @@ local Library do
                     return
                 end
 
+                if Payload.type == "poll_start" and type(Payload.poll) == "table" then
+                    if BackendState.ActivePoll then
+                        pcall(function()
+                            if BackendState.ActivePoll.ClosePoll then
+                                BackendState.ActivePoll.ClosePoll()
+                            end
+                        end)
+                        BackendState.ActivePoll = nil
+                    end
+
+                    local PollData = Payload.poll
+                    local PollId = tostring(PollData.id or "")
+                    local PollTitle = tostring(PollData.title or "Poll")
+                    local PollOptions = type(PollData.options) == "table" and PollData.options or {}
+                    local EndsAt = tonumber(PollData.endsAt) or (tick() * 1000 + 60000)
+                    local OptionPctRefs = {}
+
+                    local PollFrame = Instances:Create("Frame", {
+                        Parent = Library.AnnouncementHolder.Instance,
+                        Name = "\0",
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2New(0.5, 0),
+                        Position = UDim2New(0.5, 0, 0, -500),
+                        Size = UDim2New(1, -24, 0, 0),
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        BackgroundColor3 = FromRGB(17, 16, 20),
+                        ClipsDescendants = true,
+                        ZIndex = 200
+                    })
+                    PollFrame:AddToTheme({BackgroundColor3 = "Background"})
+
+                    Instances:Create("UISizeConstraint", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        MaxSize = Vector2New(600, 800),
+                        MinSize = Vector2New(260, 0)
+                    })
+
+                    Instances:Create("UIPadding", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        PaddingTop = UDimNew(0, 12),
+                        PaddingBottom = UDimNew(0, 12),
+                        PaddingRight = UDimNew(0, 14),
+                        PaddingLeft = UDimNew(0, 14)
+                    })
+
+                    Instances:Create("UICorner", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 8)
+                    })
+
+                    Instances:Create("UIStroke", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        Color = FromRGB(80, 140, 255),
+                        Transparency = 0.5,
+                        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                    })
+
+                    local PollLayout = InstanceNew("UIListLayout")
+                    PollLayout.FillDirection = Enum.FillDirection.Vertical
+                    PollLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+                    PollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                    PollLayout.Padding = UDimNew(0, 7)
+                    PollLayout.Parent = PollFrame.Instance
+
+                    -- Header: badge left, countdown right
+                    local HeaderFrame = Instances:Create("Frame", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        BorderSizePixel = 0,
+                        BackgroundTransparency = 1,
+                        Size = UDim2New(1, 0, 0, 18),
+                        ZIndex = 201,
+                        LayoutOrder = 1
+                    })
+
+                    Instances:Create("TextLabel", {
+                        Parent = HeaderFrame.Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(100, 180, 255),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = "📊 POLL",
+                        Size = UDim2New(0.6, 0, 1, 0),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextSize = 13,
+                        ZIndex = 201
+                    })
+
+                    local TimerInst = Instances:Create("TextLabel", {
+                        Parent = HeaderFrame.Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 200, 100),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = "...",
+                        Size = UDim2New(0.4, 0, 1, 0),
+                        Position = UDim2New(0.6, 0, 0, 0),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextXAlignment = Enum.TextXAlignment.Right,
+                        TextSize = 13,
+                        ZIndex = 201
+                    })
+
+                    -- Poll title
+                    local TitleLabel = Instances:Create("TextLabel", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = PollTitle,
+                        Size = UDim2New(1, 0, 0, 20),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextWrapped = true,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        TextSize = 17,
+                        ZIndex = 201,
+                        LayoutOrder = 2
+                    })
+                    TitleLabel:AddToTheme({TextColor3 = "Text"})
+
+                    -- Options holder
+                    local OptionsHolder = Instances:Create("Frame", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        BorderSizePixel = 0,
+                        BackgroundTransparency = 1,
+                        Size = UDim2New(1, 0, 0, 0),
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        ZIndex = 201,
+                        LayoutOrder = 3
+                    })
+
+                    local OptionsLayout = InstanceNew("UIListLayout")
+                    OptionsLayout.FillDirection = Enum.FillDirection.Vertical
+                    OptionsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+                    OptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                    OptionsLayout.Padding = UDimNew(0, 4)
+                    OptionsLayout.Parent = OptionsHolder.Instance
+
+                    local function MakeVoteButton(BtnIndex, BtnText)
+                        local Container = Instances:Create("Frame", {
+                            Parent = OptionsHolder.Instance,
+                            Name = "\0",
+                            BorderSizePixel = 0,
+                            Size = UDim2New(1, 0, 0, 30),
+                            BackgroundColor3 = FromRGB(30, 28, 36),
+                            ZIndex = 201,
+                            LayoutOrder = BtnIndex,
+                            ClipsDescendants = true
+                        })
+                        Container:AddToTheme({BackgroundColor3 = "Inline"})
+
+                        Instances:Create("UICorner", {
+                            Parent = Container.Instance,
+                            Name = "\0",
+                            CornerRadius = UDimNew(0, 6)
+                        })
+
+                        -- Percentage fill bar (shown after voting / poll end)
+                        local PctBar = Instances:Create("Frame", {
+                            Parent = Container.Instance,
+                            Name = "\0",
+                            BorderSizePixel = 0,
+                            BackgroundColor3 = FromRGB(50, 100, 200),
+                            BackgroundTransparency = 0.65,
+                            Size = UDim2New(0, 0, 1, 0),
+                            ZIndex = 201
+                        })
+
+                        Instances:Create("UICorner", {
+                            Parent = PctBar.Instance,
+                            Name = "\0",
+                            CornerRadius = UDimNew(0, 6)
+                        })
+
+                        local Btn = Instances:Create("TextButton", {
+                            Parent = Container.Instance,
+                            Name = "\0",
+                            FontFace = Library.Font,
+                            TextColor3 = FromRGB(220, 220, 220),
+                            BorderColor3 = FromRGB(0, 0, 0),
+                            Text = BtnText,
+                            AutoButtonColor = false,
+                            Size = UDim2New(1, 0, 1, 0),
+                            BorderSizePixel = 0,
+                            BackgroundTransparency = 1,
+                            TextSize = 13,
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            ZIndex = 203
+                        })
+                        Btn:AddToTheme({TextColor3 = "Text"})
+
+                        Instances:Create("UIPadding", {
+                            Parent = Btn.Instance,
+                            Name = "\0",
+                            PaddingLeft = UDimNew(0, 8)
+                        })
+
+                        OptionPctRefs[BtnIndex] = {
+                            Container = Container,
+                            Button = Btn,
+                            PctBar = PctBar,
+                            OrigText = BtnText
+                        }
+
+                        Btn.Instance.MouseButton1Click:Connect(function()
+                            if not BackendState.ActivePoll then return end
+                            if BackendState.ActivePoll.PollId ~= PollId then return end
+                            if BackendState.ActivePoll.HasVoted then return end
+                            if BackendState.Destroyed then return end
+
+                            local Config = BackendState.Config
+                            if not Config or not Config.HttpUrl then return end
+
+                            -- Optimistic: mark voted before HTTP so poll_update handler picks it up
+                            BackendState.ActivePoll.HasVoted = true
+
+                            local VoteBody = JsonEncode({
+                                senderId = tostring(LocalPlayer.UserId),
+                                optionIndex = BtnIndex - 1
+                            })
+
+                            if not VoteBody then
+                                BackendState.ActivePoll.HasVoted = false
+                                return
+                            end
+
+                            local Ok = DoHttpRequest({
+                                Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/poll/vote"),
+                                Method = "POST",
+                                Headers = MergeTable(GetRequestHeaders(Config), {["Content-Type"] = "application/json"}),
+                                Body = VoteBody
+                            })
+
+                            if not Ok then
+                                if BackendState.ActivePoll and BackendState.ActivePoll.PollId == PollId then
+                                    BackendState.ActivePoll.HasVoted = false
+                                end
+                                return
+                            end
+
+                            pcall(function()
+                                if BackendState.ActivePoll and BackendState.ActivePoll.PostVoteLabel then
+                                    BackendState.ActivePoll.PostVoteLabel.Instance.Visible = true
+                                end
+                            end)
+                        end)
+                    end
+
+                    for i, OptData in PollOptions do
+                        local OptText = type(OptData) == "table" and tostring(OptData.text or "") or tostring(OptData)
+                        MakeVoteButton(i, OptText)
+                    end
+
+                    -- Post-vote label (hidden until voted or poll ends)
+                    local PostVoteLabel = Instances:Create("TextLabel", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(180, 180, 180),
+                        TextTransparency = 0.2,
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = "If you don't want to vote, you can close this poll.",
+                        TextWrapped = true,
+                        Size = UDim2New(1, 0, 0, 14),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        TextSize = 12,
+                        ZIndex = 201,
+                        Visible = false,
+                        LayoutOrder = 4
+                    })
+                    PostVoteLabel:AddToTheme({TextColor3 = "Text"})
+
+                    -- Bottom row: Don't Vote button
+                    local BottomRow = Instances:Create("Frame", {
+                        Parent = PollFrame.Instance,
+                        Name = "\0",
+                        BorderSizePixel = 0,
+                        BackgroundTransparency = 1,
+                        Size = UDim2New(1, 0, 0, 26),
+                        ZIndex = 201,
+                        LayoutOrder = 5
+                    })
+
+                    local DontVoteBtn = Instances:Create("TextButton", {
+                        Parent = BottomRow.Instance,
+                        Name = "\0",
+                        FontFace = Library.Font,
+                        TextColor3 = FromRGB(180, 180, 180),
+                        BorderColor3 = FromRGB(0, 0, 0),
+                        Text = "Don't Vote",
+                        AutoButtonColor = false,
+                        Size = UDim2New(0, 86, 1, 0),
+                        Position = UDim2New(0, 0, 0, 0),
+                        BorderSizePixel = 0,
+                        TextSize = 12,
+                        BackgroundColor3 = FromRGB(38, 36, 44),
+                        ZIndex = 202
+                    })
+                    DontVoteBtn:AddToTheme({BackgroundColor3 = "Inline"})
+
+                    Instances:Create("UICorner", {
+                        Parent = DontVoteBtn.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(0, 5)
+                    })
+
+                    local Closed = false
+                    local function ClosePoll()
+                        if Closed then return end
+                        Closed = true
+                        if BackendState.ActivePoll and BackendState.ActivePoll.PollId == PollId then
+                            BackendState.ActivePoll = nil
+                        end
+                        TweenService:Create(PollFrame.Instance, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                            Position = UDim2New(0.5, 0, 0, -500)
+                        }):Play()
+                        task.delay(0.35, function()
+                            pcall(function() PollFrame:Clean() end)
+                        end)
+                    end
+
+                    DontVoteBtn.Instance.MouseButton1Click:Connect(ClosePoll)
+
+                    BackendState.ActivePoll = {
+                        PollId = PollId,
+                        HasVoted = false,
+                        EndsAt = EndsAt,
+                        OptionPctRefs = OptionPctRefs,
+                        PostVoteLabel = PostVoteLabel,
+                        TimerLabel = TimerInst,
+                        ClosePoll = ClosePoll
+                    }
+
+                    Library:Thread(function()
+                        TweenService:Create(PollFrame.Instance, TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            Position = UDim2New(0.5, 0, 0, 18)
+                        }):Play()
+
+                        Library:Thread(function()
+                            while not BackendState.Destroyed do
+                                local APoll = BackendState.ActivePoll
+                                if not APoll or APoll.PollId ~= PollId then break end
+                                local Remaining = math.max(0, math.floor((APoll.EndsAt - tick() * 1000) / 1000))
+                                local Hours = math.floor(Remaining / 3600)
+                                local Mins = math.floor((Remaining % 3600) / 60)
+                                local Secs = Remaining % 60
+                                local TimeStr
+                                if Hours > 0 then
+                                    TimeStr = StringFormat("%dh %02dm %02ds", Hours, Mins, Secs)
+                                else
+                                    TimeStr = StringFormat("%dm %02ds", Mins, Secs)
+                                end
+                                pcall(function()
+                                    APoll.TimerLabel.Instance.Text = TimeStr
+                                end)
+                                if Remaining <= 0 then break end
+                                task.wait(1)
+                            end
+                        end)
+                    end)
+
+                    return
+                end
+
+                if Payload.type == "poll_update" and type(Payload.poll) == "table" then
+                    local APoll = BackendState.ActivePoll
+                    if not APoll then return end
+                    if not APoll.HasVoted then return end
+                    if tostring(Payload.poll.id or "") ~= APoll.PollId then return end
+
+                    local OptionsData = type(Payload.poll.options) == "table" and Payload.poll.options or {}
+                    local TotalVotes = tonumber(Payload.poll.totalVotes) or 0
+
+                    for i, OptInfo in OptionsData do
+                        local Ref = APoll.OptionPctRefs and APoll.OptionPctRefs[i]
+                        if Ref and type(OptInfo) == "table" then
+                            local Votes = tonumber(OptInfo.votes) or 0
+                            local Pct = TotalVotes > 0 and math.floor((Votes / TotalVotes) * 100) or 0
+                            pcall(function()
+                                Ref.Button.Instance.Text = Ref.OrigText .. "  —  " .. tostring(Pct) .. "%"
+                                TweenService:Create(Ref.PctBar.Instance, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                    Size = UDim2New(Pct / 100, 0, 1, 0)
+                                }):Play()
+                            end)
+                        end
+                    end
+                    return
+                end
+
+                if Payload.type == "poll_end" and type(Payload.poll) == "table" then
+                    local APoll = BackendState.ActivePoll
+                    if not APoll then return end
+
+                    pcall(function()
+                        APoll.TimerLabel.Instance.Text = "ENDED"
+                        APoll.TimerLabel.Instance.TextColor3 = FromRGB(255, 90, 90)
+                    end)
+
+                    local OptionsData = type(Payload.poll.options) == "table" and Payload.poll.options or {}
+                    local TotalVotes = tonumber(Payload.poll.totalVotes) or 0
+
+                    for i, OptInfo in OptionsData do
+                        local Ref = APoll.OptionPctRefs and APoll.OptionPctRefs[i]
+                        if Ref and type(OptInfo) == "table" then
+                            local Pct = tonumber(OptInfo.percentage) or 0
+                            local Votes = tonumber(OptInfo.votes) or 0
+                            pcall(function()
+                                Ref.Button.Instance.Text = Ref.OrigText .. "  —  " .. tostring(Pct) .. "% (" .. tostring(Votes) .. ")"
+                                TweenService:Create(Ref.PctBar.Instance, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                    Size = UDim2New(Pct / 100, 0, 1, 0)
+                                }):Play()
+                            end)
+                        end
+                    end
+
+                    pcall(function()
+                        APoll.PostVoteLabel.Instance.Visible = true
+                        APoll.PostVoteLabel.Instance.Text = "Poll ended! " .. tostring(TotalVotes) .. " player" .. (TotalVotes ~= 1 and "s" or "") .. " voted."
+                    end)
+
+                    task.delay(8, function()
+                        local FinalPoll = BackendState.ActivePoll
+                        if FinalPoll and FinalPoll.PollId == tostring(Payload.poll.id or "") then
+                            FinalPoll.ClosePoll()
+                        end
+                    end)
+                    return
+                end
+
                 if Payload.type == "message" and type(Payload.message) == "table" then
                     RenderIncomingMessage(Payload.message)
                     return
@@ -8139,7 +8583,7 @@ local Library do
                 local RawLower = StringLower(RawMessage)
                 local IsMentionedByName = not IsLocalPlayer and StringFind(RawLower, "@" .. LocalUserLower, 1, true) ~= nil
                 local MsgSenderIdStr = tostring(MessageMeta and MessageMeta.senderId or "")
-                local IsMentionedByEveryone = not IsLocalPlayer and IsAdminSender(MsgSenderIdStr) and StringFind(RawLower, "@everyone", 1, true) ~= nil
+                local IsMentionedByEveryone = IsAdminSender(MsgSenderIdStr) and StringFind(RawLower, "@everyone", 1, true) ~= nil
                 local IsReplyToMe = not IsLocalPlayer and type(ReplyTo) == "table" and ReplyTo.id ~= nil
                     and StringLower(tostring(ReplyTo.username or "")) == LocalUserLower
                 local IsMentionHighlight = not IsExternalMessage
@@ -10170,11 +10614,13 @@ local Library do
             local SuggestionPageItems = SuggestionSystem.Page and SuggestionSystem.Page.Items or nil
 
             if SuggestionPageItems and not SuggestionPageItems["UnreadBadge"] then
+                SuggestionPageItems["Inactive"].Instance.ClipsDescendants = false
+
                 SuggestionPageItems["UnreadBadge"] = Instances:Create("Frame", {
                     Parent = SuggestionPageItems["Inactive"].Instance,
                     Name = "\0",
-                    AnchorPoint = Vector2New(1, 0),
-                    Position = UDim2New(1, 2, 0, -2),
+                    AnchorPoint = Vector2New(1, 1),
+                    Position = UDim2New(1, 4, 1, 4),
                     Size = UDim2New(0, 16, 0, 14),
                     Visible = false,
                     BorderSizePixel = 0,
