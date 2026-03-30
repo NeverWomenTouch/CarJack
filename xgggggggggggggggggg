@@ -6107,6 +6107,7 @@ local Library do
                 PendingBottomScrollId = 0,
                 Hwid = "",
                 RecentChatters = {},
+                AllKnownChatters = {},
                 HasMentionUnread = false,
             }
 
@@ -6205,19 +6206,23 @@ local Library do
             local function UpdateRecentChatters(Username, SenderId, AvatarImg)
                 if not Username or Username == "Anonymous" or Username == "" then return end
                 local Sid = tostring(SenderId or "")
+                -- Remove any existing entry for this sender to re-insert at front
                 for i = #BackendState.RecentChatters, 1, -1 do
                     if BackendState.RecentChatters[i].senderId == Sid then
                         TableRemove(BackendState.RecentChatters, i)
                     end
                 end
-                TableInsert(BackendState.RecentChatters, 1, {
+                local Entry = {
                     username = tostring(Username),
                     senderId = Sid,
                     avatar = tostring(AvatarImg or "")
-                })
+                }
+                TableInsert(BackendState.RecentChatters, 1, Entry)
                 while #BackendState.RecentChatters > 20 do
                     TableRemove(BackendState.RecentChatters)
                 end
+                -- Also register in the broader lookup map
+                BackendState.AllKnownChatters[Sid] = Entry
             end
 
             local function MessageMentionsLocalUser(Text)
@@ -6252,16 +6257,47 @@ local Library do
             local function FilterMessageText(Text, SenderId)
                 if IsAdminSender(SenderId) then return Text end
                 if #BackendState.FilterWords == 0 then return Text end
-                local Result = Text
-                if #BackendState.FilterPatterns == 0 then
-                    RebuildFilterPatterns()
+
+                local CharMap = {}
+                for i = 1, #Text do
+                    local c = StringSub(Text, i, i)
+                    if c:match("[%a%d]") then
+                        CharMap[#CharMap + 1] = { ch = c:lower(), pos = i }
+                    end
                 end
-                for _, Pattern in BackendState.FilterPatterns do
-                    Result = Result:gsub(Pattern, function(Match)
-                        return string.rep("#", #Match)
-                    end)
+
+                local NormText = ""
+                for _, Entry in CharMap do
+                    NormText = NormText .. Entry.ch
                 end
-                return Result
+
+                local ResultBytes = {}
+                for i = 1, #Text do
+                    ResultBytes[i] = StringSub(Text, i, i)
+                end
+
+                for _, Word in BackendState.FilterWords do
+                    if type(Word) ~= "string" or Word == "" then continue end
+                    local NormWord = Word:lower():gsub("[^%a%d]", "")
+                    if NormWord == "" then continue end
+                    local WLen = #NormWord
+                    local TLen = #NormText
+                    local i = 1
+                    while i <= TLen - WLen + 1 do
+                        if StringSub(NormText, i, i + WLen - 1) == NormWord then
+                            local StartPos = CharMap[i].pos
+                            local EndPos = CharMap[i + WLen - 1].pos
+                            for j = StartPos, EndPos do
+                                ResultBytes[j] = "#"
+                            end
+                            i = i + WLen
+                        else
+                            i = i + 1
+                        end
+                    end
+                end
+
+                return table.concat(ResultBytes)
             end
 
             local function IsViewingChat()
@@ -6789,12 +6825,13 @@ local Library do
                 end
 
                 if Payload.type == "force_update" then
-                    local TargetGameId = tostring(Payload.targetGameId or "")
+                    local FUData = type(Payload.forceUpdate) == "table" and Payload.forceUpdate or Payload
+                    local TargetGameId = tostring(FUData.targetGameId or "")
                     if not DoesUpdateTargetMatch(TargetGameId) then
                         return
                     end
 
-                    local DelaySeconds = tonumber(Payload.delaySeconds) or 5
+                    local DelaySeconds = tonumber(FUData.delaySeconds) or 5
                     if DelaySeconds < 1 then DelaySeconds = 1 end
 
                     Library:MakeGlobalAnnouncement({
@@ -6802,6 +6839,18 @@ local Library do
                         Content = "Force update in " .. tostring(DelaySeconds) .. "s — rejoining...",
                         Time = DelaySeconds
                     })
+
+                    task.spawn(function()
+                        local Announcement = Library.ActiveGlobalAnnouncement
+                        for Remaining = DelaySeconds - 1, 1, -1 do
+                            task.wait(1)
+                            if BackendState.Destroyed then return end
+                            if Library.ActiveGlobalAnnouncement == Announcement
+                                and Announcement and Announcement["Description"] then
+                                Announcement["Description"].Instance.Text = "Force update in " .. Remaining .. "s — rejoining..."
+                            end
+                        end
+                    end)
 
                     task.delay(DelaySeconds, function()
                         if BackendState.Destroyed then return end
@@ -9076,16 +9125,45 @@ local Library do
                     end
                     local Suggestions = {}
                     local QueryLower = StringLower(Query)
-                    if IsLocalAdmin() and (#QueryLower == 0 or StringFind("everyone", QueryLower, 1, true) == 1) then
-                        TableInsert(Suggestions, { username = "everyone", senderId = "everyone", avatar = "", isEveryone = true })
+
+                    -- @everyone: only shown when the user has typed at least "ev" as a prefix
+                    -- (never on a bare @ with empty query)
+                    if IsLocalAdmin()
+                        and #QueryLower >= 1
+                        and StringFind("everyone", QueryLower, 1, true) == 1
+                    then
+                        TableInsert(Suggestions, {
+                            username = "everyone", senderId = "everyone",
+                            avatar = "", isEveryone = true
+                        })
                     end
+
+                    -- Recent chatters first (newest at top, index 1 = most recent)
+                    local Seen = {}
                     for _, Chatter in BackendState.RecentChatters do
                         if #Suggestions >= 6 then break end
                         local UserLower = StringLower(Chatter.username)
                         if QueryLower == "" or StringFind(UserLower, QueryLower, 1, true) == 1 then
                             TableInsert(Suggestions, Chatter)
+                            Seen[Chatter.senderId] = true
                         end
                     end
+
+                    -- If typing a non-empty keyword, fall through to all-known chatters
+                    -- for anyone not already listed
+                    if #QueryLower >= 1 then
+                        for Sid, Chatter in BackendState.AllKnownChatters do
+                            if #Suggestions >= 6 then break end
+                            if not Seen[Sid] then
+                                local UserLower = StringLower(Chatter.username)
+                                if StringFind(UserLower, QueryLower, 1, true) == 1 then
+                                    TableInsert(Suggestions, Chatter)
+                                    Seen[Sid] = true
+                                end
+                            end
+                        end
+                    end
+
                     ShowMentionOverlay(Suggestions)
                 end
 
@@ -9099,10 +9177,12 @@ local Library do
                         local Before = (CursorPos and CursorPos > 0) and StringSub(Text, 1, CursorPos - 1) or Text
                         local After = (CursorPos and CursorPos > 0) and StringSub(Text, CursorPos) or ""
                         local NewBefore = Before:gsub("@[%w_]*$", "@" .. NameText .. " ")
+                        HideMentionOverlay()
+                        -- Set InputFocused immediately so the Enter key handler works right away
+                        BackendState.InputFocused = true
                         InputBox.Text = NewBefore .. After
                         InputBox.CursorPosition = StringLen(NewBefore) + 1
-                        HideMentionOverlay()
-                        task.defer(function() InputBox:CaptureFocus() end)
+                        InputBox:CaptureFocus()
                     end)
                     Row.Button.MouseEnter:Connect(function()
                         Row.Button.BackgroundTransparency = 0.7
@@ -9114,6 +9194,8 @@ local Library do
 
                 Items["Input"].Instance:GetPropertyChangedSignal("Text"):Connect(UpdateMentionOverlay)
                 Items["Input"].Instance:GetPropertyChangedSignal("CursorPosition"):Connect(UpdateMentionOverlay)
+                -- Re-show overlay when user focuses back into the input box
+                Items["Input"].Instance.Focused:Connect(UpdateMentionOverlay)
                 Items["Input"].Instance.FocusLost:Connect(function()
                     task.delay(0.12, HideMentionOverlay)
                 end)
