@@ -317,7 +317,7 @@ local function Signal()
         end
     }
 end
-local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {} }
+local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts, _version = "3.1.0", _searchEntries = {}, Flags = {}, _3dPreviews = {} }
 Library.FormatKeyName = FormatKeyName
 Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, v = nil }
 Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, baseV = nil }
@@ -637,6 +637,15 @@ function Library:Unload()
     end)
 
     pcall(function() self:_disconnectAllConnections() end)
+
+    pcall(function()
+        for _, p in ipairs(self._3dPreviews or {}) do
+            if type(p) == "table" and type(p.Destroy) == "function" then
+                pcall(function() p:Destroy() end)
+            end
+        end
+        self._3dPreviews = {}
+    end)
 
     pcall(function()
         if self._keybindList and self._keybindList.Parent then self._keybindList:Destroy() end
@@ -8901,17 +8910,46 @@ function Library:CreateLibrary(opts)
                                 local srcRoot = getModelRootPart(srcModel)
                                 local dstRoot = getModelRootPart(state.model)
                                 if srcRoot and dstRoot and srcRoot:IsA("BasePart") and dstRoot:IsA("BasePart") then
-                                    for i = 1, #map do
-                                        local pair = map[i]
-                                        local s = pair and pair.src
-                                        local d = pair and pair.dst
-                                        if s and d and s.Parent and d.Parent and d ~= dstRoot then
-                                            local ok = pcall(function()
-                                                local rel = srcRoot.CFrame:ToObjectSpace(s.CFrame)
-                                                d.CFrame = dstRoot.CFrame * rel
-                                            end)
-                                            if not ok then
-                                                -- Ignore any transient mapping errors.
+                                    local ragdolled = false
+                                    pcall(function()
+                                        local hum = srcModel:FindFirstChildOfClass("Humanoid")
+                                        if hum then
+                                            local gs = hum:GetState()
+                                            if gs == Enum.HumanoidStateType.Physics
+                                                or gs == Enum.HumanoidStateType.PlatformStanding
+                                                or gs == Enum.HumanoidStateType.FallingDown
+                                                or gs == Enum.HumanoidStateType.Dead then
+                                                ragdolled = true
+                                            end
+                                        end
+                                    end)
+                                    if not ragdolled then
+                                        local maxRelDist = 0
+                                        for i = 1, math.min(#map, 5) do
+                                            local pair = map[i]
+                                            local s = pair and pair.src
+                                            if s and s.Parent and s:IsA("BasePart") then
+                                                pcall(function()
+                                                    local rel = srcRoot.CFrame:ToObjectSpace(s.CFrame)
+                                                    local d = rel.Position.Magnitude
+                                                    if d > maxRelDist then maxRelDist = d end
+                                                end)
+                                            end
+                                        end
+                                        if maxRelDist > 15 then ragdolled = true end
+                                    end
+                                    if not ragdolled then
+                                        for i = 1, #map do
+                                            local pair = map[i]
+                                            local s = pair and pair.src
+                                            local d = pair and pair.dst
+                                            if s and d and s.Parent and d.Parent and d ~= dstRoot then
+                                                local ok = pcall(function()
+                                                    local rel = srcRoot.CFrame:ToObjectSpace(s.CFrame)
+                                                    d.CFrame = dstRoot.CFrame * rel
+                                                end)
+                                                if not ok then
+                                                end
                                             end
                                         end
                                     end
@@ -9066,6 +9104,8 @@ function Library:CreateLibrary(opts)
                         Camera = cam,
                         WorldModel = wm
                     }
+
+                    table.insert(Library._3dPreviews, Preview)
 
                     function Preview:SetAutoRotate(v)
                         state.autoRotate = (v == true)
