@@ -183,6 +183,7 @@ local Library do
             Directory = "dan",
             Configs = "dan/Configs",
             Assets = "dan/Assets",
+            Cache = "dan/Cache",
         },
 
         Snowing = true,
@@ -728,7 +729,7 @@ local Library do
                 [Property] = Visibility and OldTransparency or 1
             }, true)
 
-            Library:Connect(NewTween.Tween.Completed, function()
+            NewTween.Tween.Completed:Once(function()
                 if not Visibility then 
                     task.wait()
                     Item[Property] = OldTransparency
@@ -939,7 +940,7 @@ local Library do
 
                 RenderStepped = RunService.RenderStepped:Connect(function()
                     MouseLocation = UserInputService:GetMouseLocation()
-                    Items["Tooltip"]:Tween(nil, {Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)})
+                    Items["Tooltip"].Instance.Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)
                 end)
             end)
 
@@ -977,6 +978,7 @@ local Library do
                 return
             end
 
+            Library:RemoveFromTheme(self)
             self.Instance:Destroy()
             self = nil
         end
@@ -1211,6 +1213,10 @@ local Library do
     })
 
     Library.Unload = function(self)
+        pcall(function()
+            if HideContextMenu then HideContextMenu() end
+        end)
+
         for _, Callback in self.CleanupCallbacks do
             self:SafeCall(Callback)
         end
@@ -1256,6 +1262,9 @@ local Library do
         TableInsert(self.Threads, NewThread)
         return NewThread
     end
+
+    -- Allow dead coroutines in Threads to be garbage collected
+    setmetatable(Library.Threads, {__mode = "v"})
     
     Library.SafeCall = function(self, Function, ...)
         local Arguements = { ... }
@@ -1275,21 +1284,18 @@ local Library do
             Event = Event,
             Callback = Callback,
             Name = Name,
-            Connection = nil
+            Connection = Event:Connect(Callback)
         }
-
-        Library:Thread(function()
-            NewConnection.Connection = Event:Connect(Callback)
-        end)
 
         TableInsert(self.Connections, NewConnection)
         return NewConnection
     end
 
     Library.Disconnect = function(self, Name)
-        for _, Connection in self.Connections do 
+        for I, Connection in self.Connections do
             if Connection.Name == Name then
                 Connection.Connection:Disconnect()
+                TableRemove(self.Connections, I)
                 break
             end
         end
@@ -1329,6 +1335,18 @@ local Library do
 
         self.ThemeMap[Item].Properties = nil
         self.ThemeMap[Item] = nil
+
+        self._ThemeRemoveCount = (self._ThemeRemoveCount or 0) + 1
+        if self._ThemeRemoveCount >= 200 then
+            self._ThemeRemoveCount = 0
+            local Compacted = {}
+            for _, Entry in self.ThemeItems do
+                if Entry.Properties then
+                    Compacted[#Compacted + 1] = Entry
+                end
+            end
+            self.ThemeItems = Compacted
+        end
     end
 
     Library.ChangeItemTheme = function(self, Item, Properties)
@@ -1346,6 +1364,9 @@ local Library do
         self.Theme[Theme] = Color
 
         for _, Item in self.ThemeItems do
+            if not Item.Properties then
+                continue
+            end
             for Property, Value in Item.Properties do
                 if type(Value) == "string" and Value == Theme then
                     Item.Item[Property] = Color
@@ -1385,13 +1406,15 @@ local Library do
                     continue
                 end
 
-                if type(Value) == "table" and Value.Key then 
-                    SetFunction(Value)
-                elseif type(Value) == "table" and Value.Color then
-                    SetFunction(Value.Color, Value.Alpha)
-                else
-                    SetFunction(Value)
-                end
+                task.spawn(function()
+                    if type(Value) == "table" and Value.Key then 
+                        SetFunction(Value)
+                    elseif type(Value) == "table" and Value.Color then
+                        SetFunction(Value.Color, Value.Alpha)
+                    else
+                        SetFunction(Value)
+                    end
+                end)
             end
         end)
 
@@ -1424,7 +1447,10 @@ local Library do
                 end
 
                 if Character == "/" or Character == "\\" then
-                    TableInsert(ReturnList, File:sub(Position + 1, StartPosition - 1))
+                    local Name = File:sub(Position + 1, StartPosition - 1)
+                    if Name:sub(1, 1) ~= "_" and not Name:match("^suggestion_seen_") then
+                        TableInsert(ReturnList, Name)
+                    end
                 end
             end
         end
@@ -1432,7 +1458,17 @@ local Library do
         Element:Refresh(ReturnList)
     end
 
-    Library.AutoloadMetaPath = Library.Folders.Configs .. "/_autoload.json"
+    Library.AutoloadMetaPath = Library.Folders.Cache .. "/_autoload.json"
+
+    do
+        local OldPath = Library.Folders.Configs .. "/_autoload.json"
+        if isfile(OldPath) then
+            if not isfile(Library.AutoloadMetaPath) then
+                pcall(function() writefile(Library.AutoloadMetaPath, readfile(OldPath)) end)
+            end
+            pcall(function() delfile(OldPath) end)
+        end
+    end
 
     Library.LoadAutoloadMeta = function(self)
         if isfile(Library.AutoloadMetaPath) then
@@ -6275,6 +6311,16 @@ local Library do
                     TableRemove(BackendState.RecentChatters)
                 end
                 BackendState.AllKnownChatters[Sid] = Entry
+                -- Cap AllKnownChatters at 300 to prevent unbounded growth
+                local KnownCount = 0
+                for _ in BackendState.AllKnownChatters do KnownCount = KnownCount + 1 end
+                if KnownCount > 300 then
+                    local Oldest = nil
+                    for K, _ in BackendState.AllKnownChatters do
+                        if K ~= Sid then Oldest = K break end
+                    end
+                    if Oldest then BackendState.AllKnownChatters[Oldest] = nil end
+                end
             end
 
             local function MessageMentionsLocalUser(Text, SenderIdStr)
@@ -6318,10 +6364,11 @@ local Library do
                     end
                 end
 
-                local NormText = ""
-                for _, Entry in CharMap do
-                    NormText = NormText .. Entry.ch
+                local NormParts = table.create(#CharMap)
+                for i, Entry in CharMap do
+                    NormParts[i] = Entry.ch
                 end
+                local NormText = table.concat(NormParts)
 
                 local ResultBytes = {}
                 for i = 1, #Text do
@@ -6469,7 +6516,7 @@ local Library do
                 for i = 1, 3 do
                     local Dot = Dots[i]
                     local BaseX = 6 + (i - 1) * 8
-                    Library:Thread(function()
+                    task.spawn(function()
                         task.wait((i - 1) * 0.22)
                         while BackendState.DotsAnimRunning do
                             Tween:Create(Dot, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Position = UDim2New(0, BaseX, 0.5, -4)}, false)
@@ -6635,7 +6682,7 @@ local Library do
 
             local function PruneBackendTables()
                 local Now = os.clock()
-                if Now - LastPruneTime < 120 then
+                if Now - LastPruneTime < 30 then
                     return
                 end
                 LastPruneTime = Now
@@ -6729,6 +6776,7 @@ local Library do
             local RenderQueueRunning = false
             local RENDER_BATCH_SIZE = 4
             local RENDER_BATCH_DELAY = 0.06
+            local RENDER_QUEUE_MAX = 50
 
             local function ProcessRenderQueue()
                 if RenderQueueRunning then return end
@@ -6789,6 +6837,9 @@ local Library do
                 end
 
                 TableInsert(RenderQueue, { Data = MessageData, SkipUnread = SkipUnread })
+                while #RenderQueue > RENDER_QUEUE_MAX do
+                    table.remove(RenderQueue, 1)
+                end
                 ProcessRenderQueue()
             end
 
@@ -8248,6 +8299,37 @@ local Library do
                         end
                         Entry.Connections = nil
                     end
+                    if Entry.SenderId and Entry.SenderId ~= "" then
+                        local Sid = Entry.SenderId
+                        local TimeoutIcons = BackendState.TimeoutIconsBySenderId[Sid]
+                        if TimeoutIcons then
+                            local Live = {}
+                            for _, IconRef in TimeoutIcons do
+                                if IconRef and IconRef.Parent then
+                                    Live[#Live + 1] = IconRef
+                                end
+                            end
+                            if #Live > 0 then
+                                BackendState.TimeoutIconsBySenderId[Sid] = Live
+                            else
+                                BackendState.TimeoutIconsBySenderId[Sid] = nil
+                            end
+                        end
+                        local UwuLocks = BackendState.UwuLockIndicatorsBySenderId[Sid]
+                        if UwuLocks then
+                            local Live = {}
+                            for _, LockRef in UwuLocks do
+                                if LockRef and LockRef.Parent then
+                                    Live[#Live + 1] = LockRef
+                                end
+                            end
+                            if #Live > 0 then
+                                BackendState.UwuLockIndicatorsBySenderId[Sid] = Live
+                            else
+                                BackendState.UwuLockIndicatorsBySenderId[Sid] = nil
+                            end
+                        end
+                    end
                     Entry.Bubble:Destroy()
                     local HasVisibleChildren = false
                     for _, Child in Entry.Stack:GetChildren() do
@@ -8314,10 +8396,15 @@ local Library do
                 BackendState.LastTypingSentAt = 0
                 BackendState.TypingThreadRunning = false
                 BackendState.PollRunning = false
+                BackendState.HeartbeatRunning = false
                 BackendState.Polling = false
                 BackendState.DotsAnimRunning = false
                 BackendState.InputFocused = false
                 BackendState.ReplyingTo = nil
+                if BackendState.ActivePoll and BackendState.ActivePoll.ClosePoll then
+                    pcall(BackendState.ActivePoll.ClosePoll)
+                end
+                BackendState.ActivePoll = nil
                 BackendState.MessageFramesById = { }
                 BackendState.RenderedMessageOrder = { }
                 BackendState.RenderedMessageOrderStart = 1
@@ -9079,7 +9166,8 @@ local Library do
                             Bubble = BubbleRow,
                             Stack = StackFrame,
                             Group = GroupFrame,
-                            Connections = BubbleConnections
+                            Connections = BubbleConnections,
+                            SenderId = tostring(MsgSenderId or "")
                         }
                     end
 
@@ -9901,9 +9989,17 @@ local Library do
             local PendingCancelSuggestion = nil
             local DefaultMailIcon = "rbxassetid://136371270317895"
             local ReviewMailIcon = "rbxassetid://93740348829800"
-            local SuggestionSeenCacheFile = Library.Folders.Configs .. "/suggestion_seen_" .. tostring(LocalPlayer.UserId) .. ".json"
+            local SuggestionSeenCacheFile = Library.Folders.Cache .. "/suggestion_seen_" .. tostring(LocalPlayer.UserId) .. ".json"
 
             do
+                local OldPath = Library.Folders.Configs .. "/suggestion_seen_" .. tostring(LocalPlayer.UserId) .. ".json"
+                if isfile(OldPath) then
+                    if not isfile(SuggestionSeenCacheFile) then
+                        pcall(function() writefile(SuggestionSeenCacheFile, readfile(OldPath)) end)
+                    end
+                    pcall(function() delfile(OldPath) end)
+                end
+
                 if isfile(SuggestionSeenCacheFile) then
                     local Cached = JsonDecode(readfile(SuggestionSeenCacheFile))
                     if type(Cached) == "table" then
@@ -11018,7 +11114,7 @@ local Library do
                     local CanCancel = Status == "under_review"
                     local TitleWidthOffset = CanCancel and 94 or 24
 
-                    local IconSize = Status == "rejected" and 22 or 16
+                    local IconSize = 16
                     local StatusIcon = Instances:Create("ImageLabel", {
                         Parent = Row.Instance,
                         Name = "\0",
@@ -11064,17 +11160,24 @@ local Library do
                         ZIndex = 64
                     })  Preview:AddToTheme({TextColor3 = "Text"})
 
+                    local RejectReason = Status == "rejected" and tostring(Entry.rejectReason or "") or ""
+                    local StatusLabel = GetStatusLabel(Status)
+                    if RejectReason ~= "" then
+                        StatusLabel = StatusLabel .. " - " .. RejectReason
+                    end
+
                     local StatusText = Instances:Create("TextLabel", {
                         Parent = Row.Instance,
                         Name = "\0",
                         FontFace = Library.Subfont,
                         TextColor3 = GetStatusColor(Status),
-                        Text = GetStatusLabel(Status),
-                        Position = UDim2New(0, IconId ~= "" and (Status == "rejected" and 40 or 34) or 12, 1, -26),
-                        Size = UDim2New(0, 120, 0, 16),
+                        Text = StatusLabel,
+                        Position = UDim2New(0, IconId ~= "" and 34 or 12, 1, -26),
+                        Size = UDim2New(1, -(IconId ~= "" and 46 or 24), 0, 16),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
                         TextXAlignment = Enum.TextXAlignment.Left,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
                         TextSize = 12,
                         ZIndex = 64
                     })
@@ -11977,12 +12080,10 @@ local Library do
             end
             --]]
             
-            Toggle:Set(Toggle.Default)
-
             Library.SetFlags[Toggle.Flag] = function(Value)
                 Toggle:Set(Value)
             end
-
+            Toggle:Set(Toggle.Default)
             return Toggle 
         end
         
@@ -13974,6 +14075,11 @@ local Library do
             Multi = false,
             Callback = function(Value)
                 ConfigSelected = Value
+                local autoToggle = Library.Elements and Library.Elements["ConfigAutoload"]
+                if autoToggle and autoToggle.Set then
+                    local enabled = Library:IsAutoloadEnabled(ConfigSelected)
+                    autoToggle:Set(enabled)
+                end
             end
         })
 
@@ -13993,6 +14099,9 @@ local Library do
             Default = false,
             Callback = function(Value)
                 AutoloadEnabled = Value
+                if ConfigSelected then
+                    Library:SetAutoload(ConfigSelected, Value)
+                end
             end
         })
 
@@ -14105,19 +14214,39 @@ local Library do
             end
         })
         Library:RefreshConfigsList(ConfigsDropdown)
-        Library:SafeCall(function()
+        task.defer(function()
+            task.wait(1)
             local AutoloadName = Library:GetAutoloadConfig()
             if AutoloadName then
                 local FilePath = Library.Folders.Configs .. "/" .. AutoloadName .. ".json"
                 if isfile(FilePath) then
                     local Success, Error = Library:LoadConfig(readfile(FilePath))
                     if Success then
+                        pcall(function()
+                            ConfigsDropdown:Set(AutoloadName)
+                            local autoToggle = Library.Elements and Library.Elements["ConfigAutoload"]
+                            if autoToggle and autoToggle.Set then
+                                autoToggle:Set(true)
+                            end
+                        end)
                         Library:MakeNotification({
                             Name = "Autoload",
                             Content = "Loaded config " .. AutoloadName .. " automatically",
                             Time = 3
                         })
+                    else
+                        Library:MakeNotification({
+                            Name = "Autoload",
+                            Content = "Failed to autoload config " .. AutoloadName .. ": " .. tostring(Error),
+                            Time = 5
+                        })
                     end
+                else
+                    Library:MakeNotification({
+                        Name = "Autoload",
+                        Content = "Autoload config " .. AutoloadName .. " not found!",
+                        Time = 5
+                    })
                 end
             end
         end)
@@ -14665,4 +14794,20 @@ local Library do
 end
 
 getgenv().Library = Library
+        task.defer(function()
+            task.wait(1)
+            if Library._PendingAutoload then
+                Library:SafeCall(Library._PendingAutoload)
+                Library._PendingAutoload = nil
+            end
+        end)
+
+task.defer(function()
+    task.wait(1)
+    if Library._PendingAutoload then
+        Library:SafeCall(Library._PendingAutoload)
+        Library._PendingAutoload = nil
+    end
+end)
+
 return Library
