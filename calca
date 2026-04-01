@@ -4522,12 +4522,17 @@ function Library:CreateLibrary(opts)
                     local innerPad = 6
                     local searchBox, listFrame, header
                     local itemHeight = 22
+                    local listItemGap = 4
+                    local textService = SRV("TextService")
+                    local optionTextSize = isMobile and 11 or 12
                     local maxVisible = 7
                     local open = false
                     local anim = false
                     local conns = {}
                     local activeIndex = 1
-                    local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti, _clickGate = false }
+                    local searchUpdateVersion = 0
+                    local lastAppliedSearch = nil
+                    local Dropdown = { id = id, _value = default, _values = {}, _options = {}, _filtered = {}, _itemMap = {}, _onOpen = nil, _onClose = nil, _multi = isMulti, _clickGate = false, _emptyLabel = nil }
                     
                     local getMouseGuiPosition
 
@@ -4736,10 +4741,60 @@ function Library:CreateLibrary(opts)
                             conns[i] = nil
                         end
                     end
+                    local function normalizedSearchTerm()
+                        if not (enableSearch and searchBox) then return "" end
+                        local raw = tostring(searchBox.Text or "")
+                        local trimmed = raw:match("^%s*(.-)%s*$") or ""
+                        return trimmed:lower()
+                    end
                     local function source()
-                        return Dropdown._filtered[1] and Dropdown._filtered or Dropdown._options
+                        if normalizedSearchTerm() ~= "" then
+                            return Dropdown._filtered
+                        end
+                        return Dropdown._options
                     end
                     local function clamp(v, lo, hi) if v < lo then return lo elseif v > hi then return hi else return v end end
+                    local function getOptionTextWidth()
+                        local triggerWidth = trigger.AbsoluteSize.X
+                        if triggerWidth <= 0 then
+                            local rootWidth = root.AbsoluteSize.X
+                            triggerWidth = math.max(120, math.floor((rootWidth - 24) * (1 - labelWidth)) - 4)
+                        end
+                        return math.max(72, triggerWidth - (innerPad * 2) - 40)
+                    end
+                    local function measureOptionTextHeight(textValue)
+                        if not isMobile then return itemHeight end
+                        local bounds = textService:GetTextSize(tostring(textValue or ""), optionTextSize, Fonts.Medium, Vector2.new(getOptionTextWidth(), math.huge))
+                        return math.max(itemHeight, bounds.Y + 8)
+                    end
+                    local function layoutOptionText(item, textLabel, displayText)
+                        if not (item and textLabel) then return itemHeight end
+                        local optionHeight = measureOptionTextHeight(displayText)
+                        item.Size = UDim2.new(1,0,0,optionHeight)
+                        if isMobile then
+                            local textHeight = math.max(optionHeight - 8, textService:GetTextSize(tostring(displayText or ""), optionTextSize, Fonts.Medium, Vector2.new(getOptionTextWidth(), math.huge)).Y)
+                            textLabel.Size = UDim2.new(1,-24,0,textHeight)
+                            textLabel.Position = UDim2.fromOffset(22, math.max(0, math.floor((optionHeight - textHeight) * 0.5)))
+                            textLabel.TextWrapped = true
+                            textLabel.TextTruncate = Enum.TextTruncate.None
+                            textLabel.TextYAlignment = Enum.TextYAlignment.Center
+                        else
+                            textLabel.Size = UDim2.new(1,-24,1,0)
+                            textLabel.Position = UDim2.fromOffset(22,0)
+                            textLabel.TextWrapped = false
+                            textLabel.TextTruncate = Enum.TextTruncate.AtEnd
+                            textLabel.TextYAlignment = Enum.TextYAlignment.Center
+                        end
+                        return optionHeight
+                    end
+                    local function getRenderedListHeight()
+                        return Dropdown._visibleListHeight or itemHeight
+                    end
+                    local function getTargetPanelHeight()
+                        local searchH = enableSearch and (24 + innerPad) or 0
+                        local listH = getRenderedListHeight()
+                        return math.max(searchH + listH + innerPad, (innerPad * 2 + itemHeight))
+                    end
                     local function positionPanel(finalH)
                         local rootAbs = root.AbsolutePosition
                         local rootSz = root.AbsoluteSize
@@ -4775,7 +4830,7 @@ function Library:CreateLibrary(opts)
                             y = y + 24 + innerPad
                         end
                         listFrame = Create("ScrollingFrame", {BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(innerPad, y), Size = UDim2.new(1, -innerPad*2, 1, -y - innerPad), CanvasSize = UDim2.fromOffset(0,0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Scrollbar, ZIndex = panel.ZIndex + 1, Parent = panel}, {
-                            Create("UIListLayout", {Padding = UDim.new(0,4), SortOrder = Enum.SortOrder.LayoutOrder})
+                            Create("UIListLayout", {Padding = UDim.new(0,listItemGap), SortOrder = Enum.SortOrder.LayoutOrder})
                         })
                     end
                     local function updateSelection()
@@ -4810,7 +4865,8 @@ function Library:CreateLibrary(opts)
                     end
                     local function renderItems()
                         local lang = Library and Library._translationLang
-                        local doTranslate = (lang and lang ~= "" and lang ~= "en")
+                        local activeQuery = normalizedSearchTerm()
+                        local doTranslate = (lang and lang ~= "" and lang ~= "en" and activeQuery == "")
                         local cache = Library._translationCache or {}
                         Library._translationCache = cache
                         Dropdown._translateGen = (Dropdown._translateGen or 0) + 1
@@ -4820,9 +4876,19 @@ function Library:CreateLibrary(opts)
                         local pending = {}
                         local refs = {}
 
-                        for _, c in ipairs(listFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+                        if Dropdown._emptyLabel and Dropdown._emptyLabel.Parent then
+                            Dropdown._emptyLabel:Destroy()
+                        end
+                        Dropdown._emptyLabel = nil
+                        for _, c in ipairs(listFrame:GetChildren()) do
+                            if c:IsA("TextButton") or c:IsA("TextLabel") then
+                                c:Destroy()
+                            end
+                        end
                         Dropdown._itemMap = {}
                         local src = source()
+                        local visibleCount = math.min(#src, maxVisible)
+                        local visibleHeight = 0
                         for _, val in ipairs(src) do
                             local item = Create("TextButton", {AutoButtonColor = false, BackgroundColor3 = Theme.Button, Size = UDim2.new(1,0,0,itemHeight), Text = "", Parent = listFrame, ZIndex = panel.ZIndex + 2}, {
                                 Create("UICorner", {CornerRadius = UDim.new(0,5)}),
@@ -4847,12 +4913,28 @@ function Library:CreateLibrary(opts)
                                     table.insert(pending, origText)
                                 end
                             end
-                            local text = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,-24,1,0), Position = UDim2.fromOffset(22,0), Text = shownText, Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = item})
+                            local text = Create("TextLabel", {
+                                BackgroundTransparency = 1,
+                                Size = UDim2.new(1,-24,1,0),
+                                Position = UDim2.fromOffset(22,0),
+                                Text = shownText,
+                                Font = Fonts.Medium,
+                                TextSize = optionTextSize,
+                                TextScaled = false,
+                                TextColor3 = Theme.Text,
+                                TextXAlignment = Enum.TextXAlignment.Left,
+                                Parent = item
+                            })
+                            local itemRowHeight = layoutOptionText(item, text, shownText)
+                            if visibleCount > 0 and _ <= visibleCount then
+                                if visibleHeight > 0 then visibleHeight = visibleHeight + listItemGap end
+                                visibleHeight = visibleHeight + itemRowHeight
+                            end
                             if doTranslate then
                                 local k = origText .. "|" .. tostring(lang)
                                 if not cache[k] then
                                     refs[origText] = refs[origText] or {}
-                                    table.insert(refs[origText], text)
+                                    table.insert(refs[origText], {label = text, item = item})
                                 end
                             end
                             item.MouseEnter:Connect(function()
@@ -4890,6 +4972,7 @@ function Library:CreateLibrary(opts)
                             local key = tostring(val)
                             Dropdown._itemMap[key] = {item = item, dot = dot}
                         end
+                        Dropdown._visibleListHeight = (visibleHeight > 0 and visibleHeight) or itemHeight
                         if doTranslate and #pending > 0 then
                             task.spawn(function()
                                 local results = batchTranslate(pending, "en", myLang)
@@ -4908,14 +4991,21 @@ function Library:CreateLibrary(opts)
                                     cache[k] = v
                                     local list = refs[orig]
                                     if list then
-                                        for _, lbl in ipairs(list) do
+                                        for _, ref in ipairs(list) do
+                                            local lbl = ref and ref.label
+                                            local item = ref and ref.item
                                             if lbl and lbl.Parent then
                                                 pcall(function() lbl.Text = v end)
+                                                pcall(function() layoutOptionText(item, lbl, v) end)
                                             end
                                         end
                                     end
                                 end
                                 task.defer(function()
+                                    if open and panel and panel.Parent and panel.Visible then
+                                        local targetH = getTargetPanelHeight()
+                                        positionPanel(targetH)
+                                    end
                                     pcall(refreshLabelFromSelection)
                                 end)
                             end)
@@ -4930,6 +5020,7 @@ function Library:CreateLibrary(opts)
                                 end
                             end
                             local empty = Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,itemHeight), Text = shownEmpty, Font = Fonts.Medium, TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Center, Parent = listFrame, ZIndex = panel.ZIndex + 2})
+                            Dropdown._emptyLabel = empty
                             if doTranslate then
                                 local k = emptyText .. "|" .. myLang
                                 if not cache[k] then
@@ -4953,6 +5044,7 @@ function Library:CreateLibrary(opts)
                                     end)
                                 end
                             end
+                            Dropdown._visibleListHeight = itemHeight
                         end
                         listFrame.CanvasPosition = Vector2.new(0,0)
                     end
@@ -4962,6 +5054,7 @@ function Library:CreateLibrary(opts)
                         local pos
                         if input and (input.UserInputType == Enum.UserInputType.Touch) then
                             pos = Vector2.new(input.Position.X, input.Position.Y)
+                            return pos
                         else
                             pos = UserInputService:GetMouseLocation()
                         end
@@ -4987,21 +5080,40 @@ function Library:CreateLibrary(opts)
                         buildPanel(); Dropdown._filtered = {}; renderItems();
                         panel.Visible = true; panel.ClipsDescendants = true
 
-                        local count = #source()
-                        local searchH = enableSearch and (24 + innerPad) or 0
-                        local listH = math.min(count, maxVisible) * (itemHeight + 4)
-                        local targetH = math.max(searchH + listH + innerPad, (innerPad*2 + itemHeight))
+                        local targetH = getTargetPanelHeight()
                         positionPanel(targetH)
                         panel.Size = UDim2.fromOffset(panel.AbsoluteSize.X, 0)
                         local tw = T(panel,0.18,{Size = UDim2.fromOffset(panel.AbsoluteSize.X, targetH)})
                         tw:Play(); tw.Completed:Connect(function() anim = false if type(Dropdown._onOpen)=="function" then pcall(Dropdown._onOpen) end end)
 
                         if enableSearch and searchBox then
+                            searchUpdateVersion = 0
+                            lastAppliedSearch = nil
                             table.insert(conns, searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-                                local q = (searchBox.Text or ""):lower()
-                                Dropdown._filtered = {}
-                                if q ~= "" then for _, v in ipairs(Dropdown._options) do if tostring(v):lower():find(q,1,true) then table.insert(Dropdown._filtered, v) end end end
-                                activeIndex = 1; renderItems(); ensureVisible(activeIndex)
+                                searchUpdateVersion = searchUpdateVersion + 1
+                                local myVersion = searchUpdateVersion
+                                task.delay(0.09, function()
+                                    if myVersion ~= searchUpdateVersion then return end
+                                    if not (open and panel and panel.Visible and searchBox and searchBox.Parent) then return end
+                                    local q = normalizedSearchTerm()
+                                    if q == lastAppliedSearch then return end
+                                    lastAppliedSearch = q
+                                    Dropdown._filtered = {}
+                                    if q ~= "" then
+                                        for _, v in ipairs(Dropdown._options) do
+                                            if tostring(v):lower():find(q,1,true) then
+                                                table.insert(Dropdown._filtered, v)
+                                            end
+                                        end
+                                    end
+                                    activeIndex = 1
+                                    renderItems()
+                                    if open and panel and panel.Parent and panel.Visible then
+                                        local targetH = getTargetPanelHeight()
+                                        positionPanel(targetH)
+                                    end
+                                    ensureVisible(activeIndex)
+                                end)
                             end))
                         end
 
@@ -5009,12 +5121,32 @@ function Library:CreateLibrary(opts)
                             if not panel.Visible or not open then return end
                             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                                 local pos = getMouseGuiPosition(input)
-                                local p = panel.AbsolutePosition; local ps = panel.AbsoluteSize
-                                local insideP = pos.X >= p.X and pos.X <= p.X+ps.X and pos.Y >= p.Y and pos.Y <= p.Y+ps.Y
-                                local b = trigger.AbsolutePosition; local bs = trigger.AbsoluteSize
-                                local insideB = pos.X >= b.X and pos.X <= b.X+bs.X and pos.Y >= b.Y and pos.Y <= b.Y+bs.Y
                                 local insideC = false
-                                if ctxMenu and ctxMenu.Parent then
+                                local insideP = false
+                                local insideB = false
+
+                                if input.UserInputType == Enum.UserInputType.Touch then
+                                    local ok, guiAtPos = pcall(function()
+                                        return SRV("GuiService"):GetGuiObjectsAtPosition(pos.X, pos.Y)
+                                    end)
+                                    if ok and type(guiAtPos) == "table" then
+                                        for _, guiObj in ipairs(guiAtPos) do
+                                            if guiObj and panel and guiObj:IsDescendantOf(panel) then insideP = true end
+                                            if guiObj and trigger and guiObj:IsDescendantOf(trigger) then insideB = true end
+                                            if guiObj and ctxMenu and ctxMenu.Parent and guiObj:IsDescendantOf(ctxMenu) then insideC = true end
+                                        end
+                                    end
+                                end
+
+                                if not insideP then
+                                    local p = panel.AbsolutePosition; local ps = panel.AbsoluteSize
+                                    insideP = pos.X >= p.X and pos.X <= p.X+ps.X and pos.Y >= p.Y and pos.Y <= p.Y+ps.Y
+                                end
+                                if not insideB then
+                                    local b = trigger.AbsolutePosition; local bs = trigger.AbsoluteSize
+                                    insideB = pos.X >= b.X and pos.X <= b.X+bs.X and pos.Y >= b.Y and pos.Y <= b.Y+bs.Y
+                                end
+                                if not insideC and ctxMenu and ctxMenu.Parent then
                                     local c = ctxMenu.AbsolutePosition; local cs = ctxMenu.AbsoluteSize
                                     insideC = pos.X >= c.X and pos.X <= c.X+cs.X and pos.Y >= c.Y and pos.Y <= c.Y+cs.Y
                                 end
