@@ -8911,33 +8911,19 @@ function Library:CreateLibrary(opts)
                                 local dstRoot = getModelRootPart(state.model)
                                 if srcRoot and dstRoot and srcRoot:IsA("BasePart") and dstRoot:IsA("BasePart") then
                                     local ragdolled = false
-                                    pcall(function()
-                                        local hum = srcModel:FindFirstChildOfClass("Humanoid")
-                                        if hum then
-                                            local gs = hum:GetState()
-                                            if gs == Enum.HumanoidStateType.Physics
-                                                or gs == Enum.HumanoidStateType.PlatformStanding
-                                                or gs == Enum.HumanoidStateType.FallingDown
-                                                or gs == Enum.HumanoidStateType.Dead then
-                                                ragdolled = true
-                                            end
+                                    local maxRelDist = 0
+                                    for i = 1, math.min(#map, 5) do
+                                        local pair = map[i]
+                                        local s = pair and pair.src
+                                        if s and s.Parent and s:IsA("BasePart") then
+                                            pcall(function()
+                                                local rel = srcRoot.CFrame:ToObjectSpace(s.CFrame)
+                                                local d = rel.Position.Magnitude
+                                                if d > maxRelDist then maxRelDist = d end
+                                            end)
                                         end
-                                    end)
-                                    if not ragdolled then
-                                        local maxRelDist = 0
-                                        for i = 1, math.min(#map, 5) do
-                                            local pair = map[i]
-                                            local s = pair and pair.src
-                                            if s and s.Parent and s:IsA("BasePart") then
-                                                pcall(function()
-                                                    local rel = srcRoot.CFrame:ToObjectSpace(s.CFrame)
-                                                    local d = rel.Position.Magnitude
-                                                    if d > maxRelDist then maxRelDist = d end
-                                                end)
-                                            end
-                                        end
-                                        if maxRelDist > 15 then ragdolled = true end
                                     end
+                                    if maxRelDist > 15 then ragdolled = true end
                                     if not ragdolled then
                                         for i = 1, #map do
                                             local pair = map[i]
