@@ -3438,6 +3438,558 @@ local Library do
         end)
     end
 
+    -- Poll UI handler
+    Library.MakePollNotification = function(self, PollData)
+        PollData = PollData or {}
+
+        if self.ActivePollNotification and self.ActivePollNotification.Notification then
+            pcall(function()
+                self.ActivePollNotification.Notification:Clean()
+            end)
+            self.ActivePollNotification = nil
+        end
+
+        local PollId = PollData.id or ""
+        local Title = tostring(PollData.title or "Poll")
+        local Options = PollData.options or {}
+        local TimerMinutes = tonumber(PollData.timerMinutes) or 1
+        local EndsAt = tonumber(PollData.endsAt) or 0
+        local Voted = false
+
+        local Items = {} do
+            Items["Notification"] = Instances:Create("Frame", {
+                Parent = self.AnnouncementHolder.Instance,
+                Name = "\0",
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
+                AnchorPoint = Vector2New(0.5, 0),
+                Position = UDim2New(0.5, 0, 0, -300),
+                Size = UDim2New(1, -24, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundColor3 = FromRGB(17, 16, 20),
+                ClipsDescendants = true,
+                ZIndex = 200
+            })  Items["Notification"]:AddToTheme({BackgroundColor3 = "Background"})
+
+            Instances:Create("UISizeConstraint", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                MaxSize = Vector2New(480, 500),
+                MinSize = Vector2New(260, 0)
+            })
+
+            Instances:Create("UIPadding", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                PaddingTop = UDimNew(0, 14),
+                PaddingBottom = UDimNew(0, 14),
+                PaddingRight = UDimNew(0, 14),
+                PaddingLeft = UDimNew(0, 14)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 8)
+            })
+
+            Items["Stroke"] = Instances:Create("UIStroke", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                Color = FromRGB(36, 33, 42),
+                Transparency = 0.08,
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })  Items["Stroke"]:AddToTheme({Color = "Border"})
+
+            local Layout = InstanceNew("UIListLayout")
+            Layout.FillDirection = Enum.FillDirection.Vertical
+            Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+            Layout.SortOrder = Enum.SortOrder.LayoutOrder
+            Layout.Padding = UDimNew(0, 8)
+            Layout.Parent = Items["Notification"].Instance
+
+            Items["Badge"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(120, 180, 255),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = "POLL",
+                Size = UDim2New(1, 0, 0, 14),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                TextSize = 13,
+                ZIndex = 201,
+                LayoutOrder = 1
+            })
+
+            Items["Title"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = Title,
+                Size = UDim2New(1, 0, 0, 20),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                TextSize = 20,
+                ZIndex = 201,
+                LayoutOrder = 2
+            })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["Timer"] = Instances:Create("TextLabel", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Subfont,
+                TextColor3 = FromRGB(180, 180, 180),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = TimerMinutes .. "m remaining",
+                Size = UDim2New(1, 0, 0, 14),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                TextSize = 12,
+                ZIndex = 201,
+                LayoutOrder = 3
+            })
+
+            Items["OptionsHolder"] = Instances:Create("Frame", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                BackgroundTransparency = 1,
+                Size = UDim2New(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BorderSizePixel = 0,
+                ZIndex = 201,
+                LayoutOrder = 4
+            })
+
+            local OptionsLayout = InstanceNew("UIListLayout")
+            OptionsLayout.FillDirection = Enum.FillDirection.Vertical
+            OptionsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+            OptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            OptionsLayout.Padding = UDimNew(0, 6)
+            OptionsLayout.Parent = Items["OptionsHolder"].Instance
+
+            Items["OptionButtons"] = {}
+            Items["OptionVoteLabels"] = {}
+            Items["OptionBars"] = {}
+
+            for I, Opt in ipairs(Options) do
+                local OptionFrame = Instances:Create("Frame", {
+                    Parent = Items["OptionsHolder"].Instance,
+                    Name = "\0",
+                    BackgroundColor3 = FromRGB(35, 33, 42),
+                    Size = UDim2New(1, 0, 0, 36),
+                    BorderSizePixel = 0,
+                    ClipsDescendants = true,
+                    ZIndex = 202,
+                    LayoutOrder = I
+                })  OptionFrame:AddToTheme({BackgroundColor3 = "Element"})
+
+                Instances:Create("UICorner", {
+                    Parent = OptionFrame.Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                local BarFill = Instances:Create("Frame", {
+                    Parent = OptionFrame.Instance,
+                    Name = "\0",
+                    BackgroundColor3 = Library.Theme.Accent,
+                    BackgroundTransparency = 0.7,
+                    Size = UDim2New(0, 0, 1, 0),
+                    BorderSizePixel = 0,
+                    ZIndex = 203
+                })
+
+                Instances:Create("UICorner", {
+                    Parent = BarFill.Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                local OptionButton = Instances:Create("TextButton", {
+                    Parent = OptionFrame.Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    Text = "  " .. tostring(Opt.text or Opt),
+                    Size = UDim2New(1, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    AutoButtonColor = false,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextSize = 14,
+                    ZIndex = 204
+                })  OptionButton:AddToTheme({TextColor3 = "Text"})
+
+                local VoteLabel = Instances:Create("TextLabel", {
+                    Parent = OptionFrame.Instance,
+                    Name = "\0",
+                    FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(180, 180, 180),
+                    Text = "",
+                    Size = UDim2New(0, 50, 1, 0),
+                    Position = UDim2New(1, -55, 0, 0),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    TextXAlignment = Enum.TextXAlignment.Right,
+                    TextSize = 12,
+                    ZIndex = 204
+                })
+
+                Items["OptionButtons"][I] = OptionButton
+                Items["OptionVoteLabels"][I] = VoteLabel
+                Items["OptionBars"][I] = BarFill
+
+                OptionButton.Instance.MouseButton1Click:Connect(function()
+                    if Voted then return end
+                    Voted = true
+
+                    pcall(function()
+                        local Url = Library.GlobalChat.HttpUrl .. "/poll/vote"
+                        RequestFunction({
+                            Url = Url,
+                            Method = "POST",
+                            Headers = {
+                                ["Content-Type"] = "application/json",
+                                ["Authorization"] = "Bearer " .. Library.GlobalChat.Token
+                            },
+                            Body = JsonEncode({
+                                senderId = tostring(LocalPlayer.UserId),
+                                optionIndex = I - 1
+                            })
+                        })
+                    end)
+
+                    for J, Btn in ipairs(Items["OptionButtons"]) do
+                        Btn.Instance.TextTransparency = (J == I) and 0 or 0.5
+                    end
+                end)
+            end
+
+            Items["CloseButton"] = Instances:Create("TextButton", {
+                Parent = Items["Notification"].Instance,
+                Name = "\0",
+                FontFace = Library.Subfont,
+                TextColor3 = FromRGB(255, 255, 255),
+                Text = "Close",
+                Size = UDim2New(1, 0, 0, 32),
+                BorderSizePixel = 0,
+                AutoButtonColor = false,
+                BackgroundColor3 = FromRGB(45, 45, 55),
+                TextSize = 14,
+                ZIndex = 202,
+                LayoutOrder = 5
+            })  Items["CloseButton"]:AddToTheme({BackgroundColor3 = "Element"})
+
+            Instances:Create("UICorner", {
+                Parent = Items["CloseButton"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 6)
+            })
+        end
+
+        local function UpdatePollVotes(PollUpdate)
+            local Opts = PollUpdate.options or {}
+            local Total = tonumber(PollUpdate.totalVotes) or 0
+
+            for I, Opt in ipairs(Opts) do
+                local Votes = tonumber(Opt.votes) or 0
+                local Pct = Total > 0 and MathFloor((Votes / Total) * 100) or 0
+
+                if Items["OptionVoteLabels"][I] then
+                    Items["OptionVoteLabels"][I].Instance.Text = Votes .. " (" .. Pct .. "%)"
+                end
+
+                if Items["OptionBars"][I] then
+                    Tween:Create(Items["OptionBars"][I].Instance, nil, {Size = UDim2New(Pct / 100, 0, 1, 0)}, true)
+                end
+            end
+        end
+
+        local function ClosePoll(Instant)
+            if Instant then
+                if self.ActivePollNotification and self.ActivePollNotification.Notification == Items["Notification"] then
+                    self.ActivePollNotification = nil
+                end
+                Items["Notification"]:Clean()
+                return
+            end
+
+            Items["Stroke"]:Tween(nil, {Transparency = 1})
+            local SlideOut = TweenService:Create(Items["Notification"].Instance, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Position = UDim2New(0.5, 0, 0, -300)
+            })
+            SlideOut:Play()
+            task.wait(0.32)
+            if self.ActivePollNotification and self.ActivePollNotification.Notification == Items["Notification"] then
+                self.ActivePollNotification = nil
+            end
+            Items["Notification"]:Clean()
+        end
+
+        Items["CloseButton"].Instance.MouseButton1Click:Connect(function()
+            ClosePoll(false)
+        end)
+
+        self.ActivePollNotification = {
+            Notification = Items["Notification"],
+            PollId = PollId,
+            UpdateVotes = UpdatePollVotes,
+            Close = ClosePoll
+        }
+
+        Library:Thread(function()
+            Items["Stroke"]:Tween(nil, {Transparency = 0.08})
+            local SlideIn = TweenService:Create(Items["Notification"].Instance, TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                Position = UDim2New(0.5, 0, 0, 18)
+            })
+            SlideIn:Play()
+        end)
+    end
+
+    -- Force Update handler
+    Library.HandleForceUpdate = function(self, ForceData)
+        ForceData = ForceData or {}
+        local TargetGameId = tostring(ForceData.targetGameId or "")
+        local DelaySeconds = tonumber(ForceData.delaySeconds) or 5
+
+        if not DoesUpdateTargetMatch(TargetGameId) then
+            return
+        end
+
+        Library:MakeNotification({
+            Name = "Force Update",
+            Content = "Rejoining in " .. DelaySeconds .. " seconds...",
+            Time = DelaySeconds + 1
+        })
+
+        task.delay(DelaySeconds, function()
+            pcall(function()
+                QueueUpdateRejoinScript()
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end)
+        end)
+    end
+
+    -- Game Kick handler
+    Library.HandleGameKick = function(self, KickData)
+        KickData = KickData or {}
+        local TargetSenderId = tostring(KickData.targetSenderId or "")
+        local Reason = tostring(KickData.reason or "No reason provided.")
+
+        if TargetSenderId ~= tostring(LocalPlayer.UserId) then
+            return
+        end
+
+        Library:MakeNotification({
+            Name = "Game Kick",
+            Content = "You have been kicked: " .. Reason,
+            Time = 5
+        })
+
+        task.delay(2, function()
+            pcall(function()
+                LocalPlayer:Kick("Kicked from game: " .. Reason)
+            end)
+        end)
+    end
+
+    -- WebSocket connection handler
+    Library.ConnectGlobalChat = function(self)
+        if not WebSocketFunction then
+            return
+        end
+
+        if not self.GlobalChat or not self.GlobalChat.AutoConnect then
+            return
+        end
+
+        local GC = self.GlobalChat
+        local Connected = false
+        local Socket = nil
+        local PingThread = nil
+        local Destroyed = false
+
+        local function GetHwid()
+            local ok, result = pcall(function()
+                if gethwid then return gethwid() end
+                if getexecutorhwid then return getexecutorhwid() end
+                if get_hwid then return get_hwid() end
+                return ""
+            end)
+            return ok and tostring(result or "") or ""
+        end
+
+        local function BuildWsUrl()
+            local Base = GC.WsUrl
+            local Params = {
+                "token=" .. HttpService:UrlEncode(GC.Token),
+                "senderId=" .. HttpService:UrlEncode(tostring(LocalPlayer.UserId)),
+                "username=" .. HttpService:UrlEncode(tostring(LocalPlayer.Name)),
+                "clientId=" .. HttpService:UrlEncode(HttpService:GenerateGUID(false)),
+                "gameName=" .. HttpService:UrlEncode(tostring(game.Name or "")),
+                "placeId=" .. HttpService:UrlEncode(tostring(game.PlaceId)),
+                "joinedAt=" .. HttpService:UrlEncode(tostring(MathFloor(os.time()))),
+                "hwid=" .. HttpService:UrlEncode(GetHwid())
+            }
+            return Base .. "?" .. TableConcat(Params, "&")
+        end
+
+        local function HandlePacket(Packet)
+            local PacketType = Packet.type
+
+            if PacketType == "history" or PacketType == "stats" then
+                -- Update connected user count (available for other code to read)
+                self.GlobalChat.ConnectedUsers = Packet.connectedUsers or 0
+
+            elseif PacketType == "announcement" then
+                local Ann = Packet.announcement or {}
+                self:MakeGlobalAnnouncement({
+                    Name = Ann.title or "ExpressHub",
+                    Content = Ann.content or "",
+                    Time = Ann.duration or 7
+                })
+
+            elseif PacketType == "update_notify" then
+                local Upd = Packet.updateNotify or {}
+                local TargetGameId = tostring(Upd.targetGameId or "")
+                if DoesUpdateTargetMatch(TargetGameId) then
+                    self:MakeUpdateNotification({
+                        Content = Upd.content or ""
+                    })
+                end
+
+            elseif PacketType == "poll_start" then
+                local Poll = Packet.poll or {}
+                self:MakePollNotification(Poll)
+
+            elseif PacketType == "poll_update" then
+                local Poll = Packet.poll or {}
+                if self.ActivePollNotification and self.ActivePollNotification.PollId == Poll.id then
+                    pcall(function()
+                        self.ActivePollNotification.UpdateVotes(Poll)
+                    end)
+                end
+
+            elseif PacketType == "poll_end" then
+                local Poll = Packet.poll or {}
+                if self.ActivePollNotification and self.ActivePollNotification.PollId == Poll.id then
+                    pcall(function()
+                        self.ActivePollNotification.UpdateVotes(Poll)
+                    end)
+                    task.delay(8, function()
+                        if self.ActivePollNotification and self.ActivePollNotification.PollId == Poll.id then
+                            pcall(function()
+                                self.ActivePollNotification.Close(false)
+                            end)
+                        end
+                    end)
+                end
+
+            elseif PacketType == "poll_close" then
+                if self.ActivePollNotification then
+                    pcall(function()
+                        self.ActivePollNotification.Close(false)
+                    end)
+                end
+
+            elseif PacketType == "force_update" then
+                self:HandleForceUpdate(Packet.forceUpdate or {})
+
+            elseif PacketType == "game_kick" then
+                self:HandleGameKick(Packet.gameKick or {})
+
+            elseif PacketType == "hwid_ban" then
+                pcall(function()
+                    LocalPlayer:Kick("You are HWID banned: " .. tostring(Packet.reason or ""))
+                end)
+            end
+        end
+
+        local function Connect()
+            if Destroyed then return end
+
+            pcall(function()
+                if Socket then
+                    pcall(function() Socket:Close() end)
+                    Socket = nil
+                end
+            end)
+
+            Connected = false
+
+            local Success, Ws = pcall(function()
+                return WebSocketFunction(BuildWsUrl())
+            end)
+
+            if not Success or not Ws then
+                task.delay(GC.RetryDelay, Connect)
+                return
+            end
+
+            Socket = Ws
+            Connected = true
+
+            -- Heartbeat ping
+            if PingThread then
+                pcall(function()
+                    task.cancel(PingThread)
+                end)
+            end
+
+            PingThread = task.spawn(function()
+                while Connected and not Destroyed do
+                    task.wait(GC.PresenceInterval)
+                    if Connected and Socket then
+                        pcall(function()
+                            Socket:Send(JsonEncode({type = "ping"}))
+                        end)
+                    end
+                end
+            end)
+
+            Socket.OnMessage:Connect(function(Raw)
+                local Packet = JsonDecode(Raw)
+                if Packet and type(Packet) == "table" then
+                    pcall(HandlePacket, Packet)
+                end
+            end)
+
+            Socket.OnClose:Connect(function()
+                Connected = false
+                Socket = nil
+                if not Destroyed then
+                    task.delay(GC.RetryDelay, Connect)
+                end
+            end)
+        end
+
+        -- Store cleanup reference
+        TableInsert(self.CleanupCallbacks, function()
+            Destroyed = true
+            Connected = false
+            if PingThread then
+                pcall(function() task.cancel(PingThread) end)
+            end
+            if Socket then
+                pcall(function() Socket:Close() end)
+                Socket = nil
+            end
+        end)
+
+        Library:Thread(function()
+            Connect()
+        end)
+    end
+
     do -- Components
         Library.MakeWindow = function(self, Data)
             Data = Data or { }
@@ -4052,6 +4604,12 @@ local Library do
 
             if Data.HomeTab ~= false then
                 Library:CreateHomeTab(result, Data.DiscordLink or "discord.gg/expresshub")
+            end
+
+            -- Auto-connect to GlobalChat WebSocket
+            if Library.GlobalChat and Library.GlobalChat.AutoConnect and not Library._GlobalChatConnected then
+                Library._GlobalChatConnected = true
+                Library:ConnectGlobalChat()
             end
 
             return result
