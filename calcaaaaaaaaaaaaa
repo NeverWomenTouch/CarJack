@@ -3423,7 +3423,6 @@ local Library do
                 TeleportService:Teleport(game.PlaceId, LocalPlayer)
             end)
         end)
-
         Library:Thread(function()
             for _, Key in next, {"Notification", "LogHolder", "RejoinButton", "CloseButton"} do
                 Items[Key]:Tween(nil, {BackgroundTransparency = 0})
@@ -3437,8 +3436,6 @@ local Library do
             SlideIn:Play()
         end)
     end
-
-    -- WebSocket connection handler
     Library.ConnectGlobalChat = function(self)
         if not WebSocketFunction then
             return
@@ -3486,9 +3483,8 @@ local Library do
                 self.GlobalChat.ConnectedUsers = Packet.connectedUsers or 0
                 return
             end
-
-            -- Legacy hwidBan format (on connect)
             if type(Packet.hwidBan) == "table" and Packet.hwidBan.banned then
+                Destroyed = true
                 task.defer(function()
                     pcall(function()
                         LocalPlayer:Kick(tostring(Packet.hwidBan.message or "Banned From ExpressHub"))
@@ -3496,12 +3492,11 @@ local Library do
                 end)
                 return
             end
-
-            -- New hwid_ban format (broadcast mid-session)
             if PacketType == "hwid_ban" and Packet.banned then
                 local TargetSenderId = tostring(Packet.targetSenderId or "")
                 local LocalSenderId = tostring(LocalPlayer.UserId or "")
-                if TargetSenderId ~= "" and TargetSenderId == LocalSenderId then
+                if TargetSenderId == "" or TargetSenderId == LocalSenderId then
+                    Destroyed = true
                     task.defer(function()
                         pcall(function()
                             LocalPlayer:Kick(tostring(Packet.message or "Banned From ExpressHub"))
@@ -4160,28 +4155,21 @@ local Library do
                     Socket = nil
                 end
             end)
-
             Connected = false
-
             local Success, Ws = pcall(function()
                 return WebSocketFunction(BuildWsUrl())
             end)
-
             if not Success or not Ws then
                 task.delay(GC.RetryDelay, Connect)
                 return
             end
-
             Socket = Ws
             Connected = true
-
-            -- Heartbeat ping
             if PingThread then
                 pcall(function()
                     task.cancel(PingThread)
                 end)
             end
-
             PingThread = task.spawn(function()
                 while Connected and not Destroyed do
                     task.wait(GC.PresenceInterval)
@@ -4192,14 +4180,12 @@ local Library do
                     end
                 end
             end)
-
             Socket.OnMessage:Connect(function(Raw)
                 local Packet = JsonDecode(Raw)
                 if Packet and type(Packet) == "table" then
                     pcall(HandlePacket, Packet)
                 end
             end)
-
             Socket.OnClose:Connect(function()
                 Connected = false
                 Socket = nil
@@ -4208,8 +4194,6 @@ local Library do
                 end
             end)
         end
-
-        -- Store cleanup reference
         TableInsert(self.CleanupCallbacks, function()
             Destroyed = true
             Connected = false
@@ -4574,22 +4558,17 @@ local Library do
 
                 Window.Items = Items 
             end
-
             local SnowFlakes = {}
             local MaxSnow = 100
             local Snowing = false
-            
             local SpawnDelay = 0.05 -- secs
             local Frame = Items["MainFrame"].Instance
-            
             function Window:CreateFlake()
                 if not Snowing or #SnowFlakes >= MaxSnow then
                     return
                 end
-            
                 local Flake = InstanceNew("Frame")
                 local Size = MathRandom(2, 4)
-            
                 Flake.Size = UDim2FromOffset(Size, Size)
                 Flake.Position = UDim2FromOffset(
                     MathRandom(0, Frame.AbsoluteSize.X),
@@ -4600,7 +4579,6 @@ local Library do
                 Flake.BorderSizePixel = 0
                 Flake.ZIndex = 9999
                 Flake.Parent = Frame
-            
                 local Duration = MathRandom(2, 15)
                 local EndY = Frame.AbsoluteSize.Y + 10
             
@@ -4834,16 +4812,11 @@ local Library do
                     end
                 end
             end)
-
             Window:SetOpen(true)
-
             local result = setmetatable(Window, self)
-
             if Data.HomeTab ~= false then
                 Library:CreateHomeTab(result, Data.DiscordLink or "discord.gg/expresshub")
             end
-
-            -- Auto-connect to GlobalChat WebSocket
             if Library.GlobalChat and Library.GlobalChat.AutoConnect and not Library._GlobalChatConnected then
                 Library._GlobalChatConnected = true
                 Library:ConnectGlobalChat()
