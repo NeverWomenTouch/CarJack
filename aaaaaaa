@@ -8101,10 +8101,17 @@ function Library:CreateLibrary(opts)
                         HealthBar = false,
                         ArmorBar = false,
                         Skeleton = false,
-                        Color = Theme.Accent,
-                        _armorValueSet = false,
-                        ArmorValue = 0,
-                        ArmorMaxValue = 100
+                        Color = Theme.Accent
+                    }
+
+                    local armorState = {
+                        valueSet = false,
+                        value = 0,
+                        maxValue = 100,
+                        valuePath = nil,
+                        maxValuePath = nil,
+                        valueCallback = nil,
+                        _instanceMax = nil
                     }
 
                     local function safeRemove(obj)
@@ -8906,6 +8913,13 @@ function Library:CreateLibrary(opts)
                         local absSize = viewport.AbsoluteSize
                         if absSize.X < 20 or absSize.Y < 20 then hideDrawings(); return end
 
+                        local vpAbsPos = viewport.AbsolutePosition
+                        local vpAbsSize = viewport.AbsoluteSize
+                        local screenSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+                        if vpAbsPos.X + vpAbsSize.X < 0 or vpAbsPos.Y + vpAbsSize.Y < 0 or vpAbsPos.X > screenSize.X or vpAbsPos.Y > screenSize.Y then
+                            hideDrawings(); return
+                        end
+
                         if not state.model or not state.model.Parent then
                             scheduleRebuild()
                         end
@@ -9061,26 +9075,26 @@ function Library:CreateLibrary(opts)
 
                         if config.ArmorBar and drawings.armor and drawings.armorOutline then
                             local armorPerc = 0
-                            if config.ArmorValueCallback and type(config.ArmorValueCallback) == "function" then
-                                local okCb, cbVal, cbMax = pcall(config.ArmorValueCallback)
+                            if armorState.valueCallback and type(armorState.valueCallback) == "function" then
+                                local okCb, cbVal, cbMax = pcall(armorState.valueCallback)
                                 if okCb then
                                     local av = tonumber(cbVal) or 0
                                     local am = tonumber(cbMax) or 100
                                     armorPerc = math.clamp(av / math.max(am, 1), 0, 1)
                                 end
-                            elseif config.ArmorValuePath and type(config.ArmorValuePath) == "string" and config.ArmorValuePath ~= "" then
+                            elseif armorState.valuePath and type(armorState.valuePath) == "string" and armorState.valuePath ~= "" then
                                 local okPath, pathVal = pcall(function()
                                     local obj = game
-                                    for seg in string.gmatch(config.ArmorValuePath, "[^%.]+") do
+                                    for seg in string.gmatch(armorState.valuePath, "[^%.]+") do
                                         obj = obj[seg]
                                     end
                                     return tonumber(obj.Value or obj)
                                 end)
                                 local maxVal = 100
-                                if config.ArmorMaxValuePath and type(config.ArmorMaxValuePath) == "string" and config.ArmorMaxValuePath ~= "" then
+                                if armorState.maxValuePath and type(armorState.maxValuePath) == "string" and armorState.maxValuePath ~= "" then
                                     local okM, mVal = pcall(function()
                                         local obj = game
-                                        for seg in string.gmatch(config.ArmorMaxValuePath, "[^%.]+") do
+                                        for seg in string.gmatch(armorState.maxValuePath, "[^%.]+") do
                                             obj = obj[seg]
                                         end
                                         return tonumber(obj.Value or obj)
@@ -9090,9 +9104,9 @@ function Library:CreateLibrary(opts)
                                 if okPath and pathVal then
                                     armorPerc = math.clamp(pathVal / math.max(maxVal, 1), 0, 1)
                                 end
-                            elseif config._armorValueSet then
-                                local av = tonumber(config.ArmorValue) or 0
-                                local am = tonumber(config.ArmorMaxValue) or 100
+                            elseif armorState.valueSet then
+                                local av = tonumber(armorState.value) or 0
+                                local am = tonumber(armorState.maxValue) or 100
                                 armorPerc = math.clamp(av / math.max(am, 1), 0, 1)
                             else
                                 local armorFlag = Library.Flags and Library.Flags["ArmorBarValue"]
@@ -9221,36 +9235,36 @@ function Library:CreateLibrary(opts)
                     end
 
                     function Preview:SetArmorValue(value, maxValue)
-                        config._armorValueSet = true
-                        config.ArmorValue = tonumber(value) or 0
-                        config.ArmorMaxValue = tonumber(maxValue) or 100
+                        armorState.valueSet = true
+                        armorState.value = tonumber(value) or 0
+                        armorState.maxValue = tonumber(maxValue) or 100
                     end
 
                     function Preview:SetArmorPath(valuePath, maxValuePath)
-                        config.ArmorValuePath = (type(valuePath) == "string" and valuePath ~= "") and valuePath or nil
-                        config.ArmorMaxValuePath = (type(maxValuePath) == "string" and maxValuePath ~= "") and maxValuePath or nil
+                        armorState.valuePath = (type(valuePath) == "string" and valuePath ~= "") and valuePath or nil
+                        armorState.maxValuePath = (type(maxValuePath) == "string" and maxValuePath ~= "") and maxValuePath or nil
                     end
 
                     function Preview:SetArmorCallback(fn)
-                        config.ArmorValueCallback = (type(fn) == "function") and fn or nil
+                        armorState.valueCallback = (type(fn) == "function") and fn or nil
                     end
 
                     function Preview:SetArmorInstance(valueObject, maxValueObject)
                         if typeof(valueObject) ~= "Instance" then return end
-                        config.ArmorValueCallback = function()
+                        armorState.valueCallback = function()
                             local cur = 0
                             pcall(function() cur = tonumber(valueObject.Value) or 0 end)
                             local mx = 100
                             if maxValueObject and typeof(maxValueObject) == "Instance" then
                                 pcall(function() mx = tonumber(maxValueObject.Value) or 100 end)
                             else
-                                mx = math.max(cur, config._armorInstanceMax or cur)
-                                config._armorInstanceMax = mx
+                                mx = math.max(cur, armorState._instanceMax or cur)
+                                armorState._instanceMax = mx
                             end
                             return cur, mx
                         end
                         pcall(function()
-                            config._armorInstanceMax = tonumber(valueObject.Value) or 100
+                            armorState._instanceMax = tonumber(valueObject.Value) or 100
                         end)
                     end
 
