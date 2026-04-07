@@ -8034,7 +8034,7 @@ function Library:CreateLibrary(opts)
                     }, {
                         Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
                         Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.35}),
-                        Create("UIPadding", {PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})
+                        Create("UIPadding", {PaddingLeft = UDim.new(0, 18), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)})
                     })
 
                     local header = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Parent = row})
@@ -8102,11 +8102,9 @@ function Library:CreateLibrary(opts)
                         ArmorBar = false,
                         Skeleton = false,
                         Color = Theme.Accent,
-                        ArmorValue = nil,
-                        ArmorMaxValue = nil,
-                        ArmorValuePath = nil,
-                        ArmorMaxValuePath = nil,
-                        ArmorValueCallback = nil
+                        _armorValueSet = false,
+                        ArmorValue = 0,
+                        ArmorMaxValue = 100
                     }
 
                     local function safeRemove(obj)
@@ -9063,8 +9061,6 @@ function Library:CreateLibrary(opts)
 
                         if config.ArmorBar and drawings.armor and drawings.armorOutline then
                             local armorPerc = 0
-                            local armorFlag = Library.Flags and Library.Flags["ArmorBarValue"]
-                            local armorMaxFlag = Library.Flags and Library.Flags["ArmorBarMaxValue"]
                             if config.ArmorValueCallback and type(config.ArmorValueCallback) == "function" then
                                 local okCb, cbVal, cbMax = pcall(config.ArmorValueCallback)
                                 if okCb then
@@ -9094,14 +9090,18 @@ function Library:CreateLibrary(opts)
                                 if okPath and pathVal then
                                     armorPerc = math.clamp(pathVal / math.max(maxVal, 1), 0, 1)
                                 end
-                            elseif config.ArmorValue ~= nil then
+                            elseif config._armorValueSet then
                                 local av = tonumber(config.ArmorValue) or 0
                                 local am = tonumber(config.ArmorMaxValue) or 100
                                 armorPerc = math.clamp(av / math.max(am, 1), 0, 1)
-                            elseif armorFlag ~= nil then
-                                local av = tonumber(armorFlag) or 0
-                                local am = tonumber(armorMaxFlag) or 100
-                                armorPerc = math.clamp(av / math.max(am, 1), 0, 1)
+                            else
+                                local armorFlag = Library.Flags and Library.Flags["ArmorBarValue"]
+                                local armorMaxFlag = Library.Flags and Library.Flags["ArmorBarMaxValue"]
+                                if armorFlag ~= nil then
+                                    local av = tonumber(armorFlag) or 0
+                                    local am = tonumber(armorMaxFlag) or 100
+                                    armorPerc = math.clamp(av / math.max(am, 1), 0, 1)
+                                end
                             end
 
                             local hpBarX = x - 6
@@ -9221,6 +9221,7 @@ function Library:CreateLibrary(opts)
                     end
 
                     function Preview:SetArmorValue(value, maxValue)
+                        config._armorValueSet = true
                         config.ArmorValue = tonumber(value) or 0
                         config.ArmorMaxValue = tonumber(maxValue) or 100
                     end
