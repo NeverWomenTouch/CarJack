@@ -9021,11 +9021,21 @@ function Library:CreateLibrary(opts)
                         local vpRight = drawBase.X + absSize.X
                         local vpBottom = drawBase.Y + absSize.Y
 
-                        local drawLeft = x - 14
-                        local drawTop = y - 24
-                        local drawRight = x + w + 14
-                        local drawBottom = y + h + 14
-                        if drawLeft < vpLeft or drawTop < vpTop or drawRight > vpRight or drawBottom > vpBottom then
+                        local rootFrameVisible = true
+                        pcall(function()
+                            if Library._rootFrame then
+                                local rfSize = Library._rootFrame.AbsoluteSize
+                                local rfPos = Library._rootFrame.AbsolutePosition
+                                local vpEndX = vpAbsPos.X + vpAbsSize.X
+                                local vpEndY = vpAbsPos.Y + vpAbsSize.Y
+                                local rfEndX = rfPos.X + rfSize.X
+                                local rfEndY = rfPos.Y + rfSize.Y
+                                if vpEndX > rfEndX + 2 or vpEndY > rfEndY + 2 or vpAbsPos.X < rfPos.X - 2 or vpAbsPos.Y < rfPos.Y - 2 then
+                                    rootFrameVisible = false
+                                end
+                            end
+                        end)
+                        if not rootFrameVisible then
                             hideDrawings(); return
                         end
 
