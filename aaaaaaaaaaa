@@ -8101,6 +8101,7 @@ function Library:CreateLibrary(opts)
                         HealthBar = false,
                         ArmorBar = false,
                         Skeleton = false,
+                        BarPosition = "Left",
                         Color = Theme.Accent
                     }
 
@@ -9022,8 +9023,8 @@ function Library:CreateLibrary(opts)
 
                         local drawLeft = x - 14
                         local drawTop = y - 24
-                        local drawRight = x + w + 2
-                        local drawBottom = y + h + 2
+                        local drawRight = x + w + 14
+                        local drawBottom = y + h + 14
                         if drawLeft < vpLeft or drawTop < vpTop or drawRight > vpRight or drawBottom > vpBottom then
                             hideDrawings(); return
                         end
@@ -9067,20 +9068,50 @@ function Library:CreateLibrary(opts)
                             if state.humanoid then
                                 hpPerc = math.clamp(state.humanoid.Health / math.max(state.humanoid.MaxHealth, 1), 0, 1)
                             end
-                            drawings.hpOutline.Visible = true
-                            drawings.hpOutline.Color = Color3.fromRGB(0, 0, 0)
-                            drawings.hpOutline.Filled = true
-                            drawings.hpOutline.Size = Vector2.new(3, h)
-                            drawings.hpOutline.Position = Vector2.new(x - 6, y)
-                            pcall(function() drawings.hpOutline.ZIndex = 1 end)
-
-                            local hpH = math.max(1, math.floor((h - 2) * hpPerc))
-                            drawings.hp.Visible = true
-                            drawings.hp.Filled = true
-                            drawings.hp.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hpPerc)
-                            drawings.hp.Size = Vector2.new(1, hpH)
-                            drawings.hp.Position = Vector2.new(x - 5, y + (h - hpH))
-                            pcall(function() drawings.hp.ZIndex = 69 end)
+                            local bp = config.BarPosition
+                            if bp == "Right" then
+                                drawings.hpOutline.Visible = true
+                                drawings.hpOutline.Color = Color3.fromRGB(0, 0, 0)
+                                drawings.hpOutline.Filled = true
+                                drawings.hpOutline.Size = Vector2.new(3, h)
+                                drawings.hpOutline.Position = Vector2.new(x + w + 3, y)
+                                pcall(function() drawings.hpOutline.ZIndex = 1 end)
+                                local hpH = math.max(1, math.floor((h - 2) * hpPerc))
+                                drawings.hp.Visible = true
+                                drawings.hp.Filled = true
+                                drawings.hp.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hpPerc)
+                                drawings.hp.Size = Vector2.new(1, hpH)
+                                drawings.hp.Position = Vector2.new(x + w + 4, y + (h - hpH))
+                                pcall(function() drawings.hp.ZIndex = 69 end)
+                            elseif bp == "Bottom" then
+                                drawings.hpOutline.Visible = true
+                                drawings.hpOutline.Color = Color3.fromRGB(0, 0, 0)
+                                drawings.hpOutline.Filled = true
+                                drawings.hpOutline.Size = Vector2.new(w, 3)
+                                drawings.hpOutline.Position = Vector2.new(x, y + h + 3)
+                                pcall(function() drawings.hpOutline.ZIndex = 1 end)
+                                local hpW = math.max(1, math.floor((w - 2) * hpPerc))
+                                drawings.hp.Visible = true
+                                drawings.hp.Filled = true
+                                drawings.hp.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hpPerc)
+                                drawings.hp.Size = Vector2.new(hpW, 1)
+                                drawings.hp.Position = Vector2.new(x + 1, y + h + 4)
+                                pcall(function() drawings.hp.ZIndex = 69 end)
+                            else
+                                drawings.hpOutline.Visible = true
+                                drawings.hpOutline.Color = Color3.fromRGB(0, 0, 0)
+                                drawings.hpOutline.Filled = true
+                                drawings.hpOutline.Size = Vector2.new(3, h)
+                                drawings.hpOutline.Position = Vector2.new(x - 6, y)
+                                pcall(function() drawings.hpOutline.ZIndex = 1 end)
+                                local hpH = math.max(1, math.floor((h - 2) * hpPerc))
+                                drawings.hp.Visible = true
+                                drawings.hp.Filled = true
+                                drawings.hp.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hpPerc)
+                                drawings.hp.Size = Vector2.new(1, hpH)
+                                drawings.hp.Position = Vector2.new(x - 5, y + (h - hpH))
+                                pcall(function() drawings.hp.ZIndex = 69 end)
+                            end
                         else
                             if drawings.hp then drawings.hp.Visible = false end
                             if drawings.hpOutline then drawings.hpOutline.Visible = false end
@@ -9131,23 +9162,56 @@ function Library:CreateLibrary(opts)
                                 end
                             end
 
-                            local hpBarX = x - 6
-                            local armorBarX = hpBarX - 6
-
-                            drawings.armorOutline.Visible = true
-                            drawings.armorOutline.Color = Color3.fromRGB(0, 0, 0)
-                            drawings.armorOutline.Filled = true
-                            drawings.armorOutline.Size = Vector2.new(3, h)
-                            drawings.armorOutline.Position = Vector2.new(armorBarX, y)
-                            pcall(function() drawings.armorOutline.ZIndex = 1 end)
-
-                            local armorH = math.max(1, math.floor((h - 2) * armorPerc))
-                            drawings.armor.Visible = true
-                            drawings.armor.Filled = true
-                            drawings.armor.Color = Color3.fromRGB(70, 150, 255):Lerp(Color3.fromRGB(30, 90, 200), 1 - armorPerc)
-                            drawings.armor.Size = Vector2.new(1, armorH)
-                            drawings.armor.Position = Vector2.new(armorBarX + 1, y + (h - armorH))
-                            pcall(function() drawings.armor.ZIndex = 69 end)
+                            local bp = config.BarPosition
+                            if bp == "Right" then
+                                local hpBarX = x + w + 3
+                                local armorBarX = hpBarX + 6
+                                drawings.armorOutline.Visible = true
+                                drawings.armorOutline.Color = Color3.fromRGB(0, 0, 0)
+                                drawings.armorOutline.Filled = true
+                                drawings.armorOutline.Size = Vector2.new(3, h)
+                                drawings.armorOutline.Position = Vector2.new(armorBarX, y)
+                                pcall(function() drawings.armorOutline.ZIndex = 1 end)
+                                local armorH = math.max(1, math.floor((h - 2) * armorPerc))
+                                drawings.armor.Visible = true
+                                drawings.armor.Filled = true
+                                drawings.armor.Color = Color3.fromRGB(70, 150, 255):Lerp(Color3.fromRGB(30, 90, 200), 1 - armorPerc)
+                                drawings.armor.Size = Vector2.new(1, armorH)
+                                drawings.armor.Position = Vector2.new(armorBarX + 1, y + (h - armorH))
+                                pcall(function() drawings.armor.ZIndex = 69 end)
+                            elseif bp == "Bottom" then
+                                local hpBarY = y + h + 3
+                                local armorBarY = hpBarY + 6
+                                drawings.armorOutline.Visible = true
+                                drawings.armorOutline.Color = Color3.fromRGB(0, 0, 0)
+                                drawings.armorOutline.Filled = true
+                                drawings.armorOutline.Size = Vector2.new(w, 3)
+                                drawings.armorOutline.Position = Vector2.new(x, armorBarY)
+                                pcall(function() drawings.armorOutline.ZIndex = 1 end)
+                                local armorW = math.max(1, math.floor((w - 2) * armorPerc))
+                                drawings.armor.Visible = true
+                                drawings.armor.Filled = true
+                                drawings.armor.Color = Color3.fromRGB(70, 150, 255):Lerp(Color3.fromRGB(30, 90, 200), 1 - armorPerc)
+                                drawings.armor.Size = Vector2.new(armorW, 1)
+                                drawings.armor.Position = Vector2.new(x + 1, armorBarY + 1)
+                                pcall(function() drawings.armor.ZIndex = 69 end)
+                            else
+                                local hpBarX = x - 6
+                                local armorBarX = hpBarX - 6
+                                drawings.armorOutline.Visible = true
+                                drawings.armorOutline.Color = Color3.fromRGB(0, 0, 0)
+                                drawings.armorOutline.Filled = true
+                                drawings.armorOutline.Size = Vector2.new(3, h)
+                                drawings.armorOutline.Position = Vector2.new(armorBarX, y)
+                                pcall(function() drawings.armorOutline.ZIndex = 1 end)
+                                local armorH = math.max(1, math.floor((h - 2) * armorPerc))
+                                drawings.armor.Visible = true
+                                drawings.armor.Filled = true
+                                drawings.armor.Color = Color3.fromRGB(70, 150, 255):Lerp(Color3.fromRGB(30, 90, 200), 1 - armorPerc)
+                                drawings.armor.Size = Vector2.new(1, armorH)
+                                drawings.armor.Position = Vector2.new(armorBarX + 1, y + (h - armorH))
+                                pcall(function() drawings.armor.ZIndex = 69 end)
+                            end
                         else
                             if drawings.armor then drawings.armor.Visible = false end
                             if drawings.armorOutline then drawings.armorOutline.Visible = false end
@@ -9206,6 +9270,12 @@ function Library:CreateLibrary(opts)
                     end
 
                     function Preview:SetFeature(name, v)
+                        if name == "Bar position" or name == "BarPosition" then
+                            if v == "Left" or v == "Right" or v == "Bottom" then
+                                config.BarPosition = v
+                            end
+                            return
+                        end
                         v = (v == true)
                         if name == "Name esp" or name == "NameESP" or name == "Name" then
                             config.NameESP = v
@@ -9221,6 +9291,9 @@ function Library:CreateLibrary(opts)
                     end
 
                     function Preview:GetFeature(name)
+                        if name == "Bar position" or name == "BarPosition" then
+                            return config.BarPosition
+                        end
                         if name == "Name esp" or name == "NameESP" or name == "Name" then
                             return config.NameESP
                         elseif name == "boxes esp" or name == "BoxesESP" or name == "Boxes" then
@@ -9625,6 +9698,7 @@ function Library:CreateLibrary(opts)
             left:AddToggle({ Name = "boxes esp", Default = false, Callback = function(v) preview:SetFeature("boxes esp", v) end })
             left:AddToggle({ Name = "Health bar", Default = false, Callback = function(v) preview:SetFeature("Health bar", v) end })
             left:AddToggle({ Name = "Armor bar", Default = false, Callback = function(v) preview:SetFeature("Armor bar", v) end })
+            left:AddDropdown({ Name = "Bar position", Default = "Left", Options = {"Left", "Right", "Bottom"}, Callback = function(v) preview:SetFeature("Bar position", v) end })
             left:AddToggle({ Name = "skeleton", Default = false, Callback = function(v) preview:SetFeature("skeleton", v) end })
         end
 
