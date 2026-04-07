@@ -8099,8 +8099,14 @@ function Library:CreateLibrary(opts)
                         NameESP = false,
                         BoxesESP = false,
                         HealthBar = false,
+                        ArmorBar = false,
                         Skeleton = false,
-                        Color = Theme.Accent
+                        Color = Theme.Accent,
+                        ArmorValue = nil,
+                        ArmorMaxValue = nil,
+                        ArmorValuePath = nil,
+                        ArmorMaxValuePath = nil,
+                        ArmorValueCallback = nil
                     }
 
                     local function safeRemove(obj)
@@ -8133,6 +8139,8 @@ function Library:CreateLibrary(opts)
                         name = nil,
                         hp = nil,
                         hpOutline = nil,
+                        armor = nil,
+                        armorOutline = nil,
                         skeleton = {}
                     }
 
@@ -8155,6 +8163,8 @@ function Library:CreateLibrary(opts)
                         drawings.name = newDrawing("Text")
                         drawings.hp = newDrawing("Square")
                         drawings.hpOutline = newDrawing("Square")
+                        drawings.armor = newDrawing("Square")
+                        drawings.armorOutline = newDrawing("Square")
                     end
 
                     local function hideDrawings()
@@ -8163,6 +8173,8 @@ function Library:CreateLibrary(opts)
                         if drawings.name then drawings.name.Visible = false end
                         if drawings.hp then drawings.hp.Visible = false end
                         if drawings.hpOutline then drawings.hpOutline.Visible = false end
+                        if drawings.armor then drawings.armor.Visible = false end
+                        if drawings.armorOutline then drawings.armorOutline.Visible = false end
                         for _, ln in ipairs(drawings.skeleton) do if ln then ln.Visible = false end end
                     end
 
@@ -8971,7 +8983,7 @@ function Library:CreateLibrary(opts)
                         local drawBase = Vector2.new(absPos.X, absPos.Y + insetY)
 
                         if not (Drawing and Drawing.new) then return end
-                        if not (config.NameESP or config.BoxesESP or config.HealthBar or config.Skeleton) then hideDrawings(); return end
+                        if not (config.NameESP or config.BoxesESP or config.HealthBar or config.ArmorBar or config.Skeleton) then hideDrawings(); return end
 
                         local cf, size = getFramingBounds(state.model)
                         if not cf or not size then hideDrawings(); return end
@@ -9049,6 +9061,71 @@ function Library:CreateLibrary(opts)
                             if drawings.hpOutline then drawings.hpOutline.Visible = false end
                         end
 
+                        if config.ArmorBar and drawings.armor and drawings.armorOutline then
+                            local armorPerc = 0
+                            local armorFlag = Library.Flags and Library.Flags["ArmorBarValue"]
+                            local armorMaxFlag = Library.Flags and Library.Flags["ArmorBarMaxValue"]
+                            if config.ArmorValueCallback and type(config.ArmorValueCallback) == "function" then
+                                local okCb, cbVal, cbMax = pcall(config.ArmorValueCallback)
+                                if okCb then
+                                    local av = tonumber(cbVal) or 0
+                                    local am = tonumber(cbMax) or 100
+                                    armorPerc = math.clamp(av / math.max(am, 1), 0, 1)
+                                end
+                            elseif config.ArmorValuePath and type(config.ArmorValuePath) == "string" and config.ArmorValuePath ~= "" then
+                                local okPath, pathVal = pcall(function()
+                                    local obj = game
+                                    for seg in string.gmatch(config.ArmorValuePath, "[^%.]+") do
+                                        obj = obj[seg]
+                                    end
+                                    return tonumber(obj.Value or obj)
+                                end)
+                                local maxVal = 100
+                                if config.ArmorMaxValuePath and type(config.ArmorMaxValuePath) == "string" and config.ArmorMaxValuePath ~= "" then
+                                    local okM, mVal = pcall(function()
+                                        local obj = game
+                                        for seg in string.gmatch(config.ArmorMaxValuePath, "[^%.]+") do
+                                            obj = obj[seg]
+                                        end
+                                        return tonumber(obj.Value or obj)
+                                    end)
+                                    if okM and mVal then maxVal = mVal end
+                                end
+                                if okPath and pathVal then
+                                    armorPerc = math.clamp(pathVal / math.max(maxVal, 1), 0, 1)
+                                end
+                            elseif config.ArmorValue ~= nil then
+                                local av = tonumber(config.ArmorValue) or 0
+                                local am = tonumber(config.ArmorMaxValue) or 100
+                                armorPerc = math.clamp(av / math.max(am, 1), 0, 1)
+                            elseif armorFlag ~= nil then
+                                local av = tonumber(armorFlag) or 0
+                                local am = tonumber(armorMaxFlag) or 100
+                                armorPerc = math.clamp(av / math.max(am, 1), 0, 1)
+                            end
+
+                            local hpBarX = x - 6
+                            local armorBarX = hpBarX - 6
+
+                            drawings.armorOutline.Visible = true
+                            drawings.armorOutline.Color = Color3.fromRGB(0, 0, 0)
+                            drawings.armorOutline.Filled = true
+                            drawings.armorOutline.Size = Vector2.new(3, h)
+                            drawings.armorOutline.Position = Vector2.new(armorBarX, y)
+                            pcall(function() drawings.armorOutline.ZIndex = 1 end)
+
+                            local armorH = math.max(1, math.floor((h - 2) * armorPerc))
+                            drawings.armor.Visible = true
+                            drawings.armor.Filled = true
+                            drawings.armor.Color = Color3.fromRGB(70, 150, 255):Lerp(Color3.fromRGB(30, 90, 200), 1 - armorPerc)
+                            drawings.armor.Size = Vector2.new(1, armorH)
+                            drawings.armor.Position = Vector2.new(armorBarX + 1, y + (h - armorH))
+                            pcall(function() drawings.armor.ZIndex = 69 end)
+                        else
+                            if drawings.armor then drawings.armor.Visible = false end
+                            if drawings.armorOutline then drawings.armorOutline.Visible = false end
+                        end
+
                         if config.Skeleton then
                             for idx, bone in ipairs(SKELETON_BONES) do
                                 local p1 = state.model:FindFirstChild(bone[1])
@@ -9109,6 +9186,8 @@ function Library:CreateLibrary(opts)
                             config.BoxesESP = v
                         elseif name == "Health bar" or name == "HealthBar" or name == "Health" then
                             config.HealthBar = v
+                        elseif name == "Armor bar" or name == "ArmorBar" or name == "Armor" then
+                            config.ArmorBar = v
                         elseif name == "skeleton" or name == "Skeleton" then
                             config.Skeleton = v
                         end
@@ -9121,6 +9200,8 @@ function Library:CreateLibrary(opts)
                             return config.BoxesESP
                         elseif name == "Health bar" or name == "HealthBar" or name == "Health" then
                             return config.HealthBar
+                        elseif name == "Armor bar" or name == "ArmorBar" or name == "Armor" then
+                            return config.ArmorBar
                         elseif name == "skeleton" or name == "Skeleton" then
                             return config.Skeleton
                         end
@@ -9139,6 +9220,39 @@ function Library:CreateLibrary(opts)
                         end)
                     end
 
+                    function Preview:SetArmorValue(value, maxValue)
+                        config.ArmorValue = tonumber(value) or 0
+                        config.ArmorMaxValue = tonumber(maxValue) or 100
+                    end
+
+                    function Preview:SetArmorPath(valuePath, maxValuePath)
+                        config.ArmorValuePath = (type(valuePath) == "string" and valuePath ~= "") and valuePath or nil
+                        config.ArmorMaxValuePath = (type(maxValuePath) == "string" and maxValuePath ~= "") and maxValuePath or nil
+                    end
+
+                    function Preview:SetArmorCallback(fn)
+                        config.ArmorValueCallback = (type(fn) == "function") and fn or nil
+                    end
+
+                    function Preview:SetArmorInstance(valueObject, maxValueObject)
+                        if typeof(valueObject) ~= "Instance" then return end
+                        config.ArmorValueCallback = function()
+                            local cur = 0
+                            pcall(function() cur = tonumber(valueObject.Value) or 0 end)
+                            local mx = 100
+                            if maxValueObject and typeof(maxValueObject) == "Instance" then
+                                pcall(function() mx = tonumber(maxValueObject.Value) or 100 end)
+                            else
+                                mx = math.max(cur, config._armorInstanceMax or cur)
+                                config._armorInstanceMax = mx
+                            end
+                            return cur, mx
+                        end
+                        pcall(function()
+                            config._armorInstanceMax = tonumber(valueObject.Value) or 100
+                        end)
+                    end
+
                     function Preview:Destroy()
                         hideDrawings()
                         safeRemove(drawings.box)
@@ -9146,6 +9260,8 @@ function Library:CreateLibrary(opts)
                         safeRemove(drawings.name)
                         safeRemove(drawings.hp)
                         safeRemove(drawings.hpOutline)
+                        safeRemove(drawings.armor)
+                        safeRemove(drawings.armorOutline)
                         for i = 1, #drawings.skeleton do safeRemove(drawings.skeleton[i]) end
                         table.clear(drawings.skeleton)
                         clearModel()
@@ -9480,6 +9596,7 @@ function Library:CreateLibrary(opts)
             left:AddToggle({ Name = "Name esp", Default = false, Callback = function(v) preview:SetFeature("Name esp", v) end })
             left:AddToggle({ Name = "boxes esp", Default = false, Callback = function(v) preview:SetFeature("boxes esp", v) end })
             left:AddToggle({ Name = "Health bar", Default = false, Callback = function(v) preview:SetFeature("Health bar", v) end })
+            left:AddToggle({ Name = "Armor bar", Default = false, Callback = function(v) preview:SetFeature("Armor bar", v) end })
             left:AddToggle({ Name = "skeleton", Default = false, Callback = function(v) preview:SetFeature("skeleton", v) end })
         end
 
