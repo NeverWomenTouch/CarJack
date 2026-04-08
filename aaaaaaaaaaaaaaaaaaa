@@ -8774,10 +8774,12 @@ function Library:CreateLibrary(opts)
                             local radius = math.max(size.X, size.Y, size.Z) * 0.5
                             -- Default zoom: slightly closer than before.
                             state.dist = math.clamp(radius * 2.35, 4.5, 14)
+                            state.baseDist = state.dist
                             -- Aim a bit lower so the character sits higher / more centered in-frame.
                             state.focus = Vector3.new(0, size.Y * 0.50, 0)
                         else
                             state.dist = 10
+                            state.baseDist = 10
                             state.focus = Vector3.new(0, 2.5, 0)
                         end
 
@@ -8856,7 +8858,8 @@ function Library:CreateLibrary(opts)
                         if input.UserInputType == Enum.UserInputType.MouseWheel and isMouseInside() then
                             local delta = input.Position.Z
                             if delta ~= 0 then
-                                state.dist = math.clamp(state.dist - delta * 0.8, 2.5, 22)
+                                state.baseDist = math.clamp((state.baseDist or state.dist) - delta * 0.8, 2.5, 22)
+                                state.dist = state.baseDist
                             end
                         end
                         if not state.dragging then return end
@@ -8982,46 +8985,16 @@ function Library:CreateLibrary(opts)
                             end)
                         end
 
-                        local focus = state.focus
-                        local cx = math.cos(state.pitch)
-                        local sx = math.sin(state.pitch)
-                        local cy = math.cos(state.yaw)
-                        local sy = math.sin(state.yaw)
-                        local offset = Vector3.new(state.dist * cy * cx, state.dist * sx, state.dist * sy * cx)
-                        cam.CFrame = CFrame.new(focus + offset, focus)
-
                         local absPos = viewport.AbsolutePosition
                         local insetY = 0
                         pcall(function() insetY = SRV("GuiService"):GetGuiInset().Y end)
                         local drawBase = Vector2.new(absPos.X, absPos.Y + insetY)
 
-                        if not (Drawing and Drawing.new) then return end
-                        if not (config.NameESP or config.BoxesESP or config.HealthBar or config.ArmorBar or config.Skeleton) then hideDrawings(); return end
-
-                        local cf, size = getFramingBounds(state.model)
-                        if not cf or not size then hideDrawings(); return end
-                        local centerWorld = cf.Position
-                        local center2d, zCenter = projectPoint(centerWorld, absSize)
-                        if not center2d or not zCenter then hideDrawings(); return end
-
-                        local fov = math.rad(cam.FieldOfView)
-                        local scale = (absSize.Y * 0.5) / math.tan(fov * 0.5)
-                        local pixelsPerStud = scale / math.max(0.01, zCenter)
-
-                        local pad = 1.22
-                        local h = math.max(2, (size.Y * pixelsPerStud) * pad)
-                        local w = math.max(2, (math.max(size.X, size.Z) * pixelsPerStud) * 1.08)
-                        w = math.max(w, h * 0.35)
-
-                        local x = drawBase.X + center2d.X - (w * 0.5)
-                        local y = drawBase.Y + center2d.Y - (h * 0.5)
-
+                        -- Compute the visible draw region (viewport intersected with root frame)
                         local vpLeft = drawBase.X
                         local vpTop = drawBase.Y
                         local vpRight = drawBase.X + absSize.X
                         local vpBottom = drawBase.Y + absSize.Y
-
-                        -- Clamp draw region to the visible portion of the library root frame
                         pcall(function()
                             if Library._rootFrame then
                                 local rfPos = Library._rootFrame.AbsolutePosition
@@ -9036,10 +9009,93 @@ function Library:CreateLibrary(opts)
                                 vpBottom = math.min(vpBottom, rfBottom)
                             end
                         end)
-
                         if vpRight <= vpLeft or vpBottom <= vpTop then
                             hideDrawings(); return
                         end
+
+                        -- Auto-zoom: try with baseDist first, if drawings overflow, zoom out
+                        local baseDist = state.baseDist or state.dist
+                        local useDist = baseDist
+
+                        local function computeDrawRect(dist)
+                            local focus = state.focus
+                            local cx2 = math.cos(state.pitch)
+                            local sx2 = math.sin(state.pitch)
+                            local cy2 = math.cos(state.yaw)
+                            local sy2 = math.sin(state.yaw)
+                            local off = Vector3.new(dist * cy2 * cx2, dist * sx2, dist * sy2 * cx2)
+                            cam.CFrame = CFrame.new(focus + off, focus)
+
+                            local cf2, size2 = getFramingBounds(state.model)
+                            if not cf2 or not size2 then return nil end
+                            local c2d, zC = projectPoint(cf2.Position, absSize)
+                            if not c2d or not zC then return nil end
+
+                            local fv = math.rad(cam.FieldOfView)
+                            local sc = (absSize.Y * 0.5) / math.tan(fv * 0.5)
+                            local pps = sc / math.max(0.01, zC)
+
+                            local dh = math.max(2, (size2.Y * pps) * 1.22)
+                            local dw = math.max(2, (math.max(size2.X, size2.Z) * pps) * 1.08)
+                            dw = math.max(dw, dh * 0.35)
+
+                            local dx = drawBase.X + c2d.X - (dw * 0.5)
+                            local dy = drawBase.Y + c2d.Y - (dh * 0.5)
+
+                            -- Total bounding box including name/bars padding
+                            local espTop = dy - 25
+                            local espBottom = dy + dh + 12
+                            local espLeft = dx - 14
+                            local espRight = dx + dw + 14
+
+                            return espLeft, espTop, espRight, espBottom, dx, dy, dw, dh, c2d, zC, cf2, size2
+                        end
+
+                        local dr = {computeDrawRect(baseDist)}
+                        if not dr[1] then hideDrawings(); return end
+
+                        local espL, espT, espR, espB = dr[1], dr[2], dr[3], dr[4]
+                        local visW = vpRight - vpLeft
+                        local visH = vpBottom - vpTop
+                        local espW = espR - espL
+                        local espH = espB - espT
+
+                        if espW > visW or espH > visH then
+                            local ratio = math.max(espW / math.max(visW, 1), espH / math.max(visH, 1))
+                            useDist = math.min(baseDist * ratio, 30)
+                            dr = {computeDrawRect(useDist)}
+                            if not dr[1] then hideDrawings(); return end
+                        end
+
+                        state.dist = useDist
+
+                        local focus = state.focus
+                        local cx = math.cos(state.pitch)
+                        local sx = math.sin(state.pitch)
+                        local cy = math.cos(state.yaw)
+                        local sy = math.sin(state.yaw)
+                        local offset = Vector3.new(useDist * cy * cx, useDist * sx, useDist * sy * cx)
+                        cam.CFrame = CFrame.new(focus + offset, focus)
+
+                        if not (Drawing and Drawing.new) then return end
+                        if not (config.NameESP or config.BoxesESP or config.HealthBar or config.ArmorBar or config.Skeleton) then hideDrawings(); return end
+
+                        local cf, size = dr[11], dr[12]
+                        if not cf or not size then hideDrawings(); return end
+                        local center2d, zCenter = dr[9], dr[10]
+                        if not center2d or not zCenter then hideDrawings(); return end
+
+                        local fov = math.rad(cam.FieldOfView)
+                        local scale = (absSize.Y * 0.5) / math.tan(fov * 0.5)
+                        local pixelsPerStud = scale / math.max(0.01, zCenter)
+
+                        local pad = 1.22
+                        local h = math.max(2, (size.Y * pixelsPerStud) * pad)
+                        local w = math.max(2, (math.max(size.X, size.Z) * pixelsPerStud) * 1.08)
+                        w = math.max(w, h * 0.35)
+
+                        local x = drawBase.X + center2d.X - (w * 0.5)
+                        local y = drawBase.Y + center2d.Y - (h * 0.5)
 
                         local function clampVal(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 
