@@ -9021,6 +9021,26 @@ function Library:CreateLibrary(opts)
                         local vpRight = drawBase.X + absSize.X
                         local vpBottom = drawBase.Y + absSize.Y
 
+                        -- Clamp draw region to the visible portion of the library root frame
+                        pcall(function()
+                            if Library._rootFrame then
+                                local rfPos = Library._rootFrame.AbsolutePosition
+                                local rfSize = Library._rootFrame.AbsoluteSize
+                                local rfLeft = rfPos.X
+                                local rfTop = rfPos.Y + insetY
+                                local rfRight = rfPos.X + rfSize.X
+                                local rfBottom = rfPos.Y + rfSize.Y + insetY
+                                vpLeft = math.max(vpLeft, rfLeft)
+                                vpTop = math.max(vpTop, rfTop)
+                                vpRight = math.min(vpRight, rfRight)
+                                vpBottom = math.min(vpBottom, rfBottom)
+                            end
+                        end)
+
+                        if vpRight <= vpLeft or vpBottom <= vpTop then
+                            hideDrawings(); return
+                        end
+
                         local function clampVal(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 
                         local function setSquare(sq, sx, sy, sw, sh, col, filled, thick, zidx)
