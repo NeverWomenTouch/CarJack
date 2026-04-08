@@ -8098,6 +8098,7 @@ function Library:CreateLibrary(opts)
                     local config = {
                         NameESP = false,
                         BoxesESP = false,
+                        BoxStyle = "Default",
                         HealthBar = false,
                         ArmorBar = false,
                         Skeleton = false,
@@ -8142,6 +8143,8 @@ function Library:CreateLibrary(opts)
                     local drawings = {
                         box = nil,
                         boxOutline = nil,
+                        corners = {},
+                        cornerOutlines = {},
                         name = nil,
                         hp = nil,
                         hpOutline = nil,
@@ -8166,6 +8169,10 @@ function Library:CreateLibrary(opts)
                     if Drawing and Drawing.new then
                         drawings.box = newDrawing("Square")
                         drawings.boxOutline = newDrawing("Square")
+                        for i = 1, 8 do
+                            drawings.corners[i] = newDrawing("Line")
+                            drawings.cornerOutlines[i] = newDrawing("Line")
+                        end
                         drawings.name = newDrawing("Text")
                         drawings.hp = newDrawing("Square")
                         drawings.hpOutline = newDrawing("Square")
@@ -8176,6 +8183,8 @@ function Library:CreateLibrary(opts)
                     local function hideDrawings()
                         if drawings.box then drawings.box.Visible = false end
                         if drawings.boxOutline then drawings.boxOutline.Visible = false end
+                        for i = 1, #drawings.corners do if drawings.corners[i] then drawings.corners[i].Visible = false end end
+                        for i = 1, #drawings.cornerOutlines do if drawings.cornerOutlines[i] then drawings.cornerOutlines[i].Visible = false end end
                         if drawings.name then drawings.name.Visible = false end
                         if drawings.hp then drawings.hp.Visible = false end
                         if drawings.hpOutline then drawings.hpOutline.Visible = false end
@@ -9115,12 +9124,57 @@ function Library:CreateLibrary(opts)
                             pcall(function() sq.ZIndex = zidx end)
                         end
 
-                        if config.BoxesESP and drawings.box and drawings.boxOutline then
-                            setSquare(drawings.boxOutline, x - 1, y - 1, w + 2, h + 2, Color3.fromRGB(0, 0, 0), false, 3, 1)
-                            setSquare(drawings.box, x, y, w, h, config.Color, false, 1, 69)
-                        else
+                        local function setLine(ln, x1, y1, x2, y2, col, thick, zidx)
+                            ln.From = Vector2.new(clampVal(x1, vpLeft, vpRight), clampVal(y1, vpTop, vpBottom))
+                            ln.To = Vector2.new(clampVal(x2, vpLeft, vpRight), clampVal(y2, vpTop, vpBottom))
+                            ln.Color = col
+                            ln.Thickness = thick
+                            ln.Visible = true
+                            pcall(function() ln.ZIndex = zidx end)
+                        end
+
+                        local function hideCorners()
+                            for i = 1, #drawings.corners do if drawings.corners[i] then drawings.corners[i].Visible = false end end
+                            for i = 1, #drawings.cornerOutlines do if drawings.cornerOutlines[i] then drawings.cornerOutlines[i].Visible = false end end
+                        end
+
+                        local function hideDefaultBox()
                             if drawings.box then drawings.box.Visible = false end
                             if drawings.boxOutline then drawings.boxOutline.Visible = false end
+                        end
+
+                        if config.BoxesESP then
+                            if config.BoxStyle == "Corners" and #drawings.corners >= 8 then
+                                hideDefaultBox()
+                                local cornerLen = math.max(4, math.min(w, h) * 0.25)
+                                -- TL
+                                setLine(drawings.cornerOutlines[1], x, y, x + cornerLen, y, Color3.fromRGB(0,0,0), 3, 1)
+                                setLine(drawings.cornerOutlines[2], x, y, x, y + cornerLen, Color3.fromRGB(0,0,0), 3, 1)
+                                setLine(drawings.corners[1], x, y, x + cornerLen, y, config.Color, 1, 69)
+                                setLine(drawings.corners[2], x, y, x, y + cornerLen, config.Color, 1, 69)
+                                -- TR
+                                setLine(drawings.cornerOutlines[3], x + w, y, x + w - cornerLen, y, Color3.fromRGB(0,0,0), 3, 1)
+                                setLine(drawings.cornerOutlines[4], x + w, y, x + w, y + cornerLen, Color3.fromRGB(0,0,0), 3, 1)
+                                setLine(drawings.corners[3], x + w, y, x + w - cornerLen, y, config.Color, 1, 69)
+                                setLine(drawings.corners[4], x + w, y, x + w, y + cornerLen, config.Color, 1, 69)
+                                -- BL
+                                setLine(drawings.cornerOutlines[5], x, y + h, x + cornerLen, y + h, Color3.fromRGB(0,0,0), 3, 1)
+                                setLine(drawings.cornerOutlines[6], x, y + h, x, y + h - cornerLen, Color3.fromRGB(0,0,0), 3, 1)
+                                setLine(drawings.corners[5], x, y + h, x + cornerLen, y + h, config.Color, 1, 69)
+                                setLine(drawings.corners[6], x, y + h, x, y + h - cornerLen, config.Color, 1, 69)
+                                -- BR
+                                setLine(drawings.cornerOutlines[7], x + w, y + h, x + w - cornerLen, y + h, Color3.fromRGB(0,0,0), 3, 1)
+                                setLine(drawings.cornerOutlines[8], x + w, y + h, x + w, y + h - cornerLen, Color3.fromRGB(0,0,0), 3, 1)
+                                setLine(drawings.corners[7], x + w, y + h, x + w - cornerLen, y + h, config.Color, 1, 69)
+                                setLine(drawings.corners[8], x + w, y + h, x + w, y + h - cornerLen, config.Color, 1, 69)
+                            elseif drawings.box and drawings.boxOutline then
+                                hideCorners()
+                                setSquare(drawings.boxOutline, x - 1, y - 1, w + 2, h + 2, Color3.fromRGB(0, 0, 0), false, 3, 1)
+                                setSquare(drawings.box, x, y, w, h, config.Color, false, 1, 69)
+                            end
+                        else
+                            hideDefaultBox()
+                            hideCorners()
                         end
 
                         if config.NameESP and drawings.name then
@@ -9296,6 +9350,12 @@ function Library:CreateLibrary(opts)
                             end
                             return
                         end
+                        if name == "Box style" or name == "BoxStyle" then
+                            if v == "Default" or v == "Corners" then
+                                config.BoxStyle = v
+                            end
+                            return
+                        end
                         v = (v == true)
                         if name == "Name esp" or name == "NameESP" or name == "Name" then
                             config.NameESP = v
@@ -9313,6 +9373,9 @@ function Library:CreateLibrary(opts)
                     function Preview:GetFeature(name)
                         if name == "Bar position" or name == "BarPosition" then
                             return config.BarPosition
+                        end
+                        if name == "Box style" or name == "BoxStyle" then
+                            return config.BoxStyle
                         end
                         if name == "Name esp" or name == "NameESP" or name == "Name" then
                             return config.NameESP
@@ -9378,6 +9441,10 @@ function Library:CreateLibrary(opts)
                         hideDrawings()
                         safeRemove(drawings.box)
                         safeRemove(drawings.boxOutline)
+                        for i = 1, #drawings.corners do safeRemove(drawings.corners[i]) end
+                        for i = 1, #drawings.cornerOutlines do safeRemove(drawings.cornerOutlines[i]) end
+                        table.clear(drawings.corners)
+                        table.clear(drawings.cornerOutlines)
                         safeRemove(drawings.name)
                         safeRemove(drawings.hp)
                         safeRemove(drawings.hpOutline)
@@ -9716,6 +9783,7 @@ function Library:CreateLibrary(opts)
         if integrated then
             left:AddToggle({ Name = "Name esp", Default = false, Callback = function(v) preview:SetFeature("Name esp", v) end })
             left:AddToggle({ Name = "boxes esp", Default = false, Callback = function(v) preview:SetFeature("boxes esp", v) end })
+            left:AddDropdown({ Name = "Box style", Default = "Default", Options = {"Default", "Corners"}, Callback = function(v) preview:SetFeature("Box style", v) end })
             left:AddToggle({ Name = "Health bar", Default = false, Callback = function(v) preview:SetFeature("Health bar", v) end })
             left:AddToggle({ Name = "Armor bar", Default = false, Callback = function(v) preview:SetFeature("Armor bar", v) end })
             left:AddDropdown({ Name = "Bar position", Default = "Left", Options = {"Left", "Right", "Bottom"}, Callback = function(v) preview:SetFeature("Bar position", v) end })
