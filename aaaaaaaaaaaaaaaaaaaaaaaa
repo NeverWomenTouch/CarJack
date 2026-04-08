@@ -8184,8 +8184,8 @@ function Library:CreateLibrary(opts)
                         ArmorBar = false,
                         Skeleton = false,
                         Arrows = false,
-                        ArrowColor = Color3.fromRGB(255, 255, 255),
-                        ArrowOutlineColor = Color3.fromRGB(0, 0, 0),
+                        ArrowColor = Theme.Accent,
+                        ArrowOutlineColor = Color3.fromRGB(18, 20, 19),
                         ArrowRadius = 150,
                         BarPosition = "Left",
                         Color = Theme.Accent
@@ -8235,8 +8235,7 @@ function Library:CreateLibrary(opts)
                         hpOutline = nil,
                         armor = nil,
                         armorOutline = nil,
-                        arrow = nil,
-                        arrowOutline = nil,
+                        _arrowPool = {},
                         skeleton = {}
                     }
 
@@ -8265,16 +8264,7 @@ function Library:CreateLibrary(opts)
                         drawings.hpOutline = newDrawing("Square")
                         drawings.armor = newDrawing("Square")
                         drawings.armorOutline = newDrawing("Square")
-                        local okTri, triObj = pcall(Drawing.new, "Triangle")
-                        if okTri and triObj then
-                            triObj.Visible = false
-                            drawings.arrow = triObj
-                        end
-                        local okTri2, triObj2 = pcall(Drawing.new, "Triangle")
-                        if okTri2 and triObj2 then
-                            triObj2.Visible = false
-                            drawings.arrowOutline = triObj2
-                        end
+                        -- Arrow pool is created dynamically per-player
                     end
 
                     local function hideDrawings()
@@ -8287,8 +8277,10 @@ function Library:CreateLibrary(opts)
                         if drawings.hpOutline then drawings.hpOutline.Visible = false end
                         if drawings.armor then drawings.armor.Visible = false end
                         if drawings.armorOutline then drawings.armorOutline.Visible = false end
-                        if drawings.arrow then drawings.arrow.Visible = false end
-                        if drawings.arrowOutline then drawings.arrowOutline.Visible = false end
+                        for _, ap in ipairs(drawings._arrowPool) do
+                            if ap.fill then ap.fill.Visible = false end
+                            if ap.outline then ap.outline.Visible = false end
+                        end
                         for _, ln in ipairs(drawings.skeleton) do if ln then ln.Visible = false end end
                     end
 
@@ -8608,6 +8600,18 @@ function Library:CreateLibrary(opts)
                         if not (root and root:IsA("BasePart")) then
                             return false
                         end
+                        local hasJoints = false
+                        for _, d in ipairs(model:GetDescendants()) do
+                            if d:IsA("Motor6D") or d:IsA("Weld") then
+                                hasJoints = true
+                                break
+                            end
+                        end
+                        if not hasJoints then
+                            -- Just center the model around origin using its current part positions.
+                            setAllAnchored(model, true)
+                            return true
+                        end
 
                         -- Ensure joints can reposition parts while we solve.
                         setAllAnchored(model, false)
@@ -8776,6 +8780,30 @@ function Library:CreateLibrary(opts)
                             local ok, out = pcall(function() return char:Clone() end)
                             pcall(function() char.Archivable = old end)
                             if ok and out then clone = out end
+                        end
+
+                        -- Fallback for manual models: clone each BasePart individually
+                        if (not clone) and usedManual then
+                            local newModel = Instance.new("Model")
+                            newModel.Name = char.Name
+                            local anyPart = false
+                            for _, d in ipairs(char:GetDescendants()) do
+                                if d:IsA("BasePart") then
+                                    local oldArch = d.Archivable
+                                    pcall(function() d.Archivable = true end)
+                                    local ok2, partClone = pcall(function() return d:Clone() end)
+                                    pcall(function() d.Archivable = oldArch end)
+                                    if ok2 and partClone then
+                                        partClone.Parent = newModel
+                                        anyPart = true
+                                    end
+                                end
+                            end
+                            if anyPart then
+                                clone = newModel
+                            else
+                                pcall(function() newModel:Destroy() end)
+                            end
                         end
 
                         -- Fallback: if cloning fails, build from HumanoidDescription.
@@ -9416,57 +9444,122 @@ function Library:CreateLibrary(opts)
                             for _, ln in ipairs(drawings.skeleton) do if ln then ln.Visible = false end end
                         end
 
-                        if config.Arrows and drawings.arrow and drawings.arrowOutline then
-                            local screenSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
-                            local scx = screenSize.X * 0.5
-                            local scy = screenSize.Y * 0.5
+                        -- Per-player directional arrows
+                        if config.Arrows then
+                            local gameCam = workspace.CurrentCamera
+                            local screenSz = gameCam and gameCam.ViewportSize or Vector2.new(1920, 1080)
+                            local scx = screenSz.X * 0.5
+                            local scy = screenSz.Y * 0.5
                             local radius = config.ArrowRadius
-                            local arrowH = 14
-                            local arrowW = 12
-                            local angle = (tick() * 0.6) % (math.pi * 2)
-                            local dirX = math.sin(angle)
-                            local dirY = -math.cos(angle)
+                            local arrowH = 16
+                            local arrowW = 10
+                            local oScale = 1.45
 
-                            local tipX = scx + dirX * radius
-                            local tipY = scy + dirY * radius
-                            local baseX = scx + dirX * (radius + arrowH)
-                            local baseY = scy + dirY * (radius + arrowH)
-                            local perpX = -dirY
-                            local perpY = dirX
-                            local halfW = arrowW * 0.5
+                            local playerList = Players:GetPlayers()
+                            local arrowIdx = 0
 
-                            local pA = Vector2.new(baseX + perpX * halfW, baseY + perpY * halfW)
-                            local pB = Vector2.new(baseX - perpX * halfW, baseY - perpY * halfW)
-                            local pC = Vector2.new(tipX, tipY)
+                            for _, plr in ipairs(playerList) do
+                                if plr ~= LocalPlayer then
+                                    local char = plr.Character
+                                    local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso"))
+                                    if root and root:IsA("BasePart") and gameCam then
+                                        local worldPos = root.Position
+                                        local screenPos, onScreen = gameCam:WorldToViewportPoint(worldPos)
+                                        local sx, sy = screenPos.X, screenPos.Y
 
-                            local oScale = 1.5
-                            local oHalfW = halfW * oScale
-                            local oH = arrowH * oScale
-                            local oBaseX = scx + dirX * (radius + oH)
-                            local oBaseY = scy + dirY * (radius + oH)
-                            local oTipX = scx + dirX * (radius - (oH - arrowH) * 0.3)
-                            local oTipY = scy + dirY * (radius - (oH - arrowH) * 0.3)
+                                        -- Compute direction from screen center to player's screen pos
+                                        local dx = sx - scx
+                                        local dy = sy - scy
+                                        local mag = math.sqrt(dx * dx + dy * dy)
+                                        if mag < 1 then dx = 0; dy = -1; mag = 1 end
+                                        local nx = dx / mag
+                                        local ny = dy / mag
 
-                            drawings.arrowOutline.PointA = Vector2.new(oBaseX + perpX * oHalfW, oBaseY + perpY * oHalfW)
-                            drawings.arrowOutline.PointB = Vector2.new(oBaseX - perpX * oHalfW, oBaseY - perpY * oHalfW)
-                            drawings.arrowOutline.PointC = Vector2.new(oTipX, oTipY)
-                            drawings.arrowOutline.Color = config.ArrowOutlineColor
-                            drawings.arrowOutline.Filled = true
-                            drawings.arrowOutline.Thickness = 1
-                            drawings.arrowOutline.Visible = true
-                            pcall(function() drawings.arrowOutline.ZIndex = 1 end)
+                                        -- Only show arrow when player is off-screen or behind camera
+                                        local margin = 60
+                                        local isOff = (not onScreen) or sx < margin or sx > screenSz.X - margin or sy < margin or sy > screenSz.Y - margin
 
-                            drawings.arrow.PointA = pA
-                            drawings.arrow.PointB = pB
-                            drawings.arrow.PointC = pC
-                            drawings.arrow.Color = config.ArrowColor
-                            drawings.arrow.Filled = true
-                            drawings.arrow.Thickness = 1
-                            drawings.arrow.Visible = true
-                            pcall(function() drawings.arrow.ZIndex = 69 end)
+                                        if screenPos.Z < 0 then
+                                            -- Behind camera: flip direction
+                                            nx = -nx
+                                            ny = -ny
+                                            isOff = true
+                                        end
+
+                                        if isOff then
+                                            arrowIdx = arrowIdx + 1
+
+                                            -- Ensure pool slot exists
+                                            if not drawings._arrowPool[arrowIdx] then
+                                                local okF, fillTri = pcall(Drawing.new, "Triangle")
+                                                local okO, outTri = pcall(Drawing.new, "Triangle")
+                                                drawings._arrowPool[arrowIdx] = {
+                                                    fill = (okF and fillTri) or nil,
+                                                    outline = (okO and outTri) or nil
+                                                }
+                                                if drawings._arrowPool[arrowIdx].fill then drawings._arrowPool[arrowIdx].fill.Visible = false end
+                                                if drawings._arrowPool[arrowIdx].outline then drawings._arrowPool[arrowIdx].outline.Visible = false end
+                                            end
+
+                                            local slot = drawings._arrowPool[arrowIdx]
+                                            if slot.fill and slot.outline then
+                                                -- Tip points toward player, base is behind
+                                                local tipX = scx + nx * radius
+                                                local tipY = scy + ny * radius
+                                                local bx = scx + nx * (radius + arrowH)
+                                                local by = scy + ny * (radius + arrowH)
+                                                local perpX = -ny
+                                                local perpY = nx
+                                                local halfW = arrowW * 0.5
+
+                                                local pA = Vector2.new(bx + perpX * halfW, by + perpY * halfW)
+                                                local pB = Vector2.new(bx - perpX * halfW, by - perpY * halfW)
+                                                local pC = Vector2.new(tipX, tipY)
+
+                                                -- Outline (slightly larger behind)
+                                                local oHalfW = halfW * oScale
+                                                local oH = arrowH * oScale
+                                                local oBx = scx + nx * (radius + oH)
+                                                local oBy = scy + ny * (radius + oH)
+                                                local oTipX = scx + nx * (radius - (oH - arrowH) * 0.25)
+                                                local oTipY = scy + ny * (radius - (oH - arrowH) * 0.25)
+
+                                                slot.outline.PointA = Vector2.new(oBx + perpX * oHalfW, oBy + perpY * oHalfW)
+                                                slot.outline.PointB = Vector2.new(oBx - perpX * oHalfW, oBy - perpY * oHalfW)
+                                                slot.outline.PointC = Vector2.new(oTipX, oTipY)
+                                                slot.outline.Color = config.ArrowOutlineColor
+                                                slot.outline.Filled = true
+                                                slot.outline.Thickness = 1
+                                                slot.outline.Visible = true
+                                                pcall(function() slot.outline.ZIndex = 1 end)
+
+                                                slot.fill.PointA = pA
+                                                slot.fill.PointB = pB
+                                                slot.fill.PointC = pC
+                                                slot.fill.Color = config.ArrowColor
+                                                slot.fill.Filled = true
+                                                slot.fill.Thickness = 1
+                                                slot.fill.Visible = true
+                                                pcall(function() slot.fill.ZIndex = 69 end)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+
+                            -- Hide unused pool slots
+                            for i = arrowIdx + 1, #drawings._arrowPool do
+                                local slot = drawings._arrowPool[i]
+                                if slot then
+                                    if slot.fill then slot.fill.Visible = false end
+                                    if slot.outline then slot.outline.Visible = false end
+                                end
+                            end
                         else
-                            if drawings.arrow then drawings.arrow.Visible = false end
-                            if drawings.arrowOutline then drawings.arrowOutline.Visible = false end
+                            for _, ap in ipairs(drawings._arrowPool) do
+                                if ap.fill then ap.fill.Visible = false end
+                                if ap.outline then ap.outline.Visible = false end
+                            end
                         end
                     end)
 
@@ -9629,8 +9722,11 @@ function Library:CreateLibrary(opts)
                         safeRemove(drawings.hpOutline)
                         safeRemove(drawings.armor)
                         safeRemove(drawings.armorOutline)
-                        safeRemove(drawings.arrow)
-                        safeRemove(drawings.arrowOutline)
+                        for _, ap in ipairs(drawings._arrowPool) do
+                            safeRemove(ap.fill)
+                            safeRemove(ap.outline)
+                        end
+                        table.clear(drawings._arrowPool)
                         for i = 1, #drawings.skeleton do safeRemove(drawings.skeleton[i]) end
                         table.clear(drawings.skeleton)
                         clearModel()
@@ -9971,8 +10067,8 @@ function Library:CreateLibrary(opts)
             left:AddToggle({ Name = "skeleton", Default = false, Callback = function(v) preview:SetFeature("skeleton", v) end })
             left:AddToggle({ Name = "Arrows", Default = false, Callback = function(v) preview:SetFeature("Arrows", v) end })
             left:AddSlider({ Name = "Arrow radius", Min = 20, Max = 500, Default = 150, Step = 1, Callback = function(v) preview:SetFeature("Arrow radius", v) end })
-            left:AddColorpicker({ Name = "Arrow color", Amount = 1, Default = Color3.fromRGB(255, 255, 255), Callback = function(c) preview:SetFeature("Arrow color", c) end })
-            left:AddColorpicker({ Name = "Arrow outline", Amount = 1, Default = Color3.fromRGB(0, 0, 0), Callback = function(c) preview:SetFeature("Arrow outline", c) end })
+            left:AddColorpicker({ Name = "Arrow color", Amount = 1, Default = Color3.fromRGB(0, 255, 170), Callback = function(c) preview:SetFeature("Arrow color", c) end })
+            left:AddColorpicker({ Name = "Arrow outline", Amount = 1, Default = Color3.fromRGB(18, 20, 19), Callback = function(c) preview:SetFeature("Arrow outline", c) end })
         end
 
         return preview
