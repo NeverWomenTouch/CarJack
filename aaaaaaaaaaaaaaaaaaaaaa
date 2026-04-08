@@ -8183,6 +8183,9 @@ function Library:CreateLibrary(opts)
                         HealthBar = false,
                         ArmorBar = false,
                         Skeleton = false,
+                        Arrows = false,
+                        ArrowColor = Color3.fromRGB(255, 255, 255),
+                        ArrowOutlineColor = Color3.fromRGB(0, 0, 0),
                         BarPosition = "Left",
                         Color = Theme.Accent
                     }
@@ -8231,6 +8234,8 @@ function Library:CreateLibrary(opts)
                         hpOutline = nil,
                         armor = nil,
                         armorOutline = nil,
+                        arrow = nil,
+                        arrowOutline = nil,
                         skeleton = {}
                     }
 
@@ -8259,6 +8264,16 @@ function Library:CreateLibrary(opts)
                         drawings.hpOutline = newDrawing("Square")
                         drawings.armor = newDrawing("Square")
                         drawings.armorOutline = newDrawing("Square")
+                        local okTri, triObj = pcall(Drawing.new, "Triangle")
+                        if okTri and triObj then
+                            triObj.Visible = false
+                            drawings.arrow = triObj
+                        end
+                        local okTri2, triObj2 = pcall(Drawing.new, "Triangle")
+                        if okTri2 and triObj2 then
+                            triObj2.Visible = false
+                            drawings.arrowOutline = triObj2
+                        end
                     end
 
                     local function hideDrawings()
@@ -8271,6 +8286,8 @@ function Library:CreateLibrary(opts)
                         if drawings.hpOutline then drawings.hpOutline.Visible = false end
                         if drawings.armor then drawings.armor.Visible = false end
                         if drawings.armorOutline then drawings.armorOutline.Visible = false end
+                        if drawings.arrow then drawings.arrow.Visible = false end
+                        if drawings.arrowOutline then drawings.arrowOutline.Visible = false end
                         for _, ln in ipairs(drawings.skeleton) do if ln then ln.Visible = false end end
                     end
 
@@ -9137,6 +9154,15 @@ function Library:CreateLibrary(opts)
                             local espBottom = dy + dh + 12
                             local espLeft = dx - 14
                             local espRight = dx + dw + 14
+                            if config.Arrows then
+                                local arrowPad = math.max(dw, dh) * 0.5 + 38
+                                local cx0 = drawBase.X + c2d.X
+                                local cy0 = drawBase.Y + c2d.Y
+                                espTop = math.min(espTop, cy0 - arrowPad)
+                                espBottom = math.max(espBottom, cy0 + arrowPad)
+                                espLeft = math.min(espLeft, cx0 - arrowPad)
+                                espRight = math.max(espRight, cx0 + arrowPad)
+                            end
 
                             return espLeft, espTop, espRight, espBottom, dx, dy, dw, dh, c2d, zC, cf2, size2
                         end
@@ -9396,6 +9422,58 @@ function Library:CreateLibrary(opts)
                         else
                             for _, ln in ipairs(drawings.skeleton) do if ln then ln.Visible = false end end
                         end
+
+                        if config.Arrows and drawings.arrow and drawings.arrowOutline then
+                            local cx = drawBase.X + center2d.X
+                            local cy = drawBase.Y + center2d.Y
+                            local arrowDist = math.max(w, h) * 0.5 + 22
+                            local arrowH = 14
+                            local arrowW = 12
+                            local angle = (tick() * 0.6) % (math.pi * 2)
+                            local dirX = math.sin(angle)
+                            local dirY = -math.cos(angle)
+
+                            local tipX = cx + dirX * arrowDist
+                            local tipY = cy + dirY * arrowDist
+                            local baseX = cx + dirX * (arrowDist + arrowH)
+                            local baseY = cy + dirY * (arrowDist + arrowH)
+                            local perpX = -dirY
+                            local perpY = dirX
+                            local halfW = arrowW * 0.5
+
+                            local pA = Vector2.new(clampVal(baseX + perpX * halfW, vpLeft, vpRight), clampVal(baseY + perpY * halfW, vpTop, vpBottom))
+                            local pB = Vector2.new(clampVal(baseX - perpX * halfW, vpLeft, vpRight), clampVal(baseY - perpY * halfW, vpTop, vpBottom))
+                            local pC = Vector2.new(clampVal(tipX, vpLeft, vpRight), clampVal(tipY, vpTop, vpBottom))
+
+                            local oScale = 1.5
+                            local oHalfW = halfW * oScale
+                            local oH = arrowH * oScale
+                            local oBaseX = cx + dirX * (arrowDist + oH)
+                            local oBaseY = cy + dirY * (arrowDist + oH)
+                            local oTipX = cx + dirX * (arrowDist - (oH - arrowH) * 0.3)
+                            local oTipY = cy + dirY * (arrowDist - (oH - arrowH) * 0.3)
+
+                            drawings.arrowOutline.PointA = Vector2.new(clampVal(oBaseX + perpX * oHalfW, vpLeft, vpRight), clampVal(oBaseY + perpY * oHalfW, vpTop, vpBottom))
+                            drawings.arrowOutline.PointB = Vector2.new(clampVal(oBaseX - perpX * oHalfW, vpLeft, vpRight), clampVal(oBaseY - perpY * oHalfW, vpTop, vpBottom))
+                            drawings.arrowOutline.PointC = Vector2.new(clampVal(oTipX, vpLeft, vpRight), clampVal(oTipY, vpTop, vpBottom))
+                            drawings.arrowOutline.Color = config.ArrowOutlineColor
+                            drawings.arrowOutline.Filled = true
+                            drawings.arrowOutline.Thickness = 1
+                            drawings.arrowOutline.Visible = true
+                            pcall(function() drawings.arrowOutline.ZIndex = 1 end)
+
+                            drawings.arrow.PointA = pA
+                            drawings.arrow.PointB = pB
+                            drawings.arrow.PointC = pC
+                            drawings.arrow.Color = config.ArrowColor
+                            drawings.arrow.Filled = true
+                            drawings.arrow.Thickness = 1
+                            drawings.arrow.Visible = true
+                            pcall(function() drawings.arrow.ZIndex = 69 end)
+                        else
+                            if drawings.arrow then drawings.arrow.Visible = false end
+                            if drawings.arrowOutline then drawings.arrowOutline.Visible = false end
+                        end
                     end)
 
                     if LocalPlayer then
@@ -9437,6 +9515,14 @@ function Library:CreateLibrary(opts)
                             end
                             return
                         end
+                        if name == "Arrow color" or name == "ArrowColor" then
+                            if typeof(v) == "Color3" then config.ArrowColor = v end
+                            return
+                        end
+                        if name == "Arrow outline" or name == "ArrowOutlineColor" then
+                            if typeof(v) == "Color3" then config.ArrowOutlineColor = v end
+                            return
+                        end
                         v = (v == true)
                         if name == "Name esp" or name == "NameESP" or name == "Name" then
                             config.NameESP = v
@@ -9448,6 +9534,8 @@ function Library:CreateLibrary(opts)
                             config.ArmorBar = v
                         elseif name == "skeleton" or name == "Skeleton" then
                             config.Skeleton = v
+                        elseif name == "Arrows" or name == "arrows" then
+                            config.Arrows = v
                         end
                     end
 
@@ -9457,6 +9545,12 @@ function Library:CreateLibrary(opts)
                         end
                         if name == "Box style" or name == "BoxStyle" then
                             return config.BoxStyle
+                        end
+                        if name == "Arrow color" or name == "ArrowColor" then
+                            return config.ArrowColor
+                        end
+                        if name == "Arrow outline" or name == "ArrowOutlineColor" then
+                            return config.ArrowOutlineColor
                         end
                         if name == "Name esp" or name == "NameESP" or name == "Name" then
                             return config.NameESP
@@ -9468,6 +9562,8 @@ function Library:CreateLibrary(opts)
                             return config.ArmorBar
                         elseif name == "skeleton" or name == "Skeleton" then
                             return config.Skeleton
+                        elseif name == "Arrows" or name == "arrows" then
+                            return config.Arrows
                         end
                         return nil
                     end
@@ -9531,6 +9627,8 @@ function Library:CreateLibrary(opts)
                         safeRemove(drawings.hpOutline)
                         safeRemove(drawings.armor)
                         safeRemove(drawings.armorOutline)
+                        safeRemove(drawings.arrow)
+                        safeRemove(drawings.arrowOutline)
                         for i = 1, #drawings.skeleton do safeRemove(drawings.skeleton[i]) end
                         table.clear(drawings.skeleton)
                         clearModel()
@@ -9869,6 +9967,9 @@ function Library:CreateLibrary(opts)
             left:AddToggle({ Name = "Armor bar", Default = false, Callback = function(v) preview:SetFeature("Armor bar", v) end })
             left:AddDropdown({ Name = "Bar position", Default = "Left", Options = {"Left", "Right", "Bottom"}, Callback = function(v) preview:SetFeature("Bar position", v) end })
             left:AddToggle({ Name = "skeleton", Default = false, Callback = function(v) preview:SetFeature("skeleton", v) end })
+            left:AddToggle({ Name = "Arrows", Default = false, Callback = function(v) preview:SetFeature("Arrows", v) end })
+            left:AddColorpicker({ Name = "Arrow color", Amount = 1, Default = Color3.fromRGB(255, 255, 255), Callback = function(c) preview:SetFeature("Arrow color", c) end })
+            left:AddColorpicker({ Name = "Arrow outline", Amount = 1, Default = Color3.fromRGB(0, 0, 0), Callback = function(c) preview:SetFeature("Arrow outline", c) end })
         end
 
         return preview
