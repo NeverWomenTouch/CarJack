@@ -8186,6 +8186,7 @@ function Library:CreateLibrary(opts)
                         Arrows = false,
                         ArrowColor = Color3.fromRGB(255, 255, 255),
                         ArrowOutlineColor = Color3.fromRGB(0, 0, 0),
+                        ArrowRadius = 150,
                         BarPosition = "Left",
                         Color = Theme.Accent
                     }
@@ -9154,15 +9155,7 @@ function Library:CreateLibrary(opts)
                             local espBottom = dy + dh + 12
                             local espLeft = dx - 14
                             local espRight = dx + dw + 14
-                            if config.Arrows then
-                                local arrowPad = math.max(dw, dh) * 0.5 + 38
-                                local cx0 = drawBase.X + c2d.X
-                                local cy0 = drawBase.Y + c2d.Y
-                                espTop = math.min(espTop, cy0 - arrowPad)
-                                espBottom = math.max(espBottom, cy0 + arrowPad)
-                                espLeft = math.min(espLeft, cx0 - arrowPad)
-                                espRight = math.max(espRight, cx0 + arrowPad)
-                            end
+
 
                             return espLeft, espTop, espRight, espBottom, dx, dy, dw, dh, c2d, zC, cf2, size2
                         end
@@ -9424,38 +9417,39 @@ function Library:CreateLibrary(opts)
                         end
 
                         if config.Arrows and drawings.arrow and drawings.arrowOutline then
-                            local cx = drawBase.X + center2d.X
-                            local cy = drawBase.Y + center2d.Y
-                            local arrowDist = math.max(w, h) * 0.5 + 22
+                            local screenSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+                            local scx = screenSize.X * 0.5
+                            local scy = screenSize.Y * 0.5
+                            local radius = config.ArrowRadius
                             local arrowH = 14
                             local arrowW = 12
                             local angle = (tick() * 0.6) % (math.pi * 2)
                             local dirX = math.sin(angle)
                             local dirY = -math.cos(angle)
 
-                            local tipX = cx + dirX * arrowDist
-                            local tipY = cy + dirY * arrowDist
-                            local baseX = cx + dirX * (arrowDist + arrowH)
-                            local baseY = cy + dirY * (arrowDist + arrowH)
+                            local tipX = scx + dirX * radius
+                            local tipY = scy + dirY * radius
+                            local baseX = scx + dirX * (radius + arrowH)
+                            local baseY = scy + dirY * (radius + arrowH)
                             local perpX = -dirY
                             local perpY = dirX
                             local halfW = arrowW * 0.5
 
-                            local pA = Vector2.new(clampVal(baseX + perpX * halfW, vpLeft, vpRight), clampVal(baseY + perpY * halfW, vpTop, vpBottom))
-                            local pB = Vector2.new(clampVal(baseX - perpX * halfW, vpLeft, vpRight), clampVal(baseY - perpY * halfW, vpTop, vpBottom))
-                            local pC = Vector2.new(clampVal(tipX, vpLeft, vpRight), clampVal(tipY, vpTop, vpBottom))
+                            local pA = Vector2.new(baseX + perpX * halfW, baseY + perpY * halfW)
+                            local pB = Vector2.new(baseX - perpX * halfW, baseY - perpY * halfW)
+                            local pC = Vector2.new(tipX, tipY)
 
                             local oScale = 1.5
                             local oHalfW = halfW * oScale
                             local oH = arrowH * oScale
-                            local oBaseX = cx + dirX * (arrowDist + oH)
-                            local oBaseY = cy + dirY * (arrowDist + oH)
-                            local oTipX = cx + dirX * (arrowDist - (oH - arrowH) * 0.3)
-                            local oTipY = cy + dirY * (arrowDist - (oH - arrowH) * 0.3)
+                            local oBaseX = scx + dirX * (radius + oH)
+                            local oBaseY = scy + dirY * (radius + oH)
+                            local oTipX = scx + dirX * (radius - (oH - arrowH) * 0.3)
+                            local oTipY = scy + dirY * (radius - (oH - arrowH) * 0.3)
 
-                            drawings.arrowOutline.PointA = Vector2.new(clampVal(oBaseX + perpX * oHalfW, vpLeft, vpRight), clampVal(oBaseY + perpY * oHalfW, vpTop, vpBottom))
-                            drawings.arrowOutline.PointB = Vector2.new(clampVal(oBaseX - perpX * oHalfW, vpLeft, vpRight), clampVal(oBaseY - perpY * oHalfW, vpTop, vpBottom))
-                            drawings.arrowOutline.PointC = Vector2.new(clampVal(oTipX, vpLeft, vpRight), clampVal(oTipY, vpTop, vpBottom))
+                            drawings.arrowOutline.PointA = Vector2.new(oBaseX + perpX * oHalfW, oBaseY + perpY * oHalfW)
+                            drawings.arrowOutline.PointB = Vector2.new(oBaseX - perpX * oHalfW, oBaseY - perpY * oHalfW)
+                            drawings.arrowOutline.PointC = Vector2.new(oTipX, oTipY)
                             drawings.arrowOutline.Color = config.ArrowOutlineColor
                             drawings.arrowOutline.Filled = true
                             drawings.arrowOutline.Thickness = 1
@@ -9523,6 +9517,11 @@ function Library:CreateLibrary(opts)
                             if typeof(v) == "Color3" then config.ArrowOutlineColor = v end
                             return
                         end
+                        if name == "Arrow radius" or name == "ArrowRadius" then
+                            local n = tonumber(v)
+                            if n then config.ArrowRadius = math.clamp(n, 20, 1000) end
+                            return
+                        end
                         v = (v == true)
                         if name == "Name esp" or name == "NameESP" or name == "Name" then
                             config.NameESP = v
@@ -9551,6 +9550,9 @@ function Library:CreateLibrary(opts)
                         end
                         if name == "Arrow outline" or name == "ArrowOutlineColor" then
                             return config.ArrowOutlineColor
+                        end
+                        if name == "Arrow radius" or name == "ArrowRadius" then
+                            return config.ArrowRadius
                         end
                         if name == "Name esp" or name == "NameESP" or name == "Name" then
                             return config.NameESP
@@ -9968,6 +9970,7 @@ function Library:CreateLibrary(opts)
             left:AddDropdown({ Name = "Bar position", Default = "Left", Options = {"Left", "Right", "Bottom"}, Callback = function(v) preview:SetFeature("Bar position", v) end })
             left:AddToggle({ Name = "skeleton", Default = false, Callback = function(v) preview:SetFeature("skeleton", v) end })
             left:AddToggle({ Name = "Arrows", Default = false, Callback = function(v) preview:SetFeature("Arrows", v) end })
+            left:AddSlider({ Name = "Arrow radius", Min = 20, Max = 500, Default = 150, Step = 1, Callback = function(v) preview:SetFeature("Arrow radius", v) end })
             left:AddColorpicker({ Name = "Arrow color", Amount = 1, Default = Color3.fromRGB(255, 255, 255), Callback = function(c) preview:SetFeature("Arrow color", c) end })
             left:AddColorpicker({ Name = "Arrow outline", Amount = 1, Default = Color3.fromRGB(0, 0, 0), Callback = function(c) preview:SetFeature("Arrow outline", c) end })
         end
