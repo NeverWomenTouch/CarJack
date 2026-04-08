@@ -322,6 +322,87 @@ Library.FormatKeyName = FormatKeyName
 Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, v = nil }
 Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, baseV = nil }
 
+local _luvC3 = Color3.new
+local _luvBlack = _luvC3(0, 0, 0)
+local _luvClamp = math.clamp
+
+local function _rgbToLuv(c)
+    local r, g, b = c.R, c.G, c.B
+    r = r < 0.0404482362771076 and r / 12.92 or 0.87941546140213 * (r + 0.055) ^ 2.4
+    g = g < 0.0404482362771076 and g / 12.92 or 0.87941546140213 * (g + 0.055) ^ 2.4
+    b = b < 0.0404482362771076 and b / 12.92 or 0.87941546140213 * (b + 0.055) ^ 2.4
+    local y = 0.2125862307855956 * r + 0.71517030370341085 * g + 0.0722004986433362 * b
+    local z = 3.6590806972265883 * r + 11.4426895800574232 * g + 4.1149915024264843 * b
+    local l = y > 0.008856451679035631 and 116 * y ^ (1 / 3) - 16 or 903.296296296296 * y
+    if z > 1e-15 then
+        local x = 0.9257063972951867 * r - 0.8333736323779866 * g - 0.09209820666085898 * b
+        return l, l * x / z, l * (9 * y / z - 0.46832)
+    end
+    return l, -0.19783 * l, -0.46832 * l
+end
+
+local function _luvToRgb(l, u, v)
+    if l < 0.0197955 then return _luvBlack end
+    local u2 = u / l + 0.19783
+    local v2 = v / l + 0.46832
+    local yy = (l + 16) / 116
+    yy = yy > 0.206896551724137931 and yy * yy * yy or 0.12841854934601665 * yy - 0.01771290335807126
+    local xx = yy * u2 / v2
+    local zz = yy * ((3 - 0.75 * u2) / v2 - 5)
+    local r = 7.2914074 * xx - 1.5372080 * yy - 0.4986286 * zz
+    local g = -2.1800940 * xx + 1.8757561 * yy + 0.0415175 * zz
+    local b = 0.1253477 * xx - 0.2040211 * yy + 1.0569959 * zz
+    if r < 0 and r < g and r < b then
+        r, g, b = 0, g - r, b - r
+    elseif g < 0 and g < b then
+        r, g, b = r - g, 0, b - g
+    elseif b < 0 then
+        r, g, b = r - b, g - b, 0
+    end
+    return _luvC3(
+        _luvClamp(r < 3.1306684425e-3 and 12.92 * r or 1.055 * r ^ (1 / 2.4) - 0.055, 0, 1),
+        _luvClamp(g < 3.1306684425e-3 and 12.92 * g or 1.055 * g ^ (1 / 2.4) - 0.055, 0, 1),
+        _luvClamp(b < 3.1306684425e-3 and 12.92 * b or 1.055 * b ^ (1 / 2.4) - 0.055, 0, 1)
+    )
+end
+
+local function luvLerp(c0, c1, t)
+    local l0, u0, v0 = _rgbToLuv(c0)
+    local l1, u1, v1 = _rgbToLuv(c1)
+    return _luvToRgb((1 - t) * l0 + t * l1, (1 - t) * u0 + t * u1, (1 - t) * v0 + t * v1)
+end
+
+local _rainbowKeypoints = {
+    Color3.fromHSV(0 / 6, 1, 1),
+    Color3.fromHSV(1 / 6, 1, 1),
+    Color3.fromHSV(2 / 6, 1, 1),
+    Color3.fromHSV(3 / 6, 1, 1),
+    Color3.fromHSV(4 / 6, 1, 1),
+    Color3.fromHSV(5 / 6, 1, 1),
+}
+
+local function luvRainbow(t, s, v)
+    t = t % 1
+    local segCount = #_rainbowKeypoints
+    local pos = t * segCount
+    local idx = math.floor(pos)
+    local frac = pos - idx
+    local c0 = _rainbowKeypoints[(idx % segCount) + 1]
+    local c1 = _rainbowKeypoints[((idx + 1) % segCount) + 1]
+    local base = luvLerp(c0, c1, frac)
+    if s < 1 or v < 1 then
+        local h2, _, _ = Color3.toHSV(base)
+        return Color3.fromHSV(h2, s, v)
+    end
+    return base
+end
+
+local function luvPulse(t, s, baseV, pulseT)
+    local full = luvRainbow(t, s, baseV)
+    local dim = luvRainbow(t, s, math.max(baseV * 0.15, 0.05))
+    return luvLerp(dim, full, pulseT)
+end
+
 local function _pickAnyKey(t)
     for k,_ in pairs(t or {}) do
         return k
@@ -6433,7 +6514,7 @@ function Library:CreateLibrary(opts)
                             local v = math.max(0.7, v0)
                             local hh = (h + phase) % 1
                             slot.hsv = {hh, s, v}
-                            local c = hsvToColor(slot.hsv)
+                            local c = luvRainbow(hh, s, v)
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
 
@@ -6621,7 +6702,7 @@ function Library:CreateLibrary(opts)
                             local hh = ((Library._rainbowBus.h or 0) + (bus.phase or 0)) % 1
                             local s = math.max(0.8, bus.s or slot.hsv[2] or 1)
                             local v = math.max(0.7, bus.v or slot.hsv[3] or 1)
-                            local c0 = Color3.fromHSV(hh, s, v)
+                            local c0 = luvRainbow(hh, s, v)
                             slot.color = c0
                             slot.fill.BackgroundColor3 = c0
                             bus.color = c0
@@ -6778,8 +6859,8 @@ function Library:CreateLibrary(opts)
                             local baseV = math.max(0.7, baseV0)
                             local hh = (h + phase) % 1
                             local dt = (Library._rainbowBus and Library._rainbowBus.dt) or tick()
-                            local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
-                            local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                            local pulseT = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
+                            local c = luvPulse(hh, s, baseV, pulseT)
                             slot.hsv = {hh, s, baseV}
                             slot.color = c
                             slot.fill.BackgroundColor3 = c
@@ -6799,8 +6880,8 @@ function Library:CreateLibrary(opts)
                             local s = math.max(0.8, bus.s or slot.hsv[2] or 1)
                             local baseV = math.max(0.7, bus.baseV or slot.hsv[3] or 1)
                             local dt = (Library._rainbowBus and Library._rainbowBus.dt) or tick()
-                            local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
-                            local c0 = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                            local pulseT = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
+                            local c0 = luvPulse(hh, s, baseV, pulseT)
                             slot.color = c0
                             slot.fill.BackgroundColor3 = c0
                             bus.color = c0
@@ -10021,7 +10102,7 @@ function Library:CreateLibrary(opts)
                                     local v = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
                                     local hh = (h + (slot.hueOffset or 0)) % 1
                                     slot.hsv = { hh, s, v }
-                                    local c = Color3.fromHSV(hh, s, v)
+                                    local c = luvRainbow(hh, s, v)
                                     slot.color = c
                                     pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
                                     if Library and Library._globalRGBSync then Library._globalRGBSync.color = c end
@@ -10035,8 +10116,8 @@ function Library:CreateLibrary(opts)
                                     local baseV = math.max(0.7, (slot.hsv and slot.hsv[3]) or 1)
                                     local hh = (h + (slot.pulseHueOffset or 0)) % 1
                                     local dt = (Library and Library._rainbowBus and Library._rainbowBus.dt) or tick()
-                                    local vPulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
-                                    local c = Color3.fromHSV(hh, s, math.clamp(vPulse * baseV, 0, 1))
+                                    local pulseT = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(dt * 4))
+                                    local c = luvPulse(hh, s, baseV, pulseT)
                                     slot.hsv = { hh, s, baseV }
                                     slot.color = c
                                     pcall(function() if slot.fill then slot.fill.BackgroundColor3 = c end end)
