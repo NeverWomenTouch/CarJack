@@ -8423,22 +8423,29 @@ function Library:CreateLibrary(opts)
                         if not isManualEnabled() then
                             return nil
                         end
+                        -- Search workspace for any instance with the matching name
+                        -- that contains the required parts. Accept Model, Folder, or any Instance.
+                        local bestMatch, bestParts = nil, 0
                         for _, inst in ipairs(workspace:GetDescendants()) do
-                            if inst:IsA("Model") and inst.Name == manualCharacterName then
-                                local okAll = true
+                            if inst.Name == manualCharacterName and inst ~= wm and inst ~= state.model then
+                                local hasAll = true
                                 for i = 1, #manualCharacterParts do
-                                    local partName = manualCharacterParts[i]
-                                    if not inst:FindFirstChild(partName, true) then
-                                        okAll = false
+                                    if not inst:FindFirstChild(manualCharacterParts[i], true) then
+                                        hasAll = false
                                         break
                                     end
                                 end
-                                if okAll then
-                                    return inst
+                                if hasAll then
+                                    -- Prefer the one with the most BaseParts (most complete)
+                                    local partCount = countBaseParts(inst)
+                                    if partCount > bestParts then
+                                        bestMatch = inst
+                                        bestParts = partCount
+                                    end
                                 end
                             end
                         end
-                        return nil
+                        return bestMatch
                     end
 
                     local function findBestCharacterModel()
@@ -8476,7 +8483,7 @@ function Library:CreateLibrary(opts)
                     local function isCharacterReady(char)
                         if not char then return false end
 
-                        if isManualEnabled() and char:IsA("Model") and char.Name == manualCharacterName then
+                        if isManualEnabled() and char.Name == manualCharacterName then
                             for i = 1, #manualCharacterParts do
                                 if not char:FindFirstChild(manualCharacterParts[i], true) then
                                     return false
@@ -8773,89 +8780,116 @@ function Library:CreateLibrary(opts)
                         end
 
                         local clone
+                        local wasManualPartClone = false
 
-                        -- Prefer cloning the live character so the preview keeps the exact loaded
-                        -- appearance (hair/accessories/meshes) even in ViewportFrames.
+                        -- Try 1: Clone the whole instance
                         do
-                            local old = char.Archivable
+                            local old
+                            pcall(function() old = char.Archivable end)
                             pcall(function() char.Archivable = true end)
                             local ok, out = pcall(function() return char:Clone() end)
                             pcall(function() char.Archivable = old end)
-                            if ok and out then clone = out end
+                            if ok and out then
+                                -- If the clone is not a Model, wrap it in one
+                                if not out:IsA("Model") then
+                                    local wrapper = Instance.new("Model")
+                                    wrapper.Name = out.Name
+                                    out.Parent = wrapper
+                                    clone = wrapper
+                                else
+                                    clone = out
+                                end
+                            end
                         end
 
-                        -- Fallback for manual models: clone each BasePart individually
+                        -- Try 2 (manual models): clone each descendant part individually
                         if (not clone) and usedManual then
                             local newModel = Instance.new("Model")
                             newModel.Name = char.Name
                             local anyPart = false
+
+                            -- Gather all BaseParts from the source
+                            local srcParts = {}
                             for _, d in ipairs(char:GetDescendants()) do
                                 if d:IsA("BasePart") then
-                                    local partClone
-                                    -- Try 1: set Archivable and Clone
-                                    local oldArch = d.Archivable
-                                    pcall(function() d.Archivable = true end)
-                                    local ok2, pc = pcall(function() return d:Clone() end)
-                                    pcall(function() d.Archivable = oldArch end)
-                                    if ok2 and pc then
-                                        partClone = pc
-                                    else
-                                        -- Try 2: manually reconstruct the part
-                                        local okNew, newP = pcall(function()
-                                            local className = d.ClassName -- "MeshPart", "Part", etc.
-                                            local np = Instance.new(className == "MeshPart" and "MeshPart" or "Part")
-                                            np.Name = d.Name
-                                            np.Size = d.Size
-                                            np.CFrame = d.CFrame
-                                            np.Color = d.Color
-                                            np.Material = d.Material
-                                            np.Transparency = d.Transparency
-                                            np.CanCollide = false
-                                            np.Anchored = true
-                                            if className == "MeshPart" then
-                                                pcall(function() np.MeshId = d.MeshId end)
-                                                pcall(function() np.TextureID = d.TextureID end)
-                                            end
-                                            return np
-                                        end)
-                                        if okNew and newP then
-                                            partClone = newP
-                                        end
-                                    end
-                                    if partClone then
-                                        partClone.Parent = newModel
-                                        anyPart = true
-                                    end
+                                    srcParts[#srcParts + 1] = d
                                 end
                             end
-                            -- Also clone non-BasePart visual children (e.g. SpecialMesh, SurfaceAppearance, Decal)
+                            -- Also check if char itself is a BasePart
+                            if char:IsA("BasePart") then
+                                srcParts[#srcParts + 1] = char
+                            end
+
+                            for _, d in ipairs(srcParts) do
+                                local partClone
+                                -- Try clone
+                                pcall(function() d.Archivable = true end)
+                                local ok2, pc = pcall(function() return d:Clone() end)
+                                if ok2 and pc then
+                                    partClone = pc
+                                else
+                                    -- Manually reconstruct
+                                    local okNew, newP = pcall(function()
+                                        local cn = d.ClassName
+                                        local np
+                                        if cn == "MeshPart" then
+                                            np = Instance.new("MeshPart")
+                                            pcall(function() np.MeshId = d.MeshId end)
+                                            pcall(function() np.TextureID = d.TextureID end)
+                                        elseif cn == "UnionOperation" then
+                                            np = Instance.new("Part")
+                                        else
+                                            np = Instance.new("Part")
+                                        end
+                                        np.Name = d.Name
+                                        np.Size = d.Size
+                                        np.CFrame = d.CFrame
+                                        pcall(function() np.Color = d.Color end)
+                                        pcall(function() np.Material = d.Material end)
+                                        pcall(function() np.Transparency = d.Transparency end)
+                                        np.CanCollide = false
+                                        np.Anchored = true
+                                        return np
+                                    end)
+                                    if okNew and newP then
+                                        partClone = newP
+                                    end
+                                end
+                                if partClone then
+                                    partClone.Parent = newModel
+                                    anyPart = true
+                                end
+                            end
+
+                            -- Clone visual children (SpecialMesh, SurfaceAppearance, Decal, Texture)
                             if anyPart then
+                                local srcVisuals = {}
                                 for _, d in ipairs(char:GetDescendants()) do
-                                    if (d:IsA("SpecialMesh") or d:IsA("SurfaceAppearance") or d:IsA("Decal") or d:IsA("Texture")) then
-                                        local parentPart = d.Parent
-                                        if parentPart and parentPart:IsA("BasePart") then
-                                            local target = newModel:FindFirstChild(parentPart.Name)
-                                            if target then
-                                                pcall(function()
-                                                    local oldA = d.Archivable
-                                                    pcall(function() d.Archivable = true end)
-                                                    local okC, dc = pcall(function() return d:Clone() end)
-                                                    pcall(function() d.Archivable = oldA end)
-                                                    if okC and dc then dc.Parent = target end
-                                                end)
-                                            end
+                                    if d:IsA("SpecialMesh") or d:IsA("SurfaceAppearance") or d:IsA("Decal") or d:IsA("Texture") then
+                                        srcVisuals[#srcVisuals + 1] = d
+                                    end
+                                end
+                                for _, d in ipairs(srcVisuals) do
+                                    local parentPart = d.Parent
+                                    if parentPart and parentPart:IsA("BasePart") then
+                                        local target = newModel:FindFirstChild(parentPart.Name)
+                                        if target then
+                                            pcall(function()
+                                                pcall(function() d.Archivable = true end)
+                                                local okC, dc = pcall(function() return d:Clone() end)
+                                                if okC and dc then dc.Parent = target end
+                                            end)
                                         end
                                     end
                                 end
-                            end
-                            if anyPart then
                                 clone = newModel
+                                wasManualPartClone = true
                             else
                                 pcall(function() newModel:Destroy() end)
                             end
                         end
 
-                        -- Fallback: if cloning fails, build from HumanoidDescription.
+                        -- Try 3 (non-manual): build from HumanoidDescription
                         if (not clone) and (not usedManual) then
                             local desc
                             local okApplied, applied = pcall(function()
@@ -8885,6 +8919,39 @@ function Library:CreateLibrary(opts)
 
                         if not clone then return false end
 
+                        -- Helper: move all parts in the model by an offset CFrame
+                        local function translateAllParts(model, offset)
+                            for _, d in ipairs(model:GetDescendants()) do
+                                if d:IsA("BasePart") then
+                                    pcall(function() d.CFrame = d.CFrame + offset end)
+                                end
+                            end
+                            if model:IsA("BasePart") then
+                                pcall(function() model.CFrame = model.CFrame + offset end)
+                            end
+                        end
+
+                        local function rotateAllParts(model, center, rotation)
+                            for _, d in ipairs(model:GetDescendants()) do
+                                if d:IsA("BasePart") then
+                                    pcall(function()
+                                        local rel = d.CFrame.Position - center
+                                        local newPos = rotation * rel + center
+                                        d.CFrame = CFrame.new(newPos) * (rotation * d.CFrame.Rotation)
+                                    end)
+                                end
+                            end
+                        end
+
+                        -- For manual part-cloned models, set a PrimaryPart so PivotTo works
+                        if wasManualPartClone then
+                            local pp = getCharacterRoot(clone)
+                                or clone:FindFirstChild("Head")
+                            if pp and pp:IsA("BasePart") then
+                                pcall(function() clone.PrimaryPart = pp end)
+                            end
+                        end
+
                         -- Strip scripts & anchor parts first.
                         cleanupClone(clone)
 
@@ -8906,38 +8973,66 @@ function Library:CreateLibrary(opts)
                         -- How far below the feet the model is allowed to sit in the viewport world.
                         -- Keep this very small so the character sits centered instead of low.
                         local extraDown = 0.1
-                        pcall(function()
-                            clone:PivotTo(CFrame.new(0, 0, 0))
+
+                        -- Center the model at origin
+                        do
+                            local pivotOK = pcall(function() clone:PivotTo(CFrame.new(0, 0, 0)) end)
+                            if not pivotOK then
+                                -- Fallback: manually translate all parts to origin
+                                local cf0 = nil
+                                pcall(function()
+                                    local c, _ = getFramingBounds(clone)
+                                    cf0 = c
+                                end)
+                                if cf0 then
+                                    translateAllParts(clone, -cf0.Position)
+                                end
+                            end
+
                             local cf0, size0 = getFramingBounds(clone)
                             if cf0 and size0 then
                                 local bottomY = cf0.Position.Y - (size0.Y * 0.5)
-                                -- Previously this pushed the model down a lot on taller rigs.
-                                -- Keep a modest margin so the feet don't clip while staying centered.
                                 extraDown = math.clamp(size0.Y * 0.045, 0.06, 0.7)
                                 local offset = Vector3.new(-cf0.Position.X, -bottomY - extraDown, -cf0.Position.Z)
-                                local pivot = clone:GetPivot()
-                                clone:PivotTo(pivot + offset)
+                                local pivotOK2 = pcall(function()
+                                    clone:PivotTo(clone:GetPivot() + offset)
+                                end)
+                                if not pivotOK2 then
+                                    translateAllParts(clone, offset)
+                                end
                             end
-                        end)
+                        end
 
                         -- Normalize facing so the preview is consistently front-facing.
                         pcall(function()
                             local rp = getCharacterRoot(clone) or clone:FindFirstChild("Head")
                             if rp and rp:IsA("BasePart") then
                                 local lv = rp.CFrame.LookVector
-                                local yaw0 = math.atan2(lv.X, -lv.Z) -- 0 when facing -Z
-                                clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, -yaw0, 0))
+                                local yaw0 = math.atan2(lv.X, -lv.Z)
+                                local cf0 = getFramingBounds(clone)
+                                local center = cf0 and cf0.Position or Vector3.zero
+                                local pivotOK3 = pcall(function()
+                                    clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, -yaw0, 0))
+                                end)
+                                if not pivotOK3 then
+                                    rotateAllParts(clone, center, CFrame.Angles(0, -yaw0, 0))
+                                end
                             end
                         end)
 
-                        pcall(function()
+                        do
                             local cf1, size1 = getFramingBounds(clone)
                             if cf1 and size1 then
                                 local bottomY = cf1.Position.Y - (size1.Y * 0.5)
                                 local offset = Vector3.new(-cf1.Position.X, -bottomY - extraDown, -cf1.Position.Z)
-                                clone:PivotTo(clone:GetPivot() + offset)
+                                local pivotOK4 = pcall(function()
+                                    clone:PivotTo(clone:GetPivot() + offset)
+                                end)
+                                if not pivotOK4 then
+                                    translateAllParts(clone, offset)
+                                end
                             end
-                        end)
+                        end
                         local prevModel = state.model
                         state.model = clone
                         state.humanoid = clone:FindFirstChildOfClass("Humanoid")
