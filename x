@@ -8943,10 +8943,9 @@ function Library:CreateLibrary(opts)
                             end
                         end
 
-                        -- For manual part-cloned models, set a PrimaryPart so PivotTo works
-                        if wasManualPartClone then
-                            local pp = getCharacterRoot(clone)
-                                or clone:FindFirstChild("Head")
+                        -- For manual or cloned models, always set PrimaryPart so PivotTo works
+                        do
+                            local pp = getCharacterRoot(clone) or clone:FindFirstChild("Head")
                             if pp and pp:IsA("BasePart") then
                                 pcall(function() clone.PrimaryPart = pp end)
                             end
@@ -8974,32 +8973,29 @@ function Library:CreateLibrary(opts)
                         -- Keep this very small so the character sits centered instead of low.
                         local extraDown = 0.1
 
-                        -- Center the model at origin
+                        -- Center the model at origin using actual part positions (never rely on PivotTo alone)
                         do
-                            local pivotOK = pcall(function() clone:PivotTo(CFrame.new(0, 0, 0)) end)
-                            if not pivotOK then
-                                -- Fallback: manually translate all parts to origin
-                                local cf0 = nil
-                                pcall(function()
-                                    local c, _ = getFramingBounds(clone)
-                                    cf0 = c
-                                end)
-                                if cf0 then
-                                    translateAllParts(clone, -cf0.Position)
+                            -- Step 1: Move the AABB center of all parts to the world origin
+                            local cf0, size0 = getFramingBounds(clone)
+                            if cf0 and size0 then
+                                translateAllParts(clone, -cf0.Position)
+                            else
+                                -- Last resort: find any part and use its position as offset
+                                for _, d in ipairs(clone:GetDescendants()) do
+                                    if d:IsA("BasePart") then
+                                        translateAllParts(clone, -d.CFrame.Position)
+                                        break
+                                    end
                                 end
                             end
 
-                            local cf0, size0 = getFramingBounds(clone)
+                            -- Step 2: Re-compute bounds and position so feet sit just above Y=0
+                            cf0, size0 = getFramingBounds(clone)
                             if cf0 and size0 then
                                 local bottomY = cf0.Position.Y - (size0.Y * 0.5)
                                 extraDown = math.clamp(size0.Y * 0.045, 0.06, 0.7)
                                 local offset = Vector3.new(-cf0.Position.X, -bottomY - extraDown, -cf0.Position.Z)
-                                local pivotOK2 = pcall(function()
-                                    clone:PivotTo(clone:GetPivot() + offset)
-                                end)
-                                if not pivotOK2 then
-                                    translateAllParts(clone, offset)
-                                end
+                                translateAllParts(clone, offset)
                             end
                         end
 
@@ -9011,26 +9007,17 @@ function Library:CreateLibrary(opts)
                                 local yaw0 = math.atan2(lv.X, -lv.Z)
                                 local cf0 = getFramingBounds(clone)
                                 local center = cf0 and cf0.Position or Vector3.zero
-                                local pivotOK3 = pcall(function()
-                                    clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, -yaw0, 0))
-                                end)
-                                if not pivotOK3 then
-                                    rotateAllParts(clone, center, CFrame.Angles(0, -yaw0, 0))
-                                end
+                                rotateAllParts(clone, center, CFrame.Angles(0, -yaw0, 0))
                             end
                         end)
 
+                        -- Final re-center after rotation
                         do
                             local cf1, size1 = getFramingBounds(clone)
                             if cf1 and size1 then
                                 local bottomY = cf1.Position.Y - (size1.Y * 0.5)
                                 local offset = Vector3.new(-cf1.Position.X, -bottomY - extraDown, -cf1.Position.Z)
-                                local pivotOK4 = pcall(function()
-                                    clone:PivotTo(clone:GetPivot() + offset)
-                                end)
-                                if not pivotOK4 then
-                                    translateAllParts(clone, offset)
-                                end
+                                translateAllParts(clone, offset)
                             end
                         end
                         local prevModel = state.model
