@@ -9016,29 +9016,40 @@ function Library:CreateLibrary(opts)
                         local x = drawBase.X + center2d.X - (w * 0.5)
                         local y = drawBase.Y + center2d.Y - (h * 0.5)
 
+                        local vpLeft = drawBase.X
+                        local vpTop = drawBase.Y
+                        local vpRight = drawBase.X + absSize.X
+                        local vpBottom = drawBase.Y + absSize.Y
+
+                        local function clampVal(v, lo, hi) return math.max(lo, math.min(hi, v)) end
+
+                        local function setSquare(sq, sx, sy, sw, sh, col, filled, thick, zidx)
+                            local l = clampVal(sx, vpLeft, vpRight)
+                            local t = clampVal(sy, vpTop, vpBottom)
+                            local r = clampVal(sx + sw, vpLeft, vpRight)
+                            local b = clampVal(sy + sh, vpTop, vpBottom)
+                            local cw = math.max(r - l, 1)
+                            local ch = math.max(b - t, 1)
+                            sq.Visible = true
+                            sq.Color = col
+                            sq.Filled = filled
+                            sq.Thickness = thick
+                            sq.Size = Vector2.new(cw, ch)
+                            sq.Position = Vector2.new(l, t)
+                            pcall(function() sq.ZIndex = zidx end)
+                        end
+
                         if config.BoxesESP and drawings.box and drawings.boxOutline then
-                            drawings.boxOutline.Visible = true
-                            drawings.boxOutline.Color = Color3.fromRGB(0, 0, 0)
-                            drawings.boxOutline.Filled = false
-                            drawings.boxOutline.Thickness = 3
-                            drawings.boxOutline.Size = Vector2.new(w + 2, h + 2)
-                            drawings.boxOutline.Position = Vector2.new(x - 1, y - 1)
-                            pcall(function() drawings.boxOutline.ZIndex = 1 end)
-                            drawings.box.Visible = true
-                            drawings.box.Color = config.Color
-                            drawings.box.Filled = false
-                            drawings.box.Thickness = 1
-                            drawings.box.Size = Vector2.new(w, h)
-                            drawings.box.Position = Vector2.new(x, y)
-                            pcall(function() drawings.box.ZIndex = 69 end)
+                            setSquare(drawings.boxOutline, x - 1, y - 1, w + 2, h + 2, Color3.fromRGB(0, 0, 0), false, 3, 1)
+                            setSquare(drawings.box, x, y, w, h, config.Color, false, 1, 69)
                         else
                             if drawings.box then drawings.box.Visible = false end
                             if drawings.boxOutline then drawings.boxOutline.Visible = false end
                         end
 
                         if config.NameESP and drawings.name then
-                            local nameX = x + (w * 0.5)
-                            local nameY = y - (15 + 8)
+                            local nameX = clampVal(x + (w * 0.5), vpLeft, vpRight)
+                            local nameY = clampVal(y - (15 + 8), vpTop, vpBottom - 15)
                             drawings.name.Visible = true
                             drawings.name.Text = (LocalPlayer and LocalPlayer.Name) or "LocalPlayer"
                             drawings.name.Color = config.Color
@@ -9060,28 +9071,16 @@ function Library:CreateLibrary(opts)
                             local bp = config.BarPosition
                             if bp == "Right" then
                                 local hpH = math.max(1, math.floor((h - 2) * hpPerc))
-                                drawings.hpOutline.Visible = true; drawings.hpOutline.Color = Color3.fromRGB(0,0,0); drawings.hpOutline.Filled = true; drawings.hpOutline.Thickness = 1
-                                drawings.hpOutline.Size = Vector2.new(3, h); drawings.hpOutline.Position = Vector2.new(x + w + 3, y)
-                                pcall(function() drawings.hpOutline.ZIndex = 1 end)
-                                drawings.hp.Visible = true; drawings.hp.Color = hpColor; drawings.hp.Filled = true; drawings.hp.Thickness = 1
-                                drawings.hp.Size = Vector2.new(1, hpH); drawings.hp.Position = Vector2.new(x + w + 4, y + (h - hpH))
-                                pcall(function() drawings.hp.ZIndex = 69 end)
+                                setSquare(drawings.hpOutline, x + w + 3, y, 3, h, Color3.fromRGB(0, 0, 0), true, 1, 1)
+                                setSquare(drawings.hp, x + w + 4, y + (h - hpH), 1, hpH, hpColor, true, 1, 69)
                             elseif bp == "Bottom" then
                                 local hpW = math.max(1, math.floor((w - 2) * hpPerc))
-                                drawings.hpOutline.Visible = true; drawings.hpOutline.Color = Color3.fromRGB(0,0,0); drawings.hpOutline.Filled = true; drawings.hpOutline.Thickness = 1
-                                drawings.hpOutline.Size = Vector2.new(w, 3); drawings.hpOutline.Position = Vector2.new(x, y + h + 3)
-                                pcall(function() drawings.hpOutline.ZIndex = 1 end)
-                                drawings.hp.Visible = true; drawings.hp.Color = hpColor; drawings.hp.Filled = true; drawings.hp.Thickness = 1
-                                drawings.hp.Size = Vector2.new(hpW, 1); drawings.hp.Position = Vector2.new(x + 1, y + h + 4)
-                                pcall(function() drawings.hp.ZIndex = 69 end)
+                                setSquare(drawings.hpOutline, x, y + h + 3, w, 3, Color3.fromRGB(0, 0, 0), true, 1, 1)
+                                setSquare(drawings.hp, x + 1, y + h + 4, hpW, 1, hpColor, true, 1, 69)
                             else
                                 local hpH = math.max(1, math.floor((h - 2) * hpPerc))
-                                drawings.hpOutline.Visible = true; drawings.hpOutline.Color = Color3.fromRGB(0,0,0); drawings.hpOutline.Filled = true; drawings.hpOutline.Thickness = 1
-                                drawings.hpOutline.Size = Vector2.new(3, h); drawings.hpOutline.Position = Vector2.new(x - 6, y)
-                                pcall(function() drawings.hpOutline.ZIndex = 1 end)
-                                drawings.hp.Visible = true; drawings.hp.Color = hpColor; drawings.hp.Filled = true; drawings.hp.Thickness = 1
-                                drawings.hp.Size = Vector2.new(1, hpH); drawings.hp.Position = Vector2.new(x - 5, y + (h - hpH))
-                                pcall(function() drawings.hp.ZIndex = 69 end)
+                                setSquare(drawings.hpOutline, x - 6, y, 3, h, Color3.fromRGB(0, 0, 0), true, 1, 1)
+                                setSquare(drawings.hp, x - 5, y + (h - hpH), 1, hpH, hpColor, true, 1, 69)
                             end
                         else
                             if drawings.hp then drawings.hp.Visible = false end
@@ -9138,30 +9137,18 @@ function Library:CreateLibrary(opts)
                             if bp == "Right" then
                                 local armorBarX = x + w + 3 + 6
                                 local armorH = math.max(1, math.floor((h - 2) * armorPerc))
-                                drawings.armorOutline.Visible = true; drawings.armorOutline.Color = Color3.fromRGB(0,0,0); drawings.armorOutline.Filled = true; drawings.armorOutline.Thickness = 1
-                                drawings.armorOutline.Size = Vector2.new(3, h); drawings.armorOutline.Position = Vector2.new(armorBarX, y)
-                                pcall(function() drawings.armorOutline.ZIndex = 1 end)
-                                drawings.armor.Visible = true; drawings.armor.Color = armorColor; drawings.armor.Filled = true; drawings.armor.Thickness = 1
-                                drawings.armor.Size = Vector2.new(1, armorH); drawings.armor.Position = Vector2.new(armorBarX + 1, y + (h - armorH))
-                                pcall(function() drawings.armor.ZIndex = 69 end)
+                                setSquare(drawings.armorOutline, armorBarX, y, 3, h, Color3.fromRGB(0, 0, 0), true, 1, 1)
+                                setSquare(drawings.armor, armorBarX + 1, y + (h - armorH), 1, armorH, armorColor, true, 1, 69)
                             elseif bp == "Bottom" then
                                 local armorBarY = y + h + 3 + 6
                                 local armorW = math.max(1, math.floor((w - 2) * armorPerc))
-                                drawings.armorOutline.Visible = true; drawings.armorOutline.Color = Color3.fromRGB(0,0,0); drawings.armorOutline.Filled = true; drawings.armorOutline.Thickness = 1
-                                drawings.armorOutline.Size = Vector2.new(w, 3); drawings.armorOutline.Position = Vector2.new(x, armorBarY)
-                                pcall(function() drawings.armorOutline.ZIndex = 1 end)
-                                drawings.armor.Visible = true; drawings.armor.Color = armorColor; drawings.armor.Filled = true; drawings.armor.Thickness = 1
-                                drawings.armor.Size = Vector2.new(armorW, 1); drawings.armor.Position = Vector2.new(x + 1, armorBarY + 1)
-                                pcall(function() drawings.armor.ZIndex = 69 end)
+                                setSquare(drawings.armorOutline, x, armorBarY, w, 3, Color3.fromRGB(0, 0, 0), true, 1, 1)
+                                setSquare(drawings.armor, x + 1, armorBarY + 1, armorW, 1, armorColor, true, 1, 69)
                             else
                                 local armorBarX = x - 12
                                 local armorH = math.max(1, math.floor((h - 2) * armorPerc))
-                                drawings.armorOutline.Visible = true; drawings.armorOutline.Color = Color3.fromRGB(0,0,0); drawings.armorOutline.Filled = true; drawings.armorOutline.Thickness = 1
-                                drawings.armorOutline.Size = Vector2.new(3, h); drawings.armorOutline.Position = Vector2.new(armorBarX, y)
-                                pcall(function() drawings.armorOutline.ZIndex = 1 end)
-                                drawings.armor.Visible = true; drawings.armor.Color = armorColor; drawings.armor.Filled = true; drawings.armor.Thickness = 1
-                                drawings.armor.Size = Vector2.new(1, armorH); drawings.armor.Position = Vector2.new(armorBarX + 1, y + (h - armorH))
-                                pcall(function() drawings.armor.ZIndex = 69 end)
+                                setSquare(drawings.armorOutline, armorBarX, y, 3, h, Color3.fromRGB(0, 0, 0), true, 1, 1)
+                                setSquare(drawings.armor, armorBarX + 1, y + (h - armorH), 1, armorH, armorColor, true, 1, 69)
                             end
                         else
                             if drawings.armor then drawings.armor.Visible = false end
@@ -9178,8 +9165,14 @@ function Library:CreateLibrary(opts)
                                     local s2 = projectPoint(p2.Position, absSize)
                                     if s1 and s2 then
                                         ln.Visible = true
-                                        ln.From = Vector2.new(drawBase.X + s1.X, drawBase.Y + s1.Y)
-                                        ln.To = Vector2.new(drawBase.X + s2.X, drawBase.Y + s2.Y)
+                                        ln.From = Vector2.new(
+                                            clampVal(drawBase.X + s1.X, vpLeft, vpRight),
+                                            clampVal(drawBase.Y + s1.Y, vpTop, vpBottom)
+                                        )
+                                        ln.To = Vector2.new(
+                                            clampVal(drawBase.X + s2.X, vpLeft, vpRight),
+                                            clampVal(drawBase.Y + s2.Y, vpTop, vpBottom)
+                                        )
                                         ln.Thickness = 2
                                         ln.Color = config.Color
                                     else
