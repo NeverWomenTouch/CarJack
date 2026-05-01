@@ -4096,6 +4096,9 @@ function Library:CreateLibrary(opts)
                     local accentCorner = Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = accentFill})
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(8,8), Position = UDim2.new(0,3,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
                     local knobCorner = Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+                    local shellStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = shell})
+                    local shellHighlight = Create("Frame", {BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -6, 0, 1), Position = UDim2.fromOffset(3, 2), Parent = shell})
+                    local highlightCorner = Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = shellHighlight})
 
                     local function autoToggleMetrics()
                         if Library and Library.GetRoundToggles and Library:GetRoundToggles() then
@@ -4104,18 +4107,55 @@ function Library:CreateLibrary(opts)
                         return { corner = UDim.new(0, 4), knobSize = UDim2.fromOffset(8, 8), offX = 3, onX = -11 }
                     end
 
+                    local function isRoundToggleStyle()
+                        return Library and Library.GetRoundToggles and Library:GetRoundToggles()
+                    end
+
+                    local function autoTogglePalette(isOn)
+                        local rounded = isRoundToggleStyle()
+                        if rounded then
+                            local offTrack = Color3.fromRGB(66, 70, 68)
+                            local offRecess = Color3.fromRGB(46, 50, 48)
+                            local offAccent = Theme.Accent:Lerp(offTrack, 0.82)
+                            local offKnob = Color3.fromRGB(206, 211, 208)
+                            local offStroke = Color3.fromRGB(92, 98, 95)
+                            if isOn then
+                                return Color3.fromRGB(52, 56, 54), Theme.Bg, Theme.Accent, Theme.Text, Theme.Accent:Lerp(Color3.fromRGB(255,255,255), 0.55), 0.82, 0
+                            end
+                            return offTrack, offRecess, offAccent, offKnob, offStroke, 0.9, 0.82
+                        end
+                        if isOn then
+                            return Color3.fromRGB(50,50,50), Theme.Bg, Theme.Accent, Theme.Text, Theme.Stroke, 1, 0
+                        end
+                        return Color3.fromRGB(50,50,50), Theme.Bg, Theme.Accent, Theme.Scrollbar, Theme.Stroke, 1, 1
+                    end
+
                     local function applyAutoToggleStyle(immediate)
                         local m = autoToggleMetrics()
                         shellCorner.CornerRadius = m.corner
                         recessCorner.CornerRadius = m.corner
                         accentCorner.CornerRadius = m.corner
+                        highlightCorner.CornerRadius = m.corner
                         knobCorner.CornerRadius = UDim.new(1,0)
                         local targetPos = arVal and UDim2.new(1, m.onX, 0.5, 0) or UDim2.new(0, m.offX, 0.5, 0)
+                        local track, recessColor, accentColor, knobColor, strokeColor, highlightT, accentT = autoTogglePalette(arVal)
                         if immediate then
                             knob.Size = m.knobSize
                             knob.Position = targetPos
+                            shell.BackgroundColor3 = track
+                            recess.BackgroundColor3 = recessColor
+                            accentFill.BackgroundColor3 = accentColor
+                            accentFill.BackgroundTransparency = accentT
+                            knob.BackgroundColor3 = knobColor
+                            shellStroke.Color = strokeColor
+                            shellHighlight.BackgroundTransparency = highlightT
                         else
-                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos}):Play()
+                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos, BackgroundColor3 = knobColor}):Play()
+                            T(shell, 0.16, {BackgroundColor3 = track}):Play()
+                            T(recess, 0.16, {BackgroundColor3 = recessColor}):Play()
+                            T(accentFill, 0.22, {BackgroundColor3 = accentColor, BackgroundTransparency = accentT}):Play()
+                            T(shellStroke, 0.2, {Color = strokeColor}):Play()
+                            T(shellHighlight, 0.18, {BackgroundTransparency = highlightT}):Play()
                         end
                     end
 
@@ -4124,14 +4164,7 @@ function Library:CreateLibrary(opts)
 
                     local function setAuto(v, silent)
                         arVal = (v == true)
-                        local m = autoToggleMetrics()
-                        if arVal then
-                            T(accentFill, 0.18, {BackgroundTransparency = 0}):Play()
-                            T(knob, 0.18, {Size = m.knobSize, Position = UDim2.new(1, m.onX, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
-                        else
-                            T(accentFill, 0.18, {BackgroundTransparency = 1}):Play()
-                            T(knob, 0.18, {Size = m.knobSize, Position = UDim2.new(0, m.offX, 0.5, 0), BackgroundColor3 = Theme.Scrollbar}):Play()
-                        end
+                        applyAutoToggleStyle(false)
                         if not silent then arSignal:Fire(arVal) end
                     end
 
@@ -4295,6 +4328,9 @@ function Library:CreateLibrary(opts)
                     local accentCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0,4,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
                     local knobCorner = Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+                    local shellStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = shell})
+                    local shellHighlight = Create("Frame", {BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -8, 0, 1), Position = UDim2.fromOffset(4, 3), Parent = shell})
+                    local highlightCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shellHighlight})
 
                     local function toggleMetrics()
                         if Library and Library.GetRoundToggles and Library:GetRoundToggles() then
@@ -4303,20 +4339,57 @@ function Library:CreateLibrary(opts)
                         return { corner = UDim.new(0, 4), knobSize = UDim2.fromOffset(12, 12), offX = 4, onX = -16 }
                     end
 
+                    local function isRoundToggleStyle()
+                        return Library and Library.GetRoundToggles and Library:GetRoundToggles()
+                    end
+
+                    local function togglePalette(isOn)
+                        local rounded = isRoundToggleStyle()
+                        if rounded then
+                            local offTrack = Color3.fromRGB(66, 70, 68)
+                            local offRecess = Color3.fromRGB(46, 50, 48)
+                            local offAccent = Theme.Accent:Lerp(offTrack, 0.82)
+                            local offKnob = Color3.fromRGB(206, 211, 208)
+                            local offStroke = Color3.fromRGB(92, 98, 95)
+                            if isOn then
+                                return Color3.fromRGB(52, 56, 54), Theme.Bg, Theme.Accent, Theme.Text, Theme.Accent:Lerp(Color3.fromRGB(255,255,255), 0.55), 0.8, 0
+                            end
+                            return offTrack, offRecess, offAccent, offKnob, offStroke, 0.88, 0.82
+                        end
+                        if isOn then
+                            return Color3.fromRGB(50,50,50), Theme.Bg, Theme.Accent, Theme.Text, Theme.Stroke, 1, 0
+                        end
+                        return Color3.fromRGB(50,50,50), Theme.Bg, Theme.Accent, Theme.Scrollbar, Theme.Stroke, 1, 1
+                    end
+
                     local Toggle
                     local function applyToggleStyle(immediate)
                         local m = toggleMetrics()
                         shellCorner.CornerRadius = m.corner
                         recessCorner.CornerRadius = m.corner
                         accentCorner.CornerRadius = m.corner
+                        highlightCorner.CornerRadius = m.corner
                         knobCorner.CornerRadius = UDim.new(1,0)
                         local cur = (Toggle and Toggle._value == true) and true or false
                         local targetPos = cur and UDim2.new(1, m.onX, 0.5, 0) or UDim2.new(0, m.offX, 0.5, 0)
+                        local track, recessColor, accentColor, knobColor, strokeColor, highlightT, accentT = togglePalette(cur)
                         if immediate then
                             knob.Size = m.knobSize
                             knob.Position = targetPos
+                            shell.BackgroundColor3 = track
+                            recess.BackgroundColor3 = recessColor
+                            accentFill.BackgroundColor3 = accentColor
+                            accentFill.BackgroundTransparency = accentT
+                            knob.BackgroundColor3 = knobColor
+                            shellStroke.Color = strokeColor
+                            shellHighlight.BackgroundTransparency = highlightT
                         else
-                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos}):Play()
+                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos, BackgroundColor3 = knobColor}):Play()
+                            T(shell, 0.16, {BackgroundColor3 = track}):Play()
+                            T(recess, 0.16, {BackgroundColor3 = recessColor}):Play()
+                            T(accentFill, 0.22, {BackgroundColor3 = accentColor, BackgroundTransparency = accentT}):Play()
+                            T(shellStroke, 0.2, {Color = strokeColor}):Play()
+                            T(shellHighlight, 0.18, {BackgroundTransparency = highlightT}):Play()
                         end
                     end
 
@@ -4325,20 +4398,21 @@ function Library:CreateLibrary(opts)
                     function Toggle:Set(v, silent)
                         v = (v == true)
                         self._value = v
-                        local m = toggleMetrics()
-                        if v then
-                            T(accentFill,0.25,{BackgroundTransparency = 0}):Play()
-                            T(knob,0.25,{Size = m.knobSize, Position = UDim2.new(1,m.onX,0.5,0), BackgroundColor3 = Theme.Text}):Play()
-                        else
-                            T(accentFill,0.25,{BackgroundTransparency = 1}):Play()
-                            T(knob,0.25,{Size = m.knobSize, Position = UDim2.new(0,m.offX,0.5,0), BackgroundColor3 = Theme.Scrollbar}):Play()
-                        end
+                        applyToggleStyle(false)
                         if not silent then if type(cb)=="function" then pcall(cb,v) end Toggle._signal:Fire(v) end
                     end
                     function Toggle:OnChanged(fn) return self._signal:Connect(fn) end
                     container.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
-                    container.MouseEnter:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play() end)
-                    container.MouseLeave:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(50,50,50)}):Play() end)
+                    container.MouseEnter:Connect(function()
+                        if isRoundToggleStyle() then
+                            T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(74,78,76)}):Play()
+                        else
+                            T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play()
+                        end
+                    end)
+                    container.MouseLeave:Connect(function()
+                        applyToggleStyle(false)
+                    end)
                     if Library and Library._registerToggleStyleListener then
                         Library:_registerToggleStyleListener(function(_, immediate)
                             applyToggleStyle(immediate)
@@ -7605,6 +7679,9 @@ function Library:CreateLibrary(opts)
                     local accentCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0,4,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
                     local knobCorner = Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+                    local shellStroke = Create("UIStroke", {Color = Theme.Stroke, Thickness = 1, Transparency = 0.45, Parent = shell})
+                    local shellHighlight = Create("Frame", {BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -8, 0, 1), Position = UDim2.fromOffset(4, 3), Parent = shell})
+                    local highlightCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shellHighlight})
 
                     local function keybindToggleMetrics()
                         if Library and Library.GetRoundToggles and Library:GetRoundToggles() then
@@ -7613,40 +7690,77 @@ function Library:CreateLibrary(opts)
                         return { corner = UDim.new(0, 4), knobSize = UDim2.fromOffset(12, 12), offX = 4, onX = -16 }
                     end
 
+                    local function isRoundToggleStyle()
+                        return Library and Library.GetRoundToggles and Library:GetRoundToggles()
+                    end
+
+                    local function keybindTogglePalette(isOn)
+                        local rounded = isRoundToggleStyle()
+                        if rounded then
+                            local offTrack = Color3.fromRGB(66, 70, 68)
+                            local offRecess = Color3.fromRGB(46, 50, 48)
+                            local offAccent = Theme.Accent:Lerp(offTrack, 0.82)
+                            local offKnob = Color3.fromRGB(206, 211, 208)
+                            local offStroke = Color3.fromRGB(92, 98, 95)
+                            if isOn then
+                                return Color3.fromRGB(52, 56, 54), Theme.Bg, Theme.Accent, Theme.Text, Theme.Accent:Lerp(Color3.fromRGB(255,255,255), 0.55), 0.8, 0
+                            end
+                            return offTrack, offRecess, offAccent, offKnob, offStroke, 0.88, 0.82
+                        end
+                        if isOn then
+                            return Color3.fromRGB(50,50,50), Theme.Bg, Theme.Accent, Theme.Text, Theme.Stroke, 1, 0
+                        end
+                        return Color3.fromRGB(50,50,50), Theme.Bg, Theme.Accent, Theme.Scrollbar, Theme.Stroke, 1, 1
+                    end
+
                     local function applyKeybindToggleStyle(immediate)
                         local m = keybindToggleMetrics()
                         shellCorner.CornerRadius = m.corner
                         recessCorner.CornerRadius = m.corner
                         accentCorner.CornerRadius = m.corner
+                        highlightCorner.CornerRadius = m.corner
                         knobCorner.CornerRadius = UDim.new(1,0)
                         local visualOn = (mode == "Always") and true or (isToggled == true)
                         local targetPos = visualOn and UDim2.new(1, m.onX, 0.5, 0) or UDim2.new(0, m.offX, 0.5, 0)
+                        local track, recessColor, accentColor, knobColor, strokeColor, highlightT, accentT = keybindTogglePalette(visualOn)
                         if immediate then
                             knob.Size = m.knobSize
                             knob.Position = targetPos
+                            shell.BackgroundColor3 = track
+                            recess.BackgroundColor3 = recessColor
+                            accentFill.BackgroundColor3 = accentColor
+                            accentFill.BackgroundTransparency = accentT
+                            knob.BackgroundColor3 = knobColor
+                            shellStroke.Color = strokeColor
+                            shellHighlight.BackgroundTransparency = highlightT
                         else
-                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos}):Play()
+                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos, BackgroundColor3 = knobColor}):Play()
+                            T(shell, 0.16, {BackgroundColor3 = track}):Play()
+                            T(recess, 0.16, {BackgroundColor3 = recessColor}):Play()
+                            T(accentFill, 0.22, {BackgroundColor3 = accentColor, BackgroundTransparency = accentT}):Play()
+                            T(shellStroke, 0.2, {Color = strokeColor}):Play()
+                            T(shellHighlight, 0.18, {BackgroundTransparency = highlightT}):Play()
                         end
                     end
                     
                     
                     
                     
-                    toggleContainer.MouseEnter:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play() end)
-                    toggleContainer.MouseLeave:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(50,50,50)}):Play() end)
+                    toggleContainer.MouseEnter:Connect(function()
+                        if isRoundToggleStyle() then
+                            T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(74,78,76)}):Play()
+                        else
+                            T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play()
+                        end
+                    end)
+                    toggleContainer.MouseLeave:Connect(function()
+                        applyKeybindToggleStyle(false)
+                    end)
                     
                     
                     
                     local function updateToggleVisual()
-                        local visualOn = (mode == "Always") and true or (isToggled == true)
-                        local m = keybindToggleMetrics()
-                        if visualOn then
-                            T(accentFill,0.25,{BackgroundTransparency = 0}):Play()
-                            T(knob,0.25,{Size = m.knobSize, Position = UDim2.new(1,m.onX,0.5,0), BackgroundColor3 = Theme.Text}):Play()
-                        else
-                            T(accentFill,0.25,{BackgroundTransparency = 1}):Play()
-                            T(knob,0.25,{Size = m.knobSize, Position = UDim2.new(0,m.offX,0.5,0), BackgroundColor3 = Theme.Scrollbar}):Play()
-                        end
+                        applyKeybindToggleStyle(false)
                     end
 
                     if Library and Library._registerToggleStyleListener then
