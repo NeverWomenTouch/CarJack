@@ -352,7 +352,14 @@ function Library:SetRoundToggles(enabled, silent)
     local changed = self._roundToggles ~= enabled
     self._roundToggles = enabled
     if changed or not silent then
-        self:_notifyToggleStyleListeners(changed == false)
+        self:_notifyToggleStyleListeners(true)
+        if changed then
+            task.delay(0.28, function()
+                if Library and Library._roundToggles == enabled then
+                    Library:_notifyToggleStyleListeners(true)
+                end
+            end)
+        end
     end
 end
 
