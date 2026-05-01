@@ -321,6 +321,40 @@ local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts,
 Library.FormatKeyName = FormatKeyName
 Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, v = nil }
 Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, baseV = nil }
+Library._roundToggles = Library._roundToggles == true
+Library._toggleStyleListeners = Library._toggleStyleListeners or {}
+
+function Library:GetRoundToggles()
+    return self._roundToggles == true
+end
+
+function Library:_notifyToggleStyleListeners(immediate)
+    local list = self._toggleStyleListeners or {}
+    local isRound = self:GetRoundToggles()
+    for i = 1, #list do
+        local fn = list[i]
+        if type(fn) == "function" then
+            pcall(fn, isRound, immediate == true)
+        end
+    end
+end
+
+function Library:_registerToggleStyleListener(fn)
+    if type(fn) ~= "function" then return nil end
+    self._toggleStyleListeners = self._toggleStyleListeners or {}
+    table.insert(self._toggleStyleListeners, fn)
+    pcall(fn, self:GetRoundToggles(), true)
+    return fn
+end
+
+function Library:SetRoundToggles(enabled, silent)
+    enabled = (enabled == true)
+    local changed = self._roundToggles ~= enabled
+    self._roundToggles = enabled
+    if changed or not silent then
+        self:_notifyToggleStyleListeners(changed == false)
+    end
+end
 
 local _luvC3 = Color3.new
 local _luvBlack = _luvC3(0, 0, 0)
@@ -4045,28 +4079,51 @@ function Library:CreateLibrary(opts)
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, -42, 1, 0), Position = UDim2.fromOffset(0, 0), Text = "Auto Rotate", Font = Fonts.Medium, TextSize = 11, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = z + 3, Parent = autoWrap})
 
                     local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(32, 14), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), ZIndex = z + 3, Parent = autoWrap})
-                    Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = shell})
+                    local shellCorner = Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = shell})
                     local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(28, 10), Position = UDim2.fromOffset(2, 2), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = recess})
+                    local recessCorner = Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = recess})
                     pcall(function() shell:SetAttribute("DendriteNoBgImage", true) end)
                     pcall(function() recess:SetAttribute("DendriteNoBgImage", true) end)
 
                     local accentFill = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = accentFill})
+                    local accentCorner = Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = accentFill})
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(8,8), Position = UDim2.new(0,3,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+                    local knobCorner = Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+
+                    local function autoToggleMetrics()
+                        if Library and Library.GetRoundToggles and Library:GetRoundToggles() then
+                            return { corner = UDim.new(1, 0), knobSize = UDim2.fromOffset(10, 10), offX = 2, onX = -12 }
+                        end
+                        return { corner = UDim.new(0, 4), knobSize = UDim2.fromOffset(8, 8), offX = 3, onX = -11 }
+                    end
+
+                    local function applyAutoToggleStyle(immediate)
+                        local m = autoToggleMetrics()
+                        shellCorner.CornerRadius = m.corner
+                        recessCorner.CornerRadius = m.corner
+                        accentCorner.CornerRadius = m.corner
+                        knobCorner.CornerRadius = UDim.new(1,0)
+                        local targetPos = arVal and UDim2.new(1, m.onX, 0.5, 0) or UDim2.new(0, m.offX, 0.5, 0)
+                        if immediate then
+                            knob.Size = m.knobSize
+                            knob.Position = targetPos
+                        else
+                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos}):Play()
+                        end
+                    end
 
                     local button = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Size = UDim2.new(1, 0, 1, 0), Text = "", ZIndex = z + 4, Parent = autoWrap})
                     pcall(function() button:SetAttribute("DendriteNoTranslate", true) end)
 
                     local function setAuto(v, silent)
                         arVal = (v == true)
+                        local m = autoToggleMetrics()
                         if arVal then
                             T(accentFill, 0.18, {BackgroundTransparency = 0}):Play()
-                            T(knob, 0.18, {Position = UDim2.new(1, -11, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
+                            T(knob, 0.18, {Size = m.knobSize, Position = UDim2.new(1, m.onX, 0.5, 0), BackgroundColor3 = Theme.Text}):Play()
                         else
                             T(accentFill, 0.18, {BackgroundTransparency = 1}):Play()
-                            T(knob, 0.18, {Position = UDim2.new(0, 3, 0.5, 0), BackgroundColor3 = Theme.Scrollbar}):Play()
+                            T(knob, 0.18, {Size = m.knobSize, Position = UDim2.new(0, m.offX, 0.5, 0), BackgroundColor3 = Theme.Scrollbar}):Play()
                         end
                         if not silent then arSignal:Fire(arVal) end
                     end
@@ -4074,6 +4131,13 @@ function Library:CreateLibrary(opts)
                     button.MouseButton1Click:Connect(function()
                         setAuto(not arVal)
                     end)
+                    if Library and Library._registerToggleStyleListener then
+                        Library:_registerToggleStyleListener(function(_, immediate)
+                            applyAutoToggleStyle(immediate)
+                        end)
+                    else
+                        applyAutoToggleStyle(true)
+                    end
                     setAuto(false, true)
 
                     Group._autoRotateToggle = {}
@@ -4215,26 +4279,52 @@ function Library:CreateLibrary(opts)
                     local labelWidth = 0.44
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(labelWidth,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = container})
                     local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromOffset(40,18), AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,0,0.5,0), Parent = container})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
+                    local shellCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
                     local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(36,14), Position = UDim2.fromOffset(2,2), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = recess})
+                    local recessCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = recess})
                     pcall(function() shell:SetAttribute("DendriteNoBgImage", true) end)
                     pcall(function() recess:SetAttribute("DendriteNoBgImage", true) end)
                     local accentFill = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
+                    local accentCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0,4,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
-                    local Toggle = { id = id, _value = default, _signal = Signal(), _row = row }
+                    local knobCorner = Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+
+                    local function toggleMetrics()
+                        if Library and Library.GetRoundToggles and Library:GetRoundToggles() then
+                            return { corner = UDim.new(1, 0), knobSize = UDim2.fromOffset(14, 14), offX = 2, onX = -16 }
+                        end
+                        return { corner = UDim.new(0, 4), knobSize = UDim2.fromOffset(12, 12), offX = 4, onX = -16 }
+                    end
+
+                    local Toggle
+                    local function applyToggleStyle(immediate)
+                        local m = toggleMetrics()
+                        shellCorner.CornerRadius = m.corner
+                        recessCorner.CornerRadius = m.corner
+                        accentCorner.CornerRadius = m.corner
+                        knobCorner.CornerRadius = UDim.new(1,0)
+                        local cur = (Toggle and Toggle._value == true) and true or false
+                        local targetPos = cur and UDim2.new(1, m.onX, 0.5, 0) or UDim2.new(0, m.offX, 0.5, 0)
+                        if immediate then
+                            knob.Size = m.knobSize
+                            knob.Position = targetPos
+                        else
+                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos}):Play()
+                        end
+                    end
+
+                    Toggle = { id = id, _value = default, _signal = Signal(), _row = row }
                     function Toggle:Get() return self._value end
                     function Toggle:Set(v, silent)
                         v = (v == true)
                         self._value = v
+                        local m = toggleMetrics()
                         if v then
                             T(accentFill,0.25,{BackgroundTransparency = 0}):Play()
-                            T(knob,0.25,{Position = UDim2.new(1,-16,0.5,0), BackgroundColor3 = Theme.Text}):Play()
+                            T(knob,0.25,{Size = m.knobSize, Position = UDim2.new(1,m.onX,0.5,0), BackgroundColor3 = Theme.Text}):Play()
                         else
                             T(accentFill,0.25,{BackgroundTransparency = 1}):Play()
-                            T(knob,0.25,{Position = UDim2.new(0,4,0.5,0), BackgroundColor3 = Theme.Scrollbar}):Play()
+                            T(knob,0.25,{Size = m.knobSize, Position = UDim2.new(0,m.offX,0.5,0), BackgroundColor3 = Theme.Scrollbar}):Play()
                         end
                         if not silent then if type(cb)=="function" then pcall(cb,v) end Toggle._signal:Fire(v) end
                     end
@@ -4242,6 +4332,13 @@ function Library:CreateLibrary(opts)
                     container.MouseButton1Click:Connect(function() Toggle:Set(not Toggle._value) end)
                     container.MouseEnter:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(58,58,58)}):Play() end)
                     container.MouseLeave:Connect(function() T(shell,0.15,{BackgroundColor3 = Color3.fromRGB(50,50,50)}):Play() end)
+                    if Library and Library._registerToggleStyleListener then
+                        Library:_registerToggleStyleListener(function(_, immediate)
+                            applyToggleStyle(immediate)
+                        end)
+                    else
+                        applyToggleStyle(true)
+                    end
                     Toggle:Set(default,true)
                     Library:_registerControl(Toggle)
                     table.insert(Group._controls, Toggle)
@@ -5450,7 +5547,7 @@ function Library:CreateLibrary(opts)
                     local row = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,-2,0,30), Position = UDim2.fromOffset(0,nextY(30)), Parent = gFrame})
                     
                     Create("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(0.42,-6,1,0), Text = label, Font = Fonts.Medium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row})
-                    local box = Create("TextBox", {BackgroundColor3 = Theme.Button, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), ClearTextOnFocus = false, PlaceholderText = placeholder, Text = default, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, Parent = row}, {
+                    local box = Create("TextBox", {BackgroundColor3 = Theme.Button, Size = UDim2.new(0.58,-4,1,0), Position = UDim2.new(0.42,4,0,0), ClearTextOnFocus = false, PlaceholderText = placeholder, Text = default, Font = Fonts.Regular, TextSize = 13, TextColor3 = Theme.Text, PlaceholderColor3 = Theme.SubText, TextTruncate = Enum.TextTruncate.AtEnd, ClipsDescendants = true, Parent = row}, {
                         Create("UICorner", {CornerRadius = UDim.new(0,3)}),
                         Create("UIStroke", {Name = "Stroke", Color = Theme.Stroke, Thickness = 1, Transparency = 0.55}),
                         Create("UIPadding", {PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})
@@ -7494,13 +7591,36 @@ function Library:CreateLibrary(opts)
                     
                     local toggleContainer = Create("TextButton", {BackgroundTransparency = 1, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(40, 18), Parent = rightContainer})
                     local shell = Create("Frame", {BackgroundColor3 = Color3.fromRGB(50,50,50), Size = UDim2.fromScale(1,1), Parent = toggleContainer})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
+                    local shellCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = shell})
                     local recess = Create("Frame", {BackgroundColor3 = Theme.Bg, Size = UDim2.fromOffset(36,14), Position = UDim2.fromOffset(2,2), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = recess})
+                    local recessCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = recess})
                     local accentFill = Create("Frame", {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Size = UDim2.fromScale(1,1), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
+                    local accentCorner = Create("UICorner", {CornerRadius = UDim.new(0,4), Parent = accentFill})
                     local knob = Create("Frame", {BackgroundColor3 = Theme.Scrollbar, Size = UDim2.fromOffset(12,12), Position = UDim2.new(0,4,0.5,0), AnchorPoint = Vector2.new(0,0.5), Parent = shell})
-                    Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+                    local knobCorner = Create("UICorner", {CornerRadius = UDim.new(1,0), Parent = knob})
+
+                    local function keybindToggleMetrics()
+                        if Library and Library.GetRoundToggles and Library:GetRoundToggles() then
+                            return { corner = UDim.new(1, 0), knobSize = UDim2.fromOffset(14, 14), offX = 2, onX = -16 }
+                        end
+                        return { corner = UDim.new(0, 4), knobSize = UDim2.fromOffset(12, 12), offX = 4, onX = -16 }
+                    end
+
+                    local function applyKeybindToggleStyle(immediate)
+                        local m = keybindToggleMetrics()
+                        shellCorner.CornerRadius = m.corner
+                        recessCorner.CornerRadius = m.corner
+                        accentCorner.CornerRadius = m.corner
+                        knobCorner.CornerRadius = UDim.new(1,0)
+                        local visualOn = (mode == "Always") and true or (isToggled == true)
+                        local targetPos = visualOn and UDim2.new(1, m.onX, 0.5, 0) or UDim2.new(0, m.offX, 0.5, 0)
+                        if immediate then
+                            knob.Size = m.knobSize
+                            knob.Position = targetPos
+                        else
+                            T(knob, 0.16, {Size = m.knobSize, Position = targetPos}):Play()
+                        end
+                    end
                     
                     
                     
@@ -7512,13 +7632,22 @@ function Library:CreateLibrary(opts)
                     
                     local function updateToggleVisual()
                         local visualOn = (mode == "Always") and true or (isToggled == true)
+                        local m = keybindToggleMetrics()
                         if visualOn then
                             T(accentFill,0.25,{BackgroundTransparency = 0}):Play()
-                            T(knob,0.25,{Position = UDim2.new(1,-16,0.5,0), BackgroundColor3 = Theme.Text}):Play()
+                            T(knob,0.25,{Size = m.knobSize, Position = UDim2.new(1,m.onX,0.5,0), BackgroundColor3 = Theme.Text}):Play()
                         else
                             T(accentFill,0.25,{BackgroundTransparency = 1}):Play()
-                            T(knob,0.25,{Position = UDim2.new(0,4,0.5,0), BackgroundColor3 = Theme.Scrollbar}):Play()
+                            T(knob,0.25,{Size = m.knobSize, Position = UDim2.new(0,m.offX,0.5,0), BackgroundColor3 = Theme.Scrollbar}):Play()
                         end
+                    end
+
+                    if Library and Library._registerToggleStyleListener then
+                        Library:_registerToggleStyleListener(function(_, immediate)
+                            applyKeybindToggleStyle(immediate)
+                        end)
+                    else
+                        applyKeybindToggleStyle(true)
                     end
                     
                     local function updateKeybindVisual()
@@ -8317,11 +8446,12 @@ function Library:CreateLibrary(opts)
 
                     local function getCharacterRoot(char)
                         if not char then return nil end
-                        return char:FindFirstChild("HumanoidRootPart")
-                            or char:FindFirstChild("Root")
-                            or char:FindFirstChild("RootPart")
-                            or char:FindFirstChild("Torso")
-                            or char:FindFirstChild("UpperTorso")
+                        -- Use recursive search (true) so nested custom character parts are found.
+                        return char:FindFirstChild("HumanoidRootPart", true)
+                            or char:FindFirstChild("Root", true)
+                            or char:FindFirstChild("RootPart", true)
+                            or char:FindFirstChild("Torso", true)
+                            or char:FindFirstChild("UpperTorso", true)
                     end
 
                     local function computeAabbFromParts(parts)
@@ -8369,16 +8499,23 @@ function Library:CreateLibrary(opts)
                                 end
                             end
                         end
+                        -- If no visible non-accessory parts, include ALL BaseParts as fallback
+                        if #parts == 0 then
+                            for _, d in ipairs(m:GetDescendants()) do
+                                if d:IsA("BasePart") then
+                                    parts[#parts + 1] = d
+                                end
+                            end
+                        end
                         local cf, size = computeAabbFromParts(parts)
                         if cf and size then
                             return cf, size
                         end
-                        local ok, c2, s2 = pcall(function()
-                            local c, s = m:GetBoundingBox()
-                            return true, c, s
+                        local bbOk, bbCf, bbSize = pcall(function()
+                            return m:GetBoundingBox()
                         end)
-                        if ok and c2 and s2 then
-                            return c2, s2
+                        if bbOk and typeof(bbCf) == "CFrame" and typeof(bbSize) == "Vector3" then
+                            return bbCf, bbSize
                         end
                         return nil
                     end
@@ -8548,13 +8685,14 @@ function Library:CreateLibrary(opts)
                         if not model then return nil end
                         -- Prefer the actual torso/root of the rig over HumanoidRootPart.
                         -- Using HRP as the root can produce odd-looking limb offsets on some rigs.
-                        return model:FindFirstChild("LowerTorso")
-                            or model:FindFirstChild("Torso")
-                            or model:FindFirstChild("UpperTorso")
-                            or model:FindFirstChild("HumanoidRootPart")
-                            or model:FindFirstChild("Root")
-                            or model:FindFirstChild("RootPart")
-                            or model:FindFirstChild("Head")
+                        -- Use recursive search (true) so nested custom character parts are found.
+                        return model:FindFirstChild("LowerTorso", true)
+                            or model:FindFirstChild("Torso", true)
+                            or model:FindFirstChild("UpperTorso", true)
+                            or model:FindFirstChild("HumanoidRootPart", true)
+                            or model:FindFirstChild("Root", true)
+                            or model:FindFirstChild("RootPart", true)
+                            or model:FindFirstChild("Head", true)
                     end
 
                     local function buildJointGraph(model)
@@ -8695,10 +8833,10 @@ function Library:CreateLibrary(opts)
                     local function getModelRootPart(model)
                         if not model then return nil end
                         return getCharacterRoot(model)
-                            or model:FindFirstChild("LowerTorso")
-                            or model:FindFirstChild("Torso")
-                            or model:FindFirstChild("UpperTorso")
-                            or model:FindFirstChild("Head")
+                            or model:FindFirstChild("LowerTorso", true)
+                            or model:FindFirstChild("Torso", true)
+                            or model:FindFirstChild("UpperTorso", true)
+                            or model:FindFirstChild("Head", true)
                     end
 
                     local function buildNeutralMotorDefaultsForRig(rigType)
@@ -8945,7 +9083,7 @@ function Library:CreateLibrary(opts)
 
                         -- For manual or cloned models, always set PrimaryPart so PivotTo works
                         do
-                            local pp = getCharacterRoot(clone) or clone:FindFirstChild("Head")
+                            local pp = getCharacterRoot(clone) or clone:FindFirstChild("Head", true)
                             if pp and pp:IsA("BasePart") then
                                 pcall(function() clone.PrimaryPart = pp end)
                             end
@@ -8973,24 +9111,24 @@ function Library:CreateLibrary(opts)
                         -- Keep this very small so the character sits centered instead of low.
                         local extraDown = 0.1
 
-                        -- Center the model at origin using actual part positions (never rely on PivotTo alone)
+                        -- Center the model at origin using actual part positions (never rely on PivotTo)
                         do
-                            -- Step 1: Move the AABB center of all parts to the world origin
-                            local cf0, size0 = getFramingBounds(clone)
-                            if cf0 and size0 then
-                                translateAllParts(clone, -cf0.Position)
-                            else
-                                -- Last resort: find any part and use its position as offset
-                                for _, d in ipairs(clone:GetDescendants()) do
-                                    if d:IsA("BasePart") then
-                                        translateAllParts(clone, -d.CFrame.Position)
-                                        break
-                                    end
+                            -- Step 1: Compute average position of ALL BaseParts (including invisible)
+                            -- so we always bring the model to origin, even if visible parts are few/none.
+                            local sumPos = Vector3.zero
+                            local partCount = 0
+                            for _, d in ipairs(clone:GetDescendants()) do
+                                if d:IsA("BasePart") then
+                                    sumPos = sumPos + d.CFrame.Position
+                                    partCount = partCount + 1
                                 end
+                            end
+                            if partCount > 0 then
+                                translateAllParts(clone, -(sumPos / partCount))
                             end
 
                             -- Step 2: Re-compute bounds and position so feet sit just above Y=0
-                            cf0, size0 = getFramingBounds(clone)
+                            local cf0, size0 = getFramingBounds(clone)
                             if cf0 and size0 then
                                 local bottomY = cf0.Position.Y - (size0.Y * 0.5)
                                 extraDown = math.clamp(size0.Y * 0.045, 0.06, 0.7)
@@ -9001,7 +9139,7 @@ function Library:CreateLibrary(opts)
 
                         -- Normalize facing so the preview is consistently front-facing.
                         pcall(function()
-                            local rp = getCharacterRoot(clone) or clone:FindFirstChild("Head")
+                            local rp = getCharacterRoot(clone) or clone:FindFirstChild("Head", true)
                             if rp and rp:IsA("BasePart") then
                                 local lv = rp.CFrame.LookVector
                                 local yaw0 = math.atan2(lv.X, -lv.Z)
@@ -9020,10 +9158,29 @@ function Library:CreateLibrary(opts)
                                 translateAllParts(clone, offset)
                             end
                         end
+
+                        -- Safety net: if the model AABB center is still far from origin, force re-center.
+                        -- This catches edge cases where prior steps failed silently.
+                        do
+                            local safeCheck = getFramingBounds(clone)
+                            if safeCheck and safeCheck.Position.Magnitude > 50 then
+                                local sumP = Vector3.zero
+                                local cnt = 0
+                                for _, d in ipairs(clone:GetDescendants()) do
+                                    if d:IsA("BasePart") then
+                                        sumP = sumP + d.CFrame.Position
+                                        cnt = cnt + 1
+                                    end
+                                end
+                                if cnt > 0 then
+                                    translateAllParts(clone, -(sumP / cnt))
+                                end
+                            end
+                        end
                         local prevModel = state.model
                         state.model = clone
                         state.humanoid = clone:FindFirstChildOfClass("Humanoid")
-                        state.rootPart = getCharacterRoot(clone) or clone:FindFirstChild("Head")
+                        state.rootPart = getCharacterRoot(clone) or clone:FindFirstChild("Head", true)
                         state._lastBuildUsedManual = (usedManual == true)
                         if not usedManual then
                             state._lastAccessoryCount = countAccessories(char)
@@ -9440,7 +9597,9 @@ function Library:CreateLibrary(opts)
                             local nameX = clampVal(x + (w * 0.5), vpLeft, vpRight)
                             local nameY = clampVal(y - (15 + 8), vpTop, vpBottom - 15)
                             drawings.name.Visible = true
-                            drawings.name.Text = (LocalPlayer and LocalPlayer.Name) or "LocalPlayer"
+                            drawings.name.Text = (state._lastBuildUsedManual and manualCharacterName)
+                                or (LocalPlayer and LocalPlayer.Name)
+                                or "LocalPlayer"
                             drawings.name.Color = config.Color
                             drawings.name.Outline = true
                             pcall(function() drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0) end)
@@ -10890,7 +11049,8 @@ function Library:CreateLibrary(opts)
             bg.enabled = (Library and Library._bgImageEnabled == true) or false
             bg.id = tostring((Library and Library._bgImageId) or "")
         end)
-        local outObj = { theme = themePayload, fonts = fontsPayload, backgroundImage = bg, metadata = meta }
+        local visualOptions = { roundToggles = (Library and Library.GetRoundToggles and Library:GetRoundToggles()) or false }
+        local outObj = { theme = themePayload, fonts = fontsPayload, backgroundImage = bg, visualOptions = visualOptions, metadata = meta }
 
         if THEME_MEM_MODE then
             local key = memThemeKey()
@@ -10961,7 +11121,13 @@ function Library:CreateLibrary(opts)
         if type(dec.backgroundImage) == "table" then
             bg = { enabled = dec.backgroundImage.enabled == true, id = tostring(dec.backgroundImage.id or "") }
         end
-        return { theme = themeOut, fonts = fontsOut, themeColorpickers = themeColorpickers, backgroundImage = bg, metadata = dec.metadata }
+        local visualOptions = nil
+        if type(dec.visualOptions) == "table" then
+            visualOptions = {
+                roundToggles = dec.visualOptions.roundToggles == true
+            }
+        end
+        return { theme = themeOut, fonts = fontsOut, themeColorpickers = themeColorpickers, backgroundImage = bg, visualOptions = visualOptions, metadata = dec.metadata }
     end
     function Themes.Delete(name)
         Themes.Ensure()
@@ -11073,6 +11239,12 @@ function Library:CreateLibrary(opts)
                 end
             end)
             pcall(function()
+                local vo = dec and dec.visualOptions
+                if vo and Library and Library.SetRoundToggles then
+                    Library:SetRoundToggles(vo.roundToggles == true, true)
+                end
+            end)
+            pcall(function()
                 local ui = Window and Window._lastThemeUI
                 local map = ui and ui.ColorpickersByKey
                 local cpState = dec and dec.themeColorpickers
@@ -11116,6 +11288,10 @@ function Library:CreateLibrary(opts)
                 if ui.ImageBgToggle and ui.ImageBgToggle.Set then ui.ImageBgToggle:Set(on, true) end
                 if ui.ImageBgId and ui.ImageBgId.Set then ui.ImageBgId:Set(id, true) end
                 if ui.ImageBgId and ui.ImageBgId._row then ui.ImageBgId._row.Visible = on and true or false end
+                if ui.RoundToggles and ui.RoundToggles.Set then
+                    local roundOn = (Library and Library.GetRoundToggles and Library:GetRoundToggles()) or false
+                    ui.RoundToggles:Set(roundOn, true)
+                end
             end)
         end
         return dec
@@ -11156,7 +11332,7 @@ function Library:CreateLibrary(opts)
         end
         local nameBox = markThemeControl(group:AddTextbox({ Name = "Theme Name", Placeholder = namePlaceholder, Default = "" }))
 
-        local autoToggle
+        local autoToggle, roundTogglesToggle
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
             local raw = ""
             pcall(function() raw = (nameBox and nameBox.Get and nameBox:Get()) or "" end)
@@ -11252,6 +11428,10 @@ function Library:CreateLibrary(opts)
                     if imageBgId and imageBgId.Set then imageBgId:Set("", true) end
                     if imageBgId and imageBgId._row then imageBgId._row.Visible = false end
                 end)
+                pcall(function()
+                    if Library and Library.SetRoundToggles then Library:SetRoundToggles(false, true) end
+                    if roundTogglesToggle and roundTogglesToggle.Set then roundTogglesToggle:Set(false, true) end
+                end)
             end)
         end })
         autoToggle = markThemeControl(group:AddToggle({ Name = "Auto Load Theme", Default = false, Callback = function(on)
@@ -11259,6 +11439,9 @@ function Library:CreateLibrary(opts)
             local safe = raw and sanitize(raw) or nil
             if not safe or safe == "" then return end
             pcall(function() Themes.SetAutoLoad(safe, on) end)
+        end }))
+        roundTogglesToggle = markThemeControl(group:AddToggle({ Name = "Round Toggles", Default = (Library and Library.GetRoundToggles and Library:GetRoundToggles()) or false, Callback = function(on)
+            pcall(function() if Library and Library.SetRoundToggles then Library:SetRoundToggles(on == true) end end)
         end }))
 
         local _ddSet = dd.Set
@@ -11390,7 +11573,7 @@ function Library:CreateLibrary(opts)
             imageBgId._row.Visible = on and true or false
         end
 
-        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers, ColorpickersByKey = themePickersByKey, ImageBgToggle = imageBgToggle, ImageBgId = imageBgId }
+        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, RoundToggles = roundTogglesToggle, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers, ColorpickersByKey = themePickersByKey, ImageBgToggle = imageBgToggle, ImageBgId = imageBgId }
         Window._lastThemeUI = themeUI
         return themeUI
     end
