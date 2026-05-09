@@ -327,6 +327,14 @@ local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts,
 Library.FormatKeyName = FormatKeyName
 Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, v = nil }
 Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, baseV = nil }
+Library._radarThemeKeys = Library._radarThemeKeys or {
+    RadarGrid = true,
+    RadarEnemy = true,
+    RadarEnemyOutline = true,
+    RadarAlly = true,
+    RadarLocal = true,
+    RadarLocalOutline = true,
+}
 Library._roundToggles = Library._roundToggles ~= false
 Library._toggleStyleListeners = Library._toggleStyleListeners or {}
 
@@ -2518,6 +2526,7 @@ do
     }
     Library._radarSize = Library._radarSize or UDim2.fromOffset(210, 228)
     Library._radarRange = Library._radarRange or 180
+    Library._radarMode = (Library._radarMode == "round") and "round" or "square"
 
     function Library:_hideRadarDots()
         for _, dot in pairs(self._radarDots or {}) do
@@ -2649,6 +2658,30 @@ do
         return Theme.RadarEnemy or Theme.Bad
     end
 
+    function Library:GetRadarMode()
+        return (self._radarMode == "round") and "round" or "square"
+    end
+
+    function Library:SetRadarMode(mode, silent)
+        local normalized = (type(mode) == "string" and mode:lower() == "round") and "round" or "square"
+        self._radarMode = normalized
+
+        if self._radarViewportCorner then
+            self._radarViewportCorner.CornerRadius = (normalized == "round") and UDim.new(1, 0) or UDim.new(0, 0)
+        end
+
+        if self._radar and self._radar.Parent and self._radar.Enabled then
+            self:_updateRadarDisplay()
+        end
+
+        if not silent then
+            local ui = Window and Window._lastThemeUI
+            if ui and ui.RadarMode and ui.RadarMode.Set then
+                ui.RadarMode:Set((normalized == "round") and "Round" or "Square", true)
+            end
+        end
+    end
+
     function Library:_updateRadarLayout()
         local frame = self._radarFrame
         local body = self._radarBody
@@ -2685,9 +2718,6 @@ do
         if self._radarCenterDot then self._radarCenterDot.BackgroundColor3 = Theme.RadarLocalOutline or Theme.Accent end
         if self._radarCenterCore then self._radarCenterCore.BackgroundColor3 = Theme.RadarLocal or Theme.Text end
         if self._radarCenterDotStroke then self._radarCenterDotStroke.Color = Theme.Panel end
-        if self._radarHeadingLine then self._radarHeadingLine.BackgroundColor3 = Theme.RadarLocalOutline or Theme.Accent end
-        if self._radarHeadingTip then self._radarHeadingTip.BackgroundColor3 = Theme.RadarLocal or Theme.Text end
-        if self._radarHeadingTipStroke then self._radarHeadingTipStroke.Color = Theme.Panel end
         if self._radarCrossX then self._radarCrossX.BackgroundColor3 = Theme.RadarGrid or Theme.Stroke end
         if self._radarCrossY then self._radarCrossY.BackgroundColor3 = Theme.RadarGrid or Theme.Stroke end
         if self._radarGridLines then
@@ -2722,8 +2752,14 @@ do
         local halfWidth = math.max(12, viewportSize.X * 0.5 - 8)
         local halfHeight = math.max(12, viewportSize.Y * 0.5 - 8)
         local range = math.max(60, tonumber(self._radarRange) or 180)
+        local mode = self:GetRadarMode()
         local scaleX = halfWidth / range
         local scaleY = halfHeight / range
+        if mode == "round" then
+            local radius = math.max(12, math.min(halfWidth, halfHeight))
+            scaleX = radius / range
+            scaleY = radius / range
+        end
         local activePlayers = {}
         local visibleCount = 0
         local players = SRV("Players")
@@ -2743,13 +2779,21 @@ do
                         local offset = Vector2.new(relative.X * scaleX, relative.Y * scaleY)
                         local isSameTeam = self:_isRadarSameTeam(player)
                         local dotSize = isSameTeam and 6 or 8
-                        local clampedX = math.clamp(offset.X, -halfWidth, halfWidth)
-                        local clampedY = math.clamp(offset.Y, -halfHeight, halfHeight)
-                        if clampedX ~= offset.X or clampedY ~= offset.Y then
-                            offset = Vector2.new(clampedX, clampedY)
-                            dotSize = isSameTeam and 4 or 6
+                        if mode == "round" then
+                            local radius = math.max(12, math.min(halfWidth, halfHeight))
+                            if offset.Magnitude > radius and offset.Magnitude > 0 then
+                                offset = offset.Unit * radius
+                                dotSize = isSameTeam and 4 or 6
+                            end
                         else
-                            offset = Vector2.new(clampedX, clampedY)
+                            local clampedX = math.clamp(offset.X, -halfWidth, halfWidth)
+                            local clampedY = math.clamp(offset.Y, -halfHeight, halfHeight)
+                            if clampedX ~= offset.X or clampedY ~= offset.Y then
+                                offset = Vector2.new(clampedX, clampedY)
+                                dotSize = isSameTeam and 4 or 6
+                            else
+                                offset = Vector2.new(clampedX, clampedY)
+                            end
                         end
 
                         dot.Size = UDim2.fromOffset(dotSize, dotSize)
@@ -2887,6 +2931,10 @@ do
             ClipsDescendants = true,
             Parent = body
         })
+        local viewportCorner = Create("UICorner", {
+            CornerRadius = (self:GetRadarMode() == "round") and UDim.new(1, 0) or UDim.new(0, 0),
+            Parent = viewport
+        })
         local viewportStroke = Create("UIStroke", {
             Color = Theme.Stroke,
             Thickness = 1,
@@ -2994,35 +3042,6 @@ do
             Rotation = 45,
             ZIndex = centerDot.ZIndex + 1,
             Parent = centerDot
-        })
-
-        local headingLine = Create("Frame", {
-            Name = "HeadingLine",
-            Size = UDim2.fromOffset(3, 18),
-            Position = UDim2.new(0.5, 0, 0.5, -10),
-            AnchorPoint = Vector2.new(0.5, 1),
-            BackgroundColor3 = Theme.RadarLocalOutline,
-            BorderSizePixel = 0,
-            ZIndex = centerDot.ZIndex + 1,
-            Parent = viewport
-        })
-        Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = headingLine})
-        local headingTip = Create("Frame", {
-            Name = "HeadingTip",
-            Size = UDim2.fromOffset(8, 8),
-            Position = UDim2.new(0.5, 0, 0.5, -22),
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundColor3 = Theme.RadarLocal,
-            BorderSizePixel = 0,
-            Rotation = 45,
-            ZIndex = centerDot.ZIndex + 2,
-            Parent = viewport
-        })
-        local headingTipStroke = Create("UIStroke", {
-            Color = Theme.Panel,
-            Thickness = 1,
-            Transparency = 0.05,
-            Parent = headingTip
         })
 
         local footerLabel = Create("TextLabel", {
@@ -3138,6 +3157,7 @@ do
         self._radarTitleBar = titleBar
         self._radarTitleStroke = titleStroke
         self._radarTitleLabel = titleLabel
+        self._radarViewportCorner = viewportCorner
         self._radarViewportStroke = viewportStroke
         self._radarGridCells = gridCells
         self._radarGridLines = gridLines
@@ -3146,10 +3166,9 @@ do
         self._radarCenterDot = centerDot
         self._radarCenterDotStroke = centerDotStroke
         self._radarCenterCore = centerCore
-        self._radarHeadingLine = headingLine
-        self._radarHeadingTip = headingTip
-        self._radarHeadingTipStroke = headingTipStroke
         self._radarFooterLabel = footerLabel
+
+        self:SetRadarMode(self:GetRadarMode(), true)
 
         self:_updateRadarDisplay()
         self._radar.Enabled = self._radarVisible
@@ -11972,7 +11991,10 @@ function Library:CreateLibrary(opts)
             bg.enabled = (Library and Library._bgImageEnabled == true) or false
             bg.id = tostring((Library and Library._bgImageId) or "")
         end)
-        local visualOptions = { roundToggles = (Library and Library.GetRoundToggles and Library:GetRoundToggles()) or false }
+        local visualOptions = {
+            roundToggles = (Library and Library.GetRoundToggles and Library:GetRoundToggles()) or false,
+            radarMode = (Library and Library.GetRadarMode and Library:GetRadarMode()) or "square"
+        }
         local outObj = { theme = themePayload, fonts = fontsPayload, backgroundImage = bg, visualOptions = visualOptions, metadata = meta }
 
         if THEME_MEM_MODE then
@@ -12047,7 +12069,8 @@ function Library:CreateLibrary(opts)
         local visualOptions = nil
         if type(dec.visualOptions) == "table" then
             visualOptions = {
-                roundToggles = dec.visualOptions.roundToggles == true
+                roundToggles = dec.visualOptions.roundToggles == true,
+                radarMode = (type(dec.visualOptions.radarMode) == "string" and dec.visualOptions.radarMode:lower() == "round") and "round" or "square"
             }
         end
         return { theme = themeOut, fonts = fontsOut, themeColorpickers = themeColorpickers, backgroundImage = bg, visualOptions = visualOptions, metadata = dec.metadata }
@@ -12168,6 +12191,12 @@ function Library:CreateLibrary(opts)
                 end
             end)
             pcall(function()
+                local vo = dec and dec.visualOptions
+                if vo and Library and Library.SetRadarMode then
+                    Library:SetRadarMode(vo.radarMode, true)
+                end
+            end)
+            pcall(function()
                 local ui = Window and Window._lastThemeUI
                 local map = ui and ui.ColorpickersByKey
                 local cpState = dec and dec.themeColorpickers
@@ -12215,6 +12244,10 @@ function Library:CreateLibrary(opts)
                     local roundOn = (Library and Library.GetRoundToggles and Library:GetRoundToggles()) or false
                     ui.RoundToggles:Set(roundOn, true)
                 end
+                if ui.RadarMode and ui.RadarMode.Set then
+                    local radarMode = (Library and Library.GetRadarMode and Library:GetRadarMode()) or "square"
+                    ui.RadarMode:Set((radarMode == "round") and "Round" or "Square", true)
+                end
             end)
         end
         return dec
@@ -12255,7 +12288,7 @@ function Library:CreateLibrary(opts)
         end
         local nameBox = markThemeControl(group:AddTextbox({ Name = "Theme Name", Placeholder = namePlaceholder, Default = "" }))
 
-        local autoToggle, roundTogglesToggle
+        local autoToggle, roundTogglesToggle, radarModeDropdown
         local createBtn = group:AddButton({ Name = "Create", Compact = true, Callback = function()
             local raw = ""
             pcall(function() raw = (nameBox and nameBox.Get and nameBox:Get()) or "" end)
@@ -12355,6 +12388,10 @@ function Library:CreateLibrary(opts)
                     if Library and Library.SetRoundToggles then Library:SetRoundToggles(false, true) end
                     if roundTogglesToggle and roundTogglesToggle.Set then roundTogglesToggle:Set(false, true) end
                 end)
+                pcall(function()
+                    if Library and Library.SetRadarMode then Library:SetRadarMode("square", true) end
+                    if radarModeDropdown and radarModeDropdown.Set then radarModeDropdown:Set("Square", true) end
+                end)
             end)
         end })
         autoToggle = markThemeControl(group:AddToggle({ Name = "Auto Load Theme", Default = false, Callback = function(on)
@@ -12365,6 +12402,10 @@ function Library:CreateLibrary(opts)
         end }))
         roundTogglesToggle = markThemeControl(group:AddToggle({ Name = "Round Toggles", Default = (Library and Library.GetRoundToggles and Library:GetRoundToggles()) or false, Callback = function(on)
             pcall(function() if Library and Library.SetRoundToggles then Library:SetRoundToggles(on == true) end end)
+        end }))
+        radarModeDropdown = markThemeControl(group:AddDropdown({ Name = "Radar Mode", Options = { "Square", "Round" }, Default = ((Library and Library.GetRadarMode and Library:GetRadarMode()) == "round") and "Round" or "Square", Multi = false, Search = false, Placeholder = "Square", NoTranslateValue = true, Callback = function(v)
+            local mode = (tostring(v or ""):lower() == "round") and "round" or "square"
+            pcall(function() if Library and Library.SetRadarMode then Library:SetRadarMode(mode) end end)
         end }))
 
         local _ddSet = dd.Set
@@ -12508,7 +12549,7 @@ function Library:CreateLibrary(opts)
             imageBgId._row.Visible = on and true or false
         end
 
-        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, RoundToggles = roundTogglesToggle, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers, ColorpickersByKey = themePickersByKey, ImageBgToggle = imageBgToggle, ImageBgId = imageBgId }
+        local themeUI = { Dropdown = dd, NameBox = nameBox, Create = createBtn, Save = saveBtn, Load = loadBtn, Delete = deleteBtn, Refresh = refreshBtn, AutoToggle = autoToggle, RoundToggles = roundTogglesToggle, RadarMode = radarModeDropdown, FontRegular = fr, FontMedium = fm, FontBold = fb, Colorpickers = themePickers, ColorpickersByKey = themePickersByKey, ImageBgToggle = imageBgToggle, ImageBgId = imageBgId }
         Window._lastThemeUI = themeUI
         return themeUI
     end
@@ -12776,7 +12817,51 @@ function Library:_cloneTable(src)
     for k, v in pairs(src or {}) do out[k] = v end
     return out
 end
+function Library:_isRadarOnlyThemePatch(themePatch, fontsPatch)
+    if type(fontsPatch) == "table" and next(fontsPatch) ~= nil then
+        return false
+    end
+    if type(themePatch) ~= "table" or next(themePatch) == nil then
+        return false
+    end
+    local radarKeys = self._radarThemeKeys or {}
+    for k, _ in pairs(themePatch) do
+        if Theme[k] == nil or not radarKeys[k] then
+            return false
+        end
+    end
+    return true
+end
+function Library:_applyRadarThemeFast(themePatch)
+    if type(themePatch) ~= "table" then
+        return
+    end
+    local changed = false
+    for k, v in pairs(themePatch) do
+        if Theme[k] ~= nil and Theme[k] ~= v then
+            Theme[k] = v
+            changed = true
+        end
+    end
+    self._appliedTheme = self._appliedTheme or self:_cloneTable(Theme)
+    for k, v in pairs(themePatch) do
+        if self._appliedTheme[k] ~= nil then
+            self._appliedTheme[k] = v
+        end
+    end
+    if changed then
+        pcall(function()
+            if self._updateRadarDisplay then
+                self:_updateRadarDisplay()
+            end
+        end)
+    end
+end
 function Library:ApplyTheme(themePatch, fontsPatch)
+    if self:_isRadarOnlyThemePatch(themePatch, fontsPatch) then
+        self:_applyRadarThemeFast(themePatch)
+        return
+    end
     self._appliedTheme = self._appliedTheme or self:_cloneTable(Theme)
     self._appliedFonts = self._appliedFonts or self:_cloneTable(Fonts)
     local oldTheme = self._appliedTheme
