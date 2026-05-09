@@ -2551,8 +2551,25 @@ do
             Parent = container
         })
         Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = dot})
+        Create("UIStroke", {
+            Name = "Outline",
+            Color = Theme.Stroke,
+            Thickness = 1,
+            Transparency = 0.15,
+            Parent = dot
+        })
         self._radarDots[player] = dot
         return dot
+    end
+
+    function Library:_isRadarSameTeam(player)
+        local players = SRV("Players")
+        local localPlayer = players and players.LocalPlayer
+        local sameTeam = false
+        pcall(function()
+            sameTeam = localPlayer and localPlayer.Team ~= nil and player and player.Team == localPlayer.Team
+        end)
+        return sameTeam == true
     end
 
     function Library:_getRadarLibraryGui()
@@ -2609,22 +2626,10 @@ do
     end
 
     function Library:_getRadarDotColor(player, humanoid)
-        local players = SRV("Players")
-        local localPlayer = players and players.LocalPlayer
-        local sameTeam = false
-        pcall(function()
-            sameTeam = localPlayer and localPlayer.Team ~= nil and player and player.Team == localPlayer.Team
-        end)
-
-        if sameTeam then
+        if self:_isRadarSameTeam(player) then
             return Theme.Good
         end
-
-        local alpha = 1
-        if humanoid and humanoid.MaxHealth and humanoid.MaxHealth > 0 then
-            alpha = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
-        end
-        return Theme.Bad:Lerp(Theme.Warn, alpha)
+        return Theme.Bad
     end
 
     function Library:_updateRadarLayout()
@@ -2644,12 +2649,6 @@ do
         footer.Position = UDim2.new(0, 0, 1, -14)
         footer.Size = UDim2.new(1, 0, 0, 14)
 
-        if self._radarRangeRing then
-            local ringWidth = math.max(32, math.floor(availableWidth * 0.5))
-            local ringHeight = math.max(32, math.floor(availableHeight * 0.5))
-            self._radarRangeRing.Size = UDim2.fromOffset(ringWidth, ringHeight)
-            self._radarRangeRing.Position = UDim2.new(0.5, 0, 0.5, 0)
-        end
     end
 
     function Library:_updateRadarDisplay()
@@ -2673,7 +2672,6 @@ do
         if self._radarHeadingLine then self._radarHeadingLine.BackgroundColor3 = Theme.Text end
         if self._radarCrossX then self._radarCrossX.BackgroundColor3 = Theme.Stroke end
         if self._radarCrossY then self._radarCrossY.BackgroundColor3 = Theme.Stroke end
-        if self._radarRangeRingStroke then self._radarRangeRingStroke.Color = Theme.Accent end
         if self._radarTitleLabel then self._radarTitleLabel.TextColor3 = Theme.Text end
         if self._radarFooterLabel then self._radarFooterLabel.TextColor3 = Theme.SubText end
 
@@ -2713,12 +2711,13 @@ do
                     local relative = self:_getRadarRelativePosition(root.Position, localRoot)
                     if relative then
                         local offset = Vector2.new(relative.X * scaleX, relative.Y * scaleY)
-                        local dotSize = 6
+                        local isSameTeam = self:_isRadarSameTeam(player)
+                        local dotSize = isSameTeam and 6 or 8
                         local clampedX = math.clamp(offset.X, -halfWidth, halfWidth)
                         local clampedY = math.clamp(offset.Y, -halfHeight, halfHeight)
                         if clampedX ~= offset.X or clampedY ~= offset.Y then
                             offset = Vector2.new(clampedX, clampedY)
-                            dotSize = 4
+                            dotSize = isSameTeam and 4 or 6
                         else
                             offset = Vector2.new(clampedX, clampedY)
                         end
@@ -2726,6 +2725,11 @@ do
                         dot.Size = UDim2.fromOffset(dotSize, dotSize)
                         dot.Position = UDim2.fromOffset(math.floor(center.X + offset.X + 0.5), math.floor(center.Y + offset.Y + 0.5))
                         dot.BackgroundColor3 = self:_getRadarDotColor(player, humanoid)
+                        local outline = dot:FindFirstChild("Outline")
+                        if outline then
+                            outline.Color = isSameTeam and Theme.Stroke or Theme.Text
+                            outline.Transparency = isSameTeam and 0.45 or 0.1
+                        end
                         dot.Visible = true
                         visibleCount = visibleCount + 1
                     else
@@ -2850,22 +2854,6 @@ do
             Thickness = 1,
             Transparency = 0.15,
             Parent = viewport
-        })
-
-        local rangeRing = Create("Frame", {
-            Name = "RangeRing",
-            Size = UDim2.fromOffset(80, 80),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            Parent = viewport
-        })
-        local rangeRingStroke = Create("UIStroke", {
-            Color = Theme.Accent,
-            Thickness = 1,
-            Transparency = 0.75,
-            Parent = rangeRing
         })
 
         local crossX = Create("Frame", {
@@ -3026,8 +3014,6 @@ do
         self._radarTitleStroke = titleStroke
         self._radarTitleLabel = titleLabel
         self._radarViewportStroke = viewportStroke
-        self._radarRangeRing = rangeRing
-        self._radarRangeRingStroke = rangeRingStroke
         self._radarCrossX = crossX
         self._radarCrossY = crossY
         self._radarCenterDot = centerDot
