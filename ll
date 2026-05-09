@@ -2744,10 +2744,7 @@ do
             pcall(function() self._radar:Destroy() end)
         end
 
-        local libraryGui = self:_getRadarLibraryGui()
-        if not libraryGui then
-            return
-        end
+        local libraryGui = self:_getRadarLibraryGui() or self._rootGui or CoreGui
 
         self._radarDots = {}
         self._radar = Create("ScreenGui", {
