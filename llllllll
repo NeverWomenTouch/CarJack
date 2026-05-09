@@ -2527,6 +2527,7 @@ do
     Library._radarSize = Library._radarSize or UDim2.fromOffset(210, 228)
     Library._radarRange = Library._radarRange or 180
     Library._radarMode = (Library._radarMode == "round") and "round" or "square"
+    Library._radarTeamCheck = Library._radarTeamCheck ~= false
 
     function Library:_hideRadarDots()
         for _, dot in pairs(self._radarDots or {}) do
@@ -2658,6 +2659,17 @@ do
         return Theme.RadarEnemy or Theme.Bad
     end
 
+    function Library:GetRadarTeamCheck()
+        return self._radarTeamCheck ~= false
+    end
+
+    function Library:SetRadarTeamCheck(enabled)
+        self._radarTeamCheck = (enabled ~= false)
+        if self._radar and self._radar.Parent and self._radar.Enabled then
+            self:_updateRadarDisplay()
+        end
+    end
+
     function Library:GetRadarMode()
         return (self._radarMode == "round") and "round" or "square"
     end
@@ -2668,6 +2680,25 @@ do
 
         if self._radarViewportCorner then
             self._radarViewportCorner.CornerRadius = (normalized == "round") and UDim.new(1, 0) or UDim.new(0, 0)
+        end
+
+        if self._radarGridCells then
+            for i = 1, #self._radarGridCells do
+                local cell = self._radarGridCells[i]
+                if cell then cell.Visible = (normalized ~= "round") end
+            end
+        end
+        if self._radarGridLines then
+            for i = 1, #self._radarGridLines do
+                local line = self._radarGridLines[i]
+                if line then line.Visible = (normalized ~= "round") end
+            end
+        end
+        if self._radarRoundRings then
+            for i = 1, #self._radarRoundRings do
+                local ring = self._radarRoundRings[i]
+                if ring then ring.Visible = (normalized == "round") end
+            end
         end
 
         if self._radar and self._radar.Parent and self._radar.Enabled then
@@ -2732,6 +2763,15 @@ do
                 if cell then cell.BackgroundColor3 = Theme.RadarGrid or Theme.Stroke end
             end
         end
+        if self._radarRoundRings then
+            for i = 1, #self._radarRoundRings do
+                local ring = self._radarRoundRings[i]
+                if ring then
+                    local stroke = ring:FindFirstChild("Stroke")
+                    if stroke then stroke.Color = Theme.RadarGrid or Theme.Stroke end
+                end
+            end
+        end
         if self._radarTitleLabel then self._radarTitleLabel.TextColor3 = Theme.Text end
         if self._radarFooterLabel then self._radarFooterLabel.TextColor3 = Theme.SubText end
 
@@ -2776,44 +2816,49 @@ do
                 if humanoid and humanoid.Health > 0 and root then
                     local relative = self:_getRadarRelativePosition(root.Position, localRoot)
                     if relative then
-                        local offset = Vector2.new(relative.X * scaleX, relative.Y * scaleY)
                         local isSameTeam = self:_isRadarSameTeam(player)
-                        local dotSize = isSameTeam and 6 or 8
-                        if mode == "round" then
-                            local radius = math.max(12, math.min(halfWidth, halfHeight))
-                            if offset.Magnitude > radius and offset.Magnitude > 0 then
-                                offset = offset.Unit * radius
-                                dotSize = isSameTeam and 4 or 6
-                            end
+                        local blockedByTeamCheck = (self:GetRadarTeamCheck() and isSameTeam)
+                        if blockedByTeamCheck then
+                            dot.Visible = false
                         else
-                            local clampedX = math.clamp(offset.X, -halfWidth, halfWidth)
-                            local clampedY = math.clamp(offset.Y, -halfHeight, halfHeight)
-                            if clampedX ~= offset.X or clampedY ~= offset.Y then
-                                offset = Vector2.new(clampedX, clampedY)
-                                dotSize = isSameTeam and 4 or 6
+                            local offset = Vector2.new(relative.X * scaleX, relative.Y * scaleY)
+                            local dotSize = isSameTeam and 6 or 8
+                            if mode == "round" then
+                                local radius = math.max(12, math.min(halfWidth, halfHeight))
+                                if offset.Magnitude > radius and offset.Magnitude > 0 then
+                                    offset = offset.Unit * radius
+                                    dotSize = isSameTeam and 4 or 6
+                                end
                             else
-                                offset = Vector2.new(clampedX, clampedY)
+                                local clampedX = math.clamp(offset.X, -halfWidth, halfWidth)
+                                local clampedY = math.clamp(offset.Y, -halfHeight, halfHeight)
+                                if clampedX ~= offset.X or clampedY ~= offset.Y then
+                                    offset = Vector2.new(clampedX, clampedY)
+                                    dotSize = isSameTeam and 4 or 6
+                                else
+                                    offset = Vector2.new(clampedX, clampedY)
+                                end
                             end
-                        end
 
-                        dot.Size = UDim2.fromOffset(dotSize, dotSize)
-                        dot.Rotation = isSameTeam and 0 or 45
-                        dot.Position = UDim2.fromOffset(math.floor(center.X + offset.X + 0.5), math.floor(center.Y + offset.Y + 0.5))
-                        dot.BackgroundColor3 = self:_getRadarDotColor(player, humanoid)
-                        local outline = dot:FindFirstChild("Outline")
-                        local core = dot:FindFirstChild("Core")
-                        local coreSize = math.max(2, dotSize - (isSameTeam and 3 or 4))
-                        if core then
-                            core.Size = UDim2.fromOffset(coreSize, coreSize)
-                            core.Rotation = dot.Rotation
-                            core.BackgroundColor3 = isSameTeam and (Theme.RadarAlly or Theme.Good) or (Theme.RadarEnemy or Theme.Bad)
+                            dot.Size = UDim2.fromOffset(dotSize, dotSize)
+                            dot.Rotation = isSameTeam and 0 or 45
+                            dot.Position = UDim2.fromOffset(math.floor(center.X + offset.X + 0.5), math.floor(center.Y + offset.Y + 0.5))
+                            dot.BackgroundColor3 = self:_getRadarDotColor(player, humanoid)
+                            local outline = dot:FindFirstChild("Outline")
+                            local core = dot:FindFirstChild("Core")
+                            local coreSize = math.max(2, dotSize - (isSameTeam and 3 or 4))
+                            if core then
+                                core.Size = UDim2.fromOffset(coreSize, coreSize)
+                                core.Rotation = dot.Rotation
+                                core.BackgroundColor3 = isSameTeam and (Theme.RadarAlly or Theme.Good) or (Theme.RadarEnemy or Theme.Bad)
+                            end
+                            if outline then
+                                outline.Color = isSameTeam and (Theme.Stroke or Theme.Panel) or (Theme.RadarEnemyOutline or Theme.Text)
+                                outline.Transparency = isSameTeam and 0.28 or 0.05
+                            end
+                            dot.Visible = true
+                            visibleCount = visibleCount + 1
                         end
-                        if outline then
-                            outline.Color = isSameTeam and (Theme.Stroke or Theme.Panel) or (Theme.RadarEnemyOutline or Theme.Text)
-                            outline.Transparency = isSameTeam and 0.28 or 0.05
-                        end
-                        dot.Visible = true
-                        visibleCount = visibleCount + 1
                     else
                         dot.Visible = false
                     end
@@ -2991,6 +3036,30 @@ do
             gridLines[#gridLines + 1] = horizontal
         end
 
+        local roundRings = {}
+        for _, scale in ipairs({ 0.34, 0.66, 0.98 }) do
+            local ring = Create("Frame", {
+                Name = "RoundRing",
+                Size = UDim2.fromScale(scale, scale),
+                Position = UDim2.fromScale(0.5, 0.5),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Visible = false,
+                ZIndex = gridLayer.ZIndex + 1,
+                Parent = viewport
+            })
+            Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = ring})
+            Create("UIStroke", {
+                Name = "Stroke",
+                Color = Theme.RadarGrid,
+                Thickness = 1,
+                Transparency = 0.72,
+                Parent = ring
+            })
+            roundRings[#roundRings + 1] = ring
+        end
+
         local crossX = Create("Frame", {
             Name = "CrossX",
             Size = UDim2.new(1, -18, 0, 1),
@@ -3161,6 +3230,7 @@ do
         self._radarViewportStroke = viewportStroke
         self._radarGridCells = gridCells
         self._radarGridLines = gridLines
+        self._radarRoundRings = roundRings
         self._radarCrossX = crossX
         self._radarCrossY = crossY
         self._radarCenterDot = centerDot
@@ -3185,7 +3255,15 @@ do
         end)
     end
 
-    function Library:SetRadarVisibility(visible)
+    function Library:SetRadarVisibility(visible, opts)
+        if type(opts) == "table" then
+            if opts.TeamCheck ~= nil then
+                self:SetRadarTeamCheck(opts.TeamCheck)
+            end
+        elseif opts ~= nil then
+            self:SetRadarTeamCheck(opts)
+        end
+
         self._radarVisible = (visible == true)
 
         if self._radarVisible then
@@ -12490,7 +12568,7 @@ function Library:CreateLibrary(opts)
             RadarGrid = "Radar Grid",
             RadarEnemy = "Radar Enemy Dot",
             RadarEnemyOutline = "Radar Enemy Outline",
-            RadarAlly = "Radar Ally Dot",
+            RadarAlly = "Radar Team Dot",
             RadarLocal = "Radar Local Dot",
             RadarLocalOutline = "Radar Local Outline",
         }
