@@ -2638,17 +2638,16 @@ do
 
         local availableWidth = math.max(120, body.AbsoluteSize.X)
         local availableHeight = math.max(120, body.AbsoluteSize.Y - 18)
-        local diameter = math.max(112, math.min(availableWidth, availableHeight))
-        local topOffset = math.max(2, math.floor((availableHeight - diameter) * 0.5))
 
-        viewport.Size = UDim2.fromOffset(diameter, diameter)
-        viewport.Position = UDim2.new(0.5, -math.floor(diameter * 0.5), 0, topOffset)
+        viewport.Size = UDim2.new(1, 0, 1, -18)
+        viewport.Position = UDim2.fromOffset(0, 0)
         footer.Position = UDim2.new(0, 0, 1, -14)
         footer.Size = UDim2.new(1, 0, 0, 14)
 
         if self._radarRangeRing then
-            local ringSize = math.max(24, math.floor(diameter * 0.52))
-            self._radarRangeRing.Size = UDim2.fromOffset(ringSize, ringSize)
+            local ringWidth = math.max(32, math.floor(availableWidth * 0.5))
+            local ringHeight = math.max(32, math.floor(availableHeight * 0.5))
+            self._radarRangeRing.Size = UDim2.fromOffset(ringWidth, ringHeight)
             self._radarRangeRing.Position = UDim2.new(0.5, 0, 0.5, 0)
         end
     end
@@ -2692,9 +2691,11 @@ do
         end
 
         local center = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
-        local radius = math.max(12, math.min(viewportSize.X, viewportSize.Y) * 0.5 - 8)
+        local halfWidth = math.max(12, viewportSize.X * 0.5 - 8)
+        local halfHeight = math.max(12, viewportSize.Y * 0.5 - 8)
         local range = math.max(60, tonumber(self._radarRange) or 180)
-        local scale = radius / range
+        local scaleX = halfWidth / range
+        local scaleY = halfHeight / range
         local activePlayers = {}
         local visibleCount = 0
         local players = SRV("Players")
@@ -2711,12 +2712,15 @@ do
                 if humanoid and humanoid.Health > 0 and root then
                     local relative = self:_getRadarRelativePosition(root.Position, localRoot)
                     if relative then
-                        local offset = Vector2.new(relative.X * scale, relative.Y * scale)
-                        local limit = math.max(0, radius - 6)
+                        local offset = Vector2.new(relative.X * scaleX, relative.Y * scaleY)
                         local dotSize = 6
-                        if offset.Magnitude > limit and offset.Magnitude > 0 then
-                            offset = offset.Unit * limit
+                        local clampedX = math.clamp(offset.X, -halfWidth, halfWidth)
+                        local clampedY = math.clamp(offset.Y, -halfHeight, halfHeight)
+                        if clampedX ~= offset.X or clampedY ~= offset.Y then
+                            offset = Vector2.new(clampedX, clampedY)
                             dotSize = 4
+                        else
+                            offset = Vector2.new(clampedX, clampedY)
                         end
 
                         dot.Size = UDim2.fromOffset(dotSize, dotSize)
@@ -2841,7 +2845,6 @@ do
             ClipsDescendants = true,
             Parent = body
         })
-        Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = viewport})
         local viewportStroke = Create("UIStroke", {
             Color = Theme.Stroke,
             Thickness = 1,
@@ -2858,7 +2861,6 @@ do
             BorderSizePixel = 0,
             Parent = viewport
         })
-        Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = rangeRing})
         local rangeRingStroke = Create("UIStroke", {
             Color = Theme.Accent,
             Thickness = 1,
