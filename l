@@ -321,7 +321,7 @@ local Library = { _windows = {}, _controls = {}, _theme = Theme, _fonts = Fonts,
 Library.FormatKeyName = FormatKeyName
 Library._globalRGBSync = Library._globalRGBSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, v = nil }
 Library._globalPulseSync = Library._globalPulseSync or { active = false, listeners = {}, leader = nil, color = nil, phase = nil, s = nil, baseV = nil }
-Library._roundToggles = Library._roundToggles == true
+Library._roundToggles = Library._roundToggles ~= false
 Library._toggleStyleListeners = Library._toggleStyleListeners or {}
 
 function Library:GetRoundToggles()
@@ -773,6 +773,9 @@ function Library:Unload()
         if self._keybindList and self._keybindList.Parent then self._keybindList:Destroy() end
     end)
     pcall(function()
+        if self._radar and self._radar.Parent then self._radar:Destroy() end
+    end)
+    pcall(function()
         if self._rootGui and self._rootGui.Parent then self._rootGui:Destroy() end
     end)
     pcall(function()
@@ -782,6 +785,11 @@ function Library:Unload()
     self._keybindList = nil
     self._keybindScrollFrame = nil
     self._keybindListVisible = false
+    self._radar = nil
+    self._radarFrame = nil
+    self._radarViewport = nil
+    self._radarVisible = false
+    self._radarDots = {}
     self._keybinds = {}
     self._controls = {}
     self.Flags = {}
@@ -2075,12 +2083,13 @@ do
     end
     
     
-    function Library:_setupKeybindListDragging(frame, strokeElement)
+    function Library:_setupKeybindListDragging(frame, strokeElement, positionField)
         local isDragging = false
         local startPos = Vector2.new(0, 0)
         local frameStartPos = Vector2.new(0, 0)
         local dragOffset = Vector2.new(0, 0)
         local parentAbsAtStart = Vector2.new(0, 0)
+        positionField = positionField or "_keybindListPosition"
         
         
         local function getMouseGuiPos(input)
@@ -2170,7 +2179,7 @@ do
                     T(strokeElement, 0.2, {Color = Theme.Stroke, Thickness = 1}):Play()
                     pcall(function()
                         if Library then
-                            Library._keybindListPosition = {
+                            Library[positionField] = {
                                 X = frame.Position.X.Scale,
                                 XOffset = frame.Position.X.Offset,
                                 Y = frame.Position.Y.Scale,
@@ -2486,6 +2495,581 @@ do
     
     function Library:ToggleKeybindList()
         self:ShowKeybindList(not self._keybindListVisible)
+    end
+end
+
+do
+    Library._radar = nil
+    Library._radarFrame = nil
+    Library._radarViewport = nil
+    Library._radarVisible = false
+    Library._radarDots = Library._radarDots or {}
+    Library._radarPosition = Library._radarPosition or {
+        X = 0,
+        XOffset = 16,
+        Y = 0,
+        YOffset = 56
+    }
+    Library._radarSize = Library._radarSize or UDim2.fromOffset(210, 228)
+    Library._radarRange = Library._radarRange or 180
+
+    function Library:_hideRadarDots()
+        for _, dot in pairs(self._radarDots or {}) do
+            if dot then
+                dot.Visible = false
+            end
+        end
+    end
+
+    function Library:_cleanupRadarDots(activePlayers)
+        local dots = self._radarDots or {}
+        for player, dot in pairs(dots) do
+            if not activePlayers[player] then
+                if dot and dot.Parent then
+                    pcall(function() dot:Destroy() end)
+                end
+                dots[player] = nil
+            end
+        end
+    end
+
+    function Library:_ensureRadarDot(container, player)
+        self._radarDots = self._radarDots or {}
+        local dot = self._radarDots[player]
+        if dot and dot.Parent then
+            return dot
+        end
+
+        dot = Create("Frame", {
+            Name = "Dot_" .. tostring(player and (player.UserId or player.Name) or "Unknown"),
+            Size = UDim2.fromOffset(6, 6),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Theme.Accent,
+            BorderSizePixel = 0,
+            Visible = false,
+            ZIndex = (container.ZIndex or 1) + 4,
+            Parent = container
+        })
+        Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = dot})
+        self._radarDots[player] = dot
+        return dot
+    end
+
+    function Library:_getRadarLibraryGui()
+        for _, gui in pairs(CoreGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.DisplayOrder == 999999 then
+                return gui
+            end
+        end
+        return nil
+    end
+
+    function Library:_getRadarLocalRoot()
+        local players = SRV("Players")
+        local localPlayer = players and players.LocalPlayer
+        if not localPlayer then
+            return nil, nil
+        end
+        local character = localPlayer.Character
+        if not character then
+            return localPlayer, nil
+        end
+        local root = character.PrimaryPart or character:FindFirstChild("HumanoidRootPart")
+        return localPlayer, root
+    end
+
+    function Library:_getRadarRelativePosition(worldPosition, originRoot)
+        if not originRoot then
+            return nil
+        end
+
+        local look = nil
+        local camera = workspace.CurrentCamera
+        if camera then
+            local cameraLook = camera.CFrame.LookVector
+            local flatCameraLook = Vector3.new(cameraLook.X, 0, cameraLook.Z)
+            if flatCameraLook.Magnitude > 0.001 then
+                look = flatCameraLook.Unit
+            end
+        end
+
+        if not look then
+            local rootLook = originRoot.CFrame.LookVector
+            local flatRootLook = Vector3.new(rootLook.X, 0, rootLook.Z)
+            if flatRootLook.Magnitude > 0.001 then
+                look = flatRootLook.Unit
+            else
+                look = Vector3.new(0, 0, -1)
+            end
+        end
+
+        local basis = CFrame.lookAt(originRoot.Position, originRoot.Position + look)
+        local relative = basis:PointToObjectSpace(worldPosition)
+        return Vector2.new(relative.X, relative.Z)
+    end
+
+    function Library:_getRadarDotColor(player, humanoid)
+        local players = SRV("Players")
+        local localPlayer = players and players.LocalPlayer
+        local sameTeam = false
+        pcall(function()
+            sameTeam = localPlayer and localPlayer.Team ~= nil and player and player.Team == localPlayer.Team
+        end)
+
+        if sameTeam then
+            return Theme.Good
+        end
+
+        local alpha = 1
+        if humanoid and humanoid.MaxHealth and humanoid.MaxHealth > 0 then
+            alpha = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+        end
+        return Theme.Bad:Lerp(Theme.Warn, alpha)
+    end
+
+    function Library:_updateRadarLayout()
+        local frame = self._radarFrame
+        local body = self._radarBody
+        local viewport = self._radarViewport
+        local footer = self._radarFooterLabel
+        if not (frame and body and viewport and footer) then
+            return
+        end
+
+        local availableWidth = math.max(120, body.AbsoluteSize.X)
+        local availableHeight = math.max(120, body.AbsoluteSize.Y - 18)
+        local diameter = math.max(112, math.min(availableWidth, availableHeight))
+        local topOffset = math.max(2, math.floor((availableHeight - diameter) * 0.5))
+
+        viewport.Size = UDim2.fromOffset(diameter, diameter)
+        viewport.Position = UDim2.new(0.5, -math.floor(diameter * 0.5), 0, topOffset)
+        footer.Position = UDim2.new(0, 0, 1, -14)
+        footer.Size = UDim2.new(1, 0, 0, 14)
+
+        if self._radarRangeRing then
+            local ringSize = math.max(24, math.floor(diameter * 0.52))
+            self._radarRangeRing.Size = UDim2.fromOffset(ringSize, ringSize)
+            self._radarRangeRing.Position = UDim2.new(0.5, 0, 0.5, 0)
+        end
+    end
+
+    function Library:_updateRadarDisplay()
+        local gui = self._radar
+        local frame = self._radarFrame
+        local viewport = self._radarViewport
+        if not (gui and gui.Parent and frame and viewport) then
+            return
+        end
+
+        self:_updateRadarLayout()
+
+        if self._radarOuterStroke then self._radarOuterStroke.Color = Theme.Stroke end
+        if self._radarAccentStroke then self._radarAccentStroke.Color = Theme.Accent end
+        if self._radarTitleStroke then self._radarTitleStroke.Color = Theme.Stroke end
+        if self._radarViewportStroke then self._radarViewportStroke.Color = Theme.Stroke end
+        if self._radarTitleBar then self._radarTitleBar.BackgroundColor3 = Theme.Panel end
+        if self._radarBody then self._radarBody.BackgroundColor3 = Theme.Bg end
+        if self._radarViewport then self._radarViewport.BackgroundColor3 = Theme.Panel end
+        if self._radarCenterDot then self._radarCenterDot.BackgroundColor3 = Theme.Text end
+        if self._radarHeadingLine then self._radarHeadingLine.BackgroundColor3 = Theme.Text end
+        if self._radarCrossX then self._radarCrossX.BackgroundColor3 = Theme.Stroke end
+        if self._radarCrossY then self._radarCrossY.BackgroundColor3 = Theme.Stroke end
+        if self._radarRangeRingStroke then self._radarRangeRingStroke.Color = Theme.Accent end
+        if self._radarTitleLabel then self._radarTitleLabel.TextColor3 = Theme.Text end
+        if self._radarFooterLabel then self._radarFooterLabel.TextColor3 = Theme.SubText end
+
+        local localPlayer, localRoot = self:_getRadarLocalRoot()
+        if not (localPlayer and localRoot) then
+            self:_hideRadarDots()
+            if self._radarTitleLabel then self._radarTitleLabel.Text = "Radar" end
+            if self._radarFooterLabel then self._radarFooterLabel.Text = "Waiting for character" end
+            return
+        end
+
+        local viewportSize = viewport.AbsoluteSize
+        if viewportSize.X <= 0 or viewportSize.Y <= 0 then
+            return
+        end
+
+        local center = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
+        local radius = math.max(12, math.min(viewportSize.X, viewportSize.Y) * 0.5 - 8)
+        local range = math.max(60, tonumber(self._radarRange) or 180)
+        local scale = radius / range
+        local activePlayers = {}
+        local visibleCount = 0
+        local players = SRV("Players")
+
+        for _, player in ipairs(players:GetPlayers()) do
+            if player ~= localPlayer then
+                activePlayers[player] = true
+
+                local dot = self:_ensureRadarDot(viewport, player)
+                local character = player.Character
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                local root = character and (character.PrimaryPart or character:FindFirstChild("HumanoidRootPart"))
+
+                if humanoid and humanoid.Health > 0 and root then
+                    local relative = self:_getRadarRelativePosition(root.Position, localRoot)
+                    if relative then
+                        local offset = Vector2.new(relative.X * scale, relative.Y * scale)
+                        local limit = math.max(0, radius - 6)
+                        local dotSize = 6
+                        if offset.Magnitude > limit and offset.Magnitude > 0 then
+                            offset = offset.Unit * limit
+                            dotSize = 4
+                        end
+
+                        dot.Size = UDim2.fromOffset(dotSize, dotSize)
+                        dot.Position = UDim2.fromOffset(math.floor(center.X + offset.X + 0.5), math.floor(center.Y + offset.Y + 0.5))
+                        dot.BackgroundColor3 = self:_getRadarDotColor(player, humanoid)
+                        dot.Visible = true
+                        visibleCount = visibleCount + 1
+                    else
+                        dot.Visible = false
+                    end
+                else
+                    dot.Visible = false
+                end
+            end
+        end
+
+        self:_cleanupRadarDots(activePlayers)
+
+        if self._radarTitleLabel then self._radarTitleLabel.Text = "Radar" end
+        if self._radarFooterLabel then self._radarFooterLabel.Text = tostring(range) .. " studs  |  " .. tostring(visibleCount) .. " visible" end
+    end
+
+    function Library:_createRadar()
+        if self._radar then
+            pcall(function() self._radar:Destroy() end)
+        end
+
+        local libraryGui = self:_getRadarLibraryGui()
+        if not libraryGui then
+            return
+        end
+
+        self._radarDots = {}
+        self._radar = Create("ScreenGui", {
+            Name = "Radar",
+            Parent = libraryGui,
+            IgnoreGuiInset = true,
+            ResetOnSpawn = false,
+            DisplayOrder = 999998,
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        })
+
+        local mainFrame = Create("TextButton", {
+            Name = "MainFrame",
+            Size = UDim2.fromOffset(210, 228),
+            Position = UDim2.new(0, 16, 0, 56),
+            BackgroundColor3 = Theme.Bg,
+            AutoButtonColor = false,
+            BorderSizePixel = 0,
+            Text = "",
+            Parent = self._radar
+        })
+        Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = mainFrame})
+
+        local outerStroke = Create("UIStroke", {
+            Color = Theme.Stroke,
+            Thickness = 1,
+            Transparency = 0.2,
+            Parent = mainFrame
+        })
+
+        local accentFrame = Create("Frame", {
+            Size = UDim2.new(1, -2, 1, -2),
+            Position = UDim2.fromOffset(1, 1),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Parent = mainFrame
+        })
+        Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = accentFrame})
+        local accentStroke = Create("UIStroke", {
+            Color = Theme.Accent,
+            Thickness = 1,
+            Transparency = 0.7,
+            Parent = accentFrame
+        })
+
+        local titleBar = Create("Frame", {
+            Name = "TitleBar",
+            Size = UDim2.new(1, 0, 0, 32),
+            BackgroundColor3 = Theme.Panel,
+            BorderSizePixel = 0,
+            Parent = mainFrame
+        })
+        Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = titleBar})
+        local titleStroke = Create("UIStroke", {
+            Color = Theme.Stroke,
+            Thickness = 1,
+            Transparency = 0.5,
+            Parent = titleBar
+        })
+
+        local titleLabel = Create("TextLabel", {
+            Name = "TitleText",
+            Size = UDim2.new(1, -14, 1, 0),
+            Position = UDim2.fromOffset(14, 0),
+            BackgroundTransparency = 1,
+            Text = "Radar",
+            TextColor3 = Theme.Text,
+            TextSize = 13,
+            Font = Fonts.Bold,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = titleBar
+        })
+        pcall(function() titleLabel:SetAttribute("DendriteNoTranslate", true) end)
+
+        local body = Create("Frame", {
+            Name = "Body",
+            Size = UDim2.new(1, -12, 1, -42),
+            Position = UDim2.fromOffset(6, 36),
+            BackgroundColor3 = Theme.Bg,
+            BackgroundTransparency = 0.12,
+            BorderSizePixel = 0,
+            Parent = mainFrame
+        })
+
+        local viewport = Create("Frame", {
+            Name = "Viewport",
+            Size = UDim2.fromOffset(154, 154),
+            Position = UDim2.new(0.5, -77, 0, 4),
+            BackgroundColor3 = Theme.Panel,
+            BorderSizePixel = 0,
+            ClipsDescendants = true,
+            Parent = body
+        })
+        Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = viewport})
+        local viewportStroke = Create("UIStroke", {
+            Color = Theme.Stroke,
+            Thickness = 1,
+            Transparency = 0.15,
+            Parent = viewport
+        })
+
+        local rangeRing = Create("Frame", {
+            Name = "RangeRing",
+            Size = UDim2.fromOffset(80, 80),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Parent = viewport
+        })
+        Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = rangeRing})
+        local rangeRingStroke = Create("UIStroke", {
+            Color = Theme.Accent,
+            Thickness = 1,
+            Transparency = 0.75,
+            Parent = rangeRing
+        })
+
+        local crossX = Create("Frame", {
+            Name = "CrossX",
+            Size = UDim2.new(1, -18, 0, 1),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Theme.Stroke,
+            BackgroundTransparency = 0.6,
+            BorderSizePixel = 0,
+            Parent = viewport
+        })
+
+        local crossY = Create("Frame", {
+            Name = "CrossY",
+            Size = UDim2.new(0, 1, 1, -18),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Theme.Stroke,
+            BackgroundTransparency = 0.6,
+            BorderSizePixel = 0,
+            Parent = viewport
+        })
+
+        local centerDot = Create("Frame", {
+            Name = "CenterDot",
+            Size = UDim2.fromOffset(8, 8),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Theme.Text,
+            BorderSizePixel = 0,
+            Parent = viewport
+        })
+        Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = centerDot})
+
+        local headingLine = Create("Frame", {
+            Name = "HeadingLine",
+            Size = UDim2.fromOffset(2, 18),
+            Position = UDim2.new(0.5, 0, 0.5, -8),
+            AnchorPoint = Vector2.new(0.5, 1),
+            BackgroundColor3 = Theme.Text,
+            BorderSizePixel = 0,
+            Parent = viewport
+        })
+        Create("UICorner", {CornerRadius = UDim.new(1, 0), Parent = headingLine})
+
+        local footerLabel = Create("TextLabel", {
+            Name = "FooterLabel",
+            Size = UDim2.new(1, 0, 0, 14),
+            Position = UDim2.new(0, 0, 1, -14),
+            BackgroundTransparency = 1,
+            Text = "180 studs  |  0 visible",
+            TextColor3 = Theme.SubText,
+            TextSize = 11,
+            Font = Fonts.Medium,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            Parent = body
+        })
+        pcall(function() footerLabel:SetAttribute("DendriteNoTranslate", true) end)
+
+        pcall(function()
+            local rp = Library and Library._radarPosition
+            if rp and type(rp) == "table" then
+                mainFrame.Position = UDim2.new(rp.X or 0, rp.XOffset or 0, rp.Y or 0, rp.YOffset or 0)
+            end
+            local rs = Library and Library._radarSize
+            if rs then
+                if typeof and typeof(rs) == "UDim2" then
+                    mainFrame.Size = rs
+                elseif type(rs) == "table" then
+                    if rs.__t == "ud2" and type(rs.x) == "table" and type(rs.y) == "table" then
+                        mainFrame.Size = UDim2.new(rs.x[1] or 0, rs.x[2] or 0, rs.y[1] or 0, rs.y[2] or 0)
+                    elseif rs.X and rs.Y then
+                        mainFrame.Size = UDim2.new(rs.X or 0, rs.XOffset or 0, rs.Y or 0, rs.YOffset or 0)
+                    end
+                end
+            end
+        end)
+
+        self:_setupKeybindListDragging(mainFrame, outerStroke, "_radarPosition")
+
+        do
+            local grip = Create("Frame", {Name = "ResizeGrip", BackgroundTransparency = 1, Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, 0, 1, 0), AnchorPoint = Vector2.new(1, 1), ZIndex = mainFrame.ZIndex + 5, Parent = mainFrame})
+            local gripRoot = Create("Frame", {BackgroundTransparency = 1, Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -4, 1, -4), ZIndex = grip.ZIndex + 1, Parent = grip})
+            local dotSize = 2
+            local dotPositions = {
+                {x = 12, y = 12}, {x = 8, y = 12}, {x = 12, y = 8}, {x = 4, y = 12}, {x = 8, y = 8}, {x = 12, y = 4}
+            }
+            for i, pos in ipairs(dotPositions) do
+                Create("Frame", {
+                    BackgroundColor3 = Theme.Accent,
+                    BackgroundTransparency = 0.4,
+                    BorderSizePixel = 0,
+                    Size = UDim2.fromOffset(dotSize, dotSize),
+                    Position = UDim2.fromOffset(pos.x, pos.y),
+                    ZIndex = gripRoot.ZIndex + i,
+                    Parent = gripRoot
+                }, {Create("UICorner", {CornerRadius = UDim.new(0, 1)})})
+            end
+
+            local resizing = false
+            local startMouse, startSize
+            local minW, minH = 190, 208
+
+            self:_connect(grip.InputBegan, function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    resizing = true
+                    local pos = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                    startMouse = Vector2.new(pos.X, pos.Y)
+                    startSize = mainFrame.AbsoluteSize
+                    self:_connect(input.Changed, function()
+                        if input.UserInputState == Enum.UserInputState.End then
+                            resizing = false
+                        end
+                    end)
+                end
+            end)
+
+            self:_connect(UserInputService.InputChanged, function(input)
+                if not resizing then return end
+                if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+                local pos = (input.UserInputType == Enum.UserInputType.Touch) and input.Position or UserInputService:GetMouseLocation()
+                local dx = pos.X - startMouse.X
+                local dy = pos.Y - startMouse.Y
+                local newW = math.max(minW, math.floor(startSize.X + dx))
+                local newH = math.max(minH, math.floor(startSize.Y + dy))
+                mainFrame.Size = UDim2.fromOffset(newW, newH)
+                Library._radarSize = mainFrame.Size
+                self:_updateRadarLayout()
+            end)
+
+            self:_connect(grip.InputEnded, function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    if resizing then
+                        resizing = false
+                    end
+                    pcall(function()
+                        if Library and mainFrame then
+                            Library._radarSize = mainFrame.Size
+                            Library._radarPosition = {
+                                X = mainFrame.Position.X.Scale,
+                                XOffset = mainFrame.Position.X.Offset,
+                                Y = mainFrame.Position.Y.Scale,
+                                YOffset = mainFrame.Position.Y.Offset
+                            }
+                        end
+                    end)
+                end
+            end)
+        end
+
+        self._radarFrame = mainFrame
+        self._radarBody = body
+        self._radarViewport = viewport
+        self._radarOuterStroke = outerStroke
+        self._radarAccentStroke = accentStroke
+        self._radarTitleBar = titleBar
+        self._radarTitleStroke = titleStroke
+        self._radarTitleLabel = titleLabel
+        self._radarViewportStroke = viewportStroke
+        self._radarRangeRing = rangeRing
+        self._radarRangeRingStroke = rangeRingStroke
+        self._radarCrossX = crossX
+        self._radarCrossY = crossY
+        self._radarCenterDot = centerDot
+        self._radarHeadingLine = headingLine
+        self._radarFooterLabel = footerLabel
+
+        self:_updateRadarDisplay()
+        self._radar.Enabled = self._radarVisible
+
+        task.spawn(function()
+            while self._radar and self._radar.Parent do
+                task.wait(0.03)
+                if self._radarVisible and self._radar.Enabled then
+                    self:_updateRadarDisplay()
+                else
+                    self:_hideRadarDots()
+                end
+            end
+        end)
+    end
+
+    function Library:SetRadarVisibility(visible)
+        self._radarVisible = (visible == true)
+
+        if self._radarVisible then
+            if not self._radar or not self._radar.Parent then
+                self:_createRadar()
+            elseif self._radar then
+                self._radar.Enabled = true
+            end
+        else
+            if self._radar and self._radar.Parent then
+                self._radar.Enabled = false
+            end
+            self:_hideRadarDots()
+        end
+    end
+
+    function Library:GetRadarVisibility()
+        return self._radarVisible
+    end
+
+    function Library:ToggleRadar()
+        self:SetRadarVisibility(not self._radarVisible)
     end
 end
 
@@ -2843,6 +3427,25 @@ function Library:CreateLibrary(opts)
                         end)
                     end
                 end
+                do
+                    local rf = nil
+                    if Library and Library._radar then rf = Library._radar:FindFirstChild("MainFrame") end
+                    if rf then
+                        local rpos = rf.Position
+                        local rsiz = rf.Size
+                        pcall(function()
+                            libraryInfo.radar = libraryInfo.radar or {}
+                            libraryInfo.radar.position = { X = rpos.X.Scale or 0, XOffset = rpos.X.Offset or 0, Y = rpos.Y.Scale or 0, YOffset = rpos.Y.Offset or 0 }
+                            libraryInfo.radar.size = serialize(rsiz)
+                        end)
+                    elseif Library and Library._radarPosition then
+                        local r = Library._radarPosition
+                        pcall(function()
+                            libraryInfo.radar = { position = { X = r.X or 0, XOffset = r.XOffset or 0, Y = r.Y or 0, YOffset = r.YOffset or 0 } }
+                            if Library._radarSize then libraryInfo.radar.size = serialize(Library._radarSize) end
+                        end)
+                    end
+                end
                 if Library and Library._watermarkPosition then
                     pcall(function() libraryInfo.watermark = Library._watermarkPosition end)
                 end
@@ -2887,6 +3490,7 @@ function Library:CreateLibrary(opts)
                 local layout = {}
                 layout.window = clone(libraryInfo.window)
                 layout.keybindList = clone(libraryInfo.keybindList)
+                layout.radar = clone(libraryInfo.radar)
                 layout.mobileToggle = clone(libraryInfo.mobileToggle)
                 layout.watermark = clone(libraryInfo.watermark)
                 libraryInfo.layout = layout
@@ -10886,6 +11490,7 @@ function Library:CreateLibrary(opts)
             if type(lib) == 'table' then
                 local loadedWindowSize, loadedWindowPos = nil, nil
                 local loadedKeybindSize, loadedKeybindPos = nil, nil
+                local loadedRadarSize, loadedRadarPos = nil, nil
                 local loadedWatermark, loadedMobile = nil, nil
 
                 
@@ -10937,6 +11542,29 @@ function Library:CreateLibrary(opts)
                             end
                             Library._keybindListPosition = kpTable
                             loadedKeybindPos = kpTable
+                        end
+                    end
+
+                    if lib.radar then
+                        if type(lib.radar) == 'table' and lib.radar.size then
+                            local rs = deserialize(lib.radar.size) or lib.radar.size
+                            if rs then
+                                loadedRadarSize = rs
+                                pcall(function() Library._radarSize = rs end)
+                            end
+                        end
+                        local posSrc = nil
+                        if type(lib.radar) == 'table' and lib.radar.position then posSrc = lib.radar.position else posSrc = lib.radar end
+                        local rp = deserialize(posSrc) or posSrc
+                        if rp then
+                            local rpTable = rp
+                            if typeof and typeof(rp) == 'UDim2' then
+                                rpTable = { X = rp.X.Scale, XOffset = rp.X.Offset, Y = rp.Y.Scale, YOffset = rp.Y.Offset }
+                            elseif type(rp) == 'table' and rp.__t == 'ud2' and type(rp.x) == 'table' and type(rp.y) == 'table' then
+                                rpTable = { X = tonumber(rp.x[1]) or 0, XOffset = tonumber(rp.x[2]) or 0, Y = tonumber(rp.y[1]) or 0, YOffset = tonumber(rp.y[2]) or 0 }
+                            end
+                            Library._radarPosition = rpTable
+                            loadedRadarPos = rpTable
                         end
                     end
                     
@@ -10999,6 +11627,19 @@ function Library:CreateLibrary(opts)
                         end
                     end)
                     pcall(function()
+                        local rs = loadedRadarSize
+                        local rp = loadedRadarPos
+                        if (rs or rp) and Library and Library._radar and Library._radar.Parent then
+                            local mf = Library._radar:FindFirstChild("MainFrame")
+                            if mf then
+                                local convr = toUD2(rs)
+                                if convr then mf.Size = convr end
+                                local convrp = toUD2(rp)
+                                if convrp then mf.Position = convrp end
+                            end
+                        end
+                    end)
+                    pcall(function()
                         if loadedMobile then
                             local mp2 = loadedMobile
                             local cont = (Library and Library._mobileToggleContainer) or (RootGui and RootGui:FindFirstChild("MobileToggleContainer"))
@@ -11011,7 +11652,7 @@ function Library:CreateLibrary(opts)
                         end
                     end)
                 end
-                if loadedWindowSize or loadedWindowPos or loadedKeybindSize or loadedKeybindPos or loadedWatermark or loadedMobile then
+                if loadedWindowSize or loadedWindowPos or loadedKeybindSize or loadedKeybindPos or loadedRadarSize or loadedRadarPos or loadedWatermark or loadedMobile then
                     task.spawn(function() for i=1,20 do reapplyFromCache(); task.wait(0.06) end end)
                 end
             end
