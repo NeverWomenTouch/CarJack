@@ -4950,7 +4950,7 @@ local Library do
                 return false, "Could not get HWID"
             end
 
-            local ok, result = pcall(function()
+            local ok, response, decoded = pcall(function()
                 local payload = HttpService:JSONEncode({
                     hwid = hwid,
                     durationHours = durationHours
@@ -4964,15 +4964,52 @@ local Library do
                     },
                     Body = payload
                 })
-                return HttpService:JSONDecode(response.Body)
+                local parsed = nil
+                if response and type(response.Body) == "string" and response.Body ~= "" then
+                    local okDecode, parsedBody = pcall(function()
+                        return HttpService:JSONDecode(response.Body)
+                    end)
+                    if okDecode then
+                        parsed = parsedBody
+                    end
+                end
+                return response, parsed
             end)
 
-            if ok and result and result.ok then
+            if ok and decoded and decoded.ok then
                 Library.TrialManager.Cached = true
                 Library.TrialManager.CachedTrialActive = true
-                Library.TrialManager.CachedRemainingMs = result.remainingMs or (durationHours * 60 * 60 * 1000)
+                Library.TrialManager.CachedRemainingMs = decoded.remainingMs or (durationHours * 60 * 60 * 1000)
                 return true, "Trial claimed successfully"
             end
+
+            local checkOk, checkDecoded = pcall(function()
+                local payload = HttpService:JSONEncode({
+                    hwid = hwid
+                })
+                local checkResponse = RequestFunction({
+                    Url = Library.TrialManager.HttpUrl .. "/trial/check",
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json",
+                        ["x-chat-token"] = Library.TrialManager.Token
+                    },
+                    Body = payload
+                })
+                if not checkResponse or type(checkResponse.Body) ~= "string" or checkResponse.Body == "" then
+                    return nil
+                end
+                return HttpService:JSONDecode(checkResponse.Body)
+            end)
+
+            if checkOk and checkDecoded and checkDecoded.ok and checkDecoded.active then
+                Library.TrialManager.Cached = true
+                Library.TrialManager.CachedTrialActive = true
+                Library.TrialManager.CachedRemainingMs = checkDecoded.remainingMs or (durationHours * 60 * 60 * 1000)
+                return true, "Trial active"
+            end
+
+            Library.TrialManager.Cached = false
 
             return false, "Failed to claim trial"
         end
@@ -5127,15 +5164,18 @@ local Library do
                         Callback = function()
                             if Processed then return end
                             Processed = true
-                            local success = ClaimTrialWithHwid(trialDurationHours)
-                            if success then
-                                trialState.TrialClaimed = true
-                                trialState.Closed = true
-                                gui.Instance:Destroy()
-                            else
-                                MsgLabel.Instance.Text = "Could not connect to server.\nPlease try again."
-                                Processed = false
-                            end
+                            MsgLabel.Instance.Text = "Checking trial status..."
+                            task.spawn(function()
+                                local success = ClaimTrialWithHwid(trialDurationHours)
+                                if success then
+                                    trialState.TrialClaimed = true
+                                    trialState.Closed = true
+                                    gui.Instance:Destroy()
+                                else
+                                    MsgLabel.Instance.Text = "Could not connect to server.\nPlease try again."
+                                    Processed = false
+                                end
+                            end)
                         end
                     },
                     {
