@@ -5182,7 +5182,7 @@ local Library do
                 return HttpService:JSONDecode(response.Body)
             end)
 
-            local durationHours = 2
+            local durationHours = 1
             if ok and result and result.ok and tonumber(result.durationHours) then
                 durationHours = math.max(1, math.floor(tonumber(result.durationHours)))
             end
@@ -5192,7 +5192,7 @@ local Library do
         end
 
         local function BuildTrialPanel(panelCfg)
-            local PW, PH = 465, 300
+            local PW, PH = 460, 250
             local gui = Instances:Create("ScreenGui", {
                 Parent = gethui(),
                 Name = "TrialGui",
@@ -5215,9 +5215,18 @@ local Library do
 
             local Header = Instances:Create("Frame", {
                 Parent = Modal.Instance,
-                Size = UDim2New(1, 0, 0, 72),
+                Size = UDim2New(1, 0, 0, 56),
                 Position = UDim2New(0, 0, 0, 0),
                 BackgroundColor3 = Library.Theme["Element"],
+                BackgroundTransparency = 0,
+                BorderSizePixel = 0
+            })
+
+            local AccentLine = Instances:Create("Frame", {
+                Parent = Header.Instance,
+                Size = UDim2New(1, 0, 0, 2),
+                Position = UDim2New(0, 0, 1, -2),
+                BackgroundColor3 = Library.Theme["Accent"],
                 BorderSizePixel = 0
             })
 
@@ -5225,10 +5234,10 @@ local Library do
                 Parent = Header.Instance,
                 Text = "Express Hub",
                 FontFace = Library.Font,
-                TextSize = 20,
+                TextSize = 16,
                 TextColor3 = Library.Theme["Text"],
-                Size = UDim2New(0.55, 0, 0, 26),
-                Position = UDim2New(0, 16, 0, 11),
+                Size = UDim2New(0, 160, 1, 0),
+                Position = UDim2New(0, 16, 0, 0),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextXAlignment = Enum.TextXAlignment.Left
@@ -5236,13 +5245,13 @@ local Library do
 
             local BadgeFrame = Instances:Create("Frame", {
                 Parent = Header.Instance,
-                Size = UDim2New(0, 158, 0, 22),
-                Position = UDim2New(1, -168, 0, 14),
+                Size = UDim2New(0, 150, 0, 20),
+                Position = UDim2New(1, -160, 0.5, -10),
                 BackgroundColor3 = Library.Theme["Accent"],
-                BackgroundTransparency = 0.82,
+                BackgroundTransparency = 0.84,
                 BorderSizePixel = 0
             })
-            Instances:Create("UICorner", { Parent = BadgeFrame.Instance, CornerRadius = UDimNew(0, 11) })
+            Instances:Create("UICorner", { Parent = BadgeFrame.Instance, CornerRadius = UDimNew(0, 10) })
             Instances:Create("UIStroke", { Parent = BadgeFrame.Instance, Color = Library.Theme["Accent"], Thickness = 1 })
             Instances:Create("TextLabel", {
                 Parent = BadgeFrame.Instance,
@@ -5255,49 +5264,27 @@ local Library do
                 TextXAlignment = Enum.TextXAlignment.Center
             })
 
-            Instances:Create("TextLabel", {
-                Parent = Header.Instance,
-                Text = panelCfg.headerSub or "Script access is restricted",
-                FontFace = Library.Font,
-                TextSize = 12,
-                TextColor3 = Library.Theme["Text"],
-                TextTransparency = 0.45,
-                Size = UDim2New(1, -16, 0, 18),
-                Position = UDim2New(0, 16, 0, 42),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                TextXAlignment = Enum.TextXAlignment.Left
-            })
-
-            Instances:Create("Frame", {
-                Parent = Modal.Instance,
-                Size = UDim2New(1, -32, 0, 1),
-                Position = UDim2New(0, 16, 0, 72),
-                BackgroundColor3 = Library.Theme["Border"],
-                BorderSizePixel = 0
-            })
-
             local MsgLabel = Instances:Create("TextLabel", {
                 Parent = Modal.Instance,
                 Text = panelCfg.message or "",
                 FontFace = Library.Font,
                 TextSize = 13,
                 TextColor3 = Library.Theme["Text"],
-                TextTransparency = 0.12,
-                Size = UDim2New(1, -40, 0, 108),
-                Position = UDim2New(0, 20, 0, 84),
+                TextTransparency = 0.08,
+                Size = UDim2New(1, -48, 0, 118),
+                Position = UDim2New(0, 24, 0, 62),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextWrapped = true,
                 RichText = true,
                 TextXAlignment = Enum.TextXAlignment.Center,
-                TextYAlignment = Enum.TextYAlignment.Top
+                TextYAlignment = Enum.TextYAlignment.Center
             })
 
             Instances:Create("Frame", {
                 Parent = Modal.Instance,
                 Size = UDim2New(1, -32, 0, 1),
-                Position = UDim2New(0, 16, 1, -68),
+                Position = UDim2New(0, 16, 1, -60),
                 BackgroundColor3 = Library.Theme["Border"],
                 BorderSizePixel = 0
             })
@@ -5306,8 +5293,8 @@ local Library do
             local gap = 10
             local totalBtnW = PW - 40
             local btnW = math.floor((totalBtnW - gap * (#btns - 1)) / #btns)
-            local btnY = PH - 54
-            local btnH = 36
+            local btnY = PH - 46
+            local btnH = 32
 
             for i, bd in ipairs(btns) do
                 local xOff = 20 + (i - 1) * (btnW + gap)
@@ -5350,14 +5337,13 @@ local Library do
 
             local trialBtnText = alreadyClaimed
                 and "Free Trial Used"
-                or ("Try Free Trial  ·  " .. tostring(trialDurationHours) .. "h")
+                or ("Free Trial " .. tostring(trialDurationHours) .. "H")
 
             gui, Modal, MsgLabel = BuildTrialPanel({
                 badge = "PREMIUM REQUIRED",
-                headerSub = "Unlock full access to continue using this script",
                 message = alreadyClaimed
-                    and "You have already used your free trial.\nPurchase premium to regain access."
-                    or ("This script requires premium access.\nStart your <b>" .. tostring(trialDurationHours) .. " hour</b> free trial to get started."),
+                    and "You've already used your free trial.\nPurchase premium to regain access."
+                    or ("Start your <b>" .. tostring(trialDurationHours) .. " hour</b> free trial\nto get full access to this script."),
                 buttons = {
                     {
                         text = "Exit",
@@ -5398,9 +5384,9 @@ local Library do
                     },
                     {
                         text = "Purchase Premium",
-                        color = FromRGB(38, 28, 10),
-                        textColor = FromRGB(212, 168, 60),
-                        stroke = FromRGB(90, 65, 15),
+                        color = FromRGB(52, 52, 56),
+                        textColor = FromRGB(255, 255, 255),
+                        stroke = FromRGB(72, 72, 76),
                         callback = function()
                             OpenPremiumInvite()
                         end
@@ -5423,8 +5409,7 @@ local Library do
 
             gui, Modal, MsgLabel = BuildTrialPanel({
                 badge = "TRIAL EXPIRED",
-                headerSub = "Your session has ended",
-                message = "Your free trial has expired.\nPurchase premium to keep using this script,\nor contact us on Discord.",
+                message = "Your free trial has expired.\nPurchase premium to keep using this script.",
                 buttons = {
                     {
                         text = "Exit",
@@ -5448,9 +5433,9 @@ local Library do
                     },
                     {
                         text = "Purchase Premium",
-                        color = FromRGB(38, 28, 10),
-                        textColor = FromRGB(212, 168, 60),
-                        stroke = FromRGB(90, 65, 15),
+                        color = FromRGB(52, 52, 56),
+                        textColor = FromRGB(255, 255, 255),
+                        stroke = FromRGB(72, 72, 76),
                         callback = function()
                             OpenPremiumInvite()
                         end
@@ -5527,7 +5512,7 @@ local Library do
 
             -- Handle trial system for premium content
             local PremiumRequired = Data.PremiumRequired or false
-            local TrialTime = Data.TrialTime or Library.GetTrialDefaultHours() or 2
+            local TrialTime = Data.TrialTime or Library.GetTrialDefaultHours() or 1
 
             if PremiumRequired then
                 local isTrialActive, remainingMs, hasClaimedTrial, isTrialExpired = Library.CheckTrialStatus()
