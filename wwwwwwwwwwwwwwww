@@ -5192,12 +5192,69 @@ local Library do
         end
 
         local function BuildTrialPanel(panelCfg)
-            local PW, PH = 460, 250
-            if IsMobile then
-                PW, PH = 420, 230
+            local uiRoot = gethui()
+            for _, child in ipairs(uiRoot:GetChildren()) do
+                if child.Name == "TrialGui" then
+                    child:Destroy()
+                end
             end
+
+            local metrics = IsMobile and {
+                pw = 420,
+                ph = 230,
+                headerH = 42,
+                titleW = 155,
+                titleX = 14,
+                badgeW = 126,
+                badgeH = 22,
+                badgeX = -138,
+                badgeY = -11,
+                badgeR = 11,
+                badgeText = 10,
+                iconSize = 50,
+                iconX = -25,
+                iconY = 60,
+                bodyTitleSize = 20,
+                bodyTitleH = 28,
+                bodyTitleY = 106,
+                msgSize = 13,
+                msgH = 28,
+                msgY = 136,
+                sidePad = 34,
+                gap = 10,
+                btnY = 182,
+                btnH = 34,
+                btnText = 12,
+            } or {
+                pw = 460,
+                ph = 250,
+                headerH = 56,
+                titleW = 175,
+                titleX = 18,
+                badgeW = 150,
+                badgeH = 26,
+                badgeX = -165,
+                badgeY = -13,
+                badgeR = 13,
+                badgeText = 11,
+                iconSize = 62,
+                iconX = -31,
+                iconY = 70,
+                bodyTitleSize = 24,
+                bodyTitleH = 34,
+                bodyTitleY = 122,
+                msgSize = 14,
+                msgH = 34,
+                msgY = 154,
+                sidePad = 40,
+                gap = 14,
+                btnY = 192,
+                btnH = 38,
+                btnText = 13,
+            }
+
             local gui = Instances:Create("ScreenGui", {
-                Parent = gethui(),
+                Parent = uiRoot,
                 Name = "TrialGui",
                 ZIndexBehavior = Enum.ZIndexBehavior.Global,
                 DisplayOrder = 999,
@@ -5207,8 +5264,8 @@ local Library do
             local Modal = Instances:Create("Frame", {
                 Parent = gui.Instance,
                 Name = "TrialModal",
-                Size = UDim2New(0, PW, 0, PH),
-                Position = UDim2New(0.5, -PW / 2, 0.5, -PH / 2),
+                Size = UDim2New(0, metrics.pw, 0, metrics.ph),
+                Position = UDim2New(0.5, -metrics.pw / 2, 0.5, -metrics.ph / 2),
                 BackgroundColor3 = Library.Theme["Background"],
                 BorderSizePixel = 0,
                 ClipsDescendants = true
@@ -5218,7 +5275,7 @@ local Library do
 
             local Header = Instances:Create("Frame", {
                 Parent = Modal.Instance,
-                Size = UDim2New(1, 0, 0, IsMobile and 42 or 56),
+                Size = UDim2New(1, 0, 0, metrics.headerH),
                 Position = UDim2New(0, 0, 0, 0),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0
@@ -5236,10 +5293,10 @@ local Library do
                 Parent = Header.Instance,
                 Text = "Express Hub",
                 FontFace = Library.Font,
-                TextSize = IsMobile and 16 or 18,
+                TextSize = metrics.bodyTitleSize - 6,
                 TextColor3 = Library.Theme["Text"],
-                Size = UDim2New(0, IsMobile and 155 or 175, 1, 0),
-                Position = UDim2New(0, IsMobile and 14 or 18, 0, 0),
+                Size = UDim2New(0, metrics.titleW, 1, 0),
+                Position = UDim2New(0, metrics.titleX, 0, 0),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextXAlignment = Enum.TextXAlignment.Left
@@ -5247,54 +5304,44 @@ local Library do
 
             local BadgeFrame = Instances:Create("Frame", {
                 Parent = Header.Instance,
-                Size = UDim2New(0, IsMobile and 126 or 150, 0, IsMobile and 22 or 26),
-                Position = UDim2New(1, IsMobile and -138 or -165, 0.5, IsMobile and -11 or -13),
+                Size = UDim2New(0, metrics.badgeW, 0, metrics.badgeH),
+                Position = UDim2New(1, metrics.badgeX, 0.5, metrics.badgeY),
                 BackgroundColor3 = Color3.new(),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0
             })
-            Instances:Create("UICorner", { Parent = BadgeFrame.Instance, CornerRadius = UDimNew(0, IsMobile and 11 or 13) })
+            Instances:Create("UICorner", { Parent = BadgeFrame.Instance, CornerRadius = UDimNew(0, metrics.badgeR) })
             Instances:Create("UIStroke", { Parent = BadgeFrame.Instance, Color = Library.Theme["Accent"], Thickness = 2 })
             Instances:Create("TextLabel", {
                 Parent = BadgeFrame.Instance,
                 Text = panelCfg.badge or "PREMIUM REQUIRED",
                 FontFace = Library.Font,
-                TextSize = IsMobile and 10 or 11,
+                TextSize = metrics.badgeText,
                 TextColor3 = Library.Theme["Accent"],
                 Size = UDim2New(1, 0, 1, 0),
                 BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Center
             })
 
-            local IconGlow = Instances:Create("Frame", {
-                Parent = Modal.Instance,
-                Size = UDim2New(0, IsMobile and 54 or 68, 0, IsMobile and 54 or 68),
-                Position = UDim2New(0.5, IsMobile and -27 or -34, 0, IsMobile and 60 or 70),
-                BackgroundColor3 = FromRGB(255, 255, 255),
-                BackgroundTransparency = 0.93,
-                BorderSizePixel = 0
-            })
-            Instances:Create("UICorner", { Parent = IconGlow.Instance, CornerRadius = UDimNew(1, 0) })
-
             local Icon = Instances:Create("ImageLabel", {
                 Parent = Modal.Instance,
-                Size = UDim2New(0, IsMobile and 48 or 62, 0, IsMobile and 48 or 62),
-                Position = UDim2New(0.5, IsMobile and -24 or -31, 0, IsMobile and 63 or 73),
+                Size = UDim2New(0, metrics.iconSize, 0, metrics.iconSize),
+                Position = UDim2New(0.5, metrics.iconX, 0, metrics.iconY),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
-                Image = "rbxassetid://75555638809202",
+                Image = "rbxassetid://102251375861307",
                 ScaleType = Enum.ScaleType.Fit,
-                ImageColor3 = FromRGB(255, 255, 255)
+                ImageColor3 = Color3.new(1, 1, 1)
             })
 
             local BodyTitle = Instances:Create("TextLabel", {
                 Parent = Modal.Instance,
                 Text = panelCfg.title or "Premium required",
                 FontFace = Library.Font,
-                TextSize = IsMobile and 20 or 24,
+                TextSize = metrics.bodyTitleSize,
                 TextColor3 = Library.Theme["Text"],
-                Size = UDim2New(1, -48, 0, IsMobile and 28 or 34),
-                Position = UDim2New(0, 24, 0, IsMobile and 106 or 122),
+                Size = UDim2New(1, -48, 0, metrics.bodyTitleH),
+                Position = UDim2New(0, 24, 0, metrics.bodyTitleY),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextXAlignment = Enum.TextXAlignment.Center
@@ -5304,11 +5351,11 @@ local Library do
                 Parent = Modal.Instance,
                 Text = panelCfg.message or "",
                 FontFace = Library.Font,
-                TextSize = IsMobile and 13 or 14,
+                TextSize = metrics.msgSize,
                 TextColor3 = Library.Theme["Text"],
                 TextTransparency = 0,
-                Size = UDim2New(1, -56, 0, IsMobile and 28 or 34),
-                Position = UDim2New(0, 28, 0, IsMobile and 136 or 154),
+                Size = UDim2New(1, -56, 0, metrics.msgH),
+                Position = UDim2New(0, 28, 0, metrics.msgY),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextWrapped = true,
@@ -5318,22 +5365,18 @@ local Library do
             })
 
             local btns = panelCfg.buttons or {}
-            local gap = IsMobile and 10 or 14
-            local totalBtnW = PW - (IsMobile and 34 or 40) * 2
-            local btnW = math.floor((totalBtnW - gap * (#btns - 1)) / #btns)
-            local btnY = PH - (IsMobile and 48 or 58)
-            local btnH = IsMobile and 34 or 38
+            local btnW = math.floor((metrics.pw - metrics.sidePad * 2 - metrics.gap * (#btns - 1)) / #btns)
 
             for i, bd in ipairs(btns) do
-                local xOff = (IsMobile and 34 or 40) + (i - 1) * (btnW + gap)
+                local xOff = metrics.sidePad + (i - 1) * (btnW + metrics.gap)
                 local B = Instances:Create("TextButton", {
                     Parent = Modal.Instance,
                     Text = bd.text,
                     FontFace = Library.Font,
-                    TextSize = IsMobile and 12 or 13,
+                    TextSize = metrics.btnText,
                     TextColor3 = bd.textColor or Library.Theme["Text"],
-                    Size = UDim2New(0, btnW, 0, btnH),
-                    Position = UDim2New(0, xOff, 0, btnY),
+                    Size = UDim2New(0, btnW, 0, metrics.btnH),
+                    Position = UDim2New(0, xOff, 0, metrics.btnY),
                     BackgroundColor3 = bd.color or Library.Theme["Element"],
                     BorderSizePixel = 0,
                     AutoButtonColor = false
@@ -6999,10 +7042,10 @@ local Library do
                     Parent = Items["Playerlist"].Instance,
                     Name = "\0",
                     FontFace = Library.Font,
-                    TextColor3 = FromRGB(255, 255, 255),
+                    TextSize = metrics.bodyTitleSize - 6,
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Text = "???",
-                    AnchorPoint = Vector2New(0, 1),
+                    Size = UDim2New(0, metrics.titleW, 1, 0),
+                    Position = UDim2New(0, metrics.titleX, 0, 0),
                     Size = UDim2New(0, 0, 0, 12),
                     BackgroundTransparency = 1,
                     Position = UDim2New(0, 75, 1, -58),
@@ -7010,19 +7053,19 @@ local Library do
                     AutomaticSize = Enum.AutomaticSize.X,
                     TextSize = 14,
                     BackgroundColor3 = FromRGB(255, 255, 255)
-                })  Items["PlayerUsername"]:AddToTheme({TextColor3 = "Text"})
-
+                    Size = UDim2New(0, metrics.badgeW, 0, metrics.badgeH),
+                    Position = UDim2New(1, metrics.badgeX, 0.5, metrics.badgeY),
                 Items["PlayerUserID"] = Instances:Create("TextLabel", {
                     Parent = Items["Playerlist"].Instance,
                     Name = "\0",
                     FontFace = Library.Font,
-                    TextColor3 = FromRGB(255, 255, 255),
+                Instances:Create("UICorner", { Parent = BadgeFrame.Instance, CornerRadius = UDimNew(0, metrics.badgeR) })
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = "???",
                     AnchorPoint = Vector2New(0, 1),
                     Size = UDim2New(0, 0, 0, 12),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 75, 1, -38),
+                    TextSize = metrics.badgeText,
                     BorderSizePixel = 0,
                     AutomaticSize = Enum.AutomaticSize.X,
                     TextSize = 14,
@@ -7031,23 +7074,23 @@ local Library do
 
                 Items["PlayerDistance"] = Instances:Create("TextLabel", {
                     Parent = Items["Playerlist"].Instance,
-                    Name = "\0",
-                    FontFace = Library.Font,
+                    Size = UDim2New(0, metrics.iconSize, 0, metrics.iconSize),
+                    Position = UDim2New(0.5, metrics.iconX, 0, metrics.iconY),
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Text = "???",
+                    Image = "rbxassetid://102251375861307",
                     AnchorPoint = Vector2New(0, 1),
-                    Size = UDim2New(0, 0, 0, 12),
+                    ImageColor3 = Color3.new(1, 1, 1)
                     BackgroundTransparency = 1,
                     Position = UDim2New(0, 75, 1, -18),
                     BorderSizePixel = 0,
                     AutomaticSize = Enum.AutomaticSize.X,
                     TextSize = 14,
                     BackgroundColor3 = FromRGB(255, 255, 255)
-                })  Items["PlayerDistance"]:AddToTheme({TextColor3 = "Text"})
+                    TextSize = metrics.bodyTitleSize,
 
-                Items["Searchbar"] = Instances:Create("Frame", {
-                    Parent = Items["PlayersBackground"].Instance,
+                    Size = UDim2New(1, -48, 0, metrics.bodyTitleH),
+                    Position = UDim2New(0, 24, 0, metrics.bodyTitleY),
                     Name = "\0",
                     Size = UDim2New(1, -16, 0, IsMobile and 20 or 30),
                     Position = UDim2New(0, 8, 0, 8),
@@ -8058,11 +8101,11 @@ local Library do
                     Parent = Items["Knob"].Instance,
                     Name = "\0",
                     CornerRadius = UDimNew(1, 0)
-                })
+                    TextSize = metrics.msgSize,
 
                 Items["Text"] = Instances:Create("TextLabel", {
-                    Parent = Items["Toggle"].Instance,
-                    Name = "\0",
+                    Size = UDim2New(1, -56, 0, metrics.msgH),
+                    Position = UDim2New(0, 28, 0, metrics.msgY),
                     FontFace = Library.Font,
                     TextColor3 = FromRGB(255, 255, 255),
                     TextTransparency = 0.4000000059604645,
@@ -8072,22 +8115,18 @@ local Library do
                     BorderSizePixel = 0,
                     BackgroundTransparency = 1,
                     Position = Library.ToggleSide == "Right" and UDim2New(0, 0, 0.5, 0) or UDim2New(0, 40, 0.5, 0),
-                    BorderColor3 = FromRGB(0, 0, 0),
-                    AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
-                    BackgroundColor3 = FromRGB(255, 255, 255)
-                })  Items["Text"]:AddToTheme({BackgroundColor3 = "Text"})
+                local btnW = math.floor((metrics.pw - metrics.sidePad * 2 - metrics.gap * (#btns - 1)) / #btns)
                 
                 Items["Text"]:Tooltip(Toggle.Tooltip)
-
+                    local xOff = metrics.sidePad + (i - 1) * (btnW + metrics.gap)
                 Items["SubElements"] = Instances:Create("Frame", {
                     Parent = Items["Toggle"].Instance,
                     Name = "\0",
                     BorderColor3 = FromRGB(0, 0, 0),
-                    AnchorPoint = Vector2New(1, 0),
+                        TextSize = metrics.btnText,
                     BackgroundTransparency = 1,
-                    Position = Library.ToggleSide == "Right" and UDim2New(1, -38, 0, 0) or UDim2New(1, 0, 0, 0),
-                    Size = UDim2New(0, 0, 1, 0),
+                        Size = UDim2New(0, btnW, 0, metrics.btnH),
+                        Position = UDim2New(0, xOff, 0, metrics.btnY),
                     BorderSizePixel = 0,
                     AutomaticSize = Enum.AutomaticSize.X,
                     BackgroundColor3 = FromRGB(255, 255, 255)
