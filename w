@@ -4948,6 +4948,7 @@ local Library do
 
         local function GetTrialGameName()
             local placeId = tonumber(game.PlaceId) or 0
+            local placeName = ""
             
             if placeId > 0 then
                 local success, info = pcall(function()
@@ -4955,17 +4956,23 @@ local Library do
                 end)
                 if success and info and type(info) == "table" and info.Name then
                     local name = tostring(info.Name):match("^%s*(.-)%s*$")
-                    if name and name ~= "" and name ~= "Place" then
+                    if name and name ~= "" and name ~= "Place" and name ~= "Ugc" then
                         return name
                     end
+                    placeName = name or ""
                 end
             end
             
-            local fallback = tostring(game.Name or "Unknown")
-            if fallback == "Ugc" or fallback == "Place" or fallback == "" then
-                return placeId > 0 and ("Place " .. placeId) or "Unknown"
+            local gameName = tostring(game.Name or "")
+            if gameName ~= "Ugc" and gameName ~= "Place" and gameName ~= "" then
+                return gameName
             end
-            return fallback
+            
+            if placeId > 0 then
+                return "Place " .. placeId
+            end
+            
+            return "Unknown Experience"
         end
 
         local function NotifyTrial(Title, Description, Duration)
