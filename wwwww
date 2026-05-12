@@ -152,6 +152,7 @@ local Library do
             CachedRemainingMs = 0,
             CachedClaimed = false,
             CachedExpired = false,
+            CachedDefaultHours = nil,
         },
 
         MenuKeybind = tostring(Enum.KeyCode.Z),
@@ -5158,6 +5159,37 @@ local Library do
             end)
         end
 
+        local function GetTrialDefaultHours()
+            local TrialMgr = Library.TrialManager
+            local cachedHours = tonumber(TrialMgr.CachedDefaultHours)
+            if cachedHours and cachedHours > 0 then
+                return math.floor(cachedHours)
+            end
+
+            local ok, result = pcall(function()
+                local response = RequestFunction({
+                    Url = TrialMgr.HttpUrl .. "/trial/default-hours",
+                    Method = "GET",
+                    Headers = {
+                        ["Content-Type"] = "application/json",
+                        ["x-chat-token"] = TrialMgr.Token
+                    }
+                })
+                if not response or type(response.Body) ~= "string" or response.Body == "" then
+                    return nil
+                end
+                return HttpService:JSONDecode(response.Body)
+            end)
+
+            local durationHours = 2
+            if ok and result and result.ok and tonumber(result.durationHours) then
+                durationHours = math.max(1, math.floor(tonumber(result.durationHours)))
+            end
+
+            TrialMgr.CachedDefaultHours = durationHours
+            return durationHours
+        end
+
         local function MakeTrialModal(titleText, messageText, buttons)
             local gui = Instances:Create("ScreenGui", {
                 Parent = gethui(),
@@ -5336,6 +5368,7 @@ local Library do
         Library.CheckTrialStatus = CheckTrialStatus
         Library.ShowTrialModal = ShowTrialModal
         Library.ShowTrialExpiredModal = ShowTrialExpiredModal
+        Library.GetTrialDefaultHours = GetTrialDefaultHours
 
         task.spawn(function()
             while true do
@@ -5351,7 +5384,7 @@ local Library do
 
             -- Handle trial system for premium content
             local PremiumRequired = Data.PremiumRequired or false
-            local TrialTime = Data.TrialTime or 2
+            local TrialTime = Data.TrialTime or Library.GetTrialDefaultHours() or 2
 
             if PremiumRequired then
                 local isTrialActive, remainingMs, hasClaimedTrial, isTrialExpired = Library.CheckTrialStatus()
