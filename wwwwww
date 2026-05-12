@@ -1157,7 +1157,8 @@ local Library do
             self.UnusedHolder:Clean()
         end
 
-        Library = nil 
+        Library._Unloaded = true
+        Library = nil
         getgenv().Library = nil
     end
 
@@ -5190,7 +5191,8 @@ local Library do
             return durationHours
         end
 
-        local function MakeTrialModal(titleText, messageText, buttons)
+        local function BuildTrialPanel(panelCfg)
+            local PW, PH = 465, 300
             local gui = Instances:Create("ScreenGui", {
                 Parent = gethui(),
                 Name = "TrialGui",
@@ -5199,181 +5201,361 @@ local Library do
                 ResetOnSpawn = false
             })
 
+            local Shadow = Instances:Create("Frame", {
+                Parent = gui.Instance,
+                Size = UDim2New(0, PW + 16, 0, PH + 16),
+                Position = UDim2New(0.5, -(PW + 16) / 2, 0.5, -(PH + 16) / 2),
+                BackgroundColor3 = FromRGB(0, 0, 0),
+                BackgroundTransparency = 0.5,
+                BorderSizePixel = 0
+            })
+            Instances:Create("UICorner", { Parent = Shadow.Instance, CornerRadius = UDimNew(0, 14) })
+
             local Modal = Instances:Create("Frame", {
                 Parent = gui.Instance,
                 Name = "TrialModal",
-                Size = UDim2New(0, 380, 0, 220),
-                Position = UDim2New(0.5, -190, 0.5, -110),
+                Size = UDim2New(0, PW, 0, PH),
+                Position = UDim2New(0.5, -PW / 2, 0.5, -PH / 2),
                 BackgroundColor3 = Library.Theme["Background"],
+                BorderSizePixel = 0,
+                ClipsDescendants = false
+            })
+            Instances:Create("UICorner", { Parent = Modal.Instance, CornerRadius = UDimNew(0, 10) })
+            Instances:Create("UIStroke", { Parent = Modal.Instance, Color = Library.Theme["Border"], Thickness = 1 })
+
+            local Header = Instances:Create("Frame", {
+                Parent = Modal.Instance,
+                Size = UDim2New(1, 0, 0, 72),
+                Position = UDim2New(0, 0, 0, 0),
+                BackgroundColor3 = Library.Theme["Element"],
+                BorderSizePixel = 0,
+                ClipsDescendants = true
+            })
+            Instances:Create("UICorner", { Parent = Header.Instance, CornerRadius = UDimNew(0, 10) })
+            Instances:Create("Frame", {
+                Parent = Header.Instance,
+                Size = UDim2New(1, 0, 0, 38),
+                Position = UDim2New(0, 0, 1, -38),
+                BackgroundColor3 = Library.Theme["Element"],
+                BorderSizePixel = 0
+            })
+            Instances:Create("UIGradient", {
+                Parent = Header.Instance,
+                Rotation = 135,
+                Color = RGBSequence({
+                    RGBSequenceKeypoint(0, Library.Theme["Accent"]),
+                    RGBSequenceKeypoint(1, Library.Theme["Element"])
+                }),
+                Transparency = NumSequence({
+                    NumSequenceKeypoint(0, 0.88),
+                    NumSequenceKeypoint(1, 1)
+                })
+            })
+
+            local AccentStripe = Instances:Create("Frame", {
+                Parent = Header.Instance,
+                Size = UDim2New(0, 3, 1, 0),
+                Position = UDim2New(0, 0, 0, 0),
+                BackgroundColor3 = Library.Theme["Accent"],
                 BorderSizePixel = 0
             })
 
-            Instances:Create("UICorner", {
-                Parent = Modal.Instance,
-                CornerRadius = UDimNew(0, 8)
-            })
-
-            Instances:Create("UIStroke", {
-                Parent = Modal.Instance,
-                Color = Library.Theme["Border"],
-                Thickness = 1
-            })
-
-            local TitleLabel = Instances:Create("TextLabel", {
-                Parent = Modal.Instance,
-                Text = titleText,
+            local HeaderTitle = Instances:Create("TextLabel", {
+                Parent = Header.Instance,
+                Text = "Express Hub",
                 FontFace = Library.Font,
                 TextSize = 20,
                 TextColor3 = Library.Theme["Text"],
-                Size = UDim2New(1, -20, 0, 35),
-                Position = UDim2New(0, 10, 0, 10),
+                Size = UDim2New(0.55, 0, 0, 26),
+                Position = UDim2New(0, 16, 0, 11),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Left
+            })
+
+            local BadgeFrame = Instances:Create("Frame", {
+                Parent = Header.Instance,
+                Size = UDim2New(0, 158, 0, 22),
+                Position = UDim2New(1, -168, 0, 14),
+                BackgroundColor3 = Library.Theme["Accent"],
+                BackgroundTransparency = 0.78,
+                BorderSizePixel = 0
+            })
+            Instances:Create("UICorner", { Parent = BadgeFrame.Instance, CornerRadius = UDimNew(0, 11) })
+            Instances:Create("UIStroke", { Parent = BadgeFrame.Instance, Color = Library.Theme["Accent"], Thickness = 1 })
+            Instances:Create("TextLabel", {
+                Parent = BadgeFrame.Instance,
+                Text = panelCfg.badge or "PREMIUM REQUIRED",
+                FontFace = Library.Font,
+                TextSize = 10,
+                TextColor3 = Library.Theme["Accent"],
+                Size = UDim2New(1, 0, 1, 0),
+                BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Center
+            })
+
+            Instances:Create("TextLabel", {
+                Parent = Header.Instance,
+                Text = panelCfg.headerSub or "Script access is restricted",
+                FontFace = Library.Font,
+                TextSize = 12,
+                TextColor3 = Library.Theme["Text"],
+                TextTransparency = 0.45,
+                Size = UDim2New(1, -16, 0, 18),
+                Position = UDim2New(0, 16, 0, 40),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Left
+            })
+
+            Instances:Create("Frame", {
+                Parent = Modal.Instance,
+                Size = UDim2New(1, -32, 0, 1),
+                Position = UDim2New(0, 16, 0, 72),
+                BackgroundColor3 = Library.Theme["Border"],
+                BorderSizePixel = 0
             })
 
             local MsgLabel = Instances:Create("TextLabel", {
                 Parent = Modal.Instance,
-                Text = messageText,
+                Text = panelCfg.message or "",
                 FontFace = Library.Font,
                 TextSize = 13,
                 TextColor3 = Library.Theme["Text"],
-                Size = UDim2New(1, -20, 0, 70),
-                Position = UDim2New(0, 10, 0, 50),
+                TextTransparency = 0.12,
+                Size = UDim2New(1, -40, 0, 100),
+                Position = UDim2New(0, 20, 0, 84),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextWrapped = true,
+                RichText = true,
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextYAlignment = Enum.TextYAlignment.Top
             })
 
-            local btnCount = #buttons
-            local btnWidth = 160
-            local btnGap = 10
-            local totalWidth = btnCount * btnWidth + (btnCount - 1) * btnGap
-            local startX = (380 - totalWidth) / 2
+            Instances:Create("Frame", {
+                Parent = Modal.Instance,
+                Size = UDim2New(1, -32, 0, 1),
+                Position = UDim2New(0, 16, 1, -68),
+                BackgroundColor3 = Library.Theme["Border"],
+                BorderSizePixel = 0
+            })
 
-            for i, btnData in ipairs(buttons) do
-                local xOffset = startX + (i - 1) * (btnWidth + btnGap)
-                local Btn = Instances:Create("TextButton", {
+            local btns = panelCfg.buttons or {}
+            local gap = 10
+            local totalBtnW = PW - 40
+            local btnW = math.floor((totalBtnW - gap * (#btns - 1)) / #btns)
+            local btnY = PH - 54
+            local btnH = 36
+
+            for i, bd in ipairs(btns) do
+                local xOff = 20 + (i - 1) * (btnW + gap)
+                local B = Instances:Create("TextButton", {
                     Parent = Modal.Instance,
-                    Text = btnData.Text,
+                    Text = bd.text,
                     FontFace = Library.Font,
-                    TextSize = 13,
-                    TextColor3 = Library.Theme["Text"],
-                    Size = UDim2New(0, btnWidth, 0, 35),
-                    Position = UDim2New(0, xOffset, 1, -45),
-                    BackgroundColor3 = btnData.Accent and Library.Theme["Accent"] or Library.Theme["Element"],
+                    TextSize = 12,
+                    TextColor3 = bd.textColor or Library.Theme["Text"],
+                    Size = UDim2New(0, btnW, 0, btnH),
+                    Position = UDim2New(0, xOff, 0, btnY),
+                    BackgroundColor3 = bd.color or Library.Theme["Element"],
                     BorderSizePixel = 0,
                     AutoButtonColor = false
                 })
-
-                Instances:Create("UICorner", {
-                    Parent = Btn.Instance,
-                    CornerRadius = UDimNew(0, 4)
-                })
-
-                Btn.Instance.MouseButton1Click:Connect(function()
-                    if btnData.Callback then btnData.Callback() end
+                Instances:Create("UICorner", { Parent = B.Instance, CornerRadius = UDimNew(0, 6) })
+                if bd.stroke then
+                    Instances:Create("UIStroke", { Parent = B.Instance, Color = bd.stroke, Thickness = 1 })
+                end
+                B.Instance.MouseEnter:Connect(function()
+                    TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.25 }):Play()
+                end)
+                B.Instance.MouseLeave:Connect(function()
+                    TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0 }):Play()
+                end)
+                B.Instance.MouseButton1Click:Connect(function()
+                    if bd.callback then bd.callback() end
                 end)
             end
 
-            TitleLabel:MakeDraggable(Modal)
+            HeaderTitle:MakeDraggable(Modal)
 
             return gui, Modal, MsgLabel
         end
 
-        local function ShowTrialModal(trialDurationHours, canClaimTrial)
-            local trialState = {
-                TrialClaimed = false,
-                Closed = false
-            }
-
-            local Processed = false
+        local function ShowTrialScreen(trialDurationHours, alreadyClaimed)
+            local state = { Claimed = false, Closed = false }
+            local Busy = false
             local gui, Modal, MsgLabel
-            local allowClaim = canClaimTrial ~= false
-            gui, Modal, MsgLabel = MakeTrialModal(
-                "Express Hub | Premium Required",
-                allowClaim
-                    and ("This script requires premium.\nTry a " .. tostring(trialDurationHours) .. " hour free trial to get started.")
-                    or "Your free trial has expired.\nBuy premium to continue using this script.",
-                {
+
+            local trialBtnText = alreadyClaimed
+                and "Free Trial Used"
+                or ("Try Free Trial  ·  " .. tostring(trialDurationHours) .. "h")
+
+            gui, Modal, MsgLabel = BuildTrialPanel({
+                badge = "PREMIUM REQUIRED",
+                headerSub = "Unlock full access to continue using this script",
+                message = alreadyClaimed
+                    and "You have already used your free trial.\nPurchase premium to regain access."
+                    or ("This script requires premium access.\nStart your <b>" .. tostring(trialDurationHours) .. " hour</b> free trial to get started."),
+                buttons = {
                     {
-                        Text = allowClaim and "Try Free Trial" or "Buy Premium",
-                        Accent = true,
-                        Callback = function()
-                            if Processed then return end
-                            Processed = true
-                            if not allowClaim then
-                                OpenPremiumInvite()
-                                Processed = false
+                        text = "Exit",
+                        color = Library.Theme["Element"],
+                        stroke = Library.Theme["Border"],
+                        callback = function()
+                            if Busy then return end
+                            Busy = true
+                            state.Closed = true
+                            gui.Instance:Destroy()
+                        end
+                    },
+                    {
+                        text = trialBtnText,
+                        color = alreadyClaimed and Library.Theme["Element"] or Library.Theme["Accent"],
+                        textColor = alreadyClaimed and Library.Theme["Text"] or FromRGB(255, 255, 255),
+                        stroke = alreadyClaimed and Library.Theme["Border"] or nil,
+                        callback = function()
+                            if Busy then return end
+                            if alreadyClaimed then
+                                MsgLabel.Instance.Text = "You've already used your free trial.\nPurchase premium to regain access."
                                 return
                             end
-
-                            MsgLabel.Instance.Text = "Checking trial status..."
+                            Busy = true
+                            MsgLabel.Instance.Text = "Contacting server..."
                             task.spawn(function()
                                 local success = ClaimTrialWithHwid(trialDurationHours)
                                 if success then
-                                    trialState.TrialClaimed = true
-                                    trialState.Closed = true
+                                    state.Claimed = true
+                                    state.Closed = true
                                     gui.Instance:Destroy()
                                 else
-                                    MsgLabel.Instance.Text = "Could not connect to server.\nPlease try again."
-                                    Processed = false
+                                    MsgLabel.Instance.Text = "Could not reach server.\nPlease try again."
+                                    Busy = false
                                 end
                             end)
                         end
                     },
                     {
-                        Text = "Exit",
-                        Accent = false,
-                        Callback = function()
-                            if Processed then return end
-                            Processed = true
-                            trialState.Closed = true
-                            gui.Instance:Destroy()
+                        text = "Purchase Premium",
+                        color = FromRGB(38, 28, 10),
+                        textColor = FromRGB(212, 168, 60),
+                        stroke = FromRGB(90, 65, 15),
+                        callback = function()
+                            OpenPremiumInvite()
                         end
                     }
                 }
-            )
+            })
 
-            while not trialState.Closed do
+            while not state.Closed do
                 task.wait(0.05)
             end
 
-            return trialState.TrialClaimed
+            return state.Claimed
         end
 
-        local function ShowTrialExpiredModal()
-            local done = false
-            local gui, Modal
-            gui, Modal = MakeTrialModal(
-                "Express Hub | Trial Expired",
-                "Your free trial has expired.\nPlease use the premium version to continue.",
-                {
+        local function ShowExpiredTrialScreen()
+            local state = { Closed = false }
+            local Busy = false
+            local gui, Modal, MsgLabel
+            local defaultHours = GetTrialDefaultHours()
+
+            gui, Modal, MsgLabel = BuildTrialPanel({
+                badge = "TRIAL EXPIRED",
+                headerSub = "Your session has ended",
+                message = "Your free trial has expired.\nPurchase premium to keep using this script,\nor contact us on Discord.",
+                buttons = {
                     {
-                        Text = "Close",
-                        Accent = true,
-                        Callback = function()
-                            if done then return end
-                            done = true
+                        text = "Exit",
+                        color = Library.Theme["Element"],
+                        stroke = Library.Theme["Border"],
+                        callback = function()
+                            if Busy then return end
+                            Busy = true
+                            state.Closed = true
                             gui.Instance:Destroy()
+                        end
+                    },
+                    {
+                        text = "Free Trial Used",
+                        color = Library.Theme["Element"],
+                        textColor = Library.Theme["Text"],
+                        stroke = Library.Theme["Border"],
+                        callback = function()
+                            MsgLabel.Instance.Text = "You've already used your free trial.\nPurchase premium to regain access."
+                        end
+                    },
+                    {
+                        text = "Purchase Premium",
+                        color = FromRGB(38, 28, 10),
+                        textColor = FromRGB(212, 168, 60),
+                        stroke = FromRGB(90, 65, 15),
+                        callback = function()
+                            OpenPremiumInvite()
                         end
                     }
                 }
-            )
+            })
+
+            while not state.Closed do
+                task.wait(0.05)
+            end
         end
 
         Library.ClaimTrialWithHwid = ClaimTrialWithHwid
         Library.CheckTrialStatus = CheckTrialStatus
-        Library.ShowTrialModal = ShowTrialModal
-        Library.ShowTrialExpiredModal = ShowTrialExpiredModal
+        Library.ShowTrialModal = ShowTrialScreen
+        Library.ShowTrialExpiredModal = ShowExpiredTrialScreen
         Library.GetTrialDefaultHours = GetTrialDefaultHours
+        Library._TrialExpired = false
 
         task.spawn(function()
-            while true do
-                task.wait(10)
-                pcall(UpdatePresence)
+            local presenceTick = 0
+            local checkTick = 0
+            local wasActive = false
+            while Library and not Library._Unloaded do
+                task.wait(5)
+                presenceTick = presenceTick + 5
+                checkTick = checkTick + 5
+
+                if presenceTick >= 10 then
+                    presenceTick = 0
+                    pcall(UpdatePresence)
+                end
+
+                if checkTick >= 30 then
+                    checkTick = 0
+                    if wasActive then
+                        Library.TrialManager.Cached = false
+                        local ok, active, _, claimed = pcall(CheckTrialStatus)
+                        if ok and claimed and (not active) then
+                            Library._TrialExpired = true
+                            pcall(function()
+                                Library:MakeNotification({
+                                    Name = "Trial Ended",
+                                    Content = "Your free trial has ended.",
+                                    Time = 5
+                                })
+                            end)
+                            task.delay(0.35, function()
+                                pcall(function()
+                                    if getgenv().Library then
+                                        getgenv().Library:Unload()
+                                    end
+                                end)
+                            end)
+                            task.spawn(ShowExpiredTrialScreen)
+                            break
+                        end
+                        if ok and active then
+                            wasActive = true
+                        end
+                    else
+                        if Library.TrialManager.CachedTrialActive then
+                            wasActive = true
+                        end
+                    end
+                end
             end
         end)
     end
@@ -5389,7 +5571,8 @@ local Library do
             if PremiumRequired then
                 local isTrialActive, remainingMs, hasClaimedTrial, isTrialExpired = Library.CheckTrialStatus()
                 if not isTrialActive then
-                    local trialClaimed = Library.ShowTrialModal(TrialTime, not (hasClaimedTrial and isTrialExpired))
+                    local alreadyUsed = hasClaimedTrial == true
+                    local trialClaimed = Library.ShowTrialModal(TrialTime, alreadyUsed)
                     if not trialClaimed then
                         coroutine.yield(coroutine.running())
                         return nil
