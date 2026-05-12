@@ -5192,7 +5192,10 @@ local Library do
         end
 
         local function BuildTrialPanel(panelCfg)
-            local PW, PH = 760, 460
+            local PW, PH = 845, 515
+            if IsMobile then
+                PW, PH = 640, 430
+            end
             local gui = Instances:Create("ScreenGui", {
                 Parent = gethui(),
                 Name = "TrialGui",
@@ -5206,56 +5209,35 @@ local Library do
                 Name = "TrialModal",
                 Size = UDim2New(0, PW, 0, PH),
                 Position = UDim2New(0.5, -PW / 2, 0.5, -PH / 2),
-                BackgroundColor3 = FromRGB(13, 13, 20),
+                BackgroundColor3 = FromRGB(15, 16, 22),
                 BorderSizePixel = 0,
                 ClipsDescendants = true
             })
-            Instances:Create("UICorner", { Parent = Modal.Instance, CornerRadius = UDimNew(0, 16) })
-            Instances:Create("UIStroke", { Parent = Modal.Instance, Color = FromRGB(42, 36, 54), Thickness = 1 })
+            Instances:Create("UICorner", { Parent = Modal.Instance, CornerRadius = UDimNew(0, 18) })
+            Instances:Create("UIStroke", { Parent = Modal.Instance, Color = FromRGB(34, 35, 45), Thickness = 1 })
 
-            local HeaderGlow = Instances:Create("Frame", {
-                Parent = Modal.Instance,
-                Size = UDim2New(1, 0, 0, 120),
-                Position = UDim2New(0, 0, 0, 0),
-                BackgroundColor3 = FromRGB(90, 35, 150),
-                BackgroundTransparency = 0.9,
-                BorderSizePixel = 0
-            })
             Instances:Create("UIGradient", {
-                Parent = HeaderGlow.Instance,
-                Rotation = 15,
+                Parent = Modal.Instance,
+                Rotation = 90,
                 Color = RGBSequence({
-                    RGBSequenceKeypoint(0, FromRGB(175, 68, 255)),
-                    RGBSequenceKeypoint(1, FromRGB(24, 18, 36))
-                }),
-                Transparency = NumSequence({
-                    NumSequenceKeypoint(0, 0.55),
-                    NumSequenceKeypoint(1, 1)
+                    RGBSequenceKeypoint(0, FromRGB(18, 19, 26)),
+                    RGBSequenceKeypoint(1, FromRGB(12, 13, 18))
                 })
             })
 
             local Header = Instances:Create("Frame", {
                 Parent = Modal.Instance,
-                Size = UDim2New(1, 0, 0, 80),
+                Size = UDim2New(1, 0, 0, IsMobile and 72 or 94),
                 Position = UDim2New(0, 0, 0, 0),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0
             })
 
-            local BrandIconA = Instances:Create("Frame", {
+            local AccentLine = Instances:Create("Frame", {
                 Parent = Header.Instance,
-                Size = UDim2New(0, 10, 0, 24),
-                Position = UDim2New(0, 28, 0.5, -14),
-                Rotation = 22,
+                Size = UDim2New(1, 0, 0, 4),
+                Position = UDim2New(0, 0, 1, -4),
                 BackgroundColor3 = Library.Theme["Accent"],
-                BorderSizePixel = 0
-            })
-            local BrandIconB = Instances:Create("Frame", {
-                Parent = Header.Instance,
-                Size = UDim2New(0, 9, 0, 14),
-                Position = UDim2New(0, 38, 0.5, -1),
-                Rotation = 22,
-                BackgroundColor3 = FromRGB(205, 122, 255),
                 BorderSizePixel = 0
             })
 
@@ -5263,10 +5245,10 @@ local Library do
                 Parent = Header.Instance,
                 Text = "Express Hub",
                 FontFace = Library.Font,
-                TextSize = 22,
-                TextColor3 = FromRGB(255, 255, 255),
-                Size = UDim2New(0, 240, 1, 0),
-                Position = UDim2New(0, 52, 0, 0),
+                TextSize = IsMobile and 28 or 40,
+                TextColor3 = FromRGB(245, 245, 248),
+                Size = UDim2New(0, IsMobile and 240 or 320, 1, 0),
+                Position = UDim2New(0, IsMobile and 24 or 36, 0, 0),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextXAlignment = Enum.TextXAlignment.Left
@@ -5274,107 +5256,84 @@ local Library do
 
             local BadgeFrame = Instances:Create("Frame", {
                 Parent = Header.Instance,
-                Size = UDim2New(0, 195, 0, 40),
-                Position = UDim2New(1, -225, 0.5, -20),
-                BackgroundColor3 = Library.Theme["Accent"],
-                BackgroundTransparency = 0.82,
+                Size = UDim2New(0, IsMobile and 188 or 228, 0, IsMobile and 34 or 42),
+                Position = UDim2New(1, IsMobile and -208 or -260, 0.5, IsMobile and -17 or -21),
+                BackgroundColor3 = Color3.new(),
+                BackgroundTransparency = 1,
                 BorderSizePixel = 0
             })
-            Instances:Create("UICorner", { Parent = BadgeFrame.Instance, CornerRadius = UDimNew(0, 20) })
-            Instances:Create("UIStroke", { Parent = BadgeFrame.Instance, Color = FromRGB(171, 78, 255), Thickness = 1 })
-
-            local BadgeDot = Instances:Create("Frame", {
-                Parent = BadgeFrame.Instance,
-                Size = UDim2New(0, 12, 0, 12),
-                Position = UDim2New(0, 18, 0.5, -6),
-                Rotation = 45,
-                BackgroundColor3 = FromRGB(231, 208, 255),
-                BorderSizePixel = 0
-            })
-
+            Instances:Create("UICorner", { Parent = BadgeFrame.Instance, CornerRadius = UDimNew(0, IsMobile and 17 or 21) })
+            Instances:Create("UIStroke", { Parent = BadgeFrame.Instance, Color = Library.Theme["Accent"], Thickness = 2 })
             Instances:Create("TextLabel", {
                 Parent = BadgeFrame.Instance,
                 Text = panelCfg.badge or "PREMIUM REQUIRED",
                 FontFace = Library.Font,
-                TextSize = 13,
-                TextColor3 = FromRGB(240, 223, 255),
-                Size = UDim2New(1, -48, 1, 0),
-                Position = UDim2New(0, 36, 0, 0),
+                TextSize = IsMobile and 15 or 18,
+                TextColor3 = Library.Theme["Accent"],
+                Size = UDim2New(1, 0, 1, 0),
                 BackgroundTransparency = 1,
-                TextXAlignment = Enum.TextXAlignment.Left
+                TextXAlignment = Enum.TextXAlignment.Center
             })
 
-            local Divider = Instances:Create("Frame", {
+            local IconHolder = Instances:Create("Frame", {
                 Parent = Modal.Instance,
-                Size = UDim2New(1, 0, 0, 2),
-                Position = UDim2New(0, 0, 0, 80),
-                BackgroundColor3 = Library.Theme["Accent"],
+                Size = UDim2New(0, IsMobile and 72 or 92, 0, IsMobile and 84 or 104),
+                Position = UDim2New(0.5, IsMobile and -36 or -46, 0, IsMobile and 122 or 148),
+                BackgroundTransparency = 1,
                 BorderSizePixel = 0
             })
 
-            local HeroCircle = Instances:Create("Frame", {
-                Parent = Modal.Instance,
-                Size = UDim2New(0, 86, 0, 86),
-                Position = UDim2New(0.5, -43, 0, 116),
-                BackgroundColor3 = Library.Theme["Accent"],
-                BackgroundTransparency = 0.8,
+            local Shackle = Instances:Create("Frame", {
+                Parent = IconHolder.Instance,
+                Size = UDim2New(0, IsMobile and 34 or 42, 0, IsMobile and 30 or 36),
+                Position = UDim2New(0.5, IsMobile and -17 or -21, 0, 0),
+                BackgroundTransparency = 1,
                 BorderSizePixel = 0
             })
-            Instances:Create("UICorner", { Parent = HeroCircle.Instance, CornerRadius = UDimNew(1, 0) })
-            Instances:Create("UIStroke", { Parent = HeroCircle.Instance, Color = FromRGB(133, 66, 196), Thickness = 1.5 })
+            Instances:Create("UICorner", { Parent = Shackle.Instance, CornerRadius = UDimNew(1, 0) })
+            Instances:Create("UIStroke", { Parent = Shackle.Instance, Color = FromRGB(245, 245, 248), Thickness = IsMobile and 4 or 5 })
+            Instances:Create("Frame", {
+                Parent = Shackle.Instance,
+                Size = UDim2New(1, -(IsMobile and 8 or 10), 0.5, 0),
+                Position = UDim2New(0, IsMobile and 4 or 5, 0.5, 0),
+                BackgroundColor3 = FromRGB(15, 16, 22),
+                BorderSizePixel = 0
+            })
 
             local LockBody = Instances:Create("Frame", {
-                Parent = HeroCircle.Instance,
-                Size = UDim2New(0, 28, 0, 24),
-                Position = UDim2New(0.5, -14, 0.5, 0),
-                BackgroundColor3 = FromRGB(224, 162, 255),
+                Parent = IconHolder.Instance,
+                Size = UDim2New(0, IsMobile and 54 or 66, 0, IsMobile and 48 or 58),
+                Position = UDim2New(0.5, IsMobile and -27 or -33, 0, IsMobile and 28 or 36),
+                BackgroundColor3 = FromRGB(245, 245, 248),
                 BorderSizePixel = 0
             })
             Instances:Create("UICorner", { Parent = LockBody.Instance, CornerRadius = UDimNew(0, 7) })
 
-            local LockArc = Instances:Create("Frame", {
-                Parent = HeroCircle.Instance,
-                Size = UDim2New(0, 22, 0, 18),
-                Position = UDim2New(0.5, -11, 0.5, -14),
-                BackgroundColor3 = FromRGB(224, 162, 255),
+            local KeyholeTop = Instances:Create("Frame", {
+                Parent = LockBody.Instance,
+                Size = UDim2New(0, IsMobile and 10 or 12, 0, IsMobile and 10 or 12),
+                Position = UDim2New(0.5, IsMobile and -5 or -6, 0.38, IsMobile and -5 or -6),
+                BackgroundColor3 = FromRGB(24, 25, 31),
                 BorderSizePixel = 0
             })
-            Instances:Create("UICorner", { Parent = LockArc.Instance, CornerRadius = UDimNew(1, 0) })
+            Instances:Create("UICorner", { Parent = KeyholeTop.Instance, CornerRadius = UDimNew(1, 0) })
 
             Instances:Create("Frame", {
-                Parent = HeroCircle.Instance,
-                Size = UDim2New(0, 12, 0, 14),
-                Position = UDim2New(0.5, -6, 0.5, -8),
-                BackgroundColor3 = HeroCircle.Instance.BackgroundColor3,
-                BackgroundTransparency = HeroCircle.Instance.BackgroundTransparency,
+                Parent = LockBody.Instance,
+                Size = UDim2New(0, IsMobile and 6 or 8, 0, IsMobile and 13 or 16),
+                Position = UDim2New(0.5, IsMobile and -3 or -4, 0.38, IsMobile and 2 or 3),
+                BackgroundColor3 = FromRGB(24, 25, 31),
                 BorderSizePixel = 0
             })
 
-            local function AddSparkle(x, y, size)
-                Instances:Create("Frame", {
-                    Parent = Modal.Instance,
-                    Size = UDim2New(0, size, 0, size),
-                    Position = UDim2New(0.5, x, 0, y),
-                    Rotation = 45,
-                    BackgroundColor3 = Library.Theme["Accent"],
-                    BackgroundTransparency = 0.3,
-                    BorderSizePixel = 0
-                })
-            end
-
-            AddSparkle(-96, 148, 10)
-            AddSparkle(-80, 136, 6)
-            AddSparkle(84, 150, 12)
-            AddSparkle(102, 163, 7)
-
-            local TitleLabel = Instances:Create("TextLabel", {
+            local BodyTitle = Instances:Create("TextLabel", {
                 Parent = Modal.Instance,
-                Text = panelCfg.title or "Premium access required",
+                Text = panelCfg.title or "Premium required",
                 FontFace = Library.Font,
-                TextSize = 28,
-                TextColor3 = FromRGB(255, 255, 255),
-                Size = UDim2New(1, -120, 0, 40),
-                Position = UDim2New(0, 60, 0, 214),
+                TextSize = IsMobile and 28 or 40,
+                TextColor3 = FromRGB(245, 245, 248),
+                Size = UDim2New(1, -80, 0, IsMobile and 38 or 48),
+                Position = UDim2New(0, 40, 0, IsMobile and 214 or 254),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextXAlignment = Enum.TextXAlignment.Center
@@ -5384,131 +5343,49 @@ local Library do
                 Parent = Modal.Instance,
                 Text = panelCfg.message or "",
                 FontFace = Library.Font,
-                TextSize = 17,
-                TextColor3 = FromRGB(177, 177, 190),
+                TextSize = IsMobile and 18 or 24,
+                TextColor3 = FromRGB(201, 202, 214),
                 TextTransparency = 0,
-                Size = UDim2New(1, -160, 0, 60),
-                Position = UDim2New(0, 80, 0, 258),
+                Size = UDim2New(1, -120, 0, IsMobile and 62 or 82),
+                Position = UDim2New(0, 60, 0, IsMobile and 258 or 308),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 TextWrapped = true,
                 RichText = true,
                 TextXAlignment = Enum.TextXAlignment.Center,
-                TextYAlignment = Enum.TextYAlignment.Top
-            })
-
-            local FeaturesWrap = Instances:Create("Frame", {
-                Parent = Modal.Instance,
-                Size = UDim2New(1, -110, 0, 98),
-                Position = UDim2New(0, 55, 0, 318),
-                BackgroundColor3 = FromRGB(26, 24, 34),
-                BackgroundTransparency = 0.15,
-                BorderSizePixel = 0
-            })
-            Instances:Create("UICorner", { Parent = FeaturesWrap.Instance, CornerRadius = UDimNew(0, 14) })
-            Instances:Create("UIStroke", { Parent = FeaturesWrap.Instance, Color = FromRGB(47, 42, 60), Thickness = 1 })
-
-            local function AddFeature(slot, iconText, titleText, descText)
-                local startX = 18 + (slot - 1) * 210
-                local IconBubble = Instances:Create("Frame", {
-                    Parent = FeaturesWrap.Instance,
-                    Size = UDim2New(0, 44, 0, 44),
-                    Position = UDim2New(0, startX, 0.5, -22),
-                    BackgroundColor3 = Library.Theme["Accent"],
-                    BackgroundTransparency = 0.2,
-                    BorderSizePixel = 0
-                })
-                Instances:Create("UICorner", { Parent = IconBubble.Instance, CornerRadius = UDimNew(1, 0) })
-                Instances:Create("TextLabel", {
-                    Parent = IconBubble.Instance,
-                    Text = iconText,
-                    FontFace = Library.Font,
-                    TextSize = 21,
-                    TextColor3 = FromRGB(255, 255, 255),
-                    Size = UDim2New(1, 0, 1, 0),
-                    BackgroundTransparency = 1
-                })
-                Instances:Create("TextLabel", {
-                    Parent = FeaturesWrap.Instance,
-                    Text = titleText,
-                    FontFace = Library.Font,
-                    TextSize = 15,
-                    TextColor3 = FromRGB(247, 247, 251),
-                    Size = UDim2New(0, 152, 0, 22),
-                    Position = UDim2New(0, startX + 58, 0, 22),
-                    BackgroundTransparency = 1,
-                    TextXAlignment = Enum.TextXAlignment.Left
-                })
-                Instances:Create("TextLabel", {
-                    Parent = FeaturesWrap.Instance,
-                    Text = descText,
-                    FontFace = Library.Font,
-                    TextSize = 13,
-                    TextColor3 = FromRGB(161, 161, 174),
-                    Size = UDim2New(0, 160, 0, 20),
-                    Position = UDim2New(0, startX + 58, 0, 46),
-                    BackgroundTransparency = 1,
-                    TextXAlignment = Enum.TextXAlignment.Left
-                })
-            end
-
-            AddFeature(1, "8", "Unlimited access", "No more limits")
-            AddFeature(2, ">>", "Faster experience", "Priority processing")
-            AddFeature(3, "+", "Premium support", "Get help anytime")
-
-            local BottomDivider = Instances:Create("Frame", {
-                Parent = Modal.Instance,
-                Size = UDim2New(1, -56, 0, 1),
-                Position = UDim2New(0, 28, 1, -96),
-                BackgroundColor3 = FromRGB(35, 32, 45),
-                BorderSizePixel = 0
+                TextYAlignment = Enum.TextYAlignment.Center
             })
 
             local btns = panelCfg.buttons or {}
-            local gap = 22
-            local totalBtnW = PW - 80
+            local gap = IsMobile and 10 or 14
+            local totalBtnW = PW - (IsMobile and 56 or 62) * 2
             local btnW = math.floor((totalBtnW - gap * (#btns - 1)) / #btns)
-            local btnY = PH - 70
-            local btnH = 44
+            local btnY = PH - (IsMobile and 72 or 100)
+            local btnH = IsMobile and 48 or 70
 
             for i, bd in ipairs(btns) do
-                local xOff = 40 + (i - 1) * (btnW + gap)
+                local xOff = (IsMobile and 28 or 62) + (i - 1) * (btnW + gap)
                 local B = Instances:Create("TextButton", {
                     Parent = Modal.Instance,
                     Text = bd.text,
                     FontFace = Library.Font,
-                    TextSize = 15,
+                    TextSize = IsMobile and 18 or 22,
                     TextColor3 = bd.textColor or Library.Theme["Text"],
                     Size = UDim2New(0, btnW, 0, btnH),
                     Position = UDim2New(0, xOff, 0, btnY),
                     BackgroundColor3 = bd.color or Library.Theme["Element"],
                     BorderSizePixel = 0,
-                    AutoButtonColor = false,
-                    BackgroundTransparency = bd.transparency or 0
+                    AutoButtonColor = false
                 })
-                Instances:Create("UICorner", { Parent = B.Instance, CornerRadius = UDimNew(0, 12) })
+                Instances:Create("UICorner", { Parent = B.Instance, CornerRadius = UDimNew(0, IsMobile and 12 or 16) })
                 if bd.stroke then
-                    Instances:Create("UIStroke", { Parent = B.Instance, Color = bd.stroke, Thickness = 1 })
-                end
-                if bd.accent then
-                    Instances:Create("UIGradient", {
-                        Parent = B.Instance,
-                        Rotation = 0,
-                        Color = RGBSequence({
-                            RGBSequenceKeypoint(0, FromRGB(170, 72, 255)),
-                            RGBSequenceKeypoint(1, FromRGB(206, 72, 237))
-                        })
-                    })
+                    Instances:Create("UIStroke", { Parent = B.Instance, Color = bd.stroke, Thickness = bd.strokeThickness or 1 })
                 end
                 B.Instance.MouseEnter:Connect(function()
-                    TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
-                        BackgroundTransparency = math.clamp((bd.transparency or 0) + 0.08, 0, 1)
-                    }):Play()
+                    TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.25 }):Play()
                 end)
                 B.Instance.MouseLeave:Connect(function()
-                    TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
-                        BackgroundTransparency = bd.transparency or 0
-                    }):Play()
+                    TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0 }):Play()
                 end)
                 B.Instance.MouseButton1Click:Connect(function()
                     if bd.callback then bd.callback() end
@@ -5517,29 +5394,29 @@ local Library do
 
             HeaderTitle:MakeDraggable(Modal)
 
-            return gui, Modal, MsgLabel, TitleLabel
+            return gui, Modal, MsgLabel
         end
 
         local function ShowTrialScreen(trialDurationHours, alreadyClaimed)
             local state = { Claimed = false, Closed = false }
             local Busy = false
-            local gui, Modal, MsgLabel, TitleLabel
+            local gui, Modal, MsgLabel
 
             local trialBtnText = alreadyClaimed
                 and "Free Trial Used"
                 or ("Free Trial " .. tostring(trialDurationHours) .. "H")
 
-            gui, Modal, MsgLabel, TitleLabel = BuildTrialPanel({
+            gui, Modal, MsgLabel = BuildTrialPanel({
                 badge = "PREMIUM REQUIRED",
-                title = "Premium access required",
+                title = "Premium required",
                 message = alreadyClaimed
                     and "You've already used your free trial.\nPurchase premium to regain access."
-                    or ("Start your <b>" .. tostring(trialDurationHours) .. " hour</b> free trial.\nPurchase premium to unlock everything instantly."),
+                    or ("Start your <b>" .. tostring(trialDurationHours) .. " hour</b> free trial\nto get full access to this script."),
                 buttons = {
                     {
                         text = "Exit",
-                        color = FromRGB(16, 16, 24),
-                        stroke = FromRGB(38, 38, 50),
+                        color = FromRGB(43, 43, 55),
+                        textColor = FromRGB(241, 241, 245),
                         callback = function()
                             if Busy then return end
                             Busy = true
@@ -5549,19 +5426,16 @@ local Library do
                     },
                     {
                         text = trialBtnText,
-                        color = alreadyClaimed and FromRGB(56, 56, 68) or FromRGB(44, 44, 56),
-                        textColor = FromRGB(255, 255, 255),
-                        stroke = alreadyClaimed and FromRGB(76, 76, 88) or FromRGB(64, 64, 78),
+                        color = alreadyClaimed and FromRGB(43, 43, 55) or FromRGB(43, 43, 55),
+                        textColor = alreadyClaimed and FromRGB(140, 142, 154) or FromRGB(241, 241, 245),
                         callback = function()
                             if Busy then return end
                             if alreadyClaimed then
-                                TitleLabel.Instance.Text = "Premium access required"
                                 MsgLabel.Instance.Text = "You've already used your free trial.\nPurchase premium to regain access."
                                 return
                             end
                             Busy = true
-                            TitleLabel.Instance.Text = "Starting free trial"
-                            MsgLabel.Instance.Text = "Contacting server and activating your access..."
+                            MsgLabel.Instance.Text = "Contacting server..."
                             task.spawn(function()
                                 local success = ClaimTrialWithHwid(trialDurationHours)
                                 if success then
@@ -5569,7 +5443,6 @@ local Library do
                                     state.Closed = true
                                     gui.Instance:Destroy()
                                 else
-                                    TitleLabel.Instance.Text = "Premium access required"
                                     MsgLabel.Instance.Text = "Could not reach server.\nPlease try again."
                                     Busy = false
                                 end
@@ -5580,8 +5453,6 @@ local Library do
                         text = "Purchase Premium",
                         color = Library.Theme["Accent"],
                         textColor = FromRGB(255, 255, 255),
-                        stroke = FromRGB(170, 72, 255),
-                        accent = true,
                         callback = function()
                             OpenPremiumInvite()
                         end
@@ -5600,16 +5471,17 @@ local Library do
             local state = { Closed = false }
             local Busy = false
             local gui, Modal, MsgLabel
+            local defaultHours = GetTrialDefaultHours()
 
             gui, Modal, MsgLabel = BuildTrialPanel({
-                badge = "PREMIUM REQUIRED",
-                title = "Premium access required",
-                message = "You've already used your free trial.\nPurchase premium to regain access.",
+                badge = "TRIAL EXPIRED",
+                title = "Premium required",
+                message = "Your free trial has expired.\nPurchase premium to keep using this script.",
                 buttons = {
                     {
                         text = "Exit",
-                        color = FromRGB(16, 16, 24),
-                        stroke = FromRGB(38, 38, 50),
+                        color = FromRGB(43, 43, 55),
+                        textColor = FromRGB(241, 241, 245),
                         callback = function()
                             if Busy then return end
                             Busy = true
@@ -5619,9 +5491,8 @@ local Library do
                     },
                     {
                         text = "Free Trial Used",
-                        color = FromRGB(56, 56, 68),
-                        textColor = FromRGB(255, 255, 255),
-                        stroke = FromRGB(76, 76, 88),
+                        color = FromRGB(43, 43, 55),
+                        textColor = FromRGB(140, 142, 154),
                         callback = function()
                             MsgLabel.Instance.Text = "You've already used your free trial.\nPurchase premium to regain access."
                         end
@@ -5630,8 +5501,6 @@ local Library do
                         text = "Purchase Premium",
                         color = Library.Theme["Accent"],
                         textColor = FromRGB(255, 255, 255),
-                        stroke = FromRGB(170, 72, 255),
-                        accent = true,
                         callback = function()
                             OpenPremiumInvite()
                         end
