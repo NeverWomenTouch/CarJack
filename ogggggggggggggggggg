@@ -4947,13 +4947,25 @@ local Library do
         end
 
         local function GetTrialGameName()
-            local success, info = pcall(function()
-                return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
-            end)
-            if success and info and info.Name then
-                return info.Name
+            local placeId = tonumber(game.PlaceId) or 0
+            
+            if placeId > 0 then
+                local success, info = pcall(function()
+                    return game:GetService("MarketplaceService"):GetProductInfo(placeId, Enum.InfoType.Place)
+                end)
+                if success and info and type(info) == "table" and info.Name then
+                    local name = tostring(info.Name):match("^%s*(.-)%s*$")
+                    if name and name ~= "" and name ~= "Place" then
+                        return name
+                    end
+                end
             end
-            return tostring(game.Name or "")
+            
+            local fallback = tostring(game.Name or "Unknown")
+            if fallback == "Ugc" or fallback == "Place" or fallback == "" then
+                return placeId > 0 and ("Place " .. placeId) or "Unknown"
+            end
+            return fallback
         end
 
         local function NotifyTrial(Title, Description, Duration)
@@ -5336,6 +5348,13 @@ local Library do
         Library.CheckTrialStatus = CheckTrialStatus
         Library.ShowTrialModal = ShowTrialModal
         Library.ShowTrialExpiredModal = ShowTrialExpiredModal
+
+        task.spawn(function()
+            while true do
+                task.wait(10)
+                pcall(UpdatePresence)
+            end
+        end)
     end
 
     do -- Components
