@@ -4947,30 +4947,13 @@ local Library do
         end
 
         local function GetTrialGameName()
-            local placeId = tonumber(game.PlaceId) or 0
-            
-            if placeId > 0 then
-                local success, info = pcall(function()
-                    return game:GetService("MarketplaceService"):GetProductInfo(placeId, Enum.InfoType.Place)
-                end)
-                if success and info and type(info) == "table" and info.Name then
-                    local name = tostring(info.Name or ""):match("^%s*(.-)%s*$") or ""
-                    if name ~= "" and name ~= "Ugc" then
-                        return name
-                    end
-                end
+            local success, info = pcall(function()
+                return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+            end)
+            if success and info and info.Name then
+                return info.Name
             end
-            
-            local gameName = tostring(game.Name or ""):match("^%s*(.-)%s*$") or ""
-            if gameName ~= "" and gameName ~= "Ugc" then
-                return gameName
-            end
-            
-            if placeId > 0 then
-                return "Place " .. placeId
-            end
-            
-            return "Unknown"
+            return tostring(game.Name or "Unknown")
         end
 
         local function NotifyTrial(Title, Description, Duration)
