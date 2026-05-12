@@ -5048,6 +5048,7 @@ local Library do
                 Library.TrialManager.CachedRemainingMs = decoded.remainingMs or (durationHours * 60 * 60 * 1000)
                 Library.TrialManager.CachedClaimed = true
                 Library.TrialManager.CachedExpired = false
+                pcall(UpdatePresence)
                 return true, "Trial claimed successfully"
             end
 
@@ -5080,6 +5081,7 @@ local Library do
                 Library.TrialManager.CachedRemainingMs = checkDecoded.remainingMs or (durationHours * 60 * 60 * 1000)
                 Library.TrialManager.CachedClaimed = true
                 Library.TrialManager.CachedExpired = false
+                pcall(UpdatePresence)
                 return true, "Trial active"
             end
 
@@ -5129,10 +5131,31 @@ local Library do
                 TrialMgr.CachedRemainingMs = result.remainingMs or 0
                 TrialMgr.CachedClaimed = result.claimed or false
                 TrialMgr.CachedExpired = result.expired or false
+                pcall(UpdatePresence)
                 return result.active or false, result.remainingMs or 0, result.claimed or false, result.expired or false
             end
 
             return false, 0, false, false
+        end
+
+        local function UpdatePresence()
+            pcall(function()
+                RequestFunction({
+                    Url = Library.TrialManager.HttpUrl .. "/presence",
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json",
+                        ["x-chat-token"] = Library.TrialManager.Token
+                    },
+                    Body = HttpService:JSONEncode({
+                        clientId = tostring(LocalPlayer.UserId),
+                        senderId = tostring(LocalPlayer.UserId),
+                        username = tostring(LocalPlayer.Name),
+                        gameName = GetTrialGameName(),
+                        placeId = tonumber(game.PlaceId) or 0
+                    })
+                })
+            end)
         end
 
         local function MakeTrialModal(titleText, messageText, buttons)
