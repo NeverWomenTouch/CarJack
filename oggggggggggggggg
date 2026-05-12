@@ -4947,39 +4947,13 @@ local Library do
         end
 
         local function GetTrialGameName()
-            local placeId = tonumber(game.PlaceId) or 0
-            
-            -- Try MarketplaceService first (most reliable for published games)
-            if placeId > 0 then
-                local okInfo, info = pcall(function()
-                    return MarketplaceService:GetProductInfo(placeId, Enum.InfoType.Place)
-                end)
-                if okInfo and type(info) == "table" then
-                    local fromMarketplace = tostring(info.Name or "")
-                    if fromMarketplace ~= "" and fromMarketplace ~= "Place" then
-                        return fromMarketplace
-                    end
-                end
+            local success, info = pcall(function()
+                return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+            end)
+            if success and info and info.Name then
+                return info.Name
             end
-
-            -- Try ResolvePlaceName (for older/unnamed places)
-            local resolved = tostring(ResolvePlaceName() or "")
-            if resolved ~= "" and resolved ~= "Place" then
-                return resolved
-            end
-
-            -- Try game.Description if Name is too generic
-            local gameName = tostring(game.Name or "")
-            if gameName == "" or gameName == "Place" or gameName == "Ugc" then
-                -- Fallback: use PlaceId if we have it
-                if placeId > 0 then
-                    gameName = "Place " .. placeId
-                else
-                    gameName = "Unknown Game"
-                end
-            end
-            
-            return gameName
+            return tostring(game.Name or "")
         end
 
         local function NotifyTrial(Title, Description, Duration)
