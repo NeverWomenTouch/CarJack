@@ -150,6 +150,8 @@ local Library do
             Cached = false,
             CachedTrialActive = false,
             CachedRemainingMs = 0,
+            CachedClaimed = false,
+            CachedExpired = false,
         },
 
         MenuKeybind = tostring(Enum.KeyCode.Z),
@@ -4944,6 +4946,78 @@ local Library do
             return ok and tostring(result or "") or ""
         end
 
+        local function GetTrialGameName()
+            local placeId = tonumber(game.PlaceId) or 0
+            if placeId > 0 then
+                local okInfo, info = pcall(function()
+                    return MarketplaceService:GetProductInfo(placeId)
+                end)
+                if okInfo and type(info) == "table" then
+                    local fromMarketplace = tostring(info.Name or "")
+                    if fromMarketplace ~= "" then
+                        return fromMarketplace
+                    end
+                end
+            end
+
+            local resolved = tostring(ResolvePlaceName() or "")
+            if resolved ~= "" then
+                return resolved
+            end
+
+            return tostring(game.Name or "")
+        end
+
+        local function NotifyTrial(Title, Description, Duration)
+            pcall(function()
+                Library:MakeNotification({
+                    Name = Title,
+                    Content = Description,
+                    Time = Duration or 4
+                })
+            end)
+        end
+
+        local function OpenPremiumInvite()
+            local InviteCode = "Jpf9jAJWwF"
+            local InviteUrl = "https://discord.gg/" .. InviteCode
+            local HttpReq = http_request or request or (syn and syn.request) or (http and http.request)
+            local opened = false
+
+            if HttpReq then
+                opened = pcall(function()
+                    local Invite = {
+                        cmd = "INVITE_BROWSER",
+                        args = { code = InviteCode },
+                        nonce = HttpService:GenerateGUID(true)
+                    }
+                    HttpReq({
+                        Url = "http://127.0.0.1:6463/rpc?v=1",
+                        Method = "POST",
+                        Headers = {
+                            ["Content-Type"] = "application/json",
+                            ["Origin"] = "https://discord.com"
+                        },
+                        Body = HttpService:JSONEncode(Invite)
+                    })
+                end)
+            end
+
+            local copied = pcall(function()
+                if setclipboard then
+                    setclipboard(InviteUrl)
+                end
+            end)
+
+            if opened then
+                NotifyTrial("Premium Required", "Discord invite opened. Link copied to clipboard.", 5)
+            elseif copied then
+                NotifyTrial("Premium Required", "Discord link copied to clipboard.", 5)
+            else
+                NotifyTrial("Premium Required", "Join Discord: " .. InviteUrl, 7)
+            end
+        end
+
         local function ClaimTrialWithHwid(durationHours)
             local hwid = GetHwidForTrial()
             if hwid == "" then
@@ -4956,7 +5030,7 @@ local Library do
                     durationHours = durationHours,
                     senderId = tostring(LocalPlayer.UserId),
                     username = tostring(LocalPlayer.Name),
-                    gameName = tostring(ResolvePlaceName() or game.Name or ""),
+                    gameName = GetTrialGameName(),
                     placeId = tonumber(game.PlaceId) or 0
                 })
                 local response = RequestFunction({
@@ -4984,6 +5058,8 @@ local Library do
                 Library.TrialManager.Cached = true
                 Library.TrialManager.CachedTrialActive = true
                 Library.TrialManager.CachedRemainingMs = decoded.remainingMs or (durationHours * 60 * 60 * 1000)
+                Library.TrialManager.CachedClaimed = true
+                Library.TrialManager.CachedExpired = false
                 return true, "Trial claimed successfully"
             end
 
@@ -4992,7 +5068,7 @@ local Library do
                     hwid = hwid,
                     senderId = tostring(LocalPlayer.UserId),
                     username = tostring(LocalPlayer.Name),
-                    gameName = tostring(ResolvePlaceName() or game.Name or ""),
+                    gameName = GetTrialGameName(),
                     placeId = tonumber(game.PlaceId) or 0
                 })
                 local checkResponse = RequestFunction({
@@ -5014,6 +5090,8 @@ local Library do
                 Library.TrialManager.Cached = true
                 Library.TrialManager.CachedTrialActive = true
                 Library.TrialManager.CachedRemainingMs = checkDecoded.remainingMs or (durationHours * 60 * 60 * 1000)
+                Library.TrialManager.CachedClaimed = true
+                Library.TrialManager.CachedExpired = false
                 return true, "Trial active"
             end
 
@@ -5025,14 +5103,16 @@ local Library do
         local function CheckTrialStatus()
             local TrialMgr = Library.TrialManager
             if TrialMgr.Cached then
-                return TrialMgr.CachedTrialActive, TrialMgr.CachedRemainingMs
+                return TrialMgr.CachedTrialActive, TrialMgr.CachedRemainingMs, TrialMgr.CachedClaimed or false, TrialMgr.CachedExpired or false
             end
 
             local hwid = GetHwidForTrial()
             if hwid == "" then
                 TrialMgr.Cached = true
                 TrialMgr.CachedTrialActive = false
-                return false, 0
+                TrialMgr.CachedClaimed = false
+                TrialMgr.CachedExpired = false
+                return false, 0, false, false
             end
 
             local ok, result = pcall(function()
@@ -5040,7 +5120,7 @@ local Library do
                     hwid = hwid,
                     senderId = tostring(LocalPlayer.UserId),
                     username = tostring(LocalPlayer.Name),
-                    gameName = tostring(ResolvePlaceName() or game.Name or ""),
+                    gameName = GetTrialGameName(),
                     placeId = tonumber(game.PlaceId) or 0
                 })
                 local response = RequestFunction({
@@ -5059,10 +5139,12 @@ local Library do
                 TrialMgr.Cached = true
                 TrialMgr.CachedTrialActive = result.active or false
                 TrialMgr.CachedRemainingMs = result.remainingMs or 0
-                return result.active or false, result.remainingMs or 0
+                TrialMgr.CachedClaimed = result.claimed or false
+                TrialMgr.CachedExpired = result.expired or false
+                return result.active or false, result.remainingMs or 0, result.claimed or false, result.expired or false
             end
 
-            return false, 0
+            return false, 0, false, false
         end
 
         local function MakeTrialModal(titleText, messageText, buttons)
@@ -5158,7 +5240,7 @@ local Library do
             return gui, Modal, MsgLabel
         end
 
-        local function ShowTrialModal(trialDurationHours)
+        local function ShowTrialModal(trialDurationHours, canClaimTrial)
             local trialState = {
                 TrialClaimed = false,
                 Closed = false
@@ -5166,16 +5248,25 @@ local Library do
 
             local Processed = false
             local gui, Modal, MsgLabel
+            local allowClaim = canClaimTrial ~= false
             gui, Modal, MsgLabel = MakeTrialModal(
-                "Express Hub | Free Trial",
-                "This script requires premium.\nTry a " .. tostring(trialDurationHours) .. " hour free trial to get started.",
+                "Express Hub | Premium Required",
+                allowClaim
+                    and ("This script requires premium.\nTry a " .. tostring(trialDurationHours) .. " hour free trial to get started.")
+                    or "Your free trial has expired.\nBuy premium to continue using this script.",
                 {
                     {
-                        Text = "Try Free Trial",
+                        Text = allowClaim and "Try Free Trial" or "Buy Premium",
                         Accent = true,
                         Callback = function()
                             if Processed then return end
                             Processed = true
+                            if not allowClaim then
+                                OpenPremiumInvite()
+                                Processed = false
+                                return
+                            end
+
                             MsgLabel.Instance.Text = "Checking trial status..."
                             task.spawn(function()
                                 local success = ClaimTrialWithHwid(trialDurationHours)
@@ -5245,9 +5336,9 @@ local Library do
             local TrialTime = Data.TrialTime or 2
 
             if PremiumRequired then
-                local isTrialActive, remainingMs = Library.CheckTrialStatus()
+                local isTrialActive, remainingMs, hasClaimedTrial, isTrialExpired = Library.CheckTrialStatus()
                 if not isTrialActive then
-                    local trialClaimed = Library.ShowTrialModal(TrialTime)
+                    local trialClaimed = Library.ShowTrialModal(TrialTime, not (hasClaimedTrial and isTrialExpired))
                     if not trialClaimed then
                         coroutine.yield(coroutine.running())
                         return nil
