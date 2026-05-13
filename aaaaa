@@ -11622,6 +11622,7 @@ local Library do
                 TextTransparency = 0.35,
                 TextSize = 11,
                 Visible = false,
+                ZIndex = 2,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["TrialTimerTitle"]:AddToTheme({TextColor3 = "Text"})
 
@@ -11641,6 +11642,7 @@ local Library do
                 BorderSizePixel = 0,
                 TextSize = 16,
                 Visible = false,
+                ZIndex = 2,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["TrialTimerValue"]:AddToTheme({TextColor3 = "Accent"})
 
@@ -11902,12 +11904,12 @@ local Library do
                 return false, 0
             end
 
-            local function PaintTrialCountdown()
+            local function UpdateTrialCountdownDisplay(forceRefresh)
                 local TrialVisible = Window and Window.PremiumRequired == true
                 local TrialText = nil
 
                 if TrialVisible then
-                    if TrialCountdownRefreshAt <= 0 or (tick() - TrialCountdownRefreshAt) >= 5 then
+                    if forceRefresh or TrialCountdownRefreshAt <= 0 or (tick() - TrialCountdownRefreshAt) >= 5 then
                         local Active = RefreshTrialCountdown()
                         TrialVisible = Active == true
                     elseif TrialCountdownSyncedAt <= 0 then
@@ -11969,7 +11971,7 @@ local Library do
             end
 
             task.spawn(function()
-                local LastFPS, LastPing, LastShowFPS, LastShowPing, LastTrialText, LastTrialVisible
+                local LastFPS, LastPing, LastShowFPS, LastShowPing
 
                 while Library and Items["PerformanceInfo"] and Items["PerformanceInfo"].Instance and Items["PerformanceInfo"].Instance.Parent do
                     local ShowFPS = Library.ExpressExtraSettings and Library.ExpressExtraSettings.ShowFPS == true
@@ -11998,24 +12000,19 @@ local Library do
                         end
                     end
 
-                    local TrialVisible, TrialText = PaintTrialCountdown()
+                    task.wait(0.2)
+                end
+            end)
 
-                    if TrialVisible ~= LastTrialVisible then
-                        LastTrialVisible = TrialVisible
-                    end
-
-                    if TrialVisible and TrialText and TrialText ~= LastTrialText then
-                        LastTrialText = TrialText
-                    elseif not TrialVisible then
-                        LastTrialText = nil
-                    end
-
+            task.spawn(function()
+                while Library and Items["ExecutorInfo"] and Items["ExecutorInfo"].Instance and Items["ExecutorInfo"].Instance.Parent do
+                    UpdateTrialCountdownDisplay(false)
                     task.wait(0.2)
                 end
             end)
 
             Library:Connect(Items["HomeScroll"].Instance:GetPropertyChangedSignal("AbsoluteSize"), UpdateHomeLayout)
-            PaintTrialCountdown()
+            UpdateTrialCountdownDisplay(true)
             UpdateHomeLayout()
             UpdatePerformanceLayout()
         end
