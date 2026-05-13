@@ -11902,6 +11902,36 @@ local Library do
                 return false, 0
             end
 
+            local function PaintTrialCountdown()
+                local TrialVisible = Window and Window.PremiumRequired == true
+                local TrialText = nil
+
+                if TrialVisible then
+                    if TrialCountdownRefreshAt <= 0 or (tick() - TrialCountdownRefreshAt) >= 5 then
+                        local Active = RefreshTrialCountdown()
+                        TrialVisible = Active == true
+                    elseif TrialCountdownSyncedAt <= 0 then
+                        local Active = SyncTrialCountdown()
+                        TrialVisible = Active == true
+                    end
+
+                    local RemainingMs = math.max(0, TrialCountdownRemainingMs - math.max(0, (tick() - TrialCountdownSyncedAt) * 1000))
+                    if RemainingMs > 0 then
+                        TrialText = FormatTrialRemaining(RemainingMs)
+                    else
+                        TrialVisible = false
+                    end
+                end
+
+                Items["TrialTimerTitle"].Instance.Visible = TrialVisible
+                Items["TrialTimerValue"].Instance.Visible = TrialVisible
+                if TrialVisible and TrialText then
+                    Items["TrialTimerValue"].Instance.Text = TrialText
+                end
+
+                return TrialVisible, TrialText
+            end
+
             local function UpdateHomeLayout()
                 local stacked = Items["SessionInfo"].Instance.AbsoluteSize.X < 560
 
@@ -11968,35 +11998,13 @@ local Library do
                         end
                     end
 
-                    local TrialMgr = Library.TrialManager
-                    local TrialVisible = Window and Window.PremiumRequired == true
-                    local TrialText = nil
-
-                    if TrialVisible then
-                        if TrialCountdownRefreshAt <= 0 or (tick() - TrialCountdownRefreshAt) >= 5 then
-                            local Active = RefreshTrialCountdown()
-                            TrialVisible = Active == true
-                        elseif TrialCountdownSyncedAt <= 0 then
-                            local Active = SyncTrialCountdown()
-                            TrialVisible = Active == true
-                        end
-
-                        local RemainingMs = math.max(0, TrialCountdownRemainingMs - math.max(0, (tick() - TrialCountdownSyncedAt) * 1000))
-                        if RemainingMs > 0 then
-                            TrialText = FormatTrialRemaining(RemainingMs)
-                        else
-                            TrialVisible = false
-                        end
-                    end
+                    local TrialVisible, TrialText = PaintTrialCountdown()
 
                     if TrialVisible ~= LastTrialVisible then
-                        Items["TrialTimerTitle"].Instance.Visible = TrialVisible
-                        Items["TrialTimerValue"].Instance.Visible = TrialVisible
                         LastTrialVisible = TrialVisible
                     end
 
                     if TrialVisible and TrialText and TrialText ~= LastTrialText then
-                        Items["TrialTimerValue"].Instance.Text = TrialText
                         LastTrialText = TrialText
                     elseif not TrialVisible then
                         LastTrialText = nil
@@ -12007,6 +12015,7 @@ local Library do
             end)
 
             Library:Connect(Items["HomeScroll"].Instance:GetPropertyChangedSignal("AbsoluteSize"), UpdateHomeLayout)
+            PaintTrialCountdown()
             UpdateHomeLayout()
             UpdatePerformanceLayout()
         end
