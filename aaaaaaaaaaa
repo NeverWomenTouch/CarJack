@@ -82,7 +82,6 @@ local Library do
     local Vector3New = Vector3.new
 
     local MathClamp = math.clamp
-    local MathCeil = math.ceil
     local MathFloor = math.floor
     local MathRandom = math.random
     local MathAbs = math.abs
@@ -5009,6 +5008,68 @@ local Library do
             end
         end
 
+        local function UpdateLastKnownTrialState(isActive, remainingMs)
+            local TrialMgr = Library.TrialManager
+            if not TrialMgr then
+                return
+            end
+
+            local RemainingMs = math.max(0, tonumber(remainingMs) or 0)
+            TrialMgr.LastKnownTrialActive = isActive == true and RemainingMs > 0
+            TrialMgr.LastKnownRemainingMs = TrialMgr.LastKnownTrialActive and RemainingMs or 0
+            TrialMgr.LastKnownSyncedAt = TrialMgr.LastKnownTrialActive and tick() or 0
+        end
+
+        local function SetTrialCacheState(isActive, remainingMs, isClaimed, isExpired)
+            local TrialMgr = Library.TrialManager
+            if not TrialMgr then
+                return
+            end
+
+            TrialMgr.Cached = true
+            TrialMgr.CachedTrialActive = isActive == true
+            TrialMgr.CachedRemainingMs = math.max(0, tonumber(remainingMs) or 0)
+            TrialMgr.CachedClaimed = isClaimed == true
+            TrialMgr.CachedExpired = isExpired == true
+
+            if TrialMgr.CachedTrialActive then
+                UpdateLastKnownTrialState(true, TrialMgr.CachedRemainingMs)
+            elseif TrialMgr.CachedClaimed or TrialMgr.CachedExpired then
+                UpdateLastKnownTrialState(false, 0)
+            end
+        end
+
+        local function BuildTrialPayload(hwid)
+            return {
+                hwid = hwid,
+                senderId = tostring(LocalPlayer.UserId),
+                username = tostring(LocalPlayer.Name),
+                gameName = GetTrialGameName(),
+                placeId = tonumber(game.PlaceId) or 0
+            }
+        end
+
+        local function RequestTrialJson(route, payload)
+            local TrialMgr = Library.TrialManager
+            local ok, result = pcall(function()
+                local response = RequestFunction({
+                    Url = TrialMgr.HttpUrl .. route,
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json",
+                        ["x-chat-token"] = TrialMgr.Token
+                    },
+                    Body = HttpService:JSONEncode(payload)
+                })
+                if not response or type(response.Body) ~= "string" or response.Body == "" then
+                    return nil
+                end
+                return HttpService:JSONDecode(response.Body)
+            end)
+
+            return ok and result or nil
+        end
+
         local function TriggerTrialExpiryFlow(notificationContent)
             if Library._TrialExpiryHandling or Library._Unloaded then
                 return
@@ -5017,17 +5078,7 @@ local Library do
             Library._TrialExpiryHandling = true
             Library._TrialExpired = true
 
-            local TrialMgr = Library.TrialManager
-            if TrialMgr then
-                TrialMgr.Cached = true
-                TrialMgr.CachedTrialActive = false
-                TrialMgr.CachedRemainingMs = 0
-                TrialMgr.CachedClaimed = true
-                TrialMgr.CachedExpired = true
-                TrialMgr.LastKnownTrialActive = false
-                TrialMgr.LastKnownRemainingMs = 0
-                TrialMgr.LastKnownSyncedAt = 0
-            end
+            SetTrialCacheState(false, 0, true, true)
 
             pcall(function()
                 StarterGui:SetCore("SendNotification", {
@@ -5058,83 +5109,19 @@ local Library do
                 return false, "Could not get HWID"
             end
 
-            local ok, response, decoded = pcall(function()
-                local payload = HttpService:JSONEncode({
-                    hwid = hwid,
-                    durationMinutes = durationMinutes,
-                    senderId = tostring(LocalPlayer.UserId),
-                    username = tostring(LocalPlayer.Name),
-                    gameName = GetTrialGameName(),
-                    placeId = tonumber(game.PlaceId) or 0
-                })
-                local response = RequestFunction({
-                    Url = Library.TrialManager.HttpUrl .. "/trial/claim",
-                    Method = "POST",
-                    Headers = {
-                        ["Content-Type"] = "application/json",
-                        ["x-chat-token"] = Library.TrialManager.Token
-                    },
-                    Body = payload
-                })
-                local parsed = nil
-                if response and type(response.Body) == "string" and response.Body ~= "" then
-                    local okDecode, parsedBody = pcall(function()
-                        return HttpService:JSONDecode(response.Body)
-                    end)
-                    if okDecode then
-                        parsed = parsedBody
-                    end
-                end
-                return response, parsed
-            end)
+            local claimPayload = BuildTrialPayload(hwid)
+            claimPayload.durationMinutes = durationMinutes
+            local decoded = RequestTrialJson("/trial/claim", claimPayload)
 
-            if ok and decoded and decoded.ok then
-                local RemainingMs = decoded.remainingMs or (durationMinutes * 60 * 1000)
-                Library.TrialManager.Cached = true
-                Library.TrialManager.CachedTrialActive = true
-                Library.TrialManager.CachedRemainingMs = RemainingMs
-                Library.TrialManager.CachedClaimed = true
-                Library.TrialManager.CachedExpired = false
-                Library.TrialManager.LastKnownTrialActive = true
-                Library.TrialManager.LastKnownRemainingMs = RemainingMs
-                Library.TrialManager.LastKnownSyncedAt = tick()
+            if decoded and decoded.ok then
+                SetTrialCacheState(true, decoded.remainingMs or (durationMinutes * 60 * 1000), true, false)
                 pcall(UpdatePresence)
                 return true, "Trial claimed successfully"
             end
 
-            local checkOk, checkDecoded = pcall(function()
-                local payload = HttpService:JSONEncode({
-                    hwid = hwid,
-                    senderId = tostring(LocalPlayer.UserId),
-                    username = tostring(LocalPlayer.Name),
-                    gameName = GetTrialGameName(),
-                    placeId = tonumber(game.PlaceId) or 0
-                })
-                local checkResponse = RequestFunction({
-                    Url = Library.TrialManager.HttpUrl .. "/trial/check",
-                    Method = "POST",
-                    Headers = {
-                        ["Content-Type"] = "application/json",
-                        ["x-chat-token"] = Library.TrialManager.Token
-                    },
-                    Body = payload
-                })
-                if not checkResponse or type(checkResponse.Body) ~= "string" or checkResponse.Body == "" then
-                    return nil
-                end
-                return HttpService:JSONDecode(checkResponse.Body)
-            end)
-
-            if checkOk and checkDecoded and checkDecoded.ok and checkDecoded.active then
-                local RemainingMs = checkDecoded.remainingMs or (durationMinutes * 60 * 1000)
-                Library.TrialManager.Cached = true
-                Library.TrialManager.CachedTrialActive = true
-                Library.TrialManager.CachedRemainingMs = RemainingMs
-                Library.TrialManager.CachedClaimed = true
-                Library.TrialManager.CachedExpired = false
-                Library.TrialManager.LastKnownTrialActive = true
-                Library.TrialManager.LastKnownRemainingMs = RemainingMs
-                Library.TrialManager.LastKnownSyncedAt = tick()
+            local checkDecoded = RequestTrialJson("/trial/check", BuildTrialPayload(hwid))
+            if checkDecoded and checkDecoded.ok and checkDecoded.active then
+                SetTrialCacheState(true, checkDecoded.remainingMs or (durationMinutes * 60 * 1000), true, false)
                 pcall(UpdatePresence)
                 return true, "Trial active"
             end
@@ -5152,48 +5139,14 @@ local Library do
 
             local hwid = GetHwidForTrial()
             if hwid == "" then
-                TrialMgr.Cached = true
-                TrialMgr.CachedTrialActive = false
-                TrialMgr.CachedClaimed = false
-                TrialMgr.CachedExpired = false
+                SetTrialCacheState(false, 0, false, false)
+                UpdateLastKnownTrialState(false, 0)
                 return false, 0, false, false
             end
 
-            local ok, result = pcall(function()
-                local payload = HttpService:JSONEncode({
-                    hwid = hwid,
-                    senderId = tostring(LocalPlayer.UserId),
-                    username = tostring(LocalPlayer.Name),
-                    gameName = GetTrialGameName(),
-                    placeId = tonumber(game.PlaceId) or 0
-                })
-                local response = RequestFunction({
-                    Url = TrialMgr.HttpUrl .. "/trial/check",
-                    Method = "POST",
-                    Headers = {
-                        ["Content-Type"] = "application/json",
-                        ["x-chat-token"] = TrialMgr.Token
-                    },
-                    Body = payload
-                })
-                return HttpService:JSONDecode(response.Body)
-            end)
-
-            if ok and result and result.ok then
-                TrialMgr.Cached = true
-                TrialMgr.CachedTrialActive = result.active or false
-                TrialMgr.CachedRemainingMs = result.remainingMs or 0
-                TrialMgr.CachedClaimed = result.claimed or false
-                TrialMgr.CachedExpired = result.expired or false
-                if (result.active or false) and tonumber(result.remainingMs) and tonumber(result.remainingMs) > 0 then
-                    TrialMgr.LastKnownTrialActive = true
-                    TrialMgr.LastKnownRemainingMs = math.max(0, tonumber(result.remainingMs) or 0)
-                    TrialMgr.LastKnownSyncedAt = tick()
-                elseif result.claimed or result.expired then
-                    TrialMgr.LastKnownTrialActive = false
-                    TrialMgr.LastKnownRemainingMs = 0
-                    TrialMgr.LastKnownSyncedAt = 0
-                end
+            local result = RequestTrialJson("/trial/check", BuildTrialPayload(hwid))
+            if result and result.ok then
+                SetTrialCacheState(result.active or false, result.remainingMs or 0, result.claimed or false, result.expired or false)
                 pcall(UpdatePresence)
                 return result.active or false, result.remainingMs or 0, result.claimed or false, result.expired or false
             end
@@ -11197,7 +11150,16 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["HomeScroll"]:AddToTheme({ScrollBarImageColor3 = "Accent"})
 
-            Items["SessionInfo"] = Instances:Create("Frame", {
+            local function CreateHomePanel(key, properties, theme, radius)
+                Items[key] = Instances:Create("Frame", properties)
+                if theme then
+                    Items[key]:AddToTheme(theme)
+                end
+                AddHomeCorner(Items[key].Instance, radius)
+                return Items[key]
+            end
+
+            CreateHomePanel("SessionInfo", {
                 Parent = Items["HomeScroll"].Instance,
                 Name = "\0",
                 Position = UDim2New(0, 12, 0, 24),
@@ -11205,9 +11167,7 @@ local Library do
                 Size = UDim2New(1, -24, 0, 160),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(26, 25, 31)
-            })  Items["SessionInfo"]:AddToTheme({BackgroundColor3 = "Inline"})
-
-            AddHomeCorner(Items["SessionInfo"].Instance)
+            }, {BackgroundColor3 = "Inline"})
 
             Items["SessionInfoTitle"] = Instances:Create("TextLabel", {
                 Parent = Items["HomeScroll"].Instance,
@@ -11226,7 +11186,7 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["SessionInfoTitle"]:AddToTheme({TextColor3 = "Text"})
 
-            Items["Players"] = Instances:Create("Frame", {
+            CreateHomePanel("Players", {
                 Parent = Items["SessionInfo"].Instance,
                 Name = "\0",
                 Position = UDim2New(0, 10, 0, 12),
@@ -11234,9 +11194,7 @@ local Library do
                 Size = UDim2New(0.44999998807907104, 0, 0.3499999940395355, 0),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(17, 16, 20)
-            })  Items["Players"]:AddToTheme({BackgroundColor3 = "Background"})
-
-            AddHomeCorner(Items["Players"].Instance)
+            }, {BackgroundColor3 = "Background"})
 
             Items["PlayersTitle"] = Instances:Create("TextLabel", {
                 Parent = Items["Players"].Instance,
@@ -11283,7 +11241,7 @@ local Library do
 
             Library:Connect(Players.PlayerRemoving, UpdateCurrentPlayers)
 
-            Items["MaxPlayers"] = Instances:Create("Frame", {
+            CreateHomePanel("MaxPlayers", {
                 Parent = Items["SessionInfo"].Instance,
                 Name = "\0",
                 AnchorPoint = Vector2New(1, 0),
@@ -11292,9 +11250,7 @@ local Library do
                 Size = UDim2New(0.5, -16, 0.3499999940395355, 0),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(17, 16, 20)
-            })  Items["MaxPlayers"]:AddToTheme({BackgroundColor3 = "Background"})
-
-            AddHomeCorner(Items["MaxPlayers"].Instance)
+            }, {BackgroundColor3 = "Background"})
 
             Items["MaxPlayersTitle"] = Instances:Create("TextLabel", {
                 Parent = Items["MaxPlayers"].Instance,
@@ -11331,7 +11287,7 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["MaxPlayersAllowed"]:AddToTheme({TextColor3 = "Text"})
 
-            Items["AccountInformation"] = Instances:Create("Frame", {
+            CreateHomePanel("AccountInformation", {
                 Parent = Items["SessionInfo"].Instance,
                 Name = "\0",
                 AnchorPoint = Vector2New(0, 1),
@@ -11340,9 +11296,7 @@ local Library do
                 Size = UDim2New(1, -28, 0.44999998807907104, -20),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(17, 16, 20)
-            })  Items["AccountInformation"]:AddToTheme({BackgroundColor3 = "Background"})
-
-            AddHomeCorner(Items["AccountInformation"].Instance)
+            }, {BackgroundColor3 = "Background"})
 
             Items["AccountAvatar"] = Instances:Create("ImageLabel", {
                 Parent = Items["AccountInformation"].Instance,
@@ -11424,7 +11378,7 @@ local Library do
             })
             Items["AccountMeta"]:AddToTheme({TextColor3 = "Text"})
 
-            Items["Discord"] = Instances:Create("Frame", {
+            CreateHomePanel("Discord", {
                 Parent = Items["HomeScroll"].Instance,
                 Name = "\0",
                 Position = UDim2New(0, 12, 0, 200),
@@ -11432,9 +11386,7 @@ local Library do
                 Size = UDim2New(1, -24, 0, 84),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(26, 25, 31)
-            })  Items["Discord"]:AddToTheme({BackgroundColor3 = "Inline"})
-
-            AddHomeCorner(Items["Discord"].Instance)
+            }, {BackgroundColor3 = "Inline"})
 
             Items["DiscordIcon"] = Instances:Create("ImageLabel", {
                 Parent = Items["Discord"].Instance,
@@ -11558,7 +11510,7 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["JoinDıscordText"]:AddToTheme({TextColor3 = "Text"})
 
-            Items["ExecutorInfo"] = Instances:Create("Frame", {
+            CreateHomePanel("ExecutorInfo", {
                 Parent = Items["HomeScroll"].Instance,
                 Name = "\0",
                 AnchorPoint = Vector2New(0, 0),
@@ -11567,11 +11519,17 @@ local Library do
                 Size = UDim2New(1, -24, 0, 58),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(26, 25, 31)
-            })  Items["ExecutorInfo"]:AddToTheme({BackgroundColor3 = "Inline"})
+            }, {BackgroundColor3 = "Inline"})
 
-            AddHomeCorner(Items["ExecutorInfo"].Instance)
+            local function CreateHomeTextLabel(key, properties, theme)
+                Items[key] = Instances:Create("TextLabel", properties)
+                if theme then
+                    Items[key]:AddToTheme(theme)
+                end
+                return Items[key]
+            end
 
-            Items["BigExecutorText"] = Instances:Create("TextLabel", {
+            CreateHomeTextLabel("BigExecutorText", {
                 Parent = Items["ExecutorInfo"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
@@ -11587,13 +11545,13 @@ local Library do
                 BorderSizePixel = 0,
                 TextSize = 15,
                 BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["BigExecutorText"]:AddToTheme({TextColor3 = "Text"})
+            }, {TextColor3 = "Text"})
 
             local exec = (identifyexecutor and identifyexecutor() or getexecutorname() or ""):lower()
             local unsupported = exec:find("xeno") or exec:find("solara") or exec:find("velocity")
             local supportColor = unsupported and FromRGB(255, 170, 64) or FromRGB(67, 214, 117)
 
-            Items["ExecutorStatusDot"] = Instances:Create("Frame", {
+            CreateHomePanel("ExecutorStatusDot", {
                 Parent = Items["ExecutorInfo"].Instance,
                 Name = "\0",
                 AnchorPoint = Vector2New(0, 0.5),
@@ -11602,11 +11560,9 @@ local Library do
                 Size = UDim2New(0, 8, 0, 8),
                 BorderSizePixel = 0,
                 BackgroundColor3 = supportColor
-            })
+            }, nil, 8)
 
-            AddHomeCorner(Items["ExecutorStatusDot"].Instance, 8)
-
-            Items["IsSupportedText"] = Instances:Create("TextLabel", {
+            CreateHomeTextLabel("IsSupportedText", {
                 Parent = Items["ExecutorInfo"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
@@ -11629,7 +11585,7 @@ local Library do
                 Items["IsSupportedText"].Instance.Text = "Fully supported executor."
             end
 
-            Items["TrialTimerTitle"] = Instances:Create("TextLabel", {
+            CreateHomeTextLabel("TrialTimerTitle", {
                 Parent = Items["ExecutorInfo"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
@@ -11648,9 +11604,9 @@ local Library do
                 Visible = false,
                 ZIndex = 2,
                 BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["TrialTimerTitle"]:AddToTheme({TextColor3 = "Text"})
+            }, {TextColor3 = "Text"})
 
-            Items["TrialTimerValue"] = Instances:Create("TextLabel", {
+            CreateHomeTextLabel("TrialTimerValue", {
                 Parent = Items["ExecutorInfo"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
@@ -11668,9 +11624,9 @@ local Library do
                 Visible = false,
                 ZIndex = 2,
                 BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["TrialTimerValue"]:AddToTheme({TextColor3 = "Accent"})
+            }, {TextColor3 = "Accent"})
 
-            Items["PerformanceInfo"] = Instances:Create("Frame", {
+            CreateHomePanel("PerformanceInfo", {
                 Parent = Items["HomeScroll"].Instance,
                 Name = "\0",
                 Position = UDim2New(0, 12, 0, 400),
@@ -11678,11 +11634,9 @@ local Library do
                 Size = UDim2New(1, -24, 0, 74),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(26, 25, 31)
-            })  Items["PerformanceInfo"]:AddToTheme({BackgroundColor3 = "Inline"})
+            }, {BackgroundColor3 = "Inline"})
 
-            AddHomeCorner(Items["PerformanceInfo"].Instance)
-
-            Items["PerformanceTitle"] = Instances:Create("TextLabel", {
+            CreateHomeTextLabel("PerformanceTitle", {
                 Parent = Items["HomeScroll"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
@@ -11697,7 +11651,7 @@ local Library do
                 TextTransparency = 0.35,
                 TextSize = 12,
                 BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["PerformanceTitle"]:AddToTheme({TextColor3 = "Text"})
+            }, {TextColor3 = "Text"})
 
             Items["HomeBottomSpacer"] = Instances:Create("Frame", {
                 Parent = Items["HomeScroll"].Instance,
@@ -11709,128 +11663,88 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
-            Items["FPSCard"] = Instances:Create("Frame", {
-                Parent = Items["PerformanceInfo"].Instance,
-                Name = "\0",
+            local function CreatePerformanceCard(cardKey, accentKey, valueKey, descriptionKey, options)
+                CreateHomePanel(cardKey, {
+                    Parent = Items["PerformanceInfo"].Instance,
+                    Name = "\0",
+                    AnchorPoint = options.AnchorPoint or Vector2New(0, 0),
+                    Position = options.Position,
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Size = options.Size,
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(17, 16, 20)
+                }, {BackgroundColor3 = "Background"})
+
+                Items[accentKey] = Instances:Create("Frame", {
+                    Parent = Items[cardKey].Instance,
+                    Name = "\0",
+                    Position = UDim2New(0, 8, 0, 12),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Size = UDim2New(0, 3, 0, 30),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = options.AccentColor
+                })
+                if options.AccentTheme then
+                    Items[accentKey]:AddToTheme({BackgroundColor3 = options.AccentTheme})
+                end
+
+                Instances:Create("UICorner", {
+                    Parent = Items[accentKey].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(1, 0)
+                })
+
+                CreateHomeTextLabel(valueKey, {
+                    Parent = Items[cardKey].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Text = options.ValueText,
+                    Size = UDim2New(1, -28, 0, 16),
+                    Position = UDim2New(0, 20, 0, 10),
+                    BackgroundTransparency = 1,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    BorderSizePixel = 0,
+                    TextSize = 13,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                }, {TextColor3 = "Text"})
+
+                CreateHomeTextLabel(descriptionKey, {
+                    Parent = Items[cardKey].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    TextTransparency = 0.45,
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Text = options.DescriptionText,
+                    Size = UDim2New(1, -28, 0, 14),
+                    Position = UDim2New(0, 20, 0, 28),
+                    BackgroundTransparency = 1,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    BorderSizePixel = 0,
+                    TextSize = 12,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                }, {TextColor3 = "Text"})
+            end
+
+            CreatePerformanceCard("FPSCard", "FPSAccent", "FPSValue", "FPSDescription", {
                 Position = UDim2New(0, 8, 0, 9),
-                BorderColor3 = FromRGB(0, 0, 0),
                 Size = UDim2New(0.5, -10, 0, 56),
-                BorderSizePixel = 0,
-                BackgroundColor3 = FromRGB(17, 16, 20)
-            })  Items["FPSCard"]:AddToTheme({BackgroundColor3 = "Background"})
-
-            AddHomeCorner(Items["FPSCard"].Instance)
-
-            Items["FPSAccent"] = Instances:Create("Frame", {
-                Parent = Items["FPSCard"].Instance,
-                Name = "\0",
-                Position = UDim2New(0, 8, 0, 12),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Size = UDim2New(0, 3, 0, 30),
-                BorderSizePixel = 0,
-                BackgroundColor3 = Library.Theme.Accent
-            })  Items["FPSAccent"]:AddToTheme({BackgroundColor3 = "Accent"})
-
-            Instances:Create("UICorner", {
-                Parent = Items["FPSAccent"].Instance,
-                Name = "\0",
-                CornerRadius = UDimNew(1, 0)
+                AccentColor = Library.Theme.Accent,
+                AccentTheme = "Accent",
+                ValueText = "FPS: 0",
+                DescriptionText = "frames per second"
             })
 
-            Items["FPSValue"] = Instances:Create("TextLabel", {
-                Parent = Items["FPSCard"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 255, 255),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = "FPS: 0",
-                Size = UDim2New(1, -28, 0, 16),
-                Position = UDim2New(0, 20, 0, 10),
-                BackgroundTransparency = 1,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                BorderSizePixel = 0,
-                TextSize = 13,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["FPSValue"]:AddToTheme({TextColor3 = "Text"})
-
-            Items["FPSDescription"] = Instances:Create("TextLabel", {
-                Parent = Items["FPSCard"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 255, 255),
-                TextTransparency = 0.45,
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = "frames per second",
-                Size = UDim2New(1, -28, 0, 14),
-                Position = UDim2New(0, 20, 0, 28),
-                BackgroundTransparency = 1,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                BorderSizePixel = 0,
-                TextSize = 12,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["FPSDescription"]:AddToTheme({TextColor3 = "Text"})
-
-            Items["PingCard"] = Instances:Create("Frame", {
-                Parent = Items["PerformanceInfo"].Instance,
-                Name = "\0",
+            CreatePerformanceCard("PingCard", "PingAccent", "PingValue", "PingDescription", {
                 AnchorPoint = Vector2New(1, 0),
                 Position = UDim2New(1, -8, 0, 9),
-                BorderColor3 = FromRGB(0, 0, 0),
                 Size = UDim2New(0.5, -10, 0, 56),
-                BorderSizePixel = 0,
-                BackgroundColor3 = FromRGB(17, 16, 20)
-            })  Items["PingCard"]:AddToTheme({BackgroundColor3 = "Background"})
-
-            AddHomeCorner(Items["PingCard"].Instance)
-
-            Items["PingAccent"] = Instances:Create("Frame", {
-                Parent = Items["PingCard"].Instance,
-                Name = "\0",
-                Position = UDim2New(0, 8, 0, 12),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Size = UDim2New(0, 3, 0, 30),
-                BorderSizePixel = 0,
-                BackgroundColor3 = FromRGB(88, 113, 255)
+                AccentColor = FromRGB(88, 113, 255),
+                ValueText = "Ping: 0 ms",
+                DescriptionText = "network latency"
             })
-
-            Instances:Create("UICorner", {
-                Parent = Items["PingAccent"].Instance,
-                Name = "\0",
-                CornerRadius = UDimNew(1, 0)
-            })
-
-            Items["PingValue"] = Instances:Create("TextLabel", {
-                Parent = Items["PingCard"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 255, 255),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = "Ping: 0 ms",
-                Size = UDim2New(1, -28, 0, 16),
-                Position = UDim2New(0, 20, 0, 10),
-                BackgroundTransparency = 1,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                BorderSizePixel = 0,
-                TextSize = 13,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["PingValue"]:AddToTheme({TextColor3 = "Text"})
-
-            Items["PingDescription"] = Instances:Create("TextLabel", {
-                Parent = Items["PingCard"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                TextColor3 = FromRGB(255, 255, 255),
-                TextTransparency = 0.45,
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = "network latency",
-                Size = UDim2New(1, -28, 0, 14),
-                Position = UDim2New(0, 20, 0, 28),
-                BackgroundTransparency = 1,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                BorderSizePixel = 0,
-                TextSize = 12,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["PingDescription"]:AddToTheme({TextColor3 = "Text"})
 
             local function UpdatePerformanceLayout()
                 local ShowFPS = Library.ExpressExtraSettings and Library.ExpressExtraSettings.ShowFPS == true
@@ -11855,12 +11769,12 @@ local Library do
             end
 
             local function FormatTrialRemaining(remainingMs)
-                local totalSeconds = math.max(0, MathCeil((tonumber(remainingMs) or 0) / 1000))
-                local totalMinutes = math.floor(totalSeconds / 60)
+                local totalMs = math.max(0, MathFloor(tonumber(remainingMs) or 0))
+                local totalMinutes = MathFloor(totalMs / 60000)
                 local days = math.floor(totalMinutes / 1440)
                 local hours = math.floor((totalMinutes % 1440) / 60)
                 local minutes = totalMinutes % 60
-                local seconds = totalSeconds % 60
+                local seconds = MathFloor((totalMs % 60000) / 1000)
                 local parts = {}
 
                 if days > 0 then
@@ -11883,34 +11797,33 @@ local Library do
             local TrialCountdownSyncedAt = 0
             local TrialCountdownRefreshAt = 0
 
-            local function SyncTrialCountdown()
+            local function ResolveTrialRemainingFromSnapshot(remainingMs, syncedAt)
+                return math.max(0, (tonumber(remainingMs) or 0) - math.max(0, (tick() - (tonumber(syncedAt) or tick())) * 1000))
+            end
+
+            local function ResolveTrialCountdownRemaining()
                 local TrialMgr = Library.TrialManager
                 if not TrialMgr then
-                    Window.TrialActive = false
-                    TrialCountdownRemainingMs = 0
-                    TrialCountdownSyncedAt = 0
-                    return false, 0
+                    return 0
                 end
 
-                local RemainingMs = 0
+                local syncedAt = tonumber(TrialMgr.LastKnownSyncedAt) or 0
                 if TrialMgr.CachedTrialActive and tonumber(TrialMgr.CachedRemainingMs) and tonumber(TrialMgr.CachedRemainingMs) > 0 then
-                    RemainingMs = math.max(0, tonumber(TrialMgr.CachedRemainingMs) or 0)
-                elseif TrialMgr.LastKnownTrialActive and tonumber(TrialMgr.LastKnownRemainingMs) and tonumber(TrialMgr.LastKnownRemainingMs) > 0 then
-                    local elapsedMs = math.max(0, (tick() - (tonumber(TrialMgr.LastKnownSyncedAt) or tick())) * 1000)
-                    RemainingMs = math.max(0, (tonumber(TrialMgr.LastKnownRemainingMs) or 0) - elapsedMs)
+                    return ResolveTrialRemainingFromSnapshot(TrialMgr.CachedRemainingMs, syncedAt)
                 end
 
-                if RemainingMs <= 0 then
-                    Window.TrialActive = false
-                    TrialCountdownRemainingMs = 0
-                    TrialCountdownSyncedAt = 0
-                    return false, 0
+                if TrialMgr.LastKnownTrialActive and tonumber(TrialMgr.LastKnownRemainingMs) and tonumber(TrialMgr.LastKnownRemainingMs) > 0 then
+                    return ResolveTrialRemainingFromSnapshot(TrialMgr.LastKnownRemainingMs, syncedAt)
                 end
 
-                Window.TrialActive = true
-                TrialCountdownRemainingMs = RemainingMs
-                TrialCountdownSyncedAt = tick()
-                return TrialCountdownRemainingMs > 0, TrialCountdownRemainingMs
+                return 0
+            end
+
+            local function SyncTrialCountdown()
+                TrialCountdownRemainingMs = ResolveTrialCountdownRemaining()
+                TrialCountdownSyncedAt = TrialCountdownRemainingMs > 0 and tick() or 0
+                Window.TrialActive = TrialCountdownRemainingMs > 0
+                return Window.TrialActive, TrialCountdownRemainingMs
             end
 
             local function RefreshTrialCountdown()
@@ -11922,31 +11835,16 @@ local Library do
                     return false, 0
                 end
 
-                local cachedActive, cachedRemainingMs = SyncTrialCountdown()
-                if cachedActive then
-                    TrialCountdownRefreshAt = tick()
-                    return true, cachedRemainingMs
-                end
-
                 local TrialMgr = Library.TrialManager
                 if TrialMgr then
                     TrialMgr.Cached = false
                 end
+                pcall(Library.CheckTrialStatus)
 
-                local ok, active, remainingMs = pcall(Library.CheckTrialStatus)
+                local cachedActive, cachedRemainingMs = SyncTrialCountdown()
+
                 TrialCountdownRefreshAt = tick()
-
-                if ok and active and tonumber(remainingMs) and tonumber(remainingMs) > 0 then
-                    Window.TrialActive = true
-                    TrialCountdownRemainingMs = math.max(0, tonumber(remainingMs) or 0)
-                    TrialCountdownSyncedAt = tick()
-                    return true, TrialCountdownRemainingMs
-                end
-
-                Window.TrialActive = false
-                TrialCountdownRemainingMs = 0
-                TrialCountdownSyncedAt = 0
-                return false, 0
+                return cachedActive, cachedRemainingMs
             end
 
             local function UpdateTrialCountdownDisplay(forceRefresh)
