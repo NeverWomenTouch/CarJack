@@ -11112,10 +11112,24 @@ local Library do
     end
 
     Library.CreateHomeTab = function(self, Window, DiscordLink)
+        if Window and Window.HomeTab and table.find(Window.Pages, Window.HomeTab) then
+            return Window.HomeTab
+        end
+
+        if Window and Window.Pages then
+            for _, ExistingPage in ipairs(Window.Pages) do
+                if ExistingPage and ExistingPage.Name == "Home" then
+                    Window.HomeTab = ExistingPage
+                    return ExistingPage
+                end
+            end
+        end
+
         local HomeTab = Window:MakeTab({
             Name = "Home",
             Icon = "rbxassetid://10723407389",
         })
+        Window.HomeTab = HomeTab
 
         local function AddHomeCorner(Parent, Radius)
             Instances:Create("UICorner", {
@@ -11841,6 +11855,7 @@ local Library do
 
             local TrialCountdownRemainingMs = 0
             local TrialCountdownSyncedAt = 0
+            local TrialCountdownRefreshAt = 0
 
             local function SyncTrialCountdown()
                 local TrialMgr = Library.TrialManager
@@ -11855,6 +11870,36 @@ local Library do
                 TrialCountdownRemainingMs = math.max(0, tonumber(TrialMgr.CachedRemainingMs) or 0)
                 TrialCountdownSyncedAt = tick()
                 return TrialCountdownRemainingMs > 0, TrialCountdownRemainingMs
+            end
+
+            local function RefreshTrialCountdown()
+                if not (Window and Window.PremiumRequired and Library.CheckTrialStatus) then
+                    Window.TrialActive = false
+                    TrialCountdownRemainingMs = 0
+                    TrialCountdownSyncedAt = 0
+                    TrialCountdownRefreshAt = 0
+                    return false, 0
+                end
+
+                local TrialMgr = Library.TrialManager
+                if TrialMgr then
+                    TrialMgr.Cached = false
+                end
+
+                local ok, active, remainingMs = pcall(Library.CheckTrialStatus)
+                TrialCountdownRefreshAt = tick()
+
+                if ok and active and tonumber(remainingMs) and tonumber(remainingMs) > 0 then
+                    Window.TrialActive = true
+                    TrialCountdownRemainingMs = math.max(0, tonumber(remainingMs) or 0)
+                    TrialCountdownSyncedAt = tick()
+                    return true, TrialCountdownRemainingMs
+                end
+
+                Window.TrialActive = false
+                TrialCountdownRemainingMs = 0
+                TrialCountdownSyncedAt = 0
+                return false, 0
             end
 
             local function UpdateHomeLayout()
@@ -11924,15 +11969,19 @@ local Library do
                     end
 
                     local TrialMgr = Library.TrialManager
-                    local TrialVisible = Window and Window.PremiumRequired == true and TrialMgr and TrialMgr.CachedTrialActive == true
+                    local TrialVisible = Window and Window.PremiumRequired == true
                     local TrialText = nil
 
                     if TrialVisible then
-                        if TrialCountdownSyncedAt <= 0 or (tick() - TrialCountdownSyncedAt) >= 1.5 then
-                            SyncTrialCountdown()
+                        if TrialCountdownRefreshAt <= 0 or (tick() - TrialCountdownRefreshAt) >= 5 then
+                            local Active = RefreshTrialCountdown()
+                            TrialVisible = Active == true
+                        elseif TrialCountdownSyncedAt <= 0 then
+                            local Active = SyncTrialCountdown()
+                            TrialVisible = Active == true
                         end
 
-                        local RemainingMs = math.max(0, TrialCountdownRemainingMs - ((tick() - TrialCountdownSyncedAt) * 1000))
+                        local RemainingMs = math.max(0, TrialCountdownRemainingMs - math.max(0, (tick() - TrialCountdownSyncedAt) * 1000))
                         if RemainingMs > 0 then
                             TrialText = FormatTrialRemaining(RemainingMs)
                         else
