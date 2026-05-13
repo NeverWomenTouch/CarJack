@@ -49,6 +49,7 @@ local Library do
     local TweenService = cloneref(game:GetService("TweenService"))
     local MarketplaceService = cloneref(game:GetService("MarketplaceService"))
     local Lighting = cloneref(game:GetService("Lighting"))
+    local StarterGui = cloneref(game:GetService("StarterGui"))
     local TeleportService = cloneref(game:GetService("TeleportService"))
     local Stats = cloneref(game:GetService("Stats"))
 
@@ -152,7 +153,7 @@ local Library do
             CachedRemainingMs = 0,
             CachedClaimed = false,
             CachedExpired = false,
-            CachedDefaultHours = nil,
+            CachedDefaultMinutes = nil,
         },
 
         MenuKeybind = tostring(Enum.KeyCode.Z),
@@ -4081,6 +4082,32 @@ local Library do
                 return
             end
 
+            if PacketType == "trial_expire" and type(Packet.trialExpire) == "table" then
+                local TrialData = Packet.trialExpire
+                local TargetSenderId = tostring(TrialData.targetSenderId or "")
+                local TargetHwid = tostring(TrialData.targetHwid or "")
+                local LocalSenderId = tostring(LocalPlayer.UserId or "")
+                local LocalHwid = ""
+
+                pcall(function()
+                    if self.GetHwidForTrial then
+                        LocalHwid = tostring(self.GetHwidForTrial() or "")
+                    end
+                end)
+
+                if (TargetSenderId ~= "" and TargetSenderId == LocalSenderId)
+                    or (TargetHwid ~= "" and LocalHwid ~= "" and TargetHwid == LocalHwid) then
+                    task.spawn(function()
+                        pcall(function()
+                            if self.TriggerTrialExpiryFlow then
+                                self.TriggerTrialExpiryFlow(tostring(TrialData.reason or "Your free trial has ended."))
+                            end
+                        end)
+                    end)
+                end
+                return
+            end
+
             if PacketType == "update_notify" then
                 local Upd = Packet.updateNotify or {}
                 local TargetGameId = tostring(Upd.targetGameId or "")
@@ -4936,8 +4963,7 @@ local Library do
             self._ExpressWidgets = nil
         end)
     end
-
-    do -- Trial System
+    do
         local function GetHwidForTrial()
             local ok, result = pcall(function()
                 if gethwid then return gethwid() end
@@ -4969,46 +4995,57 @@ local Library do
         end
 
         local function OpenPremiumInvite()
-            local InviteCode = "Jpf9jAJWwF"
-            local InviteUrl = "https://discord.gg/" .. InviteCode
-            local HttpReq = http_request or request or (syn and syn.request) or (http and http.request)
-            local opened = false
+            local PremiumUrl = "https://express-hub.sellhub.cx/"
+            local copied = setclipboard and pcall(setclipboard, PremiumUrl)
 
-            if HttpReq then
-                opened = pcall(function()
-                    local Invite = {
-                        cmd = "INVITE_BROWSER",
-                        args = { code = InviteCode },
-                        nonce = HttpService:GenerateGUID(true)
-                    }
-                    HttpReq({
-                        Url = "http://127.0.0.1:6463/rpc?v=1",
-                        Method = "POST",
-                        Headers = {
-                            ["Content-Type"] = "application/json",
-                            ["Origin"] = "https://discord.com"
-                        },
-                        Body = HttpService:JSONEncode(Invite)
-                    })
-                end)
-            end
-
-            local copied = pcall(function()
-                if setclipboard then
-                    setclipboard(InviteUrl)
-                end
-            end)
-
-            if opened then
-                NotifyTrial("Premium Required", "Discord invite opened. Link copied to clipboard.", 5)
-            elseif copied then
-                NotifyTrial("Premium Required", "Discord link copied to clipboard.", 5)
+            if copied then
+                NotifyTrial("Premium Required", "Premium website copied to clipboard.", 5)
             else
-                NotifyTrial("Premium Required", "Join Discord: " .. InviteUrl, 7)
+                NotifyTrial("Copied!", "Premium website copied to clipboard.", 5)
             end
         end
 
-        local function ClaimTrialWithHwid(durationHours)
+        local function TriggerTrialExpiryFlow(notificationContent)
+            if Library._TrialExpiryHandling or Library._Unloaded then
+                return
+            end
+
+            Library._TrialExpiryHandling = true
+            Library._TrialExpired = true
+
+            local TrialMgr = Library.TrialManager
+            if TrialMgr then
+                TrialMgr.Cached = true
+                TrialMgr.CachedTrialActive = false
+                TrialMgr.CachedRemainingMs = 0
+                TrialMgr.CachedClaimed = true
+                TrialMgr.CachedExpired = true
+            end
+
+            pcall(function()
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Trial Ended",
+                    Text = tostring(notificationContent or "Your free trial has ended."),
+                    Duration = 5
+                })
+            end)
+
+            task.delay(0.35, function()
+                pcall(function()
+                    if getgenv().Library then
+                        getgenv().Library:Unload()
+                    elseif Library then
+                        Library:Unload()
+                    end
+                end)
+            end)
+
+            task.spawn(function()
+                pcall(ShowExpiredTrialScreen)
+            end)
+        end
+
+        local function ClaimTrialWithHwid(durationMinutes)
             local hwid = GetHwidForTrial()
             if hwid == "" then
                 return false, "Could not get HWID"
@@ -5017,7 +5054,7 @@ local Library do
             local ok, response, decoded = pcall(function()
                 local payload = HttpService:JSONEncode({
                     hwid = hwid,
-                    durationHours = durationHours,
+                    durationMinutes = durationMinutes,
                     senderId = tostring(LocalPlayer.UserId),
                     username = tostring(LocalPlayer.Name),
                     gameName = GetTrialGameName(),
@@ -5047,7 +5084,7 @@ local Library do
             if ok and decoded and decoded.ok then
                 Library.TrialManager.Cached = true
                 Library.TrialManager.CachedTrialActive = true
-                Library.TrialManager.CachedRemainingMs = decoded.remainingMs or (durationHours * 60 * 60 * 1000)
+                Library.TrialManager.CachedRemainingMs = decoded.remainingMs or (durationMinutes * 60 * 1000)
                 Library.TrialManager.CachedClaimed = true
                 Library.TrialManager.CachedExpired = false
                 pcall(UpdatePresence)
@@ -5080,7 +5117,7 @@ local Library do
             if checkOk and checkDecoded and checkDecoded.ok and checkDecoded.active then
                 Library.TrialManager.Cached = true
                 Library.TrialManager.CachedTrialActive = true
-                Library.TrialManager.CachedRemainingMs = checkDecoded.remainingMs or (durationHours * 60 * 60 * 1000)
+                Library.TrialManager.CachedRemainingMs = checkDecoded.remainingMs or (durationMinutes * 60 * 1000)
                 Library.TrialManager.CachedClaimed = true
                 Library.TrialManager.CachedExpired = false
                 pcall(UpdatePresence)
@@ -5162,11 +5199,31 @@ local Library do
             end)
         end
 
-        local function GetTrialDefaultHours()
+        local function FormatTrialDurationMinutes(durationMinutes)
+            local totalMinutes = math.max(1, math.floor(tonumber(durationMinutes) or 0))
+            local days = math.floor(totalMinutes / 1440)
+            local hours = math.floor((totalMinutes % 1440) / 60)
+            local minutes = totalMinutes % 60
+            local parts = {}
+
+            if days > 0 then
+                table.insert(parts, tostring(days) .. "D")
+            end
+            if hours > 0 then
+                table.insert(parts, tostring(hours) .. "H")
+            end
+            if minutes > 0 or #parts == 0 then
+                table.insert(parts, tostring(minutes) .. "M")
+            end
+
+            return table.concat(parts, " ")
+        end
+
+        local function GetTrialDefaultMinutes()
             local TrialMgr = Library.TrialManager
-            local cachedHours = tonumber(TrialMgr.CachedDefaultHours)
-            if cachedHours and cachedHours > 0 then
-                return math.floor(cachedHours)
+            local cachedMinutes = tonumber(TrialMgr.CachedDefaultMinutes)
+            if cachedMinutes and cachedMinutes > 0 then
+                return math.floor(cachedMinutes)
             end
 
             local ok, result = pcall(function()
@@ -5184,13 +5241,17 @@ local Library do
                 return HttpService:JSONDecode(response.Body)
             end)
 
-            local durationHours = 1
-            if ok and result and result.ok and tonumber(result.durationHours) then
-                durationHours = math.max(1, math.floor(tonumber(result.durationHours)))
+            local durationMinutes = 60
+            if ok and result and result.ok then
+                if tonumber(result.durationMinutes) then
+                    durationMinutes = math.max(1, math.floor(tonumber(result.durationMinutes)))
+                elseif tonumber(result.durationHours) then
+                    durationMinutes = math.max(1, math.floor(tonumber(result.durationHours) * 60))
+                end
             end
 
-            TrialMgr.CachedDefaultHours = durationHours
-            return durationHours
+            TrialMgr.CachedDefaultMinutes = durationMinutes
+            return durationMinutes
         end
 
         local function BuildTrialPanel(panelCfg)
@@ -5202,10 +5263,10 @@ local Library do
             end
 
             local metrics = IsMobile and {
-                pw = 420,
-                ph = 230,
+                pw = 470,
+                ph = 255,
                 headerH = 42,
-                titleW = 155,
+                titleW = 185,
                 titleX = 14,
                 badgeW = 126,
                 badgeH = 22,
@@ -5214,24 +5275,23 @@ local Library do
                 badgeR = 11,
                 badgeText = 10,
                 iconSize = 60,
-                iconX = -30,
-                iconY = 52,
+                iconY = 58,
                 bodyTitleSize = 20,
                 bodyTitleH = 28,
-                bodyTitleY = 106,
+                bodyTitleY = 112,
                 msgSize = 13,
-                msgH = 28,
-                msgY = 136,
-                sidePad = 34,
-                gap = 10,
-                btnY = 182,
-                btnH = 34,
+                msgH = 36,
+                msgY = 144,
+                sidePad = 28,
+                gap = 12,
+                btnY = 203,
+                btnH = 36,
                 btnText = 12,
             } or {
-                pw = 460,
-                ph = 250,
+                pw = 540,
+                ph = 280,
                 headerH = 56,
-                titleW = 175,
+                titleW = 205,
                 titleX = 18,
                 badgeW = 150,
                 badgeH = 26,
@@ -5240,18 +5300,17 @@ local Library do
                 badgeR = 13,
                 badgeText = 11,
                 iconSize = 82,
-                iconX = -41,
-                iconY = 54,
+                iconY = 64,
                 bodyTitleSize = 24,
                 bodyTitleH = 34,
-                bodyTitleY = 122,
+                bodyTitleY = 132,
                 msgSize = 14,
-                msgH = 34,
-                msgY = 154,
-                sidePad = 40,
+                msgH = 40,
+                msgY = 168,
+                sidePad = 34,
                 gap = 14,
-                btnY = 192,
-                btnH = 38,
+                btnY = 224,
+                btnH = 40,
                 btnText = 13,
             }
 
@@ -5266,8 +5325,9 @@ local Library do
             local Modal = Instances:Create("Frame", {
                 Parent = gui.Instance,
                 Name = "TrialModal",
+                AnchorPoint = Vector2New(0.5, 0.5),
                 Size = UDim2New(0, metrics.pw, 0, metrics.ph),
-                Position = UDim2New(0.5, -metrics.pw / 2, 0.5, -metrics.ph / 2),
+                Position = UDim2New(0.5, 0, 0.5, 24),
                 BackgroundColor3 = Library.Theme["Background"],
                 BorderSizePixel = 0,
                 ClipsDescendants = true
@@ -5327,8 +5387,9 @@ local Library do
 
             local Icon = Instances:Create("ImageLabel", {
                 Parent = Modal.Instance,
+                AnchorPoint = Vector2New(0.5, 0),
                 Size = UDim2New(0, metrics.iconSize, 0, metrics.iconSize),
-                Position = UDim2New(0.5, metrics.iconX, 0, metrics.iconY),
+                Position = UDim2New(0.5, 0, 0, metrics.iconY),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 Image = "rbxassetid://107575027768011",
@@ -5368,9 +5429,11 @@ local Library do
 
             local btns = panelCfg.buttons or {}
             local btnW = math.floor((metrics.pw - metrics.sidePad * 2 - metrics.gap * (#btns - 1)) / #btns)
+            local btnRowWidth = (btnW * #btns) + (metrics.gap * (#btns - 1))
+            local btnStartX = math.floor((metrics.pw - btnRowWidth) / 2)
 
             for i, bd in ipairs(btns) do
-                local xOff = metrics.sidePad + (i - 1) * (btnW + metrics.gap)
+                local xOff = btnStartX + (i - 1) * (btnW + metrics.gap)
                 local B = Instances:Create("TextButton", {
                     Parent = Modal.Instance,
                     Text = bd.text,
@@ -5383,15 +5446,20 @@ local Library do
                     BorderSizePixel = 0,
                     AutoButtonColor = false
                 })
+                local ButtonScale = Instances:Create("UIScale", {
+                    Parent = B.Instance
+                })
                 Instances:Create("UICorner", { Parent = B.Instance, CornerRadius = UDimNew(0, 10) })
                 if bd.stroke then
                     Instances:Create("UIStroke", { Parent = B.Instance, Color = bd.stroke, Thickness = bd.strokeThickness or 1 })
                 end
                 B.Instance.MouseEnter:Connect(function()
-                    TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.25 }):Play()
+                    TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.12 }):Play()
+                    TweenService:Create(ButtonScale.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { Scale = 1.03 }):Play()
                 end)
                 B.Instance.MouseLeave:Connect(function()
                     TweenService:Create(B.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0 }):Play()
+                    TweenService:Create(ButtonScale.Instance, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { Scale = 1 }):Play()
                 end)
                 B.Instance.MouseButton1Click:Connect(function()
                     if bd.callback then bd.callback() end
@@ -5403,21 +5471,22 @@ local Library do
             return gui, Modal, MsgLabel
         end
 
-        local function ShowTrialScreen(trialDurationHours, alreadyClaimed)
+        local function ShowTrialScreen(trialDurationMinutes, alreadyClaimed)
             local state = { Claimed = false, Closed = false }
             local Busy = false
             local gui, Modal, MsgLabel
+            local formattedTrialDuration = FormatTrialDurationMinutes(trialDurationMinutes)
 
             local trialBtnText = alreadyClaimed
                 and "Free Trial Used"
-                or ("Free Trial " .. tostring(trialDurationHours) .. "H")
+                or ("Free Trial " .. formattedTrialDuration)
 
             gui, Modal, MsgLabel = BuildTrialPanel({
                 badge = "PREMIUM REQUIRED",
                 title = "Premium required",
                 message = alreadyClaimed
                     and "You've already used your free trial.\nPurchase premium to regain access."
-                    or ("Start your <b>" .. tostring(trialDurationHours) .. " hour</b> free trial\nto get full access to this script."),
+                    or ("Start your <b>" .. formattedTrialDuration .. "</b> free trial\nto get full access to this script."),
                 buttons = {
                     {
                         text = "Exit",
@@ -5443,7 +5512,7 @@ local Library do
                             Busy = true
                             MsgLabel.Instance.Text = "Contacting server..."
                             task.spawn(function()
-                                local success = ClaimTrialWithHwid(trialDurationHours)
+                                local success = ClaimTrialWithHwid(trialDurationMinutes)
                                 if success then
                                     state.Claimed = true
                                     state.Closed = true
@@ -5477,7 +5546,6 @@ local Library do
             local state = { Closed = false }
             local Busy = false
             local gui, Modal, MsgLabel
-            local defaultHours = GetTrialDefaultHours()
 
             gui, Modal, MsgLabel = BuildTrialPanel({
                 badge = "TRIAL EXPIRED",
@@ -5523,8 +5591,20 @@ local Library do
         Library.CheckTrialStatus = CheckTrialStatus
         Library.ShowTrialModal = ShowTrialScreen
         Library.ShowTrialExpiredModal = ShowExpiredTrialScreen
-        Library.GetTrialDefaultHours = GetTrialDefaultHours
+        Library.GetTrialDefaultMinutes = GetTrialDefaultMinutes
+        Library.GetTrialDefaultHours = GetTrialDefaultMinutes
+        Library.GetHwidForTrial = GetHwidForTrial
+        Library.TriggerTrialExpiryFlow = TriggerTrialExpiryFlow
         Library._TrialExpired = false
+        Library._TrialExpiryHandling = false
+
+        task.spawn(function()
+            pcall(GetTrialDefaultMinutes)
+        end)
+
+        task.spawn(function()
+            pcall(CheckTrialStatus)
+        end)
 
         task.spawn(function()
             local presenceTick = 0
@@ -5549,22 +5629,7 @@ local Library do
                         Library.TrialManager.Cached = false
                         local ok, active, _, claimed = pcall(CheckTrialStatus)
                         if ok and claimed and (not active) then
-                            Library._TrialExpired = true
-                            pcall(function()
-                                Library:MakeNotification({
-                                    Name = "Trial Ended",
-                                    Content = "Your free trial has ended.",
-                                    Time = 5
-                                })
-                            end)
-                            task.delay(0.35, function()
-                                pcall(function()
-                                    if getgenv().Library then
-                                        getgenv().Library:Unload()
-                                    end
-                                end)
-                            end)
-                            task.spawn(ShowExpiredTrialScreen)
+                            TriggerTrialExpiryFlow("Your free trial has ended.")
                             break
                         end
                         if ok and active then
@@ -5583,25 +5648,38 @@ local Library do
     do -- Components
         Library.MakeWindow = function(self, Data)
             Data = Data or { }
-
-            -- Handle trial system for premium content
-            local PremiumRequired = Data.PremiumRequired or false
-            local TrialTime = Data.TrialTime or Library.GetTrialDefaultHours() or 1
+            local TrialApi = type(self) == "table" and self.ShowTrialModal and self or Library
+            local hasClaimedTrial
+            local TrialActive = false
+            local configuredTrialMinutes = tonumber(Data.TrialTimeMinutes)
+            if configuredTrialMinutes then
+                configuredTrialMinutes = math.max(1, math.floor(configuredTrialMinutes))
+            end
+            local configuredTrialTime = tonumber(Data.TrialTime)
+            if not configuredTrialMinutes and configuredTrialTime then
+                configuredTrialMinutes = math.max(1, math.floor(configuredTrialTime * 60))
+            end
+            local PremiumRequired = Data.PremiumRequired == true or configuredTrialMinutes ~= nil
+            local TrialTimeMinutes = configuredTrialMinutes or (TrialApi and TrialApi.GetTrialDefaultMinutes and TrialApi.GetTrialDefaultMinutes()) or 60
 
             if PremiumRequired then
-                local isTrialActive, remainingMs, hasClaimedTrial, isTrialExpired = Library.CheckTrialStatus()
-                if not isTrialActive then
+                if not TrialApi then
+                    return nil
+                end
+
+                TrialActive, _, hasClaimedTrial = TrialApi.CheckTrialStatus()
+                if not TrialActive then
                     local alreadyUsed = hasClaimedTrial == true
-                    local trialClaimed = Library.ShowTrialModal(TrialTime, alreadyUsed)
+                    local trialClaimed = TrialApi.ShowTrialModal(TrialTimeMinutes, alreadyUsed)
                     if not trialClaimed then
                         coroutine.yield(coroutine.running())
                         return nil
                     end
-                    if not (Library and Library.TrialManager) then
+                    if not TrialApi.TrialManager then
                         return nil
                     end
-                    Library.TrialManager.Cached = false
-                    isTrialActive, remainingMs = Library.CheckTrialStatus()
+                    TrialApi.TrialManager.Cached = false
+                    TrialActive = TrialApi.CheckTrialStatus()
                 end
             end
 
