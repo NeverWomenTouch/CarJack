@@ -153,6 +153,9 @@ local Library do
             CachedRemainingMs = 0,
             CachedClaimed = false,
             CachedExpired = false,
+            LastKnownTrialActive = false,
+            LastKnownRemainingMs = 0,
+            LastKnownSyncedAt = 0,
             CachedDefaultMinutes = nil,
         },
 
@@ -5020,6 +5023,9 @@ local Library do
                 TrialMgr.CachedRemainingMs = 0
                 TrialMgr.CachedClaimed = true
                 TrialMgr.CachedExpired = true
+                TrialMgr.LastKnownTrialActive = false
+                TrialMgr.LastKnownRemainingMs = 0
+                TrialMgr.LastKnownSyncedAt = 0
             end
 
             pcall(function()
@@ -5082,11 +5088,15 @@ local Library do
             end)
 
             if ok and decoded and decoded.ok then
+                local RemainingMs = decoded.remainingMs or (durationMinutes * 60 * 1000)
                 Library.TrialManager.Cached = true
                 Library.TrialManager.CachedTrialActive = true
-                Library.TrialManager.CachedRemainingMs = decoded.remainingMs or (durationMinutes * 60 * 1000)
+                Library.TrialManager.CachedRemainingMs = RemainingMs
                 Library.TrialManager.CachedClaimed = true
                 Library.TrialManager.CachedExpired = false
+                Library.TrialManager.LastKnownTrialActive = true
+                Library.TrialManager.LastKnownRemainingMs = RemainingMs
+                Library.TrialManager.LastKnownSyncedAt = tick()
                 pcall(UpdatePresence)
                 return true, "Trial claimed successfully"
             end
@@ -5115,11 +5125,15 @@ local Library do
             end)
 
             if checkOk and checkDecoded and checkDecoded.ok and checkDecoded.active then
+                local RemainingMs = checkDecoded.remainingMs or (durationMinutes * 60 * 1000)
                 Library.TrialManager.Cached = true
                 Library.TrialManager.CachedTrialActive = true
-                Library.TrialManager.CachedRemainingMs = checkDecoded.remainingMs or (durationMinutes * 60 * 1000)
+                Library.TrialManager.CachedRemainingMs = RemainingMs
                 Library.TrialManager.CachedClaimed = true
                 Library.TrialManager.CachedExpired = false
+                Library.TrialManager.LastKnownTrialActive = true
+                Library.TrialManager.LastKnownRemainingMs = RemainingMs
+                Library.TrialManager.LastKnownSyncedAt = tick()
                 pcall(UpdatePresence)
                 return true, "Trial active"
             end
@@ -5170,6 +5184,15 @@ local Library do
                 TrialMgr.CachedRemainingMs = result.remainingMs or 0
                 TrialMgr.CachedClaimed = result.claimed or false
                 TrialMgr.CachedExpired = result.expired or false
+                if (result.active or false) and tonumber(result.remainingMs) and tonumber(result.remainingMs) > 0 then
+                    TrialMgr.LastKnownTrialActive = true
+                    TrialMgr.LastKnownRemainingMs = math.max(0, tonumber(result.remainingMs) or 0)
+                    TrialMgr.LastKnownSyncedAt = tick()
+                elseif result.claimed or result.expired then
+                    TrialMgr.LastKnownTrialActive = false
+                    TrialMgr.LastKnownRemainingMs = 0
+                    TrialMgr.LastKnownSyncedAt = 0
+                end
                 pcall(UpdatePresence)
                 return result.active or false, result.remainingMs or 0, result.claimed or false, result.expired or false
             end
@@ -11861,7 +11884,22 @@ local Library do
 
             local function SyncTrialCountdown()
                 local TrialMgr = Library.TrialManager
-                if not (TrialMgr and TrialMgr.CachedTrialActive) then
+                if not TrialMgr then
+                    Window.TrialActive = false
+                    TrialCountdownRemainingMs = 0
+                    TrialCountdownSyncedAt = 0
+                    return false, 0
+                end
+
+                local RemainingMs = 0
+                if TrialMgr.CachedTrialActive and tonumber(TrialMgr.CachedRemainingMs) and tonumber(TrialMgr.CachedRemainingMs) > 0 then
+                    RemainingMs = math.max(0, tonumber(TrialMgr.CachedRemainingMs) or 0)
+                elseif TrialMgr.LastKnownTrialActive and tonumber(TrialMgr.LastKnownRemainingMs) and tonumber(TrialMgr.LastKnownRemainingMs) > 0 then
+                    local elapsedMs = math.max(0, (tick() - (tonumber(TrialMgr.LastKnownSyncedAt) or tick())) * 1000)
+                    RemainingMs = math.max(0, (tonumber(TrialMgr.LastKnownRemainingMs) or 0) - elapsedMs)
+                end
+
+                if RemainingMs <= 0 then
                     Window.TrialActive = false
                     TrialCountdownRemainingMs = 0
                     TrialCountdownSyncedAt = 0
@@ -11869,7 +11907,7 @@ local Library do
                 end
 
                 Window.TrialActive = true
-                TrialCountdownRemainingMs = math.max(0, tonumber(TrialMgr.CachedRemainingMs) or 0)
+                TrialCountdownRemainingMs = RemainingMs
                 TrialCountdownSyncedAt = tick()
                 return TrialCountdownRemainingMs > 0, TrialCountdownRemainingMs
             end
@@ -11881,6 +11919,12 @@ local Library do
                     TrialCountdownSyncedAt = 0
                     TrialCountdownRefreshAt = 0
                     return false, 0
+                end
+
+                local cachedActive, cachedRemainingMs = SyncTrialCountdown()
+                if cachedActive then
+                    TrialCountdownRefreshAt = tick()
+                    return true, cachedRemainingMs
                 end
 
                 local TrialMgr = Library.TrialManager
