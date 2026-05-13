@@ -5686,6 +5686,8 @@ local Library do
             local Window = {
                 Name = Data.Name or Data.name or "Window",
                 CloseCallback = Data.CloseCallback or Data.closecallback or function() end,
+                PremiumRequired = PremiumRequired == true,
+                TrialActive = TrialActive == true,
 
                 Pages = { },
                 Items = { },
@@ -11538,7 +11540,7 @@ local Library do
                 TextColor3 = FromRGB(255, 255, 255),
                 BorderColor3 = FromRGB(0, 0, 0),
                 Text = "Executor: " .. getexecutorname(),
-                Size = UDim2New(1, -24, 0, 18),
+                Size = UDim2New(1, -164, 0, 18),
                 AnchorPoint = Vector2New(0, 0),
                 BackgroundTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Left,
@@ -11572,7 +11574,7 @@ local Library do
                 FontFace = Library.Font,
                 TextColor3 = supportColor,
                 Text = "Some features may not work properly.",
-                Size = UDim2New(1, -42, 0, 14),
+                Size = UDim2New(1, -178, 0, 14),
                 AnchorPoint = Vector2New(0, 0),
                 Position = UDim2New(0, 30, 0, 34),
                 BackgroundTransparency = 1,
@@ -11588,6 +11590,45 @@ local Library do
             else
                 Items["IsSupportedText"].Instance.Text = "Fully supported executor."
             end
+
+            Items["TrialTimerTitle"] = Instances:Create("TextLabel", {
+                Parent = Items["ExecutorInfo"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = "TRIAL ENDS IN",
+                Size = UDim2New(0, 132, 0, 12),
+                AnchorPoint = Vector2New(1, 0),
+                Position = UDim2New(1, -12, 0, 10),
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                BorderSizePixel = 0,
+                TextTransparency = 0.35,
+                TextSize = 11,
+                Visible = false,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })  Items["TrialTimerTitle"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["TrialTimerValue"] = Instances:Create("TextLabel", {
+                Parent = Items["ExecutorInfo"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = Library.Theme.Accent,
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = "0M",
+                Size = UDim2New(0, 132, 0, 18),
+                AnchorPoint = Vector2New(1, 0),
+                Position = UDim2New(1, -12, 0, 28),
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                BorderSizePixel = 0,
+                TextSize = 16,
+                Visible = false,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })  Items["TrialTimerValue"]:AddToTheme({TextColor3 = "Accent"})
 
             Items["PerformanceInfo"] = Instances:Create("Frame", {
                 Parent = Items["HomeScroll"].Instance,
@@ -11773,6 +11814,49 @@ local Library do
                 end
             end
 
+            local function FormatTrialRemaining(remainingMs)
+                local totalSeconds = math.max(0, MathCeil((tonumber(remainingMs) or 0) / 1000))
+                local totalMinutes = math.floor(totalSeconds / 60)
+                local days = math.floor(totalMinutes / 1440)
+                local hours = math.floor((totalMinutes % 1440) / 60)
+                local minutes = totalMinutes % 60
+                local seconds = totalSeconds % 60
+                local parts = {}
+
+                if days > 0 then
+                    TableInsert(parts, tostring(days) .. "D")
+                end
+                if hours > 0 then
+                    TableInsert(parts, tostring(hours) .. "H")
+                end
+                if minutes > 0 or #parts > 0 then
+                    TableInsert(parts, tostring(minutes) .. "M")
+                end
+                if #parts == 0 then
+                    TableInsert(parts, tostring(seconds) .. "S")
+                end
+
+                return table.concat(parts, " ")
+            end
+
+            local TrialCountdownRemainingMs = 0
+            local TrialCountdownSyncedAt = 0
+
+            local function SyncTrialCountdown()
+                local TrialMgr = Library.TrialManager
+                if not (Window and Window.PremiumRequired and TrialMgr and TrialMgr.CachedTrialActive) then
+                    Window.TrialActive = false
+                    TrialCountdownRemainingMs = 0
+                    TrialCountdownSyncedAt = 0
+                    return false, 0
+                end
+
+                Window.TrialActive = true
+                TrialCountdownRemainingMs = math.max(0, tonumber(TrialMgr.CachedRemainingMs) or 0)
+                TrialCountdownSyncedAt = tick()
+                return TrialCountdownRemainingMs > 0, TrialCountdownRemainingMs
+            end
+
             local function UpdateHomeLayout()
                 local stacked = Items["SessionInfo"].Instance.AbsoluteSize.X < 560
 
@@ -11810,7 +11894,7 @@ local Library do
             end
 
             task.spawn(function()
-                local LastFPS, LastPing, LastShowFPS, LastShowPing
+                local LastFPS, LastPing, LastShowFPS, LastShowPing, LastTrialText, LastTrialVisible
 
                 while Library and Items["PerformanceInfo"] and Items["PerformanceInfo"].Instance and Items["PerformanceInfo"].Instance.Parent do
                     local ShowFPS = Library.ExpressExtraSettings and Library.ExpressExtraSettings.ShowFPS == true
@@ -11837,6 +11921,36 @@ local Library do
                             Items["PingValue"].Instance.Text = PingText
                             LastPing = PingText
                         end
+                    end
+
+                    local TrialMgr = Library.TrialManager
+                    local TrialVisible = Window and Window.PremiumRequired == true and TrialMgr and TrialMgr.CachedTrialActive == true
+                    local TrialText = nil
+
+                    if TrialVisible then
+                        if TrialCountdownSyncedAt <= 0 or (tick() - TrialCountdownSyncedAt) >= 1.5 then
+                            SyncTrialCountdown()
+                        end
+
+                        local RemainingMs = math.max(0, TrialCountdownRemainingMs - ((tick() - TrialCountdownSyncedAt) * 1000))
+                        if RemainingMs > 0 then
+                            TrialText = FormatTrialRemaining(RemainingMs)
+                        else
+                            TrialVisible = false
+                        end
+                    end
+
+                    if TrialVisible ~= LastTrialVisible then
+                        Items["TrialTimerTitle"].Instance.Visible = TrialVisible
+                        Items["TrialTimerValue"].Instance.Visible = TrialVisible
+                        LastTrialVisible = TrialVisible
+                    end
+
+                    if TrialVisible and TrialText and TrialText ~= LastTrialText then
+                        Items["TrialTimerValue"].Instance.Text = TrialText
+                        LastTrialText = TrialText
+                    elseif not TrialVisible then
+                        LastTrialText = nil
                     end
 
                     task.wait(0.2)
