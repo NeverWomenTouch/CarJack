@@ -4351,7 +4351,27 @@ local Library do
         end
 
         local function HandlePacket(Packet)
+            if type(Packet) ~= "table" then
+                return
+            end
+
             local PacketType = Packet.type
+
+            local ForwardTypes = {
+                history = true,
+                stats = true,
+                message = true,
+                delete = true,
+                typing = true,
+                chat_lock = true,
+                slow_mode = true,
+                anonymous_mode = true,
+                admin_update = true,
+            }
+
+            if ForwardTypes[PacketType] and type(self._GlobalChatPacketHandler) == "function" then
+                pcall(self._GlobalChatPacketHandler, Packet)
+            end
 
             if PacketType == "history" or PacketType == "stats" then
                 self.GlobalChat.ConnectedUsers = Packet.connectedUsers or 0
@@ -10205,6 +10225,26 @@ Library.Pages.GlobalChat = function(self, Data)
                             if PingPayload then
                                 SocketSend(BackendState.Socket, PingPayload)
                             end
+                        elseif Config and Config.HttpUrl and Config.HttpUrl ~= "" and RequestFunction then
+                            local PresencePayload = JsonEncode({
+                                clientId = BackendState.ClientId,
+                                senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId),
+                                username = Toggle.Value and "Anonymous" or GetLocalUsername(),
+                                gameName = GetLocalGameName(),
+                                placeId = game.PlaceId,
+                                joinedAt = BackendState.JoinTime,
+                                hwid = BackendState.Hwid,
+                            })
+                            if PresencePayload then
+                                DoHttpRequest({
+                                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence"),
+                                    Method = "POST",
+                                    Headers = MergeTable(GetRequestHeaders(Config), {
+                                        ["Content-Type"] = "application/json",
+                                    }),
+                                    Body = PresencePayload,
+                                })
+                            end
                         end
 
                         local Interval = tonumber(Config and Config.PresenceInterval) or 15
@@ -10875,6 +10915,9 @@ Library.Pages.GlobalChat = function(self, Data)
             function ChatSystem:DisconnectBackend()
                 BackendState.RunId = (tonumber(BackendState.RunId) or 0) + 1
                 BackendState.Destroyed = true
+                if Library._GlobalChatPacketHandler == HandlePayload then
+                    Library._GlobalChatPacketHandler = nil
+                end
                 StopPolling()
                 NotifyPresenceDisconnect()
                 DisconnectSocketListeners()
@@ -10896,6 +10939,9 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 BackendState.Destroyed = false
                 BackendState.Config = NormalizeGlobalChatConfig(Config)
+                if not IsMobile and Library._GlobalChatConnected then
+                    Library._GlobalChatPacketHandler = HandlePayload
+                end
                 BackendState.SeenMessages = { }
                 BackendState.InitialSyncComplete = false
                 BackendState.LastMessageId = 0
@@ -11118,7 +11164,7 @@ Library.Pages.GlobalChat = function(self, Data)
                     if CountdownThread then task.cancel(CountdownThread) end
                 end)
 
-                if BackendState.Config.WsUrl and WebSocketFunction then
+                if BackendState.Config.WsUrl and WebSocketFunction and not (not IsMobile and Library._GlobalChatConnected) then
                     local SocketUrl = BuildUrl(BackendState.Config.WsUrl, {
                         token = BackendState.Config.Token,
                         clientId = BackendState.ClientId,
