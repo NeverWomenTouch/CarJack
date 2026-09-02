@@ -4311,6 +4311,7 @@ local Library do
     Library.ConnectGlobalChat = function(self)
         if not WebSocketFunction then
             self._GlobalChatSocketConnected = false
+            self._GlobalChatSend = nil
             return
         end
 
@@ -5073,6 +5074,7 @@ local Library do
             end)
             Connected = false
             self._GlobalChatSocketConnected = false
+            self._GlobalChatSend = nil
             local Success, Ws = pcall(function()
                 return WebSocketFunction(BuildWsUrl())
             end)
@@ -5083,6 +5085,12 @@ local Library do
             Socket = Ws
             Connected = true
             self._GlobalChatSocketConnected = true
+            self._GlobalChatSend = function(Payload)
+                if Destroyed or not Connected or Socket ~= Ws then
+                    return false
+                end
+                return SocketSend(Ws, Payload)
+            end
             if PingThread then
                 pcall(function()
                     task.cancel(PingThread)
@@ -5123,6 +5131,7 @@ local Library do
                 Connected = false
                 Socket = nil
                 self._GlobalChatSocketConnected = false
+                self._GlobalChatSend = nil
                 ScheduleReconnect()
             end, Socket)
         end
@@ -5130,6 +5139,7 @@ local Library do
             Destroyed = true
             self._GlobalChatConnectionRunning = false
             self._GlobalChatSocketConnected = false
+            self._GlobalChatSend = nil
             Connected = false
             if PingThread then
                 pcall(function() task.cancel(PingThread) end)
@@ -10370,6 +10380,14 @@ Library.Pages.GlobalChat = function(self, Data)
                 if not Encoded then
                     SetConnectionAppearance("Encode error", FromRGB(255, 120, 120))
                     return false
+                end
+
+                local SharedSocketSend = Library._GlobalChatSend
+                if type(SharedSocketSend) == "function" then
+                    local SharedSuccess, SharedSent = pcall(SharedSocketSend, Encoded)
+                    if SharedSuccess and SharedSent then
+                        return true
+                    end
                 end
 
                 if not RequestFunction then
