@@ -4317,6 +4317,11 @@ local Library do
             return
         end
 
+        if self._GlobalChatConnectionRunning then
+            return
+        end
+        self._GlobalChatConnectionRunning = true
+
         local GC = self.GlobalChat
         local Connected = false
         local Socket = nil
@@ -4324,6 +4329,20 @@ local Library do
         local Destroyed = false
         local MessageConnection = nil
         local CloseConnection = nil
+        local ReconnectScheduled = false
+        local Connect
+
+        local function ScheduleReconnect()
+            if Destroyed or ReconnectScheduled then
+                return
+            end
+
+            ReconnectScheduled = true
+            task.delay(GC.RetryDelay, function()
+                ReconnectScheduled = false
+                Connect()
+            end)
+        end
 
         local function GetHwid()
             local ok, result = pcall(function()
@@ -5042,7 +5061,7 @@ local Library do
             end
         end
 
-        local function Connect()
+        Connect = function()
             if Destroyed then return end
 
             pcall(function()
@@ -5056,7 +5075,7 @@ local Library do
                 return WebSocketFunction(BuildWsUrl())
             end)
             if not Success or not Ws then
-                task.delay(GC.RetryDelay, Connect)
+                ScheduleReconnect()
                 return
             end
             Socket = Ws
@@ -5100,13 +5119,12 @@ local Library do
             CloseConnection = ConnectSocketSignal(Socket.OnClose or Socket.Closed, function()
                 Connected = false
                 Socket = nil
-                if not Destroyed then
-                    task.delay(GC.RetryDelay, Connect)
-                end
+                ScheduleReconnect()
             end, Socket)
         end
         TableInsert(self.CleanupCallbacks, function()
             Destroyed = true
+            self._GlobalChatConnectionRunning = false
             Connected = false
             if PingThread then
                 pcall(function() task.cancel(PingThread) end)
@@ -8857,7 +8875,10 @@ Library.Pages.GlobalChat = function(self, Data)
                 local LocalName = StringLower(GetLocalUsername())
                 local TextL = StringLower(tostring(Text))
                 if StringFind(TextL, "@" .. LocalName, 1, true) then return true end
-                if IsAdminSender(SenderIdStr) and StringFind(TextL, "@everyone", 1, true) then return true end
+                if IsAdminSender(SenderIdStr) and (
+                    StringFind(TextL, "@everyone", 1, true) ~= nil
+                    or StringFind(TextL, "@here", 1, true) ~= nil
+                ) then return true end
                 return false
             end
 
@@ -9314,6 +9335,10 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 task.defer(function()
                     while #RenderQueue > 0 do
+                        if BackendState.Destroyed then
+                            RenderQueue = {}
+                            break
+                        end
                         local Batch = math.min(RENDER_BATCH_SIZE, #RenderQueue)
                         for _ = 1, Batch do
                             local Entry = table.remove(RenderQueue, 1)
@@ -9354,7 +9379,7 @@ Library.Pages.GlobalChat = function(self, Data)
             end
 
             local function RenderIncomingMessage(MessageData, SkipUnread)
-                if type(MessageData) ~= "table" then
+                if BackendState.Destroyed or type(MessageData) ~= "table" then
                     return
                 end
 
@@ -11421,7 +11446,10 @@ Library.Pages.GlobalChat = function(self, Data)
                 local RawLower = StringLower(RawMessage)
                 local IsMentionedByName = not IsLocalPlayer and StringFind(RawLower, "@" .. LocalUserLower, 1, true) ~= nil
                 local MsgSenderIdStr = tostring(MessageMeta and MessageMeta.senderId or "")
-                local IsMentionedByEveryone = IsAdminSender(MsgSenderIdStr) and StringFind(RawLower, "@everyone", 1, true) ~= nil
+                local IsMentionedByEveryone = IsAdminSender(MsgSenderIdStr) and (
+                    StringFind(RawLower, "@everyone", 1, true) ~= nil
+                    or StringFind(RawLower, "@here", 1, true) ~= nil
+                )
                 local IsReplyToMe = not IsLocalPlayer and type(ReplyTo) == "table" and ReplyTo.id ~= nil
                     and StringLower(tostring(ReplyTo.username or "")) == LocalUserLower
                 local IsMentionHighlight = not IsExternalMessage
@@ -14100,9 +14128,11 @@ Library.Pages.GlobalChatSuggestions = function(self, Data)
             Library:Thread(function()
                 while not SuggestionDestroyed do
                     task.wait(20)
-                    pcall(function()
-                        SuggestionSystem:RefreshSuggestions()
-                    end)
+                    if not SuggestionDestroyed and SuggestionSystem.Page and SuggestionSystem.Page.Active then
+                        pcall(function()
+                            SuggestionSystem:RefreshSuggestions()
+                        end)
+                    end
                 end
             end)
 
