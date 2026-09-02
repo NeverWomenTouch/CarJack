@@ -4310,6 +4310,7 @@ local Library do
     end
     Library.ConnectGlobalChat = function(self)
         if not WebSocketFunction then
+            self._GlobalChatSocketConnected = false
             return
         end
 
@@ -5071,6 +5072,7 @@ local Library do
                 end
             end)
             Connected = false
+            self._GlobalChatSocketConnected = false
             local Success, Ws = pcall(function()
                 return WebSocketFunction(BuildWsUrl())
             end)
@@ -5080,6 +5082,7 @@ local Library do
             end
             Socket = Ws
             Connected = true
+            self._GlobalChatSocketConnected = true
             if PingThread then
                 pcall(function()
                     task.cancel(PingThread)
@@ -5119,12 +5122,14 @@ local Library do
             CloseConnection = ConnectSocketSignal(Socket.OnClose or Socket.Closed, function()
                 Connected = false
                 Socket = nil
+                self._GlobalChatSocketConnected = false
                 ScheduleReconnect()
             end, Socket)
         end
         TableInsert(self.CleanupCallbacks, function()
             Destroyed = true
             self._GlobalChatConnectionRunning = false
+            self._GlobalChatSocketConnected = false
             Connected = false
             if PingThread then
                 pcall(function() task.cancel(PingThread) end)
@@ -10245,9 +10250,9 @@ Library.Pages.GlobalChat = function(self, Data)
                 Library:Thread(function()
                     while not BackendState.Destroyed and BackendState.RunId == ActiveRunId do
                         local Config = BackendState.Config
-                        if Config and BackendState.Socket then
+                        if Config and (BackendState.Socket or Library._GlobalChatSocketConnected) then
                             local PingPayload = JsonEncode({ type = "ping" })
-                            if PingPayload then
+                            if PingPayload and BackendState.Socket then
                                 SocketSend(BackendState.Socket, PingPayload)
                             end
                         elseif Config and Config.HttpUrl and Config.HttpUrl ~= "" and RequestFunction then
@@ -10298,8 +10303,8 @@ Library.Pages.GlobalChat = function(self, Data)
                         local PollInterval = tonumber(Config and Config.PollInterval) or 3
                         local RetryDelay = tonumber(Config and Config.RetryDelay) or PollInterval
 
-                        if BackendState.Socket and BackendState.InitialSyncComplete then
-                            task.wait(math.max(1, PollInterval))
+                        if (BackendState.Socket or Library._GlobalChatSocketConnected) and BackendState.InitialSyncComplete then
+                            task.wait(math.max(5, PollInterval * 2))
                         else
                             local Ok = FetchMessages(not BackendState.InitialSyncComplete)
                             task.wait(math.max(1, Ok and PollInterval or RetryDelay))
