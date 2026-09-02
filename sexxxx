@@ -10226,17 +10226,21 @@ Library.Pages.GlobalChat = function(self, Data)
                     return
                 end
 
-                DoHttpRequest({
-                    Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence/disconnect", {
-                        clientId = BackendState.ClientId,
-                        senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
-                    }),
-                    Method = "POST",
-                    Headers = MergeTable(GetRequestHeaders(Config), {
-                        ["Content-Type"] = "application/json"
-                    }),
-                    Body = Encoded
-                })
+                task.spawn(function()
+                    pcall(function()
+                        DoHttpRequest({
+                            Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/presence/disconnect", {
+                                clientId = BackendState.ClientId,
+                                senderId = BackendState.Profile.SenderId or tostring(LocalPlayer.UserId)
+                            }),
+                            Method = "POST",
+                            Headers = MergeTable(GetRequestHeaders(Config), {
+                                ["Content-Type"] = "application/json"
+                            }),
+                            Body = Encoded
+                        })
+                    end)
+                end)
             end
 
             local function StartPresenceHeartbeat()
@@ -11038,7 +11042,11 @@ Library.Pages.GlobalChat = function(self, Data)
                     Library:Thread(function()
                         while not BackendState.Destroyed and BackendState.RunId == ActiveRunId do
                             local Cfg = BackendState.Config
-                            if Cfg and Cfg.HttpUrl and Cfg.HttpUrl ~= "" and RequestFunction then
+                            if not BackendState.Socket
+                                and not Library._GlobalChatSocketConnected
+                                and Cfg and Cfg.HttpUrl and Cfg.HttpUrl ~= ""
+                                and RequestFunction
+                            then
                                 local Ok, Body = DoHttpRequest({
                                     Url = BuildAuthorizedUrl(Cfg, Cfg.HttpUrl .. "/presence/game", {
                                         placeId = BackendState.PlaceIdFilter
