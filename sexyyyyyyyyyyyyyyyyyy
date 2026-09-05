@@ -8783,6 +8783,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 AllKnownChatters = {},
                 HasMentionUnread = false,
                 LocalEchoMessages = {},
+                RecentLocalRenders = {},
             }
 
             local OnMessagePressed = { }
@@ -9431,6 +9432,24 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 local MessageId = tonumber(MessageData.id)
                 local ClientId = tostring(MessageData.clientId or "")
+                if not MessageId and ClientId == BackendState.ClientId then
+                    local MessageText = tostring(MessageData.message or "")
+                    local ReplyId = tostring(type(MessageData.replyTo) == "table" and MessageData.replyTo.id or "")
+                    local Now = os.clock()
+                    for Index = #BackendState.RecentLocalRenders, 1, -1 do
+                        local Recent = BackendState.RecentLocalRenders[Index]
+                        if Now - Recent.time > 2 then
+                            table.remove(BackendState.RecentLocalRenders, Index)
+                        elseif Recent.message == MessageText and Recent.replyId == ReplyId then
+                            return
+                        end
+                    end
+                    TableInsert(BackendState.RecentLocalRenders, {
+                        message = MessageText,
+                        replyId = ReplyId,
+                        time = Now
+                    })
+                end
                 if MessageId and ClientId ~= "" then
                     local ReplyId = tostring(type(MessageData.replyTo) == "table" and MessageData.replyTo.id or "")
                     for Index = #BackendState.LocalEchoMessages, 1, -1 do
