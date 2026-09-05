@@ -10424,12 +10424,8 @@ Library.Pages.GlobalChat = function(self, Data)
                         local PollInterval = tonumber(Config and Config.PollInterval) or 3
                         local RetryDelay = tonumber(Config and Config.RetryDelay) or PollInterval
 
-                        if (BackendState.Socket or Library._GlobalChatSocketConnected) and BackendState.InitialSyncComplete then
-                            task.wait(math.max(5, PollInterval * 2))
-                        else
-                            local Ok = FetchMessages(not BackendState.InitialSyncComplete)
-                            task.wait(math.max(1, Ok and PollInterval or RetryDelay))
-                        end
+                        local Ok = FetchMessages(not BackendState.InitialSyncComplete)
+                        task.wait(math.max(1, Ok and PollInterval or RetryDelay))
                     end
 
                     if BackendState.RunId == ActiveRunId then
@@ -11120,7 +11116,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 BackendState.Destroyed = false
                 BackendState.ReconnectScheduled = false
                 BackendState.Config = NormalizeGlobalChatConfig(Config)
-                if not IsMobile and Library._GlobalChatConnected then
+                if not IsMobile and (Library._GlobalChatConnected or Library._GlobalChatConnectionStarting) then
                     Library._GlobalChatPacketHandler = HandlePayload
                 end
                 BackendState.SeenMessages = { }
@@ -11757,17 +11753,6 @@ Library.Pages.GlobalChat = function(self, Data)
                         ExternalTimestamp.Parent = ExternalHeader
                     end
 
-                    if IsMentionHighlight then
-                        local MentionAccent = InstanceNew("Frame")
-                        MentionAccent.Name = "\0"
-                        MentionAccent.Position = UDim2New(0, 0, 0, 4)
-                        MentionAccent.Size = UDim2New(0, 2, 1, -10)
-                        MentionAccent.BackgroundColor3 = FromRGB(210, 165, 70)
-                        MentionAccent.BorderSizePixel = 0
-                        MentionAccent.ZIndex = 4
-                        MentionAccent.Parent = BubbleItems["RealMessage"].Instance
-                    end
-
                     BubbleItems["MessageText"] = Instances:Create("TextLabel", {
                         Parent = BubbleItems["RealMessage"].Instance,
                         Name = "\0",
@@ -12321,6 +12306,38 @@ Library.Pages.GlobalChat = function(self, Data)
                     end
 
                     CreateBubble(SubItems["MessageStack"].Instance, SubItems["Message1"].Instance, SubItems["MessageStack"].Instance)
+
+                    if IsMentionHighlight then
+                        SubItems["Message1"].Instance.BackgroundColor3 = FromRGB(255, 170, 0)
+                        SubItems["Message1"].Instance.BackgroundTransparency = 0.82
+
+                        if SubItems["MentionReplyAccent"] then
+                            SubItems["MentionReplyAccent"].BackgroundColor3 = FromRGB(255, 185, 0)
+                        end
+
+                        local MentionBar = InstanceNew("Frame")
+                        MentionBar.Name = "\0"
+                        MentionBar.Position = UDim2New(0, 0, 0, 0)
+                        MentionBar.Size = UDim2New(0, 3, 0, 0)
+                        MentionBar.BackgroundColor3 = FromRGB(255, 185, 0)
+                        MentionBar.BackgroundTransparency = 0
+                        MentionBar.BorderSizePixel = 0
+                        MentionBar.ZIndex = 3
+                        MentionBar.Parent = SubItems["Message1"].Instance
+
+                        local MentionBarCorner = InstanceNew("UICorner")
+                        MentionBarCorner.CornerRadius = UDimNew(0, 2)
+                        MentionBarCorner.Parent = MentionBar
+
+                        local MentionBarConnection
+                        MentionBarConnection = SubItems["Message1"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                            MentionBar.Size = UDim2New(0, 3, 0, SubItems["Message1"].Instance.AbsoluteSize.Y)
+                            if MentionBarConnection then
+                                MentionBarConnection:Disconnect()
+                                MentionBarConnection = nil
+                            end
+                        end)
+                    end
 
                 end
 
