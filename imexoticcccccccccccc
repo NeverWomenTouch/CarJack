@@ -9006,13 +9006,22 @@ Library.Pages.GlobalChat = function(self, Data)
 
             local function UwuifyMessage(Text)
                 local Result = tostring(Text or "")
-                Result = Result:gsub("[Ss][Mm][Aa][Ll][Ll]", "smol")
-                Result = Result:gsub("[Cc][Uu][Tt][Ee]", "kawaii~")
-                Result = Result:gsub("[Ff][Ll][Uu][Ff][Ff]", "floof")
-                Result = Result:gsub("[Ll][Oo][Vv][Ee]", "luv")
-                Result = Result:gsub("[Ss][Tt][Uu][Pp][Ii][Dd]", "baka")
-                Result = Result:gsub("[Ww][Hh][Aa][Tt]", "nani")
-                Result = Result:gsub("[Mm][Ee][Oo][Ww]", "nya~")
+                Result = Result:gsub("%f[%a][Ss][Mm][Aa][Ll][Ll]%f[%A]", "smol")
+                Result = Result:gsub("%f[%a][Cc][Uu][Tt][Ee]%f[%A]", "kawaii~")
+                Result = Result:gsub("%f[%a][Ff][Ll][Uu][Ff][Ff]%f[%A]", "floof")
+                Result = Result:gsub("%f[%a][Ll][Oo][Vv][Ee]%f[%A]", "luv")
+                Result = Result:gsub("%f[%a][Ss][Tt][Uu][Pp][Ii][Dd]%f[%A]", "baka")
+                Result = Result:gsub("%f[%a][Ww][Hh][Aa][Tt]%f[%A]", "nani")
+                Result = Result:gsub("%f[%a][Mm][Ee][Oo][Ww]%f[%A]", "nya~")
+                Result = Result:gsub("%f[%a][Hh][Ee][Yy]%f[%A]", "hewwo")
+                Result = Result:gsub("%f[%a][Hh][Ee][Ll][Ll][Oo]%f[%A]", "hewwo")
+                Result = Result:gsub("%f[%a][Hh][Ii]%f[%A]", "haii")
+                Result = Result:gsub("%f[%a][Ww][Ss][Pp]%f[%A]", "wusup")
+                Result = Result:gsub("%f[%a][Ss][Uu][Pp]%f[%A]", "wusup")
+                Result = Result:gsub("%f[%a][Bb][Rr][Oo]%f[%A]", "bwoto")
+                Result = Result:gsub("%f[%a][Bb][Rr][Uu][Hh]%f[%A]", "bwuh")
+                Result = Result:gsub("%f[%a][Ll][Oo][Ll]%f[%A]", "hewp")
+                Result = Result:gsub("%f[%a][Ll][Mm][Aa][Oo]%f[%A]", "hewp")
                 Result = Result:gsub("([%s])([Nn])", "%1ny")
                 Result = Result:gsub("([A-Za-z])", function(Character)
                     local Lower = Character:lower()
@@ -9024,6 +9033,9 @@ Library.Pages.GlobalChat = function(self, Data)
                 Result = Result:gsub("([%s])([a-z]+)([^a-z]|$)", function(Whitespace, Word, Terminator)
                     return Whitespace .. Word:sub(1, 1) .. "-" .. Word .. Terminator
                 end)
+                if Result:match("%S") and not Result:match("[,.!][%s]?$") then
+                    Result = Result .. " OwO"
+                end
                 return Result
             end
 
@@ -10702,6 +10714,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 local IsLocal = Data and Data.isLocal
                 local AdminLocal = IsLocalAdmin()
                 local TargetIsAdmin = Data and IsAdminSender(Data.senderId)
+                local TargetIsActive = Data and BackendState.ActiveChatters[tostring(Data.senderId)] ~= nil
 
                 Items["CtxReply"].Instance.Visible = true
                 Items["CtxDelete"].Instance.Visible = (IsLocal or AdminLocal) and true or false
@@ -10725,7 +10738,7 @@ Library.Pages.GlobalChat = function(self, Data)
                     end
                 end
                 if Items["CtxKick"] then
-                    Items["CtxKick"].Instance.Visible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "") and true or false
+                    Items["CtxKick"].Instance.Visible = AdminLocal and not IsLocal and TargetIsActive and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "") and true or false
                 end
 
                 local ChatAbsPos = Items["GlobalChat"].Instance.AbsolutePosition
@@ -10740,7 +10753,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 local DeleteVisible = IsLocal or AdminLocal
                 local TimeoutVisible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "")
                 local UwulockVisible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "")
-                local KickVisible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "")
+                local KickVisible = AdminLocal and not IsLocal and TargetIsActive and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "")
                 local MenuH = 60 + (DeleteVisible and 30 or 0) + (TimeoutVisible and 30 or 0) + (UwulockVisible and 30 or 0) + (KickVisible and 30 or 0)
                 if LocalX + MenuW > ChatAbsSize.X - 4 then
                     LocalX = ChatAbsSize.X - MenuW - 4
