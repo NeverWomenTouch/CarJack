@@ -10855,7 +10855,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 local Config = BackendState.Config
                 if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then return end
                 Library:Thread(function()
-                    DoHttpRequest({
+                    local Success = DoHttpRequest({
                         Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/admin/game-kick"),
                         Method = "POST",
                         Headers = MergeTable(GetRequestHeaders(Config), { ["Content-Type"] = "application/json" }),
@@ -10866,6 +10866,12 @@ Library.Pages.GlobalChat = function(self, Data)
                             reason = tostring(Reason or "")
                         })
                     })
+                    if Success then
+                        BackendState.ActiveChatters[tostring(Data.senderId)] = nil
+                        if ActiveContextMenuData and tostring(ActiveContextMenuData.senderId) == tostring(Data.senderId) then
+                            HideContextMenu()
+                        end
+                    end
                 end)
             end
 
