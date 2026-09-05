@@ -426,8 +426,12 @@ local Library do
             return Signal:Connect(Callback)
         end
 
-        if type(Signal) == "table" and type(Signal.Connect) == "function" then
-            return Signal:Connect(Callback)
+        local ConnectMethod = Signal and Signal.Connect
+        if type(ConnectMethod) == "function" then
+            local Success, Result = pcall(ConnectMethod, Signal, Callback)
+            if Success then
+                return Result
+            end
         end
 
         if type(Signal) == "function" then
