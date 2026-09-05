@@ -8739,6 +8739,8 @@ Library.Pages.GlobalChat = function(self, Data)
                 RunId = 0,
                 Socket = nil,
                 SocketConnections = { },
+                ReconnectScheduled = false,
+                ReconnectAttempt = 0,
                 ReplyingTo = nil,
                 MessageFramesById = { },
                 RenderedMessageOrder = { },
@@ -8760,6 +8762,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 MessageBottomDistance = 0,
                 PendingBottomScrollId = 0,
                 Hwid = "",
+                ActiveChatters = {},
                 RecentChatters = {},
                 AllKnownChatters = {},
                 HasMentionUnread = false,
@@ -8886,13 +8889,24 @@ Library.Pages.GlobalChat = function(self, Data)
                 end
             end
 
+            local function TextMentionsUsername(Text, Username)
+                local Target = StringLower(tostring(Username or ""))
+                if Target == "" then return false end
+                for MentionedName in tostring(Text or ""):gmatch("@([%w_]+)") do
+                    if StringLower(MentionedName) == Target then
+                        return true
+                    end
+                end
+                return false
+            end
+
             local function MessageMentionsLocalUser(Text, SenderIdStr)
                 local LocalName = StringLower(GetLocalUsername())
                 local TextL = StringLower(tostring(Text))
-                if StringFind(TextL, "@" .. LocalName, 1, true) then return true end
+                if TextMentionsUsername(TextL, LocalName) then return true end
                 if IsAdminSender(SenderIdStr) and (
-                    StringFind(TextL, "@everyone", 1, true) ~= nil
-                    or StringFind(TextL, "@here", 1, true) ~= nil
+                    TextMentionsUsername(TextL, "everyone")
+                    or TextMentionsUsername(TextL, "here")
                 ) then return true end
                 return false
             end
@@ -9398,6 +9412,11 @@ Library.Pages.GlobalChat = function(self, Data)
                     return
                 end
 
+                local MessageId = tonumber(MessageData.id)
+                if MessageId and BackendState.ProcessedDeletes[MessageId] then
+                    return
+                end
+
                 if BackendState.PlaceIdFilter and tonumber(MessageData.placeId) ~= BackendState.PlaceIdFilter then
                     return
                 end
@@ -9424,6 +9443,30 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 if Payload.typingUsers ~= nil then
                     ShowTyping(Payload.typingUsers)
+                end
+
+                if type(Payload.presenceUsers) == "table" then
+                    BackendState.ActiveChatters = {}
+                    for _, User in Payload.presenceUsers do
+                        if type(User) == "table" and tostring(User.senderId or "") ~= "" and tostring(User.username or "") ~= "" then
+                            local SenderId = tostring(User.senderId)
+                            local Known = BackendState.AllKnownChatters[SenderId]
+                            BackendState.ActiveChatters[SenderId] = {
+                                username = tostring(User.username),
+                                senderId = SenderId,
+                                avatar = tostring((Known and Known.avatar) or "")
+                            }
+                        end
+                    end
+                end
+
+                if Payload.type == "message_delete" then
+                    local NumId = tonumber(Payload.messageId)
+                    if NumId and not BackendState.ProcessedDeletes[NumId] then
+                        BackendState.ProcessedDeletes[NumId] = true
+                        ChatSystem:DeleteRenderedMessage(NumId)
+                    end
+                    return
                 end
 
                 if type(Payload.deletedIds) == "table" then
@@ -10217,6 +10260,37 @@ Library.Pages.GlobalChat = function(self, Data)
                 BackendState.SocketConnections = { }
             end
 
+            local function ScheduleBackendReconnect()
+                if BackendState.Destroyed or BackendState.ReconnectScheduled then
+                    return
+                end
+
+                local Config = BackendState.Config
+                if not Config or not Config.WsUrl or not WebSocketFunction then
+                    return
+                end
+
+                BackendState.ReconnectScheduled = true
+                BackendState.ReconnectAttempt = (tonumber(BackendState.ReconnectAttempt) or 0) + 1
+                local Attempt = BackendState.ReconnectAttempt
+                local Delay = math.min(30, math.max(2, (tonumber(Config.RetryDelay) or 5) * math.min(Attempt, 4)))
+                SetConnectionAppearance("Reconnecting...", FromRGB(255, 209, 102))
+
+                task.delay(Delay, function()
+                    BackendState.ReconnectScheduled = false
+                    if BackendState.Destroyed or BackendState.Socket then
+                        return
+                    end
+
+                    local ActiveConfig = BackendState.Config
+                    if not ActiveConfig then
+                        return
+                    end
+
+                    ChatSystem:ConnectBackend(ActiveConfig)
+                end)
+            end
+
             local function StopPolling()
                 BackendState.Polling = false
             end
@@ -10556,6 +10630,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 if Data then
                     SetReplyingTo({
                         id = Data.id,
+                        senderId = Data.senderId,
                         username = Data.username,
                         message = Data.message,
                         avatar = Data.avatar
@@ -10967,6 +11042,8 @@ Library.Pages.GlobalChat = function(self, Data)
             function ChatSystem:DisconnectBackend()
                 BackendState.RunId = (tonumber(BackendState.RunId) or 0) + 1
                 BackendState.Destroyed = true
+                BackendState.ReconnectScheduled = false
+                BackendState.ReconnectAttempt = 0
                 if Library._GlobalChatPacketHandler == HandlePayload then
                     Library._GlobalChatPacketHandler = nil
                 end
@@ -10990,6 +11067,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 end
 
                 BackendState.Destroyed = false
+                BackendState.ReconnectScheduled = false
                 BackendState.Config = NormalizeGlobalChatConfig(Config)
                 if not IsMobile and Library._GlobalChatConnected then
                     Library._GlobalChatPacketHandler = HandlePayload
@@ -11242,6 +11320,7 @@ Library.Pages.GlobalChat = function(self, Data)
 
                     if Success and Socket then
                         BackendState.Socket = Socket
+                        BackendState.ReconnectAttempt = 0
 
                         local MessageConnection = ConnectSocketSignal(Socket.OnMessage or Socket.MessageReceived, function(Message)
                             pcall(function()
@@ -11253,6 +11332,7 @@ Library.Pages.GlobalChat = function(self, Data)
                             BackendState.Socket = nil
                             SetConnectionAppearance("Disconnected", FromRGB(255, 120, 120))
                             DisconnectSocketListeners()
+                            ScheduleBackendReconnect()
                         end)
 
                         if MessageConnection then
@@ -11479,14 +11559,16 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 local LocalUserLower = StringLower(GetLocalUsername())
                 local RawLower = StringLower(RawMessage)
-                local IsMentionedByName = not IsLocalPlayer and StringFind(RawLower, "@" .. LocalUserLower, 1, true) ~= nil
+                local IsMentionedByName = not IsLocalPlayer and TextMentionsUsername(RawLower, LocalUserLower)
                 local MsgSenderIdStr = tostring(MessageMeta and MessageMeta.senderId or "")
                 local IsMentionedByEveryone = IsAdminSender(MsgSenderIdStr) and (
-                    StringFind(RawLower, "@everyone", 1, true) ~= nil
-                    or StringFind(RawLower, "@here", 1, true) ~= nil
+                    TextMentionsUsername(RawLower, "everyone")
+                    or TextMentionsUsername(RawLower, "here")
                 )
+                local ReplySenderId = tostring(type(ReplyTo) == "table" and ReplyTo.senderId or "")
                 local IsReplyToMe = not IsLocalPlayer and type(ReplyTo) == "table" and ReplyTo.id ~= nil
-                    and StringLower(tostring(ReplyTo.username or "")) == LocalUserLower
+                    and ((ReplySenderId ~= "" and ReplySenderId == tostring(LocalPlayer.UserId))
+                        or (ReplySenderId == "" and StringLower(tostring(ReplyTo.username or "")) == LocalUserLower))
                 local IsMentionHighlight = not IsExternalMessage
                     and (IsMentionedByName or IsMentionedByEveryone or IsReplyToMe)
 
@@ -11553,8 +11635,8 @@ Library.Pages.GlobalChat = function(self, Data)
                         Size = IsExternalMessage and UDim2New(1, -28, 0, 0) or UDim2New(0, 0, 0, 0),
                         AnchorPoint = IsExternalMessage and Vector2New(0.5, 0) or Vector2New(0, 0),
                         Position = IsExternalMessage and UDim2New(0.5, 0, 0, 0) or UDim2New(0, 0, 0, 0),
-                        BackgroundColor3 = IsExternalMessage and FromRGB(92, 70, 0) or FromRGB(17, 16, 20),
-                        BackgroundTransparency = IsExternalMessage and 0.1 or 1,
+                        BackgroundColor3 = IsExternalMessage and FromRGB(92, 70, 0) or (IsMentionHighlight and FromRGB(62, 53, 31) or FromRGB(17, 16, 20)),
+                        BackgroundTransparency = IsExternalMessage and 0.1 or (IsMentionHighlight and 0.08 or 1),
                         ClipsDescendants = false
                     })
                     if not IsExternalMessage then
@@ -11622,6 +11704,17 @@ Library.Pages.GlobalChat = function(self, Data)
                         ExternalTimestamp.TextXAlignment = Enum.TextXAlignment.Center
                         ExternalTimestamp.LayoutOrder = 2
                         ExternalTimestamp.Parent = ExternalHeader
+                    end
+
+                    if IsMentionHighlight then
+                        local MentionAccent = InstanceNew("Frame")
+                        MentionAccent.Name = "\0"
+                        MentionAccent.Position = UDim2New(0, 0, 0, 4)
+                        MentionAccent.Size = UDim2New(0, 3, 1, -8)
+                        MentionAccent.BackgroundColor3 = FromRGB(240, 178, 55)
+                        MentionAccent.BorderSizePixel = 0
+                        MentionAccent.ZIndex = 4
+                        MentionAccent.Parent = BubbleItems["RealMessage"].Instance
                     end
 
                     BubbleItems["MessageText"] = Instances:Create("TextLabel", {
@@ -11702,6 +11795,7 @@ Library.Pages.GlobalChat = function(self, Data)
                             HideContextMenu()
                             SetReplyingTo({
                                 id = MessageIdNum,
+                                senderId = MsgSenderIdStr,
                                 username = Username,
                                 message = RawMessage,
                                 avatar = Avatar
@@ -11853,7 +11947,7 @@ Library.Pages.GlobalChat = function(self, Data)
                         end
                     end)
                     if not IsLocalPlayer and not ShouldHideIdentity then
-                        UpdateRecentChatters(Username, SenderKey, Avatar)
+                        UpdateRecentChatters(Username, MessageMeta and MessageMeta.senderId, Avatar)
                     end
                     return
                 end
@@ -12177,35 +12271,6 @@ Library.Pages.GlobalChat = function(self, Data)
 
                     CreateBubble(SubItems["MessageStack"].Instance, SubItems["Message1"].Instance, SubItems["MessageStack"].Instance)
 
-                    if IsMentionHighlight then
-                        SubItems["Message1"].Instance.BackgroundColor3 = FromRGB(255, 170, 0)
-                        SubItems["Message1"].Instance.BackgroundTransparency = 0.82
-
-                        if SubItems["MentionReplyAccent"] then
-                            SubItems["MentionReplyAccent"].BackgroundColor3 = FromRGB(255, 185, 0)
-                        end
-
-                        local MentionBar = InstanceNew("Frame")
-                        MentionBar.Name = "\0"
-                        MentionBar.AnchorPoint = Vector2New(0, 0)
-                        MentionBar.Position = UDim2New(0, 0, 0, 0)
-                        MentionBar.Size = UDim2New(0, 3, 0, 0)
-                        MentionBar.BackgroundColor3 = FromRGB(255, 185, 0)
-                        MentionBar.BackgroundTransparency = 0
-                        MentionBar.BorderSizePixel = 0
-                        MentionBar.ZIndex = 3
-                        MentionBar.Parent = SubItems["Message1"].Instance
-
-                        local MentionBarCorner = InstanceNew("UICorner")
-                        MentionBarCorner.CornerRadius = UDimNew(0, 2)
-                        MentionBarCorner.Parent = MentionBar
-
-                        local Conn
-                        Conn = SubItems["Message1"].Instance:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                            MentionBar.Size = UDim2New(0, 3, 0, SubItems["Message1"].Instance.AbsoluteSize.Y)
-                            Conn:Disconnect()
-                        end)
-                    end
                 end
 
                 task.defer(function()
@@ -12217,7 +12282,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 end)
 
                 if not IsLocalPlayer and not ShouldHideIdentity then
-                    UpdateRecentChatters(Username, SenderKey, Avatar)
+                    UpdateRecentChatters(Username, MessageMeta and MessageMeta.senderId, Avatar)
                 end
 
                 BackendState.LastRenderedGroup = {
@@ -12462,7 +12527,7 @@ Library.Pages.GlobalChat = function(self, Data)
                             Row.Button.Visible = true
                             if Sug.isEveryone then
                                 Row.Avatar.Image = "rbxassetid://4254642440"
-                                Row.Name.Text = "@everyone"
+                                Row.Name.Text = "@" .. tostring(Sug.username)
                                 Row.Name.TextColor3 = FromRGB(255, 200, 50)
                             else
                                 Row.Avatar.Image = tostring(Sug.avatar or "")
@@ -12497,36 +12562,25 @@ Library.Pages.GlobalChat = function(self, Data)
                     local Suggestions = {}
                     local QueryLower = StringLower(Query)
 
-                    if IsLocalAdmin()
-                        and #QueryLower >= 1
-                        and StringFind("everyone", QueryLower, 1, true) == 1
-                    then
-                        TableInsert(Suggestions, {
-                            username = "everyone", senderId = "everyone",
-                            avatar = "", isEveryone = true
-                        })
+                    if IsLocalAdmin() and #QueryLower >= 1 then
+                        for _, SpecialName in { "everyone", "here" } do
+                            if #Suggestions >= 6 then break end
+                            if StringFind(SpecialName, QueryLower, 1, true) == 1 then
+                                TableInsert(Suggestions, {
+                                    username = SpecialName, senderId = SpecialName,
+                                    avatar = "", isEveryone = true
+                                })
+                            end
+                        end
                     end
 
                     local Seen = {}
-                    for _, Chatter in BackendState.RecentChatters do
+                    for _, Chatter in BackendState.ActiveChatters do
                         if #Suggestions >= 6 then break end
                         local UserLower = StringLower(Chatter.username)
                         if QueryLower == "" or StringFind(UserLower, QueryLower, 1, true) == 1 then
                             TableInsert(Suggestions, Chatter)
                             Seen[Chatter.senderId] = true
-                        end
-                    end
-
-                    if #QueryLower >= 1 then
-                        for Sid, Chatter in BackendState.AllKnownChatters do
-                            if #Suggestions >= 6 then break end
-                            if not Seen[Sid] then
-                                local UserLower = StringLower(Chatter.username)
-                                if StringFind(UserLower, QueryLower, 1, true) == 1 then
-                                    TableInsert(Suggestions, Chatter)
-                                    Seen[Sid] = true
-                                end
-                            end
                         end
                     end
 
