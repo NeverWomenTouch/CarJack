@@ -8789,6 +8789,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 HasMentionUnread = false,
                 LocalEchoMessages = {},
                 RecentLocalRenders = {},
+                RenderedLocalMessageIds = {},
             }
 
             local OnMessagePressed = { }
@@ -9445,6 +9446,12 @@ Library.Pages.GlobalChat = function(self, Data)
                 local IsLocalClientMessage = ClientId ~= "" and ClientId == BackendState.ClientId
                 if IsLocalClientMessage then
                     local LocalMessageId = tostring(MessageData.clientMessageId or "")
+                    if LocalMessageId ~= "" then
+                        if BackendState.RenderedLocalMessageIds[LocalMessageId] then
+                            return
+                        end
+                        BackendState.RenderedLocalMessageIds[LocalMessageId] = true
+                    end
                     local MessageText = tostring(MessageData.message or "")
                     local ReplyId = tostring(type(MessageData.replyTo) == "table" and MessageData.replyTo.id or "")
                     local Now = os.clock()
