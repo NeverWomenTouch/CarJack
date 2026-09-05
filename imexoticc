@@ -4348,7 +4348,10 @@ local Library do
             ReconnectScheduled = true
             task.delay(GC.RetryDelay, function()
                 ReconnectScheduled = false
-                Connect()
+                local Success = pcall(Connect)
+                if not Success then
+                    ScheduleReconnect()
+                end
             end)
         end
 
@@ -5141,13 +5144,15 @@ local Library do
             end, Socket)
 
             CloseConnection = ConnectSocketSignal(Socket.OnClose or Socket.Closed, function()
-                Connected = false
-                Socket = nil
-                self._GlobalChatConnectionStarting = false
-                self._GlobalChatConnected = false
-                self._GlobalChatSocketConnected = false
-                self._GlobalChatSend = nil
-                ScheduleReconnect()
+                pcall(function()
+                    Connected = false
+                    Socket = nil
+                    self._GlobalChatConnectionStarting = false
+                    self._GlobalChatConnected = false
+                    self._GlobalChatSocketConnected = false
+                    self._GlobalChatSend = nil
+                    ScheduleReconnect()
+                end)
             end, Socket)
         end
         TableInsert(self.CleanupCallbacks, function()
@@ -10368,7 +10373,11 @@ Library.Pages.GlobalChat = function(self, Data)
                         return
                     end
 
-                    ChatSystem:ConnectBackend(ActiveConfig)
+                        local Success = pcall(ChatSystem.ConnectBackend, ChatSystem, ActiveConfig)
+                        if not Success then
+                            BackendState.ReconnectScheduled = false
+                            ScheduleBackendReconnect()
+                        end
                 end)
             end
 
@@ -11434,10 +11443,12 @@ Library.Pages.GlobalChat = function(self, Data)
                         end)
 
                         local CloseConnection = ConnectSocketSignal(Socket.OnClose or Socket.Closed, function()
-                            BackendState.Socket = nil
-                            SetConnectionAppearance("Connection lost", FromRGB(255, 120, 120))
-                            DisconnectSocketListeners()
-                            ScheduleBackendReconnect()
+                            pcall(function()
+                                BackendState.Socket = nil
+                                SetConnectionAppearance("Connection lost", FromRGB(255, 120, 120))
+                                DisconnectSocketListeners()
+                                ScheduleBackendReconnect()
+                            end)
                         end)
 
                         if MessageConnection then
