@@ -10310,9 +10310,13 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 if type(Payload.messages) == "table" then
                     local SkipUnread = not BackendState.InitialSyncComplete
+                    local IsReconnectHistory = Payload.type == "history" and BackendState.InitialSyncComplete
 
                     for _, Value in Payload.messages do
-                        RenderIncomingMessage(Value, SkipUnread)
+                        local ValueId = type(Value) == "table" and tonumber(Value.id) or nil
+                        if not IsReconnectHistory or (ValueId and ValueId > BackendState.LastMessageId) then
+                            RenderIncomingMessage(Value, SkipUnread)
+                        end
                     end
 
                     BackendState.InitialSyncComplete = true
@@ -11194,7 +11198,7 @@ Library.Pages.GlobalChat = function(self, Data)
                     Library._GlobalChatPacketHandler = HandlePayload
                 end
                 BackendState.SeenMessages = IsReconnect and BackendState.SeenMessages or { }
-                BackendState.InitialSyncComplete = false
+                BackendState.InitialSyncComplete = IsReconnect == true
                 BackendState.LastMessageId = IsReconnect and BackendState.LastMessageId or 0
                 BackendState.LastRenderedGroup = nil
                 BackendState.JoinTime = IsReconnect and BackendState.JoinTime or (os.time() * 1000)
@@ -11286,7 +11290,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 end
 
                 task.spawn(function()
-                    if not BackendState.Destroyed then
+                    if not BackendState.Destroyed and not IsReconnect then
                         FetchInitialHistory()
                     end
                 end)
