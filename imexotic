@@ -9432,23 +9432,52 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 local MessageId = tonumber(MessageData.id)
                 local ClientId = tostring(MessageData.clientId or "")
-                if not MessageId and ClientId == BackendState.ClientId then
+                local IsLocalClientMessage = ClientId ~= "" and ClientId == BackendState.ClientId
+                if IsLocalClientMessage then
+                    local LocalMessageId = tostring(MessageData.clientMessageId or "")
                     local MessageText = tostring(MessageData.message or "")
                     local ReplyId = tostring(type(MessageData.replyTo) == "table" and MessageData.replyTo.id or "")
                     local Now = os.clock()
+                    local HasRecentRender = false
                     for Index = #BackendState.RecentLocalRenders, 1, -1 do
                         local Recent = BackendState.RecentLocalRenders[Index]
                         if Now - Recent.time > 2 then
                             table.remove(BackendState.RecentLocalRenders, Index)
-                        elseif Recent.message == MessageText and Recent.replyId == ReplyId then
+                        elseif (LocalMessageId ~= "" and Recent.clientMessageId == LocalMessageId)
+                            or (LocalMessageId == "" and Recent.message == MessageText and Recent.replyId == ReplyId) then
+                            HasRecentRender = true
+                            break
+                        end
+                    end
+                    if HasRecentRender and not MessageId then
+                        return
+                    end
+
+                    if MessageId then
+                        for Index = #BackendState.LocalEchoMessages, 1, -1 do
+                            local Pending = BackendState.LocalEchoMessages[Index]
+                            if (LocalMessageId ~= "" and Pending.clientMessageId == LocalMessageId)
+                                or (LocalMessageId == "" and Pending.clientId == ClientId
+                                    and Pending.message == MessageText
+                                    and Pending.replyId == ReplyId) then
+                                table.remove(BackendState.LocalEchoMessages, Index)
+                                break
+                            end
+                        end
+
+                        if HasRecentRender then
                             return
                         end
                     end
-                    TableInsert(BackendState.RecentLocalRenders, {
-                        message = MessageText,
-                        replyId = ReplyId,
-                        time = Now
-                    })
+
+                    if not HasRecentRender then
+                        TableInsert(BackendState.RecentLocalRenders, {
+                            clientMessageId = LocalMessageId,
+                            message = MessageText,
+                            replyId = ReplyId,
+                            time = Now
+                        })
+                    end
                 end
                 if MessageId and ClientId ~= "" then
                     local ReplyId = tostring(type(MessageData.replyTo) == "table" and MessageData.replyTo.id or "")
@@ -10443,6 +10472,12 @@ Library.Pages.GlobalChat = function(self, Data)
                         local PollInterval = tonumber(Config and Config.PollInterval) or 3
                         local RetryDelay = tonumber(Config and Config.RetryDelay) or PollInterval
 
+                        if not BackendState.Socket
+                            and not Library._GlobalChatSocketConnected
+                            and WebSocketFunction then
+                            SetConnectionAppearance("Reconnecting...", FromRGB(255, 209, 102))
+                        end
+
                         local Ok = FetchMessages(not BackendState.InitialSyncComplete)
                         task.wait(math.max(1, Ok and PollInterval or RetryDelay))
                     end
@@ -10485,6 +10520,7 @@ Library.Pages.GlobalChat = function(self, Data)
                     clientId = BackendState.ClientId,
                     anonymous = Toggle.Value,
                     replyTo = ReplyTo or nil,
+                    clientMessageId = HttpService:GenerateGUID(false),
                     gameName = GetLocalGameName(),
                     placeId = game.PlaceId,
                     joinedAt = BackendState.JoinTime
@@ -10494,6 +10530,7 @@ Library.Pages.GlobalChat = function(self, Data)
                     local Encoded = JsonEncode(Payload)
                     if Encoded and SocketSend(BackendState.Socket, Encoded) then
                         TableInsert(BackendState.LocalEchoMessages, {
+                            clientMessageId = Payload.clientMessageId,
                             clientId = Payload.clientId,
                             message = Payload.message,
                             replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
@@ -10515,6 +10552,7 @@ Library.Pages.GlobalChat = function(self, Data)
                     local SharedSuccess, SharedSent = pcall(SharedSocketSend, Encoded)
                     if SharedSuccess and (SharedSent == nil or SharedSent == true) then
                         TableInsert(BackendState.LocalEchoMessages, {
+                            clientMessageId = Payload.clientMessageId,
                             clientId = Payload.clientId,
                             message = Payload.message,
                             replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
@@ -10553,6 +10591,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 end
 
                 TableInsert(BackendState.LocalEchoMessages, {
+                    clientMessageId = Payload.clientMessageId,
                     clientId = Payload.clientId,
                     message = Payload.message,
                     replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
@@ -11396,7 +11435,7 @@ Library.Pages.GlobalChat = function(self, Data)
 
                         local CloseConnection = ConnectSocketSignal(Socket.OnClose or Socket.Closed, function()
                             BackendState.Socket = nil
-                            SetConnectionAppearance("Disconnected", FromRGB(255, 120, 120))
+                            SetConnectionAppearance("Connection lost", FromRGB(255, 120, 120))
                             DisconnectSocketListeners()
                             ScheduleBackendReconnect()
                         end)
@@ -11417,6 +11456,9 @@ Library.Pages.GlobalChat = function(self, Data)
                         SetConnectionAppearance("Socket connected", FromRGB(73, 255, 109))
                         return true
                     end
+
+                    SetConnectionAppearance("Connection lost", FromRGB(255, 120, 120))
+                    ScheduleBackendReconnect()
                 end
 
                 StartPolling()
