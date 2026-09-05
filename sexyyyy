@@ -4310,6 +4310,8 @@ local Library do
     end
     Library.ConnectGlobalChat = function(self)
         if not WebSocketFunction then
+            self._GlobalChatConnected = false
+            self._GlobalChatConnectionStarting = false
             self._GlobalChatSocketConnected = false
             self._GlobalChatSend = nil
             return
@@ -4383,6 +4385,10 @@ local Library do
                 stats = true,
                 message = true,
                 delete = true,
+                message_delete = true,
+                poll_start = true,
+                poll_update = true,
+                poll_end = true,
                 typing = true,
                 chat_lock = true,
                 slow_mode = true,
@@ -5079,11 +5085,14 @@ local Library do
                 return WebSocketFunction(BuildWsUrl())
             end)
             if not Success or not Ws then
+                self._GlobalChatConnectionStarting = false
                 ScheduleReconnect()
                 return
             end
             Socket = Ws
             Connected = true
+            self._GlobalChatConnectionStarting = false
+            self._GlobalChatConnected = true
             self._GlobalChatSocketConnected = true
             self._GlobalChatSend = function(Payload)
                 if Destroyed or not Connected or Socket ~= Ws then
@@ -5130,6 +5139,8 @@ local Library do
             CloseConnection = ConnectSocketSignal(Socket.OnClose or Socket.Closed, function()
                 Connected = false
                 Socket = nil
+                self._GlobalChatConnectionStarting = false
+                self._GlobalChatConnected = false
                 self._GlobalChatSocketConnected = false
                 self._GlobalChatSend = nil
                 ScheduleReconnect()
@@ -5138,6 +5149,7 @@ local Library do
         TableInsert(self.CleanupCallbacks, function()
             Destroyed = true
             self._GlobalChatConnectionRunning = false
+            self._GlobalChatConnectionStarting = false
             self._GlobalChatSocketConnected = false
             self._GlobalChatSend = nil
             Connected = false
@@ -6438,7 +6450,7 @@ local Library do
             end
 
             if not IsMobile and Library.GlobalChat and Library.GlobalChat.AutoConnect and not Library._GlobalChatConnected then
-                Library._GlobalChatConnected = true
+                Library._GlobalChatConnectionStarting = true
                 task.defer(function()
                     local Success = pcall(function()
                         Library:ConnectGlobalChat()
@@ -9451,10 +9463,13 @@ Library.Pages.GlobalChat = function(self, Data)
                         if type(User) == "table" and tostring(User.senderId or "") ~= "" and tostring(User.username or "") ~= "" then
                             local SenderId = tostring(User.senderId)
                             local Known = BackendState.AllKnownChatters[SenderId]
+                            local CachedAvatar = tostring((Known and Known.avatar) or "")
                             BackendState.ActiveChatters[SenderId] = {
                                 username = tostring(User.username),
                                 senderId = SenderId,
-                                avatar = tostring((Known and Known.avatar) or "")
+                                avatar = CachedAvatar ~= ""
+                                    and CachedAvatar
+                                    or ("https://www.roblox.com/headshot-thumbnail/image?userId=" .. SenderId .. "&width=420&height=420&format=png")
                             }
                         end
                     end
@@ -11302,7 +11317,7 @@ Library.Pages.GlobalChat = function(self, Data)
                     if CountdownThread then task.cancel(CountdownThread) end
                 end)
 
-                if BackendState.Config.WsUrl and WebSocketFunction and not (not IsMobile and Library._GlobalChatConnected) then
+                if BackendState.Config.WsUrl and WebSocketFunction and not (not IsMobile and (Library._GlobalChatConnected or Library._GlobalChatConnectionStarting)) then
                     local SocketUrl = BuildUrl(BackendState.Config.WsUrl, {
                         token = BackendState.Config.Token,
                         clientId = BackendState.ClientId,
@@ -11635,8 +11650,8 @@ Library.Pages.GlobalChat = function(self, Data)
                         Size = IsExternalMessage and UDim2New(1, -28, 0, 0) or UDim2New(0, 0, 0, 0),
                         AnchorPoint = IsExternalMessage and Vector2New(0.5, 0) or Vector2New(0, 0),
                         Position = IsExternalMessage and UDim2New(0.5, 0, 0, 0) or UDim2New(0, 0, 0, 0),
-                        BackgroundColor3 = IsExternalMessage and FromRGB(92, 70, 0) or (IsMentionHighlight and FromRGB(62, 53, 31) or FromRGB(17, 16, 20)),
-                        BackgroundTransparency = IsExternalMessage and 0.1 or (IsMentionHighlight and 0.08 or 1),
+                        BackgroundColor3 = IsExternalMessage and FromRGB(92, 70, 0) or FromRGB(17, 16, 20),
+                        BackgroundTransparency = IsExternalMessage and 0.1 or 1,
                         ClipsDescendants = false
                     })
                     if not IsExternalMessage then
@@ -11710,8 +11725,8 @@ Library.Pages.GlobalChat = function(self, Data)
                         local MentionAccent = InstanceNew("Frame")
                         MentionAccent.Name = "\0"
                         MentionAccent.Position = UDim2New(0, 0, 0, 4)
-                        MentionAccent.Size = UDim2New(0, 3, 1, -8)
-                        MentionAccent.BackgroundColor3 = FromRGB(240, 178, 55)
+                        MentionAccent.Size = UDim2New(0, 2, 1, -10)
+                        MentionAccent.BackgroundColor3 = FromRGB(210, 165, 70)
                         MentionAccent.BorderSizePixel = 0
                         MentionAccent.ZIndex = 4
                         MentionAccent.Parent = BubbleItems["RealMessage"].Instance
