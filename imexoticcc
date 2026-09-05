@@ -9384,11 +9384,11 @@ Library.Pages.GlobalChat = function(self, Data)
             local function ProcessRenderQueue()
                 if RenderQueueRunning then return end
                 RenderQueueRunning = true
+                local ActiveRunId = BackendState.RunId
 
                 task.defer(function()
                     while #RenderQueue > 0 do
-                        if BackendState.Destroyed then
-                            RenderQueue = {}
+                        if BackendState.Destroyed or BackendState.RunId ~= ActiveRunId then
                             break
                         end
                         local Batch = math.min(RENDER_BATCH_SIZE, #RenderQueue)
@@ -9427,6 +9427,11 @@ Library.Pages.GlobalChat = function(self, Data)
                         end
                     end
                     RenderQueueRunning = false
+                    if #RenderQueue > 0 and not BackendState.Destroyed then
+                        ProcessRenderQueue()
+                    elseif BackendState.Destroyed then
+                        RenderQueue = {}
+                    end
                 end)
             end
 
@@ -10373,7 +10378,7 @@ Library.Pages.GlobalChat = function(self, Data)
                         return
                     end
 
-                        local Success = pcall(ChatSystem.ConnectBackend, ChatSystem, ActiveConfig)
+                        local Success = pcall(ChatSystem.ConnectBackend, ChatSystem, ActiveConfig, true)
                         if not Success then
                             BackendState.ReconnectScheduled = false
                             ScheduleBackendReconnect()
@@ -11171,12 +11176,14 @@ Library.Pages.GlobalChat = function(self, Data)
                 SetConnectionAppearance("Disconnected", FromRGB(255, 120, 120))
             end
 
-            function ChatSystem:ConnectBackend(Config)
+            function ChatSystem:ConnectBackend(Config, IsReconnect)
                 self:DisconnectBackend()
 
-                for _, Child in Items["Messages"].Instance:GetChildren() do
-                    if not Child:IsA("UIListLayout") and not Child:IsA("UIPadding") then
-                        Child:Destroy()
+                if not IsReconnect then
+                    for _, Child in Items["Messages"].Instance:GetChildren() do
+                        if not Child:IsA("UIListLayout") and not Child:IsA("UIPadding") then
+                            Child:Destroy()
+                        end
                     end
                 end
 
@@ -11186,11 +11193,11 @@ Library.Pages.GlobalChat = function(self, Data)
                 if not IsMobile and (Library._GlobalChatConnected or Library._GlobalChatConnectionStarting) then
                     Library._GlobalChatPacketHandler = HandlePayload
                 end
-                BackendState.SeenMessages = { }
+                BackendState.SeenMessages = IsReconnect and BackendState.SeenMessages or { }
                 BackendState.InitialSyncComplete = false
-                BackendState.LastMessageId = 0
+                BackendState.LastMessageId = IsReconnect and BackendState.LastMessageId or 0
                 BackendState.LastRenderedGroup = nil
-                BackendState.JoinTime = os.time() * 1000
+                BackendState.JoinTime = IsReconnect and BackendState.JoinTime or (os.time() * 1000)
                 BackendState.TypingActive = false
                 BackendState.TypingUsers = { }
                 BackendState.LastTypingSentAt = 0
@@ -11200,18 +11207,20 @@ Library.Pages.GlobalChat = function(self, Data)
                 BackendState.Polling = false
                 BackendState.DotsAnimRunning = false
                 BackendState.InputFocused = false
-                BackendState.ReplyingTo = nil
-                if BackendState.ActivePoll and BackendState.ActivePoll.ClosePoll then
-                    pcall(BackendState.ActivePoll.ClosePoll)
+                if not IsReconnect then
+                    BackendState.ReplyingTo = nil
+                    if BackendState.ActivePoll and BackendState.ActivePoll.ClosePoll then
+                        pcall(BackendState.ActivePoll.ClosePoll)
+                    end
+                    BackendState.ActivePoll = nil
+                    BackendState.MessageFramesById = { }
+                    BackendState.RenderedMessageOrder = { }
+                    BackendState.RenderedMessageOrderStart = 1
+                    BackendState.RenderedMessageCount = 0
+                    BackendState.UwuLockedUsers = { }
+                    BackendState.UwuLockIndicatorsBySenderId = { }
+                    BackendState.ProcessedDeletes = { }
                 end
-                BackendState.ActivePoll = nil
-                BackendState.MessageFramesById = { }
-                BackendState.RenderedMessageOrder = { }
-                BackendState.RenderedMessageOrderStart = 1
-                BackendState.RenderedMessageCount = 0
-                BackendState.UwuLockedUsers = { }
-                BackendState.UwuLockIndicatorsBySenderId = { }
-                BackendState.ProcessedDeletes = { }
                 BackendState.ServerAdminIds = { }
                 BackendState.Hwid = ""
                 pcall(function()
