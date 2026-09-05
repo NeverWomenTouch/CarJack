@@ -204,7 +204,7 @@ local Library do
             AdminIds = { 8581990383, 8305532026 },
             FilterEnabled = true,
             FilterUrl = "https://raw.githubusercontent.com/dano0011/orion-moded/main/bll",
-            MessagesCountDeletionInterval = 30,
+            MessagesCountDeletionInterval = 50,
             AnonymousMode = false,
         },
 
@@ -9004,6 +9004,29 @@ Library.Pages.GlobalChat = function(self, Data)
                 return table.concat(ResultBytes)
             end
 
+            local function UwuifyMessage(Text)
+                local Result = tostring(Text or "")
+                Result = Result:gsub("[Ss][Mm][Aa][Ll][Ll]", "smol")
+                Result = Result:gsub("[Cc][Uu][Tt][Ee]", "kawaii~")
+                Result = Result:gsub("[Ff][Ll][Uu][Ff][Ff]", "floof")
+                Result = Result:gsub("[Ll][Oo][Vv][Ee]", "luv")
+                Result = Result:gsub("[Ss][Tt][Uu][Pp][Ii][Dd]", "baka")
+                Result = Result:gsub("[Ww][Hh][Aa][Tt]", "nani")
+                Result = Result:gsub("[Mm][Ee][Oo][Ww]", "nya~")
+                Result = Result:gsub("([%s])([Nn])", "%1ny")
+                Result = Result:gsub("([A-Za-z])", function(Character)
+                    local Lower = Character:lower()
+                    if Lower == "l" or Lower == "r" then
+                        return "w"
+                    end
+                    return Lower
+                end)
+                Result = Result:gsub("([%s])([a-z]+)([^a-z]|$)", function(Whitespace, Word, Terminator)
+                    return Whitespace .. Word:sub(1, 1) .. "-" .. Word .. Terminator
+                end)
+                return Result
+            end
+
             local function IsViewingChat()
                 local IsMainPageOpen = not MainPage or MainPage.Active
                 local IsSubPageOpen = not ChatSystem.Page or ChatSystem.Page.Active
@@ -9224,7 +9247,7 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 local AfterId = FromStart and 0 or BackendState.LastMessageId
                 local IsTyping = IsViewingChat() and BackendState.InputFocused and StringLen(ChatSystem:GetTypedMessage()) > 0
-                local FetchLimit = FromStart and 5 or ((Config and Config.MessageLimit) or 50)
+                local FetchLimit = math.max(1, math.min(100, tonumber(Config and Config.MessageLimit) or 50))
                 local Success, Body = DoHttpRequest({
                     Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/messages", {
                         clientId = BackendState.ClientId,
@@ -10559,6 +10582,11 @@ Library.Pages.GlobalChat = function(self, Data)
                     joinedAt = BackendState.JoinTime
                 }
 
+                local LocalRenderPayload = TableClone(Payload)
+                if BackendState.UwuLockedUsers[tostring(Payload.senderId)] then
+                    LocalRenderPayload.message = UwuifyMessage(Payload.message)
+                end
+
                 if BackendState.Socket then
                     local Encoded = JsonEncode(Payload)
                     if Encoded and SocketSend(BackendState.Socket, Encoded) then
@@ -10568,7 +10596,7 @@ Library.Pages.GlobalChat = function(self, Data)
                             message = Payload.message,
                             replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
                         })
-                        RenderIncomingMessage(Payload)
+                        RenderIncomingMessage(LocalRenderPayload)
                         return true
                     end
                     BackendState.Socket = nil
@@ -10590,7 +10618,7 @@ Library.Pages.GlobalChat = function(self, Data)
                             message = Payload.message,
                             replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
                         })
-                        RenderIncomingMessage(Payload)
+                        RenderIncomingMessage(LocalRenderPayload)
                         return true
                     end
                 end
@@ -10629,7 +10657,7 @@ Library.Pages.GlobalChat = function(self, Data)
                     message = Payload.message,
                     replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
                 })
-                RenderIncomingMessage(Payload)
+                RenderIncomingMessage(LocalRenderPayload)
                 pcall(function() HandlePayload(JsonDecode(ResponseBody)) end)
                 return true
             end
@@ -10673,12 +10701,13 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 local IsLocal = Data and Data.isLocal
                 local AdminLocal = IsLocalAdmin()
+                local TargetIsAdmin = Data and IsAdminSender(Data.senderId)
 
                 Items["CtxReply"].Instance.Visible = true
                 Items["CtxDelete"].Instance.Visible = (IsLocal or AdminLocal) and true or false
                 Items["CtxCopy"].Instance.Visible = true
                 if Items["CtxTimeout"] then
-                    local TimeoutVisible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "") and true or false
+                    local TimeoutVisible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "") and true or false
                     Items["CtxTimeout"].Instance.Visible = TimeoutVisible
                     if TimeoutVisible then
                         local IsTimedOut = BackendState.TimedOutUsers and BackendState.TimedOutUsers[Data.senderId]
@@ -10688,12 +10717,15 @@ Library.Pages.GlobalChat = function(self, Data)
                     end
                 end
                 if Items["CtxUwulock"] then
-                    local UwuVisible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "") and true or false
+                    local UwuVisible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "") and true or false
                     Items["CtxUwulock"].Instance.Visible = UwuVisible
                     if UwuVisible and Items["CtxUwulockLabel"] then
                         local IsUwuLocked = BackendState.UwuLockedUsers and BackendState.UwuLockedUsers[Data.senderId]
                         Items["CtxUwulockLabel"].Instance.Text = IsUwuLocked and "Unuwulock User" or "Uwulock User"
                     end
+                end
+                if Items["CtxKick"] then
+                    Items["CtxKick"].Instance.Visible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "") and true or false
                 end
 
                 local ChatAbsPos = Items["GlobalChat"].Instance.AbsolutePosition
@@ -10706,9 +10738,10 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 local MenuW = 148
                 local DeleteVisible = IsLocal or AdminLocal
-                local TimeoutVisible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "")
-                local UwulockVisible = AdminLocal and not IsLocal and (Data and Data.senderId and Data.senderId ~= "")
-                local MenuH = 60 + (DeleteVisible and 30 or 0) + (TimeoutVisible and 30 or 0) + (UwulockVisible and 30 or 0)
+                local TimeoutVisible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "")
+                local UwulockVisible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "")
+                local KickVisible = AdminLocal and not IsLocal and not TargetIsAdmin and (Data and Data.senderId and Data.senderId ~= "")
+                local MenuH = 60 + (DeleteVisible and 30 or 0) + (TimeoutVisible and 30 or 0) + (UwulockVisible and 30 or 0) + (KickVisible and 30 or 0)
                 if LocalX + MenuW > ChatAbsSize.X - 4 then
                     LocalX = ChatAbsSize.X - MenuW - 4
                 end
@@ -10804,6 +10837,93 @@ Library.Pages.GlobalChat = function(self, Data)
                     pcall(setclipboard, tostring(Data.message))
                 end
             end)
+
+            local function SendAdminKick(Data, Reason)
+                local Config = BackendState.Config
+                if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then return end
+                Library:Thread(function()
+                    DoHttpRequest({
+                        Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/admin/game-kick"),
+                        Method = "POST",
+                        Headers = MergeTable(GetRequestHeaders(Config), { ["Content-Type"] = "application/json" }),
+                        Body = JsonEncode({
+                            adminSenderId = tostring(LocalPlayer.UserId),
+                            targetSenderId = tostring(Data.senderId),
+                            targetUsername = tostring(Data.username or ""),
+                            reason = tostring(Reason or "")
+                        })
+                    })
+                end)
+            end
+
+            local function ShowKickPrompt(Data)
+                local Overlay = Instances:Create("TextButton", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    Text = "",
+                    AutoButtonColor = false,
+                    BackgroundColor3 = FromRGB(0, 0, 0),
+                    BackgroundTransparency = 0.35,
+                    Size = UDim2New(1, 0, 1, 0),
+                    ZIndex = 140
+                })
+                local Box = Instances:Create("Frame", {
+                    Parent = Overlay.Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, 0, 0.5, 0),
+                    Size = UDim2New(0, 310, 0, 142),
+                    BackgroundColor3 = FromRGB(17, 16, 20),
+                    ZIndex = 141
+                }) Box:AddToTheme({BackgroundColor3 = "Background"})
+                Instances:Create("UICorner", {Parent = Box.Instance, CornerRadius = UDimNew(0, 8)})
+                local Title = Instances:Create("TextLabel", {
+                    Parent = Box.Instance, Name = "\0", BackgroundTransparency = 1,
+                    Position = UDim2New(0, 14, 0, 12), Size = UDim2New(1, -28, 0, 24),
+                    Text = "Kick " .. tostring(Data.username or "this user") .. "?", FontFace = Library.Font,
+                    TextColor3 = FromRGB(255, 255, 255), TextSize = 17, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 142
+                }) Title:AddToTheme({TextColor3 = "Text"})
+                local Hint = Instances:Create("TextLabel", {
+                    Parent = Box.Instance, Name = "\0", BackgroundTransparency = 1,
+                    Position = UDim2New(0, 14, 0, 43), Size = UDim2New(1, -28, 0, 34),
+                    Text = "Do you want to include a reason?", FontFace = Library.Subfont,
+                    TextColor3 = FromRGB(255, 255, 255), TextTransparency = 0.25, TextSize = 13, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 142
+                }) Hint:AddToTheme({TextColor3 = "Text"})
+                local No = Instances:Create("TextButton", {Parent = Box.Instance, Name = "\0", Text = "No", FontFace = Library.Subfont, TextSize = 13, TextColor3 = FromRGB(255, 255, 255), BackgroundColor3 = FromRGB(45, 45, 55), BorderSizePixel = 0, Position = UDim2New(0, 14, 1, -48), Size = UDim2New(0.5, -21, 0, 34), ZIndex = 142}) No:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+                local Yes = Instances:Create("TextButton", {Parent = Box.Instance, Name = "\0", Text = "Yes", FontFace = Library.Subfont, TextSize = 13, TextColor3 = FromRGB(255, 255, 255), BackgroundColor3 = FromRGB(210, 65, 65), BorderSizePixel = 0, Position = UDim2New(0.5, 7, 1, -48), Size = UDim2New(0.5, -21, 0, 34), ZIndex = 142})
+                local function Close() pcall(function() Overlay:Clean() end) end
+                local AskingForReason = true
+                local Input
+                No.MouseButton1Click:Connect(function()
+                    if AskingForReason then Close(); SendAdminKick(Data, "") else Close() end
+                end)
+                Yes.MouseButton1Click:Connect(function()
+                    if not AskingForReason then
+                        local Reason = Input and Input.Instance.Text or ""
+                        Close()
+                        SendAdminKick(Data, Reason)
+                        return
+                    end
+                    AskingForReason = false
+                    Box.Instance.Size = UDim2New(0, 310, 0, 190)
+                    Hint.Instance.Text = "Add a reason, then press Kick."
+                    Yes.Instance.Text = "Kick"
+                    No.Instance.Text = "Cancel"
+                    Input = Instances:Create("TextBox", {Parent = Box.Instance, Name = "\0", Text = "", PlaceholderText = "Reason (optional)", ClearTextOnFocus = false, MultiLine = true, TextWrapped = true, FontFace = Library.Subfont, TextSize = 13, TextColor3 = FromRGB(255, 255, 255), BackgroundColor3 = FromRGB(41, 40, 49), BorderSizePixel = 0, Position = UDim2New(0, 14, 0, 82), Size = UDim2New(1, -28, 0, 54), ZIndex = 142}) Input:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+                    Instances:Create("UICorner", {Parent = Input.Instance, CornerRadius = UDimNew(0, 5)})
+                    task.defer(function() Input.Instance:CaptureFocus() end)
+                end)
+            end
+
+            Items["CtxKick"] = Instances:Create("TextButton", {
+                Parent = Items["ContextMenu"].Instance, Name = "\0", Text = "Kick User", FontFace = Library.Subfont,
+                TextColor3 = FromRGB(255, 85, 85), TextSize = 13, Size = UDim2New(1, 0, 0, 30),
+                BackgroundTransparency = 1, BorderSizePixel = 0, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 111, LayoutOrder = 6, Visible = false
+            })
+            Instances:Create("UIPadding", {Parent = Items["CtxKick"].Instance, PaddingLeft = UDimNew(0, 10)})
+            Items["CtxKick"].Instance.MouseEnter:Connect(function() Items["CtxKick"].Instance.BackgroundTransparency = 0.7; Items["CtxKick"].Instance.BackgroundColor3 = Library.Theme["Hovered Element"] end)
+            Items["CtxKick"].Instance.MouseLeave:Connect(function() Items["CtxKick"].Instance.BackgroundTransparency = 1 end)
+            Items["CtxKick"]:Connect("MouseButton1Click", function() local Data = ActiveContextMenuData; HideContextMenu(); if Data then ShowKickPrompt(Data) end end)
 
             Items["CtxTimeout"] = Instances:Create("TextButton", {
                 Parent = Items["ContextMenu"].Instance,
@@ -10972,14 +11092,10 @@ Library.Pages.GlobalChat = function(self, Data)
                     Items["TimeoutPicker"].TargetData = nil
                     if not PickData or not PickData.senderId or PickData.senderId == "" then return end
                     local TgtId = tostring(PickData.senderId)
-                    BackendState.TimedOutUsers[TgtId] = true
-                    for _, IconRef in ipairs(BackendState.TimeoutIconsBySenderId[TgtId] or {}) do
-                        pcall(function() IconRef.Visible = true end)
-                    end
                     local Config = BackendState.Config
                     if not Config or not Config.HttpUrl or Config.HttpUrl == "" or not RequestFunction then return end
                     Library:Thread(function()
-                        DoHttpRequest({
+                        local Success = DoHttpRequest({
                             Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/admin/timeout"),
                             Method = "POST",
                             Headers = MergeTable(GetRequestHeaders(Config), { ["Content-Type"] = "application/json" }),
@@ -10989,6 +11105,12 @@ Library.Pages.GlobalChat = function(self, Data)
                                 durationMs = DurSeconds * 1000
                             })
                         })
+                        if Success then
+                            BackendState.TimedOutUsers[TgtId] = true
+                            for _, IconRef in ipairs(BackendState.TimeoutIconsBySenderId[TgtId] or {}) do
+                                pcall(function() IconRef.Visible = true end)
+                            end
+                        end
                     end)
                 end)
             end
@@ -11031,14 +11153,10 @@ Library.Pages.GlobalChat = function(self, Data)
                 if not Data or not Data.senderId or Data.senderId == "" then return end
                 if BackendState.TimedOutUsers and BackendState.TimedOutUsers[Data.senderId] then
                     local TgtId2 = tostring(Data.senderId)
-                    BackendState.TimedOutUsers[TgtId2] = nil
-                    for _, IconRef in ipairs(BackendState.TimeoutIconsBySenderId[TgtId2] or {}) do
-                        pcall(function() IconRef.Visible = false end)
-                    end
                     local Config = BackendState.Config
                     if Config and Config.HttpUrl and Config.HttpUrl ~= "" and RequestFunction then
                         Library:Thread(function()
-                            DoHttpRequest({
+                            local Success = DoHttpRequest({
                                 Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/admin/timeout"),
                                 Method = "POST",
                                 Headers = MergeTable(GetRequestHeaders(Config), { ["Content-Type"] = "application/json" }),
@@ -11048,6 +11166,12 @@ Library.Pages.GlobalChat = function(self, Data)
                                     durationMs = 0
                                 })
                             })
+                            if Success then
+                                BackendState.TimedOutUsers[TgtId2] = nil
+                                for _, IconRef in ipairs(BackendState.TimeoutIconsBySenderId[TgtId2] or {}) do
+                                    pcall(function() IconRef.Visible = false end)
+                                end
+                            end
                         end)
                     end
                     return
@@ -11075,15 +11199,10 @@ Library.Pages.GlobalChat = function(self, Data)
 
                 local TargetSenderId = tostring(Data.senderId)
                 local EnableLock = not (BackendState.UwuLockedUsers and BackendState.UwuLockedUsers[TargetSenderId])
-                BackendState.UwuLockedUsers[TargetSenderId] = EnableLock and true or nil
-                for _, IndicatorRef in ipairs(BackendState.UwuLockIndicatorsBySenderId[TargetSenderId] or {}) do
-                    pcall(function() IndicatorRef.Visible = EnableLock end)
-                end
-
                 local Config = BackendState.Config
                 if Config and Config.HttpUrl and Config.HttpUrl ~= "" and RequestFunction then
                     Library:Thread(function()
-                        DoHttpRequest({
+                        local Success = DoHttpRequest({
                             Url = BuildAuthorizedUrl(Config, Config.HttpUrl .. "/admin/uwulock"),
                             Method = "POST",
                             Headers = MergeTable(GetRequestHeaders(Config), { ["Content-Type"] = "application/json" }),
@@ -11093,6 +11212,12 @@ Library.Pages.GlobalChat = function(self, Data)
                                 enabled = EnableLock
                             })
                         })
+                        if Success then
+                            BackendState.UwuLockedUsers[TargetSenderId] = EnableLock and true or nil
+                            for _, IndicatorRef in ipairs(BackendState.UwuLockIndicatorsBySenderId[TargetSenderId] or {}) do
+                                pcall(function() IndicatorRef.Visible = EnableLock end)
+                            end
+                        end
                     end)
                 end
             end)
