@@ -8790,6 +8790,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 LocalEchoMessages = {},
                 RecentLocalRenders = {},
                 RenderedLocalMessageIds = {},
+                PendingLocalFrames = {},
             }
 
             local OnMessagePressed = { }
@@ -9447,7 +9448,14 @@ Library.Pages.GlobalChat = function(self, Data)
                 if IsLocalClientMessage then
                     local LocalMessageId = tostring(MessageData.clientMessageId or "")
                     if LocalMessageId ~= "" then
-                        if BackendState.RenderedLocalMessageIds[LocalMessageId] then
+                        local PendingFrame = BackendState.PendingLocalFrames[LocalMessageId]
+                        if PendingFrame and MessageId then
+                            PendingFrame.SetMessageId(MessageId)
+                            BackendState.MessageFramesById[MessageId] = PendingFrame.Entry
+                            BackendState.RenderedMessageCount = (tonumber(BackendState.RenderedMessageCount) or 0) + 1
+                            BackendState.RenderedMessageOrder[#BackendState.RenderedMessageOrder + 1] = MessageId
+                            BackendState.PendingLocalFrames[LocalMessageId] = nil
+                        elseif BackendState.RenderedLocalMessageIds[LocalMessageId] then
                             return
                         end
                         BackendState.RenderedLocalMessageIds[LocalMessageId] = true
@@ -12029,6 +12037,20 @@ Library.Pages.GlobalChat = function(self, Data)
                             Group = GroupFrame,
                             Connections = BubbleConnections,
                             SenderId = tostring(MsgSenderId or "")
+                        }
+                    elseif GroupFrame and StackFrame and type(MessageMeta) == "table" and tostring(MessageMeta.clientMessageId or "") ~= "" then
+                        local LocalMessageId = tostring(MessageMeta.clientMessageId)
+                        BackendState.PendingLocalFrames[LocalMessageId] = {
+                            Entry = {
+                                Bubble = BubbleRow,
+                                Stack = StackFrame,
+                                Group = GroupFrame,
+                                Connections = BubbleConnections,
+                                SenderId = tostring(MsgSenderId or "")
+                            },
+                            SetMessageId = function(NewMessageId)
+                                MessageIdNum = tonumber(NewMessageId)
+                            end
                         }
                     end
 
