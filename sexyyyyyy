@@ -8782,6 +8782,7 @@ Library.Pages.GlobalChat = function(self, Data)
                 RecentChatters = {},
                 AllKnownChatters = {},
                 HasMentionUnread = false,
+                LocalEchoMessages = {},
             }
 
             local OnMessagePressed = { }
@@ -9429,6 +9430,19 @@ Library.Pages.GlobalChat = function(self, Data)
                 end
 
                 local MessageId = tonumber(MessageData.id)
+                local ClientId = tostring(MessageData.clientId or "")
+                if MessageId and ClientId ~= "" then
+                    local ReplyId = tostring(type(MessageData.replyTo) == "table" and MessageData.replyTo.id or "")
+                    for Index = #BackendState.LocalEchoMessages, 1, -1 do
+                        local Pending = BackendState.LocalEchoMessages[Index]
+                        if Pending.clientId == ClientId
+                            and Pending.message == tostring(MessageData.message or "")
+                            and Pending.replyId == ReplyId then
+                            table.remove(BackendState.LocalEchoMessages, Index)
+                            return
+                        end
+                    end
+                end
                 if MessageId and BackendState.ProcessedDeletes[MessageId] then
                     return
                 end
@@ -10464,6 +10478,12 @@ Library.Pages.GlobalChat = function(self, Data)
                 if BackendState.Socket then
                     local Encoded = JsonEncode(Payload)
                     if Encoded and SocketSend(BackendState.Socket, Encoded) then
+                        TableInsert(BackendState.LocalEchoMessages, {
+                            clientId = Payload.clientId,
+                            message = Payload.message,
+                            replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
+                        })
+                        RenderIncomingMessage(Payload)
                         return true
                     end
                     BackendState.Socket = nil
@@ -10478,7 +10498,13 @@ Library.Pages.GlobalChat = function(self, Data)
                 local SharedSocketSend = Library._GlobalChatSend
                 if type(SharedSocketSend) == "function" then
                     local SharedSuccess, SharedSent = pcall(SharedSocketSend, Encoded)
-                    if SharedSuccess and SharedSent then
+                    if SharedSuccess and (SharedSent == nil or SharedSent == true) then
+                        TableInsert(BackendState.LocalEchoMessages, {
+                            clientId = Payload.clientId,
+                            message = Payload.message,
+                            replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
+                        })
+                        RenderIncomingMessage(Payload)
                         return true
                     end
                 end
@@ -10511,6 +10537,12 @@ Library.Pages.GlobalChat = function(self, Data)
                     return false
                 end
 
+                TableInsert(BackendState.LocalEchoMessages, {
+                    clientId = Payload.clientId,
+                    message = Payload.message,
+                    replyId = tostring(type(Payload.replyTo) == "table" and Payload.replyTo.id or "")
+                })
+                RenderIncomingMessage(Payload)
                 pcall(function() HandlePayload(JsonDecode(ResponseBody)) end)
                 return true
             end
