@@ -8306,6 +8306,57 @@ Library.Pages.GlobalChat = function(self, Data)
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(73, 255, 109)
                 })
+
+                Items["ConnectedPulse1"] = Instances:Create("Frame", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0, 15, 1, -20),
+                    Size = UDim2New(0, 10, 0, 10),
+                    BorderSizePixel = 0,
+                    BackgroundTransparency = 0.55,
+                    BackgroundColor3 = FromRGB(73, 255, 109),
+                    ZIndex = 1
+                })
+
+                Items["ConnectedPulse2"] = Instances:Create("Frame", {
+                    Parent = Items["GlobalChat"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0, 15, 1, -20),
+                    Size = UDim2New(0, 10, 0, 10),
+                    BorderSizePixel = 0,
+                    BackgroundTransparency = 0.75,
+                    BackgroundColor3 = FromRGB(73, 255, 109),
+                    ZIndex = 1
+                })
+
+                for _, Pulse in {Items["ConnectedPulse1"], Items["ConnectedPulse2"]} do
+                    Instances:Create("UICorner", {
+                        Parent = Pulse.Instance,
+                        Name = "\0",
+                        CornerRadius = UDimNew(1, 0)
+                    })
+                end
+
+                local function AnimateConnectedPulse(Item, Delay)
+                    Library:Thread(function()
+                        task.wait(Delay)
+                        local Pulse = Item.Instance
+                        while Library and Pulse and Pulse.Parent do
+                            Pulse.Size = UDim2New(0, 10, 0, 10)
+                            Pulse.BackgroundTransparency = 0.45
+                            Tween:Create(Pulse, TweenInfo.new(1.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                Size = UDim2New(0, 28, 0, 28),
+                                BackgroundTransparency = 1
+                            }, true)
+                            task.wait(1.65)
+                        end
+                    end)
+                end
+
+                AnimateConnectedPulse(Items["ConnectedPulse1"], 0)
+                AnimateConnectedPulse(Items["ConnectedPulse2"], 0.8)
                 
                 Instances:Create("UICorner", {
                     Parent = Items["ConnectedCircle"].Instance,
@@ -8720,6 +8771,8 @@ Library.Pages.GlobalChat = function(self, Data)
 
             function ChatSystem:SetConnectedColor(Color)
                 Items["ConnectedCircle"].Instance.BackgroundColor3 = Color
+                Items["ConnectedPulse1"].Instance.BackgroundColor3 = Color
+                Items["ConnectedPulse2"].Instance.BackgroundColor3 = Color
             end
 
             local MainPage = ChatSystem.Page and ChatSystem.Page.Page
@@ -11573,6 +11626,12 @@ Library.Pages.GlobalChat = function(self, Data)
                         end
                         if Items["ConnectedCircle"] then
                             Items["ConnectedCircle"].Instance.Visible = not ShowBanner
+                        end
+                        if Items["ConnectedPulse1"] then
+                            Items["ConnectedPulse1"].Instance.Visible = not ShowBanner
+                        end
+                        if Items["ConnectedPulse2"] then
+                            Items["ConnectedPulse2"].Instance.Visible = not ShowBanner
                         end
                     end
 
