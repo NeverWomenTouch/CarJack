@@ -13374,6 +13374,7 @@ Library.Pages.GlobalChatSuggestions = function(self, Data)
                     Size = UDim2New(0, 18, 0, 16),
                     Visible = false,
                     BorderSizePixel = 0,
+                    BackgroundTransparency = 1,
                     BackgroundColor3 = FromRGB(240, 50, 50),
                     ZIndex = 12
                 })
@@ -14075,6 +14076,7 @@ Library.Pages.GlobalChatSuggestions = function(self, Data)
                     Size = UDim2New(0, 16, 0, 14),
                     Visible = false,
                     BorderSizePixel = 0,
+                    BackgroundTransparency = 1,
                     BackgroundColor3 = FromRGB(240, 50, 50),
                     ZIndex = 73
                 })
@@ -14089,7 +14091,7 @@ Library.Pages.GlobalChatSuggestions = function(self, Data)
                     Parent = SuggestionPageItems["UnreadBadge"].Instance,
                     Name = "\0",
                     FontFace = Library.Font,
-                    TextColor3 = FromRGB(255, 255, 255),
+                    TextColor3 = FromRGB(255, 85, 85),
                     Text = "0",
                     Size = UDim2New(1, 0, 1, 0),
                     BackgroundTransparency = 1,
@@ -14434,7 +14436,9 @@ Library.Pages.GlobalChatSuggestions = function(self, Data)
                 MailboxOpen = Bool == true
                 SetOverlayVisible(Items["MailboxOverlay"], Items["MailboxPanel"], Bool)
                 if Bool then
-                    SuggestionSystem:RefreshSuggestions()
+                    if SuggestionSystem:RefreshSuggestions() then
+                        MarkCurrentSuggestionsSeen()
+                    end
                 end
             end
 
@@ -14686,9 +14690,7 @@ Library.Pages.GlobalChatSuggestions = function(self, Data)
                 Library:Connect(SuggestionSystem.Page.Items["Inactive"].Instance.InputBegan, function(Input)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                         task.defer(function()
-                            if SuggestionSystem:RefreshSuggestions() then
-                                MarkCurrentSuggestionsSeen()
-                            end
+                            SuggestionSystem:RefreshSuggestions()
                         end)
                     end
                 end)
