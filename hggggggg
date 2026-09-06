@@ -14697,10 +14697,18 @@ Library.Pages.GlobalChatSuggestions = function(self, Data)
             ResetDraft(false)
             UpdateSuggestionInputScroll(false)
 
+            task.defer(function()
+                if not SuggestionDestroyed then
+                    pcall(function()
+                        SuggestionSystem:RefreshSuggestions()
+                    end)
+                end
+            end)
+
             Library:Thread(function()
                 while not SuggestionDestroyed do
                     task.wait(20)
-                    if not SuggestionDestroyed and SuggestionSystem.Page and SuggestionSystem.Page.Active then
+                    if not SuggestionDestroyed then
                         pcall(function()
                             SuggestionSystem:RefreshSuggestions()
                         end)
