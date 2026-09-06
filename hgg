@@ -4396,15 +4396,25 @@ local Library do
                 poll_start = true,
                 poll_update = true,
                 poll_end = true,
+                poll_close = true,
                 typing = true,
                 chat_lock = true,
                 slow_mode = true,
                 anonymous_mode = true,
                 admin_update = true,
+                history_clear = true,
+                announcement = true,
+                force_update = true,
+                update_notify = true,
+                game_kick = true,
+                hwid_ban = true,
             }
 
             if ForwardTypes[PacketType] and type(self._GlobalChatPacketHandler) == "function" then
                 pcall(self._GlobalChatPacketHandler, Packet)
+                if PacketType ~= "history" and PacketType ~= "stats" then
+                    return
+                end
             end
 
             if PacketType == "history" or PacketType == "stats" then
@@ -4514,6 +4524,10 @@ local Library do
             end
 
             if PacketType == "poll_start" and type(Packet.poll) == "table" then
+                local IncomingPollId = tostring(Packet.poll.id or "")
+                if self._ActivePoll and self._ActivePoll.PollId == IncomingPollId then
+                    return
+                end
                 if self._ActivePoll then
                     pcall(function()
                         if self._ActivePoll.ClosePoll then
@@ -8007,6 +8021,10 @@ Library.Pages.GlobalChat = function(self, Data)
                 Page = self
             }
 
+            if self.Items and self.Items["Searchbar"] then
+                self.Items["Searchbar"].Instance.Visible = false
+            end
+
             if ChatSystem.Page.Columns ~= 1 then
                 error("GlobalChat can only be in one column (Edit Columns property to 1)")
             end
@@ -8106,6 +8124,14 @@ Library.Pages.GlobalChat = function(self, Data)
                     BorderSizePixel = 0,
                     MultiLine = true
                 })  Items["Input"]:AddToTheme({TextColor3 = "Text"})
+
+                Items["Input"].Instance:GetPropertyChangedSignal("Text"):Connect(function()
+                    local Text = Items["Input"].Instance.Text
+                    if StringLen(Text) > 500 then
+                        Items["Input"].Instance.Text = StringSub(Text, 1, 500)
+                        Items["Input"].Instance.CursorPosition = -1
+                    end
+                end)
 
                 Instances:Create("UISizeConstraint", {
                     Parent = Items["Input"].Instance,
@@ -9610,6 +9636,24 @@ Library.Pages.GlobalChat = function(self, Data)
                     return
                 end
 
+                if Payload.type == "history_clear" then
+                    local MessageIds = {}
+                    for MessageId in BackendState.MessageFramesById do
+                        MessageIds[#MessageIds + 1] = MessageId
+                    end
+                    for _, MessageId in MessageIds do
+                        ChatSystem:DeleteRenderedMessage(MessageId)
+                    end
+                    BackendState.MessageFramesById = {}
+                    BackendState.RenderedMessageOrder = {}
+                    BackendState.RenderedMessageOrderStart = 1
+                    BackendState.RenderedMessageCount = 0
+                    BackendState.SeenMessages = {}
+                    BackendState.ProcessedDeletes = {}
+                    BackendState.LastMessageId = 0
+                    return
+                end
+
                 if type(Payload.deletedIds) == "table" then
                     for _, DelId in Payload.deletedIds do
                         local NumId = tonumber(DelId)
@@ -9805,6 +9849,10 @@ Library.Pages.GlobalChat = function(self, Data)
                 end
 
                 if Payload.type == "poll_start" and type(Payload.poll) == "table" then
+                        local IncomingPollId = tostring(Payload.poll.id or "")
+                        if BackendState.ActivePoll and BackendState.ActivePoll.PollId == IncomingPollId then
+                            return
+                        end
                     if BackendState.ActivePoll then
                         pcall(function()
                             if BackendState.ActivePoll.ClosePoll then
@@ -10350,6 +10398,13 @@ Library.Pages.GlobalChat = function(self, Data)
                             FinalPoll.ClosePoll()
                         end
                     end)
+                    return
+                end
+
+                if Payload.type == "poll_close" then
+                    if BackendState.ActivePoll and BackendState.ActivePoll.ClosePoll then
+                        BackendState.ActivePoll.ClosePoll()
+                    end
                     return
                 end
 
